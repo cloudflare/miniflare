@@ -74,7 +74,7 @@ Optionally, you can specify a path (e.g. `--kv-persist ./data`) to use a differe
 
 ```javascript
 import vm from "vm";
-import { ConsoleLog, Miniflare, Request } from ".";
+import { ConsoleLog, Miniflare, Request } from "miniflare";
 
 // Loading script from file
 const mf = new Miniflare("./path/to/script.js", {
