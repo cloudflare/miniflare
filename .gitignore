@@ -1,0 +1,8 @@
+.DS_Store
+.idea
+.mf
+.tmp
+node_modules
+dist
+.env
+*.toml
