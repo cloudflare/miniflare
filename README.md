@@ -11,6 +11,7 @@ Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
 - ⏰ Scheduled Events (with manual and cron triggering)
 - 🔑 `.env` File Support (for secrets)
 - 🗺 Source Map Support
+- 👀 Automatic Reload on File Changes
 - 💪 Written in TypeScript
 
 ## Coming Soon
