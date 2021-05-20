@@ -139,3 +139,7 @@ mf.createServer().listen(3000);
 const waitUntil2 = await mf.dispatchScheduled(Date.now());
 console.log(waitUntil2[0]); // Something else
 ```
+
+## Acknowledgements
+
+Many thanks to [dollarshaveclub/cloudworker](https://github.com/dollarshaveclub/cloudworker) and [gja/cloudflare-worker-local](https://github.com/gja/cloudflare-worker-local) for inspiration.
