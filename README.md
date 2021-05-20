@@ -19,6 +19,8 @@ Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
 - 📌 Durable Objects
 - ✉️ WebSockets
 - 📄 HTMLRewriter
+- 🛠 Custom Builds Support 
+- ⚙️ WebAssembly Support
 - 🤹 Custom [Jest Environment](https://jestjs.io/docs/configuration#testenvironment-string)
 - ✅ More Tests
 
