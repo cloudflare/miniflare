@@ -45,27 +45,32 @@ export class ScheduledEvent {
   }
 }
 
-type EventListener = (event: any) => void;
+type EventListener<Event> = (event: Event) => void;
 
 export type ResponseWaitUntil<WaitUntil extends any[] = any[]> = Response & {
   waitUntil: () => Promise<WaitUntil>;
 };
 
 export class EventsModule extends Module {
-  private listeners: Record<string, EventListener[]> = {};
+  _listeners: Record<string, EventListener<any>[]> = {};
 
-  addEventListener(type: string, listener: EventListener): void {
+  addEventListener(type: "fetch", listener: EventListener<FetchEvent>): void;
+  addEventListener(
+    type: "scheduled",
+    listener: EventListener<ScheduledEvent>
+  ): void;
+  addEventListener(type: string, listener: EventListener<any>): void {
     if (type !== "fetch" && type !== "scheduled") {
       this.log.warn(
         `Invalid event type: expected "fetch" | "scheduled", got "${type}"`
       );
     }
-    if (!(type in this.listeners)) this.listeners[type] = [];
-    this.listeners[type].push(listener);
+    if (!(type in this._listeners)) this._listeners[type] = [];
+    this._listeners[type].push(listener);
   }
 
   removeEventListeners(): void {
-    this.listeners = {};
+    this._listeners = {};
   }
 
   buildSandbox(_options: ProcessedOptions): Sandbox {
@@ -80,10 +85,14 @@ export class EventsModule extends Module {
     request: Request,
     upstreamUrl?: URL
   ): Promise<ResponseWaitUntil<WaitUntil>> {
+    // NOTE: upstreamUrl is only used for throwing an error if no listener
+    // provides a response. For this function to work correctly, the request's
+    // origin must also be upstreamUrl.
+
     const event = new FetchEvent(request.clone());
     const waitUntil = async () =>
       (await Promise.all(event._waitUntilPromises)) as WaitUntil;
-    for (const listener of this.listeners.fetch ?? []) {
+    for (const listener of this._listeners.fetch ?? []) {
       try {
         listener(event);
         if (event._response) {
@@ -107,8 +116,6 @@ export class EventsModule extends Module {
       );
     }
 
-    // TODO: document that upstream must be passed as the request URL for
-    //  dispatchEvent to work properly
     request.headers.delete("host");
     const response = (await fetch(request)) as ResponseWaitUntil<WaitUntil>;
     response.waitUntil = waitUntil;
@@ -119,7 +126,7 @@ export class EventsModule extends Module {
     scheduledTime?: number
   ): Promise<WaitUntil> {
     const event = new ScheduledEvent(scheduledTime ?? Date.now());
-    for (const listener of this.listeners.scheduled ?? []) {
+    for (const listener of this._listeners.scheduled ?? []) {
       listener(event);
     }
     return (await Promise.all(event._waitUntilPromises)) as WaitUntil;
