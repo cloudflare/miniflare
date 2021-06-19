@@ -1,7 +1,6 @@
 import { URL } from "url";
 import fetch, { FetchError, Request, Response } from "@mrbbot/node-fetch";
-import { ProcessedOptions } from "../options";
-import { Module, Sandbox } from "./module";
+import { Context, Module } from "./module";
 
 export class FetchEvent {
   readonly type: "fetch";
@@ -69,11 +68,11 @@ export class EventsModule extends Module {
     this._listeners[type].push(listener);
   }
 
-  removeEventListeners(): void {
+  resetEventListeners(): void {
     this._listeners = {};
   }
 
-  buildSandbox(_options: ProcessedOptions): Sandbox {
+  buildSandbox(): Context {
     return {
       FetchEvent,
       ScheduledEvent,

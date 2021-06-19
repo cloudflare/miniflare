@@ -1,6 +1,6 @@
 import { FileKVStorage, FilteredKVStorageNamespace } from "../kv";
 import { ProcessedOptions } from "../options";
-import { Module, Sandbox } from "./module";
+import { Context, Module } from "./module";
 
 // TODO: document this
 const manifestProxy = new Proxy(Object.freeze({}), {
@@ -8,7 +8,7 @@ const manifestProxy = new Proxy(Object.freeze({}), {
 });
 
 export class SitesModule extends Module {
-  buildSandbox(options: ProcessedOptions): Sandbox {
+  buildEnvironment(options: ProcessedOptions): Context {
     if (!options.sitePath) return {};
 
     const storage = new FileKVStorage(options.sitePath);

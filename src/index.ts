@@ -1,36 +1,25 @@
+import assert from "assert";
+import { promises as fs, rmdirSync } from "fs";
 import http from "http";
-import vm from "vm";
+import os from "os";
+import path from "path";
 import { BodyInit, Request } from "@mrbbot/node-fetch";
+import exitHook from "exit-hook";
 import cron from "node-cron";
 import sourceMap from "source-map-support";
 import { KVStorageNamespace } from "./kv";
 import { ConsoleLog, Log, NoOpLog, logResponse } from "./log";
 import { Cache, ResponseWaitUntil } from "./modules";
-import { Sandbox } from "./modules/module";
+import { Context } from "./modules/module";
 import * as modules from "./modules/modules";
-import { Options, ProcessedOptions } from "./options";
+import { Options, ProcessedOptions, relativePath } from "./options";
+import { ModuleScriptInstance, ScriptInstance } from "./scripts";
 import { Watcher } from "./watcher";
 
 type ModuleName = keyof typeof modules;
 type Modules = {
   [K in ModuleName]: InstanceType<typeof modules[K]>;
 };
-
-class SandboxedScript {
-  private readonly _script: vm.Script;
-  private readonly _context: vm.Context;
-
-  constructor(script: vm.Script, sandbox: Sandbox) {
-    this._script = script;
-    this._context = vm.createContext(sandbox, {
-      codeGeneration: { strings: false },
-    });
-  }
-
-  run() {
-    this._script.runInContext(this._context);
-  }
-}
 
 export class Miniflare {
   readonly log: Log;
@@ -39,15 +28,15 @@ export class Miniflare {
   private _initResolve?: () => void;
   private _watcher?: Watcher;
   private _options?: ProcessedOptions;
-  private _previousOptionsKey?: number;
-  private _sandbox?: Sandbox;
-  private _worker?: SandboxedScript;
+
+  private _sandbox?: Context;
+  private _environment?: Context;
   private _scheduledTasks?: cron.ScheduledTask[];
 
-  constructor(script: vm.Script, options?: Options);
-  constructor(scriptPath: string, options?: Options);
-  constructor(script: vm.Script | string, options: Options = {}) {
-    if (options.sourceMap) sourceMap.install();
+  constructor(options: Options) {
+    if (options.sourceMap) {
+      sourceMap.install({ emptyCacheBetweenOperations: true });
+    }
     this.log = !options.log
       ? new NoOpLog()
       : options.log === true
@@ -61,51 +50,55 @@ export class Miniflare {
       {} as Modules
     );
 
-    this._previousOptionsKey = -1;
     this._initPromise = new Promise(async (resolve) => {
       this._initResolve = resolve;
+
+      // If script specified as string, write it to temporary file so we
+      // only have to handle scripts as files later on
+      if (options.script) {
+        options.scriptPath = await this._writeTemporaryScript(options.script);
+        delete options.script;
+      }
+
       this._watcher = new Watcher(
         this.log,
         this._watchCallback.bind(this),
-        script,
         options
       );
     });
   }
 
-  private _watchCallback(
-    script: vm.Script,
-    options: ProcessedOptions,
-    optionsKey: number
-  ) {
-    if (
-      this._sandbox === undefined ||
-      this._previousOptionsKey !== optionsKey
-    ) {
-      this._previousOptionsKey = optionsKey;
-      this._options = options;
-      this._sandbox = this._buildSandbox(options);
-      this._reloadScheduled();
-    }
-    this._reloadWorker(script, this._sandbox);
-    // This should never be undefined as _watchCallback is only called by the
-    // watcher which is created after _initResolve is set
-    // TODO: wrap this call with an if statement and type error as with watcher
-    //  to assert this
-    this._initResolve?.();
+  private async _writeTemporaryScript(code: string): Promise<string> {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "mf-"));
+    exitHook(() => rmdirSync(tmp, { recursive: true }));
+    const tmpScriptPath = path.join(tmp, "script.js");
+    await fs.writeFile(tmpScriptPath, code, "utf8");
+    return tmpScriptPath;
   }
 
-  private _buildSandbox(options: ProcessedOptions): Sandbox {
-    const sandbox = Object.values(this._modules).reduce(
+  private async _watchCallback(options: ProcessedOptions) {
+    this._options = options;
+    // Build sandbox and environment
+    const modules = Object.values(this._modules);
+    this._sandbox = modules.reduce(
       (sandbox, module) => Object.assign(sandbox, module.buildSandbox(options)),
-      {} as Sandbox
+      {} as Context
+    );
+    this._environment = modules.reduce(
+      (environment, module) =>
+        Object.assign(environment, module.buildEnvironment(options)),
+      {} as Context
     );
     // Assign bindings last so they can override modules if required
-    Object.assign(sandbox, options.bindings);
-    sandbox.global = sandbox;
-    sandbox.globalThis = sandbox;
-    sandbox.self = sandbox;
-    return sandbox;
+    Object.assign(this._environment, options.bindings);
+
+    this._reloadScheduled();
+    await this._reloadWorker();
+
+    // This should never be undefined as _watchCallback is only called by the
+    // watcher which is created after _initResolve is set
+    assert(this._initResolve !== undefined);
+    this._initResolve();
   }
 
   private _reloadScheduled(): void {
@@ -125,21 +118,87 @@ export class Miniflare {
     );
   }
 
-  private _reloadWorker(script: vm.Script, sandbox: Sandbox) {
-    delete this._worker;
-    this._modules.EventsModule.removeEventListeners();
-    this._worker = new SandboxedScript(script, sandbox);
-    try {
-      this._worker.run();
-    } catch (e) {
-      this.log.error(e.stack);
+  private async _reloadWorker() {
+    // Should never return, only called in _watchCallback() after _options set
+    // and scripts and modulesLinker are always set
+    if (!(this._options?.scripts && this._options?.modulesLinker)) return;
+
+    // Reset state
+    this._modules.EventsModule.resetEventListeners();
+    // TODO: reset durable object instances here
+
+    // Build sandbox with global self-references, only including environment
+    // in global scope if not using modules
+    const sandbox = this._options.modules
+      ? { ...this._sandbox }
+      : { ...this._sandbox, ...this._environment };
+    sandbox.global = sandbox;
+    sandbox.globalThis = sandbox;
+    sandbox.self = sandbox;
+
+    // Parse and run all scripts
+    for (const script of Object.values(this._options.scripts)) {
+      this.log.debug(`Reloading ${relativePath(script.fileName)}...`);
+
+      // Parse script and build instance
+      let instance: ScriptInstance;
+      try {
+        instance = this._options.modules
+          ? await script.buildModule(sandbox, this._options.modulesLinker)
+          : await script.buildScript(sandbox);
+      } catch (e) {
+        this.log.error(
+          `Unable to parse ${relativePath(script.fileName)}: ${e}`
+        );
+        continue;
+      }
+
+      // Run script
+      try {
+        await instance.run();
+      } catch (e) {
+        this.log.error(e.stack);
+        continue;
+      }
+
+      // If this is the main modules script, setup event listeners for
+      // default exports
+      if (
+        script.fileName === this._options.scriptPath &&
+        instance instanceof ModuleScriptInstance
+      ) {
+        const fetchListener = instance.namespace?.default?.fetch;
+        const scheduledListener = instance.namespace?.default?.scheduled;
+
+        if (fetchListener) {
+          this._modules.EventsModule.addEventListener("fetch", (e) => {
+            const ctx = {
+              passThroughOnException: e.passThroughOnException.bind(e),
+              waitUntil: e.waitUntil.bind(e),
+            };
+            const res = fetchListener(e.request, this._environment, ctx);
+            e.respondWith(res);
+          });
+        }
+        if (scheduledListener) {
+          this._modules.EventsModule.addEventListener("scheduled", (e) => {
+            const controller = { scheduledTime: e.scheduledTime };
+            const ctx = { waitUntil: e.waitUntil.bind(e) };
+            const res = scheduledListener(controller, this._environment, ctx);
+            e.waitUntil(Promise.resolve(res));
+          });
+        }
+      }
     }
+
+    // TODO: pass script instance to durable objects module for object instance creation
+
     this.log.info("Worker reloaded!");
   }
 
   async reloadScript(): Promise<void> {
     await this._initPromise;
-    await this._watcher?.reloadScript();
+    await this._watcher?.reloadScripts();
   }
 
   async reloadOptions(): Promise<void> {
@@ -169,12 +228,9 @@ export class Miniflare {
   async getOptions(): Promise<ProcessedOptions> {
     await this._initPromise;
     // This should never be undefined as _initPromise is only resolved once
-    // _watchCallback has been called for the first time, where
-    // _previousOptionsKey will be -1, which is not equal to 0, the first
-    // options key from the Watcher, meaning _options will be set to options.
-    // TODO: wrap this call with an if statement and type error as with watcher
-    //  to assert this
-    return this._options as ProcessedOptions;
+    // _watchCallback has been called for the first time
+    assert(this._options !== undefined);
+    return this._options;
   }
 
   async getCache(name?: string): Promise<Cache> {

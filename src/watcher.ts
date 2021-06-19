@@ -1,23 +1,28 @@
+import assert from "assert";
+import childProcess from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
 import { URL } from "url";
-import vm from "vm";
 import chokidar from "chokidar";
 import dotenv from "dotenv";
 import match from "minimatch";
 import cron from "node-cron";
 import { Log } from "./log";
-import { Options, ProcessedOptions, logOptions } from "./options";
+import {
+  ModuleRuleType,
+  Options,
+  ProcessedOptions,
+  defaultModuleRules,
+  logOptions,
+  relativePath,
+} from "./options";
 import { getWranglerOptions } from "./options/wrangler";
+import { ScriptBlueprint, buildLinker } from "./scripts";
 
 const noop = () => {};
 const minimatchOptions: match.IOptions = { nocomment: true };
 
-export type WatchCallback = (
-  script: vm.Script,
-  options: ProcessedOptions,
-  optionsKey: number
-) => void;
+export type WatchCallback = (options: ProcessedOptions) => void;
 
 export class Watcher {
   private readonly _log: Log;
@@ -26,129 +31,154 @@ export class Watcher {
   private readonly _initialOptions: Options;
   private readonly _wranglerConfigPath?: string;
 
-  private _script?: vm.Script;
-  private _scriptPath?: string;
+  private _scriptBlueprints: Record<string, ScriptBlueprint>;
   private _options?: ProcessedOptions;
-  private _optionsKey: number;
 
-  private readonly _initPromise: Promise<void>;
   private _watcher?: chokidar.FSWatcher;
-  private _watchedEnvPath?: string;
+  private _watchedPaths?: Set<string>;
 
-  constructor(
-    log: Log,
-    callback: WatchCallback,
-    scriptDescriptor: vm.Script | string,
-    options: Options
-  ) {
+  constructor(log: Log, callback: WatchCallback, options: Options) {
     this._log = log;
     this._callback = callback;
 
-    // Set initial options
+    // Setup initial options
+    assert(options.script === undefined);
     this._initialOptions = options;
     this._wranglerConfigPath = options.wranglerConfigPath
       ? path.resolve(options.wranglerConfigPath)
       : undefined;
 
-    this._optionsKey = 0;
-    this._initPromise = this._init(scriptDescriptor);
+    this._scriptBlueprints = {};
+    void this._init();
   }
 
-  private async _init(scriptDescriptor: vm.Script | string): Promise<void> {
-    // Yield initial values
-    if (scriptDescriptor instanceof vm.Script) {
-      this._script = scriptDescriptor;
-    } else {
-      // Normalise the scriptPath so we can compare it when watching
-      this._scriptPath = path.resolve(scriptDescriptor);
-      this._script = await this._getScript();
+  private _getWatchedPaths(): Set<string> {
+    const watchedPaths = new Set<string>();
+    if (this._wranglerConfigPath) watchedPaths.add(this._wranglerConfigPath);
+    if (this._options?.envPath) watchedPaths.add(this._options.envPath);
+    if (this._options?.buildWatchPath)
+      watchedPaths.add(this._options.buildWatchPath);
+    if (this._options?.scriptPath) watchedPaths.add(this._options.scriptPath);
+    for (const durableObject of this._options?.durableObjects ?? []) {
+      if (
+        durableObject.scriptPath &&
+        durableObject.scriptPath !== this._options?.scriptPath
+      ) {
+        watchedPaths.add(durableObject.scriptPath);
+      }
     }
-    this._options = await this._getOptions();
-    this._callback(this._script, this._options, this._optionsKey);
+    return watchedPaths;
+  }
+
+  private _runCustomBuild(command: string, basePath?: string): Promise<void> {
+    return new Promise((resolve) => {
+      // TODO: may want to mutex this, so only one build at a time
+      const build = childProcess.spawn(command, {
+        cwd: basePath,
+        shell: true,
+        stdio: "inherit",
+      });
+      build.on("exit", (code) => {
+        if (code === 0) {
+          this._log.info("Build succeeded");
+        } else {
+          this._log.error(`Build failed with exit code ${code}`);
+        }
+        resolve();
+      });
+    });
+  }
+
+  private async _init(): Promise<void> {
+    // Yield initial values
+    this._options = await this._getOptions(true);
+    logOptions(this._log, this._options);
+    this._callback(this._options);
 
     // Stop here if we're not watching files
     if (!this._options.watch) return;
 
     // Get an array of watched file paths, storing the watchedEnvPath explicitly
     // so we can tell if it changes later
-    this._watchedEnvPath = this._options.envPath;
-    const watchPaths = [];
-    if (this._scriptPath) watchPaths.push(this._scriptPath);
-    if (this._wranglerConfigPath) watchPaths.push(this._wranglerConfigPath);
-    if (this._options.envPath) watchPaths.push(this._options.envPath);
+    this._watchedPaths = this._getWatchedPaths();
+    const watchedPaths = [...this._watchedPaths];
     this._log.debug(
-      `Watching ${watchPaths
-        .map((filePath) => path.basename(filePath))
+      `Watching ${watchedPaths
+        .map((filePath) => relativePath(filePath))
+        .sort()
         .join(", ")}...`
     );
 
     // Create watcher
     const boundCallback = this._watchedPathCallback.bind(this);
     this._watcher = chokidar
-      .watch(watchPaths)
+      .watch(watchedPaths)
       .on("change", boundCallback)
       .on("unlink", boundCallback);
   }
 
-  private async _watchedPathCallback(eventPath: string) {
-    if (eventPath === this._scriptPath) {
-      // If the script changed, reload it from disk
-      this._log.debug(
-        `${path.basename(eventPath)} changed, reloading script...`
-      );
-      await this.reloadScript();
-    } else if (
+  private _watchedPathCallback(eventPath: string) {
+    if (
       eventPath === this._wranglerConfigPath ||
-      eventPath === this._watchedEnvPath
+      eventPath === this._options?.envPath
     ) {
       // If either the wrangler config or the env file changed, reload the
       // options from disk, taking into account the initialOptions
       this._log.debug(
-        `${path.basename(eventPath)} changed, reloading options...`
+        `${relativePath(eventPath)} changed, reloading options...`
       );
-      await this.reloadOptions();
+      void this.reloadOptions();
+    } else if (
+      this._options?.buildWatchPath &&
+      eventPath.startsWith(this._options.buildWatchPath)
+    ) {
+      if (this._options.buildCommand) {
+        this._log.debug(`${relativePath(eventPath)} changed, rebuilding...`);
+        // Re-run build, this should change a script triggering the watcher
+        // again
+        void this._runCustomBuild(
+          this._options.buildCommand,
+          this._options.buildBasePath
+        );
+      }
+    } else {
+      // If the path isn't a config, or in buildWatchPath, it's probably a
+      // script, so reload them all
+      this._log.debug(
+        `${relativePath(eventPath)} changed, reloading scripts...`
+      );
+      void this.reloadScripts();
     }
   }
 
-  async reloadScript(): Promise<void> {
-    await this._initPromise;
-    if (!this._scriptPath) {
-      this._log.warn("reloadScript() called without a script path set");
-      return;
-    }
-    this._script = await this._getScript();
-    if (this._options === undefined) {
-      // This should never happen: _options is set in _init which we've awaited
-      throw new TypeError("reloadScript() requires this._options");
-    }
-    this._callback(this._script, this._options, this._optionsKey);
+  async reloadScripts(): Promise<void> {
+    this._scriptBlueprints = {};
+    await this.reloadOptions(false);
   }
 
-  async reloadOptions(): Promise<void> {
-    await this._initPromise;
-    const options = await this._getOptions();
+  async reloadOptions(log = true): Promise<void> {
+    this._options = await this._getOptions();
+    if (log) logOptions(this._log, this._options);
 
-    // If the envPath changed, switch the path we're watching (if we even are)
-    if (this._watcher && options.envPath !== this._watchedEnvPath) {
-      if (this._watchedEnvPath !== undefined) {
-        this._log.debug(`Unwatching ${path.basename(this._watchedEnvPath)}...`);
-        this._watcher.unwatch(this._watchedEnvPath);
+    if (this._watcher && this._watchedPaths) {
+      // Update watched paths if we're watching files
+      const newWatchedPaths = this._getWatchedPaths();
+      for (const watchedPath of this._watchedPaths) {
+        if (!newWatchedPaths.has(watchedPath)) {
+          this._log.debug(`Unwatching ${relativePath(watchedPath)}...`);
+          this._watcher.unwatch(watchedPath);
+        }
       }
-      if (options.envPath !== undefined) {
-        this._log.debug(`Watching ${path.basename(options.envPath)}...`);
-        this._watcher.add(options.envPath);
+      for (const newWatchedPath of newWatchedPaths) {
+        if (!this._watchedPaths.has(newWatchedPath)) {
+          this._log.debug(`Watching ${relativePath(newWatchedPath)}...`);
+          this._watcher.add(newWatchedPath);
+        }
       }
-      this._watchedEnvPath = options.envPath;
+      this._watchedPaths = newWatchedPaths;
     }
 
-    this._options = options;
-    // Change the optionsKey so we know to rebuild the sandbox
-    this._optionsKey++;
-    if (this._script === undefined) {
-      // This should never happen: _script is set in _init which we've awaited
-      throw new TypeError("reloadOptions() requires this._script");
-    }
-    this._callback(this._script, options, this._optionsKey);
+    this._callback(this._options);
   }
 
   private async _readFile(filePath: string, logError = true): Promise<string> {
@@ -157,7 +187,7 @@ export class Watcher {
     } catch (e) {
       if (logError) {
         this._log.error(
-          `Unable to read ${path.basename(
+          `Unable to read ${relativePath(
             filePath
           )}: ${e} (defaulting to empty string)`
         );
@@ -166,20 +196,11 @@ export class Watcher {
     }
   }
 
-  private async _getScript(): Promise<vm.Script> {
-    if (this._scriptPath === undefined) {
-      throw new TypeError("_getScript() requires this._scriptPath");
-    }
+  private async _addScriptBlueprint(scriptPath: string) {
+    if (scriptPath in this._scriptBlueprints) return;
     // Read file contents and create script object
-    const code = await this._readFile(this._scriptPath);
-    try {
-      return new vm.Script(code, { filename: this._scriptPath });
-    } catch (e) {
-      this._log.error(
-        `Unable to parse ${path.basename(this._scriptPath)}: ${e}`
-      );
-      return new vm.Script("");
-    }
+    const code = await this._readFile(scriptPath);
+    this._scriptBlueprints[scriptPath] = new ScriptBlueprint(code, scriptPath);
   }
 
   private _globsToRegexps(globs?: string[]): RegExp[] {
@@ -197,9 +218,10 @@ export class Watcher {
     return regexps;
   }
 
-  private async _getOptions(): Promise<ProcessedOptions> {
+  private async _getOptions(initial?: boolean): Promise<ProcessedOptions> {
     // Get wrangler options first (if set) since initialOptions override these
     let wranglerOptions: Options = {};
+    // TODO: default this to wrangler.toml, see handling of .env files below
     if (this._wranglerConfigPath) {
       try {
         wranglerOptions = getWranglerOptions(
@@ -208,7 +230,7 @@ export class Watcher {
         );
       } catch (e) {
         this._log.error(
-          `Unable to parse ${path.basename(
+          `Unable to parse ${relativePath(
             this._wranglerConfigPath
           )}: ${e} (line: ${e.line}, col: ${e.column})`
         );
@@ -219,10 +241,51 @@ export class Watcher {
     const options: ProcessedOptions = {
       ...wranglerOptions,
       ...this._initialOptions,
-      validatedCrons: [],
-      siteIncludeRegexps: [],
-      siteExcludeRegexps: [],
+      scripts: this._scriptBlueprints,
     };
+
+    // Run custom build command if this is the first time we're getting options
+    // to make sure the scripts exist
+    if (initial && options.buildCommand) {
+      await this._runCustomBuild(options.buildCommand, options.buildBasePath);
+    }
+
+    // Make sure we've got a main script
+    if (options.scriptPath === undefined) {
+      // TODO: consider replacing this with a more friendly error message (with help for fixing)
+      throw new TypeError("No script defined");
+    }
+    // Resolve and load all scripts (including Durable Objects')
+    options.scriptPath = path.resolve(options.scriptPath);
+    await this._addScriptBlueprint(options.scriptPath);
+    for (const durableObject of options.durableObjects ?? []) {
+      durableObject.scriptPath = durableObject.scriptPath
+        ? path.resolve(durableObject.scriptPath)
+        : options.scriptPath;
+      if (durableObject.scriptPath !== options.scriptPath) {
+        await this._addScriptBlueprint(durableObject.scriptPath);
+      }
+    }
+
+    // Parse module rules
+    options.processedModulesRules = [];
+    const finalisedTypes = new Set<ModuleRuleType>();
+    for (const rule of [
+      ...(options.modulesRules ?? []),
+      ...defaultModuleRules,
+    ]) {
+      if (finalisedTypes.has(rule.type)) {
+        // Ignore rule if type didn't enable fallthrough
+        continue;
+      }
+      options.processedModulesRules.push({
+        type: rule.type,
+        include: this._globsToRegexps(rule.include),
+      });
+      if (!rule.fallthrough) finalisedTypes.add(rule.type);
+    }
+    options.modulesLinker = buildLinker(options.processedModulesRules);
+
     // Normalise the envPath (defaulting to .env) so we can compare it when
     // watching
     const envPathSet = options.envPath !== undefined;
@@ -252,6 +315,7 @@ export class Watcher {
     }
 
     // Parse crons
+    options.validatedCrons = [];
     for (const spec of options.crons ?? []) {
       try {
         // We don't use cron.validate here since that doesn't tell us why
@@ -259,7 +323,7 @@ export class Watcher {
         const task = cron.schedule(spec, noop, { scheduled: false });
         task.destroy();
         // validateCrons is always defined here
-        options.validatedCrons?.push(spec);
+        options.validatedCrons.push(spec);
       } catch (e) {
         this._log.error(`Unable to parse cron "${spec}": ${e} (ignoring)`);
       }
@@ -269,8 +333,6 @@ export class Watcher {
     options.siteIncludeRegexps = this._globsToRegexps(options.siteInclude);
     options.siteExcludeRegexps = this._globsToRegexps(options.siteExclude);
 
-    // Log processed options
-    logOptions(this._log, options);
     return options;
   }
 }

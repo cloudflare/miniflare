@@ -1,3 +1,5 @@
+// TODO: generify metadata, reuse for durable object storage
+
 export interface KVStoredValue<Value = Buffer> {
   value: Value;
   expiration?: number;

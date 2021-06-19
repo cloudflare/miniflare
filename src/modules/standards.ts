@@ -18,8 +18,8 @@ import {
   WritableStreamDefaultController,
   WritableStreamDefaultWriter,
 } from "web-streams-polyfill/ponyfill/es6";
-import { ProcessedOptions } from "../options";
-import { Module, Sandbox } from "./module";
+import { Log } from "../log";
+import { Context, Module } from "./module";
 
 export {
   URL,
@@ -73,9 +73,12 @@ crypto.subtle.digest = function (algorithm, data) {
 };
 
 export class StandardsModule extends Module {
-  buildSandbox(_options: ProcessedOptions): Sandbox {
+  private readonly sandbox: Context;
+
+  constructor(log: Log) {
     // TODO: proxy Date.now() and add warning, maybe new Date() too?
-    return {
+    super(log);
+    this.sandbox = {
       console,
 
       setTimeout,
@@ -158,5 +161,9 @@ export class StandardsModule extends Module {
       // Intl,
       // JSON,
     };
+  }
+
+  buildSandbox(): Context {
+    return this.sandbox;
   }
 }

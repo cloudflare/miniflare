@@ -1,43 +1,73 @@
-#!/usr/bin/env node
+#!/usr/bin/env node --experimental-vm-modules
 import { networkInterfaces } from "os";
-import dotenv from "dotenv";
 import yargs from "yargs";
 import { ConsoleLog } from "./log";
-import { Options, stripUndefinedOptions } from "./options";
+import {
+  DurableObjectOption,
+  ModuleRule,
+  ModuleRuleType,
+  Options,
+  stripUndefinedOptions,
+} from "./options";
 import { Miniflare } from "./index";
 
 const defaultPort = 8787;
-
-export interface ParsedArgv {
-  script: string;
-  options: Options;
-}
 
 function asStringArray(arr?: (string | number)[]): string[] | undefined {
   return arr?.map((value) => value.toString());
 }
 
-function parseBindings(arr?: string[]): Record<string, string> {
-  return dotenv.parse(arr?.join("\n") ?? "");
+function parseObject(arr?: string[]): Record<string, string> | undefined {
+  return arr?.reduce((obj, entry) => {
+    const equalsIndex = entry.indexOf("=");
+    obj[entry.substring(0, equalsIndex)] = entry.substring(equalsIndex + 1);
+    return obj;
+  }, {} as Record<string, string>);
 }
 
-function getAccessibleUrls(port: number): string[] {
-  const urls: string[] = [];
+function parseModuleRules(arr?: string[]): ModuleRule[] | undefined {
+  const obj = parseObject(arr);
+  if (!obj) return undefined;
+  return Object.entries(obj).map<ModuleRule>(([type, glob]) => ({
+    type: type as ModuleRuleType,
+    include: [glob],
+    fallthrough: true,
+  }));
+}
+
+function parseDurableObjects(
+  arr?: string[]
+): DurableObjectOption[] | undefined {
+  const obj = parseObject(arr);
+  if (!obj) return undefined;
+  return Object.entries(obj).map<DurableObjectOption>(([name, className]) => ({
+    name,
+    className,
+  }));
+}
+
+function getAccessibleHosts(): string[] {
+  const hosts: string[] = [];
   Object.values(networkInterfaces()).forEach((net) =>
     net?.forEach(({ family, address }) => {
-      if (family === "IPv4") urls.push(`http://${address}:${port}`);
+      if (family === "IPv4") hosts.push(address);
     })
   );
-  return urls;
+  return hosts;
 }
 
-export default function parseArgv(raw: string[]): ParsedArgv {
+export default function parseArgv(raw: string[]): Options {
   const argv = yargs
     .strict()
     .alias({ version: "v", help: "h" })
-    .usage("Usage: $0 <script> [options]")
-    .demandCommand(1, 1) // <script>
+    .usage("Usage: $0 [script] [options]")
+    .demandCommand(0, 1) // <script>
     .options({
+      host: {
+        type: "string",
+        description: "HTTP server host to listen on (all by default)",
+        alias: "H",
+      },
       port: {
         type: "number",
         description: `HTTP server port (${defaultPort} by default)`,
@@ -56,6 +86,27 @@ export default function parseArgv(raw: string[]): ParsedArgv {
       "wrangler-env": {
         type: "string",
         description: "Environment in wrangler.toml to use",
+      },
+      modules: {
+        type: "boolean",
+        description: "Enable ES modules",
+        alias: "m",
+      },
+      "modules-rule": {
+        type: "array",
+        description: "ES modules import rule (TYPE=GLOB)",
+      },
+      "build-command": {
+        type: "string",
+        description: "Command to build project",
+      },
+      "build-base-path": {
+        type: "string",
+        description: "Working directory for build command",
+      },
+      "build-watch-path": {
+        type: "string",
+        description: "Directory to watch for rebuilding on changes",
       },
       watch: {
         type: "boolean",
@@ -98,6 +149,16 @@ export default function parseArgv(raw: string[]): ParsedArgv {
         type: "array",
         description: "Glob pattern of site files not to serve",
       },
+      do: {
+        type: "array",
+        description: "Durable Object to bind (NAME=CLASS)",
+        alias: "o",
+      },
+      "do-persist": {
+        // type: "boolean" | "string",
+        description:
+          "Path to persist Durable Object data to (omit path for default)",
+      },
       env: {
         type: "string",
         description: "Path to .env file",
@@ -111,12 +172,19 @@ export default function parseArgv(raw: string[]): ParsedArgv {
     })
     .parse(raw);
 
-  const options = stripUndefinedOptions({
+  return stripUndefinedOptions({
+    scriptPath: argv._[0] as string,
     sourceMap: true,
     log: new ConsoleLog(argv.debug),
     wranglerConfigPath: argv["wrangler-config"],
     wranglerConfigEnv: argv["wrangler-env"],
+    modules: argv.modules,
+    modulesRules: parseModuleRules(asStringArray(argv["modules-rule"])),
+    buildCommand: argv["build-command"],
+    buildBasePath: argv["build-base-path"],
+    buildWatchPath: argv["build-watch-path"],
     watch: argv.watch,
+    host: argv.host,
     port: argv.port,
     upstream: argv.upstream,
     crons: asStringArray(argv.cron),
@@ -126,23 +194,42 @@ export default function parseArgv(raw: string[]): ParsedArgv {
     sitePath: argv.site,
     siteInclude: asStringArray(argv["site-include"]),
     siteExclude: asStringArray(argv["site-exclude"]),
+    durableObjects: parseDurableObjects(asStringArray(argv["do"])),
+    durableObjectPersist: argv["do-persist"] as boolean | string | undefined,
     envPath: argv.env,
-    bindings: parseBindings(asStringArray(argv.binding)),
+    bindings: parseObject(asStringArray(argv.binding)),
   });
-
-  return {
-    script: argv._[0] as string,
-    options,
-  };
 }
 
 if (module === require.main) {
-  const { script, options } = parseArgv(process.argv.slice(2));
-  const mf = new Miniflare(script, options);
-  mf.getOptions().then(({ port = defaultPort }) => {
-    mf.createServer().listen(port, () => {
-      mf.log.info(`Listening on :${port}`);
-      for (const url of getAccessibleUrls(port)) mf.log.info(`- ${url}`);
+  const options = parseArgv(process.argv.slice(2));
+  const mf = new Miniflare(options);
+
+  // Override experimental modules warning
+  const originalEmitWarning = process.emitWarning;
+  process.emitWarning = (warning, name, ctor) => {
+    if (
+      name === "ExperimentalWarning" &&
+      warning.toString().startsWith("VM Modules")
+    ) {
+      mf.log.warn(
+        "Modules support relies on experimental features which may change at any time"
+      );
+      return;
+    }
+    return originalEmitWarning(warning, name, ctor);
+  };
+
+  mf.getOptions().then(({ host, port = defaultPort }) => {
+    mf.createServer().listen(port, host, () => {
+      mf.log.info(`Listening on ${host ?? ""}:${port}`);
+      if (host) {
+        mf.log.info(`- http://${host}:${port}`);
+      } else {
+        for (const accessibleHost of getAccessibleHosts()) {
+          mf.log.info(`- http://${accessibleHost}:${port}`);
+        }
+      }
     });
   });
 }

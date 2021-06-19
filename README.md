@@ -10,6 +10,7 @@ Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
 - 📨 Fetch Events (with HTTP server and manual triggering)
 - ⏰ Scheduled Events (with manual and cron triggering)
 - 🔑 `.env` File Support (for secrets)
+- 🛠 Custom Builds Support
 - 🗺 Source Map Support
 - 👀 Automatic Reload on File Changes
 - 💪 Written in TypeScript
@@ -19,7 +20,6 @@ Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
 - 📌 Durable Objects
 - ✉️ WebSockets
 - 📄 HTMLRewriter
-- 🛠 Custom Builds Support 
 - ⚙️ WebAssembly Support
 - 🤹 Custom [Jest Environment](https://jestjs.io/docs/configuration#testenvironment-string)
 - ✅ More Tests
@@ -27,43 +27,55 @@ Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
 ## CLI Usage
 
 ```
-Usage: miniflare <script> [options]
+Usage: miniflare [script] [options]
 
 Options:
-  -h, --help             Show help                                     [boolean]
-  -v, --version          Show version number                           [boolean]
-  -p, --port             HTTP server port (8787 by default)             [number]
-  -d, --debug            Log debug messages                            [boolean]
-  -c, --wrangler-config  Path to wrangler.toml                          [string]
-      --wrangler-env     Environment in wrangler.toml to use            [string]
-  -w, --watch            Watch files for changes                       [boolean]
-  -u, --upstream         URL of upstream origin                         [string]
-  -t, --cron             Cron pattern to trigger scheduled events with   [array]
-  -k, --kv               KV namespace to bind                            [array]
-      --kv-persist       Path to persist KV data to (omit path for default)
-      --cache-persist    Path to persist cached data to (omit path for default)
-  -s, --site             Path to serve Workers Site files from          [string]
-      --site-include     Glob pattern of site files to serve             [array]
-      --site-exclude     Glob pattern of site files not to serve         [array]
-  -e, --env              Path to .env file                              [string]
-  -b, --binding          Bind variable/secret (KEY=VALUE)                [array]
+  -h, --help              Show help                                    [boolean]
+  -v, --version           Show version number                          [boolean]
+  -H, --host              HTTP server host to listen on (all by default)[string]
+  -p, --port              HTTP server port (8787 by default)            [number]
+  -d, --debug             Log debug messages                           [boolean]
+  -c, --wrangler-config   Path to wrangler.toml                         [string]
+      --wrangler-env      Environment in wrangler.toml to use           [string]
+  -m, --modules           Enable ES modules                            [boolean]
+      --modules-rule      ES modules import rule (TYPE=GLOB)             [array]
+      --build-command     Command to build project                      [string]
+      --build-base-path   Working directory for build command           [string]
+      --build-watch-path  Directory to watch for rebuilding on changes  [string]
+  -w, --watch             Watch files for changes                      [boolean]
+  -u, --upstream          URL of upstream origin                        [string]
+  -t, --cron              Cron pattern to trigger scheduled events with  [array]
+  -k, --kv                KV namespace to bind                           [array]
+      --kv-persist        Path to persist KV data to (omit path for default)
+      --cache-persist     Path to persist cached data to (omit path for default)
+  -s, --site              Path to serve Workers Site files from         [string]
+      --site-include      Glob pattern of site files to serve            [array]
+      --site-exclude      Glob pattern of site files not to serve        [array]
+  -o, --do                Durable Object to bind (NAME=CLASS)            [array]
+      --do-persist        Path to persist Durable Object data to (omit path for
+                          default)
+  -e, --env               Path to .env file                             [string]
+  -b, --binding           Bind variable/secret (KEY=VALUE)               [array]
 ```
 
-`<script>` should be a path to a pre-bundled Worker.
+`[script]` should be a path to a pre-bundled Worker.
 If you're using Webpack for instance, set this to your output file.
 
-Use `--debug`/`-d` to see additional log messages including processed options and watched files. **(recommended)**
+**(Recommended)** Use `--debug`/`-d` to see additional log messages including processed options and watched files.
 
-Use `--wrangler-config <toml_path>`/`-c <toml_path>` to load options for KV, cache, etc from a `wrangler.toml` file. **(recommended)**
+**(Recommended)** Use `--wrangler-config <toml_path>`/`-c <toml_path>` to load options for KV, cache, etc from a `wrangler.toml` file.
+If `[script]` is omitted, Miniflare tries to automatically infer it from the `wrangler.toml` file.
 You can also include an additional `[miniflare]` section for Miniflare specific configuration:
 
 ```toml
 [miniflare]
+host = "127.0.0.1"              # --host
+port = 8787                     # --port
 upstream = "https://mrbbot.dev" # --upstream
 kv_persist = true               # --kv-persist
 cache_persist = true            # --cache-persist
+durable_object_persist = true   # --do-persist
 env_path = ".env"               # --env
-port = 8787                     # --port
 ```
 
 KV and cache persistence can be enabled with the `--kv-persist` and `--cache-persist` flags respectively.
@@ -73,12 +85,12 @@ Optionally, you can specify a path (e.g. `--kv-persist ./data`) to use a differe
 ## Programmatic Usage
 
 ```javascript
-import vm from "vm";
 import { ConsoleLog, Miniflare, Request } from "miniflare";
 
 // Loading script from file
-const mf = new Miniflare("./path/to/script.js", {
+const mf = new Miniflare({
   // Some options omitted, see src/options/index.ts for the full list
+  scriptPath: "./path/to/script.js",
   sourceMap: true,
   log: new ConsoleLog(), // Defaults to no-op logger
   wranglerConfigPath: "wrangler.toml",
@@ -94,8 +106,8 @@ const mf = new Miniflare("./path/to/script.js", {
 });
 
 // Loading script from string
-const mf = new Miniflare(
-  new vm.Script(`
+const mf = new Miniflare({
+  script: `
       addEventListener("fetch", (event) => {
         event.respondWith(handleRequest(event.request));
         event.waitUntil(Promise.resolve("Something"));
@@ -111,12 +123,10 @@ const mf = new Miniflare(
       addEventListener("scheduled", (event) => {
         event.waitUntil(Promise.resolve("Something else"));
       });
-    `),
-  {
-    kvNamespaces: ["TEST_NAMESPACE"],
-    log: new ConsoleLog(),
-  }
-);
+    `,
+  kvNamespaces: ["TEST_NAMESPACE"],
+  log: new ConsoleLog(),
+});
 
 // Manipulate KV outside of worker (useful for testing)
 const ns = await mf.getNamespace("TEST_NAMESPACE");

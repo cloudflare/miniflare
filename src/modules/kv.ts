@@ -3,7 +3,7 @@ import { KVStorageNamespace } from "../kv";
 import { KVStorageFactory } from "../kv/helpers";
 import { Log } from "../log";
 import { ProcessedOptions } from "../options";
-import { Module, Sandbox } from "./module";
+import { Context, Module } from "./module";
 
 const defaultPersistRoot = path.resolve(".mf", "kv");
 
@@ -24,8 +24,8 @@ export class KVModule extends Module {
     );
   }
 
-  buildSandbox(options: ProcessedOptions): Sandbox {
-    const sandbox: Sandbox = {};
+  buildEnvironment(options: ProcessedOptions): Context {
+    const sandbox: Context = {};
     for (const namespace of options.kvNamespaces ?? []) {
       sandbox[namespace] = this.getNamespace(namespace, options.kvPersist);
     }

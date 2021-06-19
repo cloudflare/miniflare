@@ -1,4 +1,3 @@
-import vm from "vm";
 import { FetchError } from "@mrbbot/node-fetch";
 import anyTest, { TestInterface } from "ava";
 import {
@@ -67,12 +66,12 @@ test("addEventListener: warns on invalid event type", (t) => {
   t.deepEqual(calls, ["random"]);
 });
 
-test("removeEventListeners: resets events listeners", (t) => {
+test("resetEventListeners: resets events listeners", (t) => {
   const { module } = t.context;
   const noop = () => {};
   module.addEventListener("fetch", noop);
   t.deepEqual(module._listeners, { fetch: [noop] });
-  module.removeEventListeners();
+  module.resetEventListeners();
   t.deepEqual(module._listeners, {});
 });
 
@@ -91,7 +90,7 @@ test("buildSandbox: adds fetch event listener", async (t) => {
       e.respondWith(new sandbox.Response(e.request.url))
     );
   }).toString()})()`;
-  const mf = new Miniflare(new vm.Script(script));
+  const mf = new Miniflare({ script });
   const res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
   t.is(await res.text(), "http://localhost:8787/");
 });
@@ -103,7 +102,7 @@ test("buildSandbox: adds scheduled event listener", async (t) => {
       e.waitUntil(Promise.resolve(e.scheduledTime))
     );
   }).toString()})()`;
-  const mf = new Miniflare(new vm.Script(script));
+  const mf = new Miniflare({ script });
   const res = await mf.dispatchScheduled(1000);
   t.is(res[0], 1000);
 });

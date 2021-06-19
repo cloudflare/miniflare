@@ -4,7 +4,6 @@ import { AddressInfo } from "net";
 import path from "path";
 import { URL } from "url";
 import { promisify } from "util";
-import vm from "vm";
 import { ExecutionContext } from "ava";
 import rimraf from "rimraf";
 import { Log, Miniflare, Options, Request } from "../src";
@@ -53,7 +52,7 @@ export async function runInWorker<T>(
     );
   });
   `;
-  const mf = new Miniflare(new vm.Script(script), options);
+  const mf = new Miniflare({ ...options, script });
   const res = await mf.dispatchFetch(new Request("http://localhost:8787"));
   return res.json();
 }

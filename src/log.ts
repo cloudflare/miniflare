@@ -25,19 +25,19 @@ export class ConsoleLog implements Log {
   }
 
   debug(data: string): void {
-    if (this.logDebug) console.debug(chalk.grey(`[mf:debug] ${data}`));
+    if (this.logDebug) console.debug(chalk.grey(`[mf:dbg] ${data}`));
   }
 
   info(data: string): void {
-    console.debug(chalk.green(`[mf:info] ${data}`));
+    console.debug(chalk.green(`[mf:inf] ${data}`));
   }
 
   warn(data: string): void {
-    console.debug(chalk.yellow(`[mf:warn] ${data}`));
+    console.debug(chalk.yellow(`[mf:wrn] ${data}`));
   }
 
   error(data: string): void {
-    console.debug(chalk.red(`[mf:error] ${data}`));
+    console.debug(chalk.red(`[mf:err] ${data}`));
   }
 }
 

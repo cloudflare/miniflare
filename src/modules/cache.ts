@@ -5,7 +5,7 @@ import { KVStorage, KVStorageNamespace } from "../kv";
 import { KVStorageFactory, sanitise } from "../kv/helpers";
 import { Log } from "../log";
 import { ProcessedOptions } from "../options";
-import { Module, Sandbox } from "./module";
+import { Context, Module } from "./module";
 
 const defaultPersistRoot = path.resolve(".mf", "cache");
 
@@ -157,7 +157,7 @@ export class CacheModule extends Module {
     return new Cache(this.storageFactory.getStorage(name, persist));
   }
 
-  buildSandbox(options: ProcessedOptions): Sandbox {
+  buildSandbox(options: ProcessedOptions): Context {
     const defaultCache = this.getCache(undefined, options.cachePersist);
     return { caches: { default: defaultCache } };
   }
