@@ -1,7 +1,10 @@
+import path from "path";
 import { URL } from "url";
 import { ModuleLinker } from "vm";
 import { Log } from "../log";
 import { ScriptBlueprint } from "../scripts";
+
+export const stringScriptPath = "<script>";
 
 export type ModuleRuleType =
   | "ESModule"
@@ -80,11 +83,6 @@ export interface ProcessedOptions extends Options {
   siteExcludeRegexps?: RegExp[];
 }
 
-export function relativePath(p: string): string {
-  if (p.startsWith(process.cwd())) p = p.substring(process.cwd().length + 1);
-  return p;
-}
-
 export function stripUndefinedOptions(options: Options): Options {
   return Object.entries(options)
     .filter(([, value]) => value !== undefined)
@@ -101,7 +99,7 @@ export function logOptions(log: Log, options: ProcessedOptions): void {
     "Build Base Path": options.buildBasePath,
     Scripts: options.scripts
       ? Object.values(options.scripts).map((script) =>
-          relativePath(script.fileName)
+          path.relative("", script.fileName)
         )
       : undefined,
     Modules: options.modules,

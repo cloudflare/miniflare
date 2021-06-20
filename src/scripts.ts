@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import vm from "vm";
 import { Context } from "./modules/module";
-import { ProcessedModuleRule, relativePath } from "./options";
+import { ProcessedModuleRule, stringScriptPath } from "./options";
 
 export class ScriptBlueprint {
   constructor(private code: string, public fileName: string) {}
@@ -24,6 +24,11 @@ export class ScriptBlueprint {
     linker: vm.ModuleLinker
   ): Promise<ModuleScriptInstance> {
     const vmContext = ScriptBlueprint._createContext(context);
+    if (!("SourceTextModule" in vm)) {
+      throw new Error(
+        "Modules support requires the --experimental-vm-modules flag"
+      );
+    }
     const module = new vm.SourceTextModule(this.code, {
       identifier: this.fileName,
       context: vmContext,
@@ -61,9 +66,14 @@ export function buildLinker(
   moduleRules: ProcessedModuleRule[]
 ): vm.ModuleLinker {
   return async (specifier, referencingModule) => {
-    const errorBase = `Unable to resolve "${relativePath(
+    const errorBase = `Unable to resolve "${path.relative(
+      "",
       referencingModule.identifier
     )}" dependency "${specifier}"`;
+
+    if (referencingModule.identifier === stringScriptPath) {
+      throw new Error(`${errorBase}: imports unsupported with string script`);
+    }
 
     // Get path to specified module relative to referencing module and make
     // sure it's within the root modules path

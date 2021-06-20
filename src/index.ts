@@ -1,10 +1,7 @@
 import assert from "assert";
-import { promises as fs, rmdirSync } from "fs";
 import http from "http";
-import os from "os";
 import path from "path";
 import { BodyInit, Request } from "@mrbbot/node-fetch";
-import exitHook from "exit-hook";
 import cron from "node-cron";
 import sourceMap from "source-map-support";
 import { KVStorageNamespace } from "./kv";
@@ -12,7 +9,7 @@ import { ConsoleLog, Log, NoOpLog, logResponse } from "./log";
 import { Cache, ResponseWaitUntil } from "./modules";
 import { Context } from "./modules/module";
 import * as modules from "./modules/modules";
-import { Options, ProcessedOptions, relativePath } from "./options";
+import { Options, ProcessedOptions, stringScriptPath } from "./options";
 import { ModuleScriptInstance, ScriptInstance } from "./scripts";
 import { Watcher } from "./watcher";
 
@@ -34,6 +31,7 @@ export class Miniflare {
   private _scheduledTasks?: cron.ScheduledTask[];
 
   constructor(options: Options) {
+    if (options.script) options.scriptPath = stringScriptPath;
     if (options.sourceMap) {
       sourceMap.install({ emptyCacheBetweenOperations: true });
     }
@@ -53,27 +51,12 @@ export class Miniflare {
     this._initPromise = new Promise(async (resolve) => {
       this._initResolve = resolve;
 
-      // If script specified as string, write it to temporary file so we
-      // only have to handle scripts as files later on
-      if (options.script) {
-        options.scriptPath = await this._writeTemporaryScript(options.script);
-        delete options.script;
-      }
-
       this._watcher = new Watcher(
         this.log,
         this._watchCallback.bind(this),
         options
       );
     });
-  }
-
-  private async _writeTemporaryScript(code: string): Promise<string> {
-    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "mf-"));
-    exitHook(() => rmdirSync(tmp, { recursive: true }));
-    const tmpScriptPath = path.join(tmp, "script.js");
-    await fs.writeFile(tmpScriptPath, code, "utf8");
-    return tmpScriptPath;
   }
 
   private async _watchCallback(options: ProcessedOptions) {
@@ -138,7 +121,7 @@ export class Miniflare {
 
     // Parse and run all scripts
     for (const script of Object.values(this._options.scripts)) {
-      this.log.debug(`Reloading ${relativePath(script.fileName)}...`);
+      this.log.debug(`Reloading ${path.relative("", script.fileName)}...`);
 
       // Parse script and build instance
       let instance: ScriptInstance;
@@ -148,7 +131,7 @@ export class Miniflare {
           : await script.buildScript(sandbox);
       } catch (e) {
         this.log.error(
-          `Unable to parse ${relativePath(script.fileName)}: ${e}`
+          `Unable to parse ${path.relative("", script.fileName)}: ${e}`
         );
         continue;
       }

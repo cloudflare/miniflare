@@ -205,16 +205,13 @@ if (module === require.main) {
   const options = parseArgv(process.argv.slice(2));
   const mf = new Miniflare(options);
 
-  // Override experimental modules warning
+  // Suppress experimental modules warning
   const originalEmitWarning = process.emitWarning;
   process.emitWarning = (warning, name, ctor) => {
     if (
       name === "ExperimentalWarning" &&
       warning.toString().startsWith("VM Modules")
     ) {
-      mf.log.warn(
-        "Modules support relies on experimental features which may change at any time"
-      );
       return;
     }
     return originalEmitWarning(warning, name, ctor);

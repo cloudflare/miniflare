@@ -1,4 +1,3 @@
-import assert from "assert";
 import childProcess from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
@@ -14,7 +13,7 @@ import {
   ProcessedOptions,
   defaultModuleRules,
   logOptions,
-  relativePath,
+  stringScriptPath,
 } from "./options";
 import { getWranglerOptions } from "./options/wrangler";
 import { ScriptBlueprint, buildLinker } from "./scripts";
@@ -42,7 +41,6 @@ export class Watcher {
     this._callback = callback;
 
     // Setup initial options
-    assert(options.script === undefined);
     this._initialOptions = options;
     this._wranglerConfigPath = options.wranglerConfigPath
       ? path.resolve(options.wranglerConfigPath)
@@ -104,7 +102,7 @@ export class Watcher {
     const watchedPaths = [...this._watchedPaths];
     this._log.debug(
       `Watching ${watchedPaths
-        .map((filePath) => relativePath(filePath))
+        .map((filePath) => path.relative("", filePath))
         .sort()
         .join(", ")}...`
     );
@@ -125,7 +123,7 @@ export class Watcher {
       // If either the wrangler config or the env file changed, reload the
       // options from disk, taking into account the initialOptions
       this._log.debug(
-        `${relativePath(eventPath)} changed, reloading options...`
+        `${path.relative("", eventPath)} changed, reloading options...`
       );
       void this.reloadOptions();
     } else if (
@@ -133,7 +131,9 @@ export class Watcher {
       eventPath.startsWith(this._options.buildWatchPath)
     ) {
       if (this._options.buildCommand) {
-        this._log.debug(`${relativePath(eventPath)} changed, rebuilding...`);
+        this._log.debug(
+          `${path.relative("", eventPath)} changed, rebuilding...`
+        );
         // Re-run build, this should change a script triggering the watcher
         // again
         void this._runCustomBuild(
@@ -145,7 +145,7 @@ export class Watcher {
       // If the path isn't a config, or in buildWatchPath, it's probably a
       // script, so reload them all
       this._log.debug(
-        `${relativePath(eventPath)} changed, reloading scripts...`
+        `${path.relative("", eventPath)} changed, reloading scripts...`
       );
       void this.reloadScripts();
     }
@@ -165,13 +165,13 @@ export class Watcher {
       const newWatchedPaths = this._getWatchedPaths();
       for (const watchedPath of this._watchedPaths) {
         if (!newWatchedPaths.has(watchedPath)) {
-          this._log.debug(`Unwatching ${relativePath(watchedPath)}...`);
+          this._log.debug(`Unwatching ${path.relative("", watchedPath)}...`);
           this._watcher.unwatch(watchedPath);
         }
       }
       for (const newWatchedPath of newWatchedPaths) {
         if (!this._watchedPaths.has(newWatchedPath)) {
-          this._log.debug(`Watching ${relativePath(newWatchedPath)}...`);
+          this._log.debug(`Watching ${path.relative("", newWatchedPath)}...`);
           this._watcher.add(newWatchedPath);
         }
       }
@@ -187,7 +187,8 @@ export class Watcher {
     } catch (e) {
       if (logError) {
         this._log.error(
-          `Unable to read ${relativePath(
+          `Unable to read ${path.relative(
+            "",
             filePath
           )}: ${e} (defaulting to empty string)`
         );
@@ -199,7 +200,10 @@ export class Watcher {
   private async _addScriptBlueprint(scriptPath: string) {
     if (scriptPath in this._scriptBlueprints) return;
     // Read file contents and create script object
-    const code = await this._readFile(scriptPath);
+    const code =
+      scriptPath === stringScriptPath && this._initialOptions.script
+        ? this._initialOptions.script
+        : await this._readFile(scriptPath);
     this._scriptBlueprints[scriptPath] = new ScriptBlueprint(code, scriptPath);
   }
 
@@ -230,7 +234,8 @@ export class Watcher {
         );
       } catch (e) {
         this._log.error(
-          `Unable to parse ${relativePath(
+          `Unable to parse ${path.relative(
+            "",
             this._wranglerConfigPath
           )}: ${e} (line: ${e.line}, col: ${e.column})`
         );
@@ -256,7 +261,9 @@ export class Watcher {
       throw new TypeError("No script defined");
     }
     // Resolve and load all scripts (including Durable Objects')
-    options.scriptPath = path.resolve(options.scriptPath);
+    if (options.scriptPath !== stringScriptPath) {
+      options.scriptPath = path.resolve(options.scriptPath);
+    }
     await this._addScriptBlueprint(options.scriptPath);
     for (const durableObject of options.durableObjects ?? []) {
       durableObject.scriptPath = durableObject.scriptPath

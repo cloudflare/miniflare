@@ -32,7 +32,6 @@
     "chalk": "^4.1.0",
     "chokidar": "^3.5.1",
     "dotenv": "^8.2.0",
-    "exit-hook": "^2.2.1",
     "http-cache-semantics": "^4.1.0",
     "minimatch": "^3.0.4",
     "node-cron": "^2.0.3",
