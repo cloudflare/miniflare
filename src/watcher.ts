@@ -4,7 +4,7 @@ import path from "path";
 import { URL } from "url";
 import chokidar from "chokidar";
 import dotenv from "dotenv";
-import match from "minimatch";
+import micromatch from "micromatch";
 import cron from "node-cron";
 import { Log } from "./log";
 import {
@@ -19,7 +19,8 @@ import { getWranglerOptions } from "./options/wrangler";
 import { ScriptBlueprint, buildLinker } from "./scripts";
 
 const noop = () => {};
-const minimatchOptions: match.IOptions = { nocomment: true };
+
+const micromatchOptions: micromatch.Options = { contains: true };
 
 export type WatchCallback = (options: ProcessedOptions) => void;
 
@@ -210,7 +211,9 @@ export class Watcher {
   private _globsToRegexps(globs?: string[]): RegExp[] {
     const regexps: RegExp[] = [];
     for (const glob of globs ?? []) {
-      const regexp = match.makeRe(glob, minimatchOptions) as RegExp | false;
+      const regexp = micromatch.makeRe(glob, micromatchOptions) as
+        | RegExp
+        | false;
       if (regexp === false) {
         this._log.error(`Unable to parse glob "${glob}" (ignoring)`);
       } else {
@@ -230,6 +233,7 @@ export class Watcher {
       try {
         wranglerOptions = getWranglerOptions(
           await this._readFile(this._wranglerConfigPath),
+          path.dirname(this._wranglerConfigPath),
           this._initialOptions.wranglerConfigEnv // TODO: make sure this is working
         );
       } catch (e) {

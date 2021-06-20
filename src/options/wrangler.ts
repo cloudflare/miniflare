@@ -1,6 +1,6 @@
 import path from "path";
 import toml from "toml";
-import { ModuleRule, ModuleRuleType, Options } from "./index";
+import { ModuleRuleType, Options } from "./index";
 
 interface WranglerEnvironmentConfig {
   name: string;
@@ -63,8 +63,11 @@ interface WranglerConfig extends WranglerEnvironmentConfig {
   env?: Record<string, WranglerEnvironmentConfig>;
 }
 
-// TODO: document that for this to work correctly (resolving to project root, must run miniflare in root of project)
-export function getWranglerOptions(input: string, env?: string): Options {
+export function getWranglerOptions(
+  input: string,
+  inputDir: string,
+  env?: string
+): Options {
   // Parse wrangler config and select correct environment
   const config: WranglerConfig = toml.parse(input);
   if (env && config.env && env in config.env) {
@@ -72,33 +75,29 @@ export function getWranglerOptions(input: string, env?: string): Options {
   }
 
   // Map wrangler keys to miniflare's
-
-  const modules =
-    config.build?.upload?.format === "modules" ||
-    (config.durable_objects?.bindings?.length ?? 0) !== 0;
-  let scriptPath: string | undefined = undefined;
-  let modulesRules: ModuleRule[] | undefined = undefined;
-  if (modules) {
-    // Resolve relative to project root (assume current working directory is)
-    scriptPath = config.build?.upload?.main
-      ? path.join(config.build?.upload?.dir ?? "dist", config.build.upload.main)
-      : undefined;
-    modulesRules = config.build?.upload?.rules?.map(
+  return {
+    scriptPath: config.build?.upload?.main
+      ? path.resolve(
+          inputDir,
+          config.build?.upload?.dir ?? "dist",
+          config.build.upload.main
+        )
+      : undefined,
+    modules:
+      config.build?.upload?.format === "modules" ||
+      (config.durable_objects?.bindings?.length ?? 0) !== 0,
+    modulesRules: config.build?.upload?.rules?.map(
       ({ type, globs, fallthrough }) => ({
         type,
         include: globs,
         fallthrough,
       })
-    );
-  }
-
-  return {
-    scriptPath,
-    modules,
-    modulesRules,
+    ),
     bindings: config.vars,
     kvNamespaces: config.kv_namespaces?.map(({ binding }) => binding),
-    sitePath: config.site?.bucket,
+    sitePath: config.site?.bucket
+      ? path.resolve(inputDir, config.site?.bucket)
+      : undefined,
     siteInclude: config.site?.include,
     siteExclude: config.site?.exclude,
     crons: config.triggers?.crons,

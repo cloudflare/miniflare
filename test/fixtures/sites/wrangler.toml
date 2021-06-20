@@ -1,0 +1,8 @@
+[site]
+bucket = "public"
+
+[build]
+command = "esbuild --log-level=warning --bundle --outdir=dist src/index.js"
+cwd = "test/fixtures/sites"
+[build.upload]
+main = "./index.js"

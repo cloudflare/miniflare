@@ -7,7 +7,7 @@ import {
 } from "../../src";
 
 // TODO: when testing options parsing, or maybe in sites module tests?,
-//  test with minimatch, file storage, all types of patterns too with resolved
+//  test with micromatch, file storage, all types of patterns too with resolved
 //  roots, but not resolved patterns (e.g. *.txt, **/*.txt,
 //  relative paths: dir/*.txt, absolute paths: /Users/.../dir/*.txt)
 
