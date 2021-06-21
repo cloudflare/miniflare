@@ -29,7 +29,7 @@ export class ScriptBlueprint {
         "Modules support requires the --experimental-vm-modules flag"
       );
     }
-    const module = new vm.SourceTextModule(this.code, {
+    const module = new vm.SourceTextModule<Namespace>(this.code, {
       identifier: this.fileName,
       context: vmContext,
     });
@@ -51,7 +51,7 @@ export class ScriptScriptInstance implements ScriptInstance {
 }
 
 export class ModuleScriptInstance<Namespace = any> implements ScriptInstance {
-  constructor(private module: vm.SourceTextModule) {}
+  constructor(private module: vm.SourceTextModule<Namespace>) {}
 
   async run(): Promise<void> {
     await this.module.evaluate({ breakOnSigint: true });
