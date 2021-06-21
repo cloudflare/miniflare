@@ -40,6 +40,7 @@ const fixturePathContents = {
   "/b/b.txt": "b",
 };
 
+// TODO: investigate why these sometimes fail, probably related to concurrent esbuilds
 const getMacro: Macro<[Options, Set<FixturePath>]> = async (
   t,
   options,
