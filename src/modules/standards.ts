@@ -61,6 +61,7 @@ crypto.subtle.digest = function (algorithm, data) {
   const algorithmName =
     typeof algorithm === "string" ? algorithm : algorithm?.name;
   if (algorithmName?.toLowerCase() == "md5") {
+    if (data instanceof ArrayBuffer) data = Buffer.from(data);
     return Promise.resolve(
       createHash("md5")
         .update(data as BinaryLike)
