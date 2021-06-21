@@ -66,6 +66,37 @@ test("addEventListener: warns on invalid event type", (t) => {
   t.deepEqual(calls, ["random"]);
 });
 
+test("addModuleFunctionListener: adds event listener", async (t) => {
+  const { module } = t.context;
+  module.addModuleFetchListener(
+    (request, env, ctx) => {
+      ctx.passThroughOnException();
+      ctx.waitUntil(Promise.resolve(env.KEY));
+      return new Response(request.url);
+    },
+    { KEY: "value" }
+  );
+  const event = new FetchEvent(new Request("http://localhost:8787/"));
+  module._listeners.fetch[0](event);
+  t.true(event._passThrough);
+  t.deepEqual(await Promise.all(event._waitUntilPromises), ["value"]);
+  t.is(await (await event._response)?.text(), "http://localhost:8787/");
+});
+
+test("addModuleScheduledListener: adds event listener", async (t) => {
+  const { module } = t.context;
+  module.addModuleScheduledListener(
+    (controller, env, ctx) => {
+      ctx.waitUntil(Promise.resolve(env.KEY));
+      return controller.scheduledTime;
+    },
+    { KEY: "value" }
+  );
+  const event = new ScheduledEvent(1000);
+  module._listeners.scheduled[0](event);
+  t.deepEqual(await Promise.all(event._waitUntilPromises), ["value", 1000]);
+});
+
 test("resetEventListeners: resets events listeners", (t) => {
   const { module } = t.context;
   const noop = () => {};

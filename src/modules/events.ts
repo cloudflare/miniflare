@@ -46,6 +46,21 @@ export class ScheduledEvent {
 
 type EventListener<Event> = (event: Event) => void;
 
+export type ModuleFetchListener = (
+  request: Request,
+  environment: Context,
+  ctx: {
+    passThroughOnException: () => void;
+    waitUntil: (promise: Promise<any>) => void;
+  }
+) => Response | Promise<Response>;
+
+export type ModuleScheduledListener = (
+  controller: { scheduledTime: number },
+  environment: Context,
+  ctx: { waitUntil: (promise: Promise<any>) => void }
+) => any;
+
 export type ResponseWaitUntil<WaitUntil extends any[] = any[]> = Response & {
   waitUntil: () => Promise<WaitUntil>;
 };
@@ -66,6 +81,32 @@ export class EventsModule extends Module {
     }
     if (!(type in this._listeners)) this._listeners[type] = [];
     this._listeners[type].push(listener);
+  }
+
+  addModuleFetchListener(
+    listener: ModuleFetchListener,
+    environment: Context
+  ): void {
+    this.addEventListener("fetch", (e) => {
+      const ctx = {
+        passThroughOnException: e.passThroughOnException.bind(e),
+        waitUntil: e.waitUntil.bind(e),
+      };
+      const res = listener(e.request, environment, ctx);
+      e.respondWith(res);
+    });
+  }
+
+  addModuleScheduledListener(
+    listener: ModuleScheduledListener,
+    environment: Context
+  ): void {
+    this.addEventListener("scheduled", (e) => {
+      const controller = { scheduledTime: e.scheduledTime };
+      const ctx = { waitUntil: e.waitUntil.bind(e) };
+      const res = listener(controller, environment, ctx);
+      e.waitUntil(Promise.resolve(res));
+    });
   }
 
   resetEventListeners(): void {

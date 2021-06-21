@@ -19,10 +19,10 @@ export class ScriptBlueprint {
     return new ScriptScriptInstance(vmContext, script);
   }
 
-  async buildModule(
+  async buildModule<Namespace = any>(
     context: Context,
     linker: vm.ModuleLinker
-  ): Promise<ModuleScriptInstance> {
+  ): Promise<ModuleScriptInstance<Namespace>> {
     const vmContext = ScriptBlueprint._createContext(context);
     if (!("SourceTextModule" in vm)) {
       throw new Error(
@@ -50,14 +50,14 @@ export class ScriptScriptInstance implements ScriptInstance {
   }
 }
 
-export class ModuleScriptInstance implements ScriptInstance {
+export class ModuleScriptInstance<Namespace = any> implements ScriptInstance {
   constructor(private module: vm.SourceTextModule) {}
 
   async run(): Promise<void> {
     await this.module.evaluate({ breakOnSigint: true });
   }
 
-  get namespace(): any {
+  get namespace(): Namespace {
     return this.module.namespace;
   }
 }

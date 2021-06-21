@@ -7,15 +7,25 @@ import sourceMap from "source-map-support";
 import { KVStorageNamespace } from "./kv";
 import { ConsoleLog, Log, NoOpLog, logResponse } from "./log";
 import { Cache, ResponseWaitUntil } from "./modules";
+import { ModuleFetchListener, ModuleScheduledListener } from "./modules/events";
 import { Context } from "./modules/module";
 import * as modules from "./modules/modules";
 import { Options, ProcessedOptions, stringScriptPath } from "./options";
-import { ModuleScriptInstance, ScriptInstance } from "./scripts";
+import { ModuleScriptInstance, ScriptScriptInstance } from "./scripts";
 import { Watcher } from "./watcher";
 
 type ModuleName = keyof typeof modules;
 type Modules = {
   [K in ModuleName]: InstanceType<typeof modules[K]>;
+};
+
+type ModuleNamespace = {
+  [key in Exclude<string, "default">]?: any; // TODO: change to durable object
+} & {
+  default?: {
+    fetch?: ModuleFetchListener;
+    scheduled?: ModuleScheduledListener;
+  };
 };
 
 export class Miniflare {
@@ -124,7 +134,9 @@ export class Miniflare {
       this.log.debug(`Reloading ${path.relative("", script.fileName)}...`);
 
       // Parse script and build instance
-      let instance: ScriptInstance;
+      let instance:
+        | ScriptScriptInstance
+        | ModuleScriptInstance<ModuleNamespace>;
       try {
         instance = this._options.modules
           ? await script.buildModule(sandbox, this._options.modulesLinker)
@@ -148,28 +160,23 @@ export class Miniflare {
       // default exports
       if (
         script.fileName === this._options.scriptPath &&
-        instance instanceof ModuleScriptInstance
+        instance instanceof ModuleScriptInstance &&
+        this._environment
       ) {
         const fetchListener = instance.namespace?.default?.fetch;
-        const scheduledListener = instance.namespace?.default?.scheduled;
-
         if (fetchListener) {
-          this._modules.EventsModule.addEventListener("fetch", (e) => {
-            const ctx = {
-              passThroughOnException: e.passThroughOnException.bind(e),
-              waitUntil: e.waitUntil.bind(e),
-            };
-            const res = fetchListener(e.request, this._environment, ctx);
-            e.respondWith(res);
-          });
+          this._modules.EventsModule.addModuleFetchListener(
+            fetchListener,
+            this._environment
+          );
         }
+
+        const scheduledListener = instance.namespace?.default?.scheduled;
         if (scheduledListener) {
-          this._modules.EventsModule.addEventListener("scheduled", (e) => {
-            const controller = { scheduledTime: e.scheduledTime };
-            const ctx = { waitUntil: e.waitUntil.bind(e) };
-            const res = scheduledListener(controller, this._environment, ctx);
-            e.waitUntil(Promise.resolve(res));
-          });
+          this._modules.EventsModule.addModuleScheduledListener(
+            scheduledListener,
+            this._environment
+          );
         }
       }
     }
