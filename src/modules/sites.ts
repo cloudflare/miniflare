@@ -2,11 +2,6 @@ import { FileKVStorage, FilteredKVStorageNamespace } from "../kv";
 import { ProcessedOptions } from "../options";
 import { Context, Module } from "./module";
 
-// TODO: document this
-const manifestProxy = new Proxy(Object.freeze({}), {
-  get: (target, prop) => prop,
-});
-
 export class SitesModule extends Module {
   buildEnvironment(options: ProcessedOptions): Context {
     if (!options.sitePath) return {};
@@ -18,7 +13,9 @@ export class SitesModule extends Module {
         include: options.siteIncludeRegexps,
         exclude: options.siteExcludeRegexps,
       }),
-      __STATIC_CONTENT_MANIFEST: manifestProxy,
+      // Empty manifest means @cloudflare/kv-asset-handler will use the request
+      // path as the file path and won't edge cache files
+      __STATIC_CONTENT_MANIFEST: {},
     };
   }
 }
