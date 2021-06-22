@@ -143,7 +143,8 @@ export function buildLinker(
           ["default"],
           function () {
             this.setExport("default", new WebAssembly.Module(data));
-          }
+          },
+          moduleOptions
         );
       default:
         throw new Error(`${errorBase}: ${rule.type} modules are unsupported`);
