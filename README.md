@@ -78,7 +78,7 @@ cache_persist = true            # --cache-persist
 durable_object_persist = true   # --do-persist
 env_path = ".env"               # --env
 wasm_bindings = [               # --wasm
-  { binding = "MODULE", path="module.wasm" }
+  { name = "MODULE", path="module.wasm" }
 ]
 ```
 
