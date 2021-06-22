@@ -1,6 +1,8 @@
 import { promises as fs } from "fs";
 import path from "path";
 import vm from "vm";
+import { cjsToEsm } from "cjstoesm";
+import { ModuleKind, TranspileOptions, transpileModule } from "typescript";
 import { Context } from "./modules/module";
 import { ProcessedModuleRule, stringScriptPath } from "./options";
 
@@ -62,6 +64,14 @@ export class ModuleScriptInstance<Namespace = any> implements ScriptInstance {
   }
 }
 
+const commonJsTranspileOptions: TranspileOptions = {
+  transformers: cjsToEsm(),
+  compilerOptions: {
+    allowJs: true,
+    module: ModuleKind.ESNext,
+  },
+};
+
 export function buildLinker(
   moduleRules: ProcessedModuleRule[]
 ): vm.ModuleLinker {
@@ -99,6 +109,13 @@ export function buildLinker(
     switch (rule.type) {
       case "ESModule":
         return new vm.SourceTextModule(data.toString("utf8"), moduleOptions);
+      case "CommonJS":
+        // TODO: try do this without TypeScript
+        const transpiled = transpileModule(
+          data.toString("utf8"),
+          commonJsTranspileOptions
+        );
+        return new vm.SourceTextModule(transpiled.outputText, moduleOptions);
       case "Text":
         return new vm.SyntheticModule<{ default: string }>(
           ["default"],
@@ -111,12 +128,23 @@ export function buildLinker(
         return new vm.SyntheticModule<{ default: ArrayBuffer }>(
           ["default"],
           function () {
-            this.setExport("default", data.buffer);
+            this.setExport(
+              "default",
+              data.buffer.slice(
+                data.byteOffset,
+                data.byteOffset + data.byteLength
+              )
+            );
           },
           moduleOptions
         );
-      // TODO: add support for CompiledWasm modules (and maybe CommonJS)
-      //  https://developers.cloudflare.com/workers/cli-wrangler/configuration#buildupload
+      case "CompiledWasm":
+        return new vm.SyntheticModule<{ default: WebAssembly.Module }>(
+          ["default"],
+          function () {
+            this.setExport("default", new WebAssembly.Module(data));
+          }
+        );
       default:
         throw new Error(`${errorBase}: ${rule.type} modules are unsupported`);
     }
