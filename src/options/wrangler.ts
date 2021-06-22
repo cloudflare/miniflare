@@ -54,6 +54,7 @@ interface WranglerEnvironmentConfig {
     env_path?: string;
     host?: string;
     port?: number;
+    wasm_bindings?: { name: string; path: string }[];
   };
 }
 
@@ -111,5 +112,12 @@ export function getWranglerOptions(
     envPath: config.miniflare?.env_path,
     host: config.miniflare?.host,
     port: config.miniflare?.port,
+    wasmBindings: config.miniflare?.wasm_bindings?.reduce(
+      (bindings, { name, path }) => {
+        bindings[name] = path;
+        return bindings;
+      },
+      {} as Record<string, string>
+    ),
   };
 }

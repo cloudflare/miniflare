@@ -11,6 +11,7 @@ Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
 - ⏰ Scheduled Events (with manual and cron triggering)
 - 🔑 `.env` File Support (for secrets)
 - 🛠 Custom Builds Support
+- ⚙️ WebAssembly Support
 - 🗺 Source Map Support
 - 👀 Automatic Reload on File Changes
 - 💪 Written in TypeScript
@@ -20,7 +21,6 @@ Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
 - 📌 Durable Objects
 - ✉️ WebSockets
 - 📄 HTMLRewriter
-- ⚙️ WebAssembly Support
 - 🤹 Custom [Jest Environment](https://jestjs.io/docs/configuration#testenvironment-string)
 - ✅ More Tests
 
@@ -56,6 +56,7 @@ Options:
                           default)
   -e, --env               Path to .env file                             [string]
   -b, --binding           Bind variable/secret (KEY=VALUE)               [array]
+      --wasm              WASM module to bind (NAME=PATH)                [array]
 ```
 
 `[script]` should be a path to a pre-bundled Worker.
@@ -76,6 +77,9 @@ kv_persist = true               # --kv-persist
 cache_persist = true            # --cache-persist
 durable_object_persist = true   # --do-persist
 env_path = ".env"               # --env
+wasm_bindings = [               # --wasm
+  { binding = "MODULE", path="module.wasm" }
+]
 ```
 
 KV and cache persistence can be enabled with the `--kv-persist` and `--cache-persist` flags respectively.

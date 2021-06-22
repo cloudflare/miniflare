@@ -29,7 +29,7 @@ export const defaultModuleRules: ModuleRule[] = [
   { type: "CommonJS", include: ["**/*.js", "**/*.cjs"] },
 ];
 
-export interface DurableObjectOption {
+export interface ProcessedDurableObject {
   name: string;
   className: string;
   scriptPath?: string;
@@ -66,11 +66,15 @@ export interface Options {
   siteInclude?: string[];
   siteExclude?: string[];
 
-  durableObjects?: DurableObjectOption[];
+  durableObjects?: Record<
+    string,
+    string | { className: string; scriptPath?: string }
+  >;
   durableObjectPersist?: boolean | string;
 
   envPath?: string;
   bindings?: Record<string, any>;
+  wasmBindings?: Record<string, string>;
 }
 
 export interface ProcessedOptions extends Options {
@@ -81,6 +85,7 @@ export interface ProcessedOptions extends Options {
   validatedCrons?: string[];
   siteIncludeRegexps?: RegExp[];
   siteExcludeRegexps?: RegExp[];
+  processedDurableObjects?: ProcessedDurableObject[];
 }
 
 export function stripUndefinedOptions(options: Options): Options {
@@ -119,7 +124,7 @@ export function logOptions(log: Log, options: ProcessedOptions): void {
     "Workers Site Exclude": options.siteIncludeRegexps?.length
       ? undefined
       : options.siteExcludeRegexps,
-    "Durable Objects": options.durableObjects?.map(({ name }) => name),
+    "Durable Objects": options.processedDurableObjects?.map(({ name }) => name),
     "Durable Objects Persistence": options.durableObjectPersist,
     Bindings: options.bindings ? Object.keys(options.bindings) : undefined,
   };

@@ -58,13 +58,11 @@ export class Watcher {
     if (this._options?.buildWatchPath)
       watchedPaths.add(this._options.buildWatchPath);
     if (this._options?.scriptPath) watchedPaths.add(this._options.scriptPath);
-    for (const durableObject of this._options?.durableObjects ?? []) {
-      if (
-        durableObject.scriptPath &&
-        durableObject.scriptPath !== this._options?.scriptPath
-      ) {
-        watchedPaths.add(durableObject.scriptPath);
-      }
+    for (const durableObject of this._options?.processedDurableObjects ?? []) {
+      if (durableObject.scriptPath) watchedPaths.add(durableObject.scriptPath);
+    }
+    for (const wasmPath of Object.values(this._options?.wasmBindings ?? {})) {
+      watchedPaths.add(wasmPath);
     }
     return watchedPaths;
   }
@@ -143,8 +141,8 @@ export class Watcher {
         );
       }
     } else {
-      // If the path isn't a config, or in buildWatchPath, it's probably a
-      // script, so reload them all
+      // If the path isn't a config, or in buildWatchPath, it's a script or WASM
+      // file, so just reload all scripts
       this._log.debug(
         `${path.relative("", eventPath)} changed, reloading scripts...`
       );
@@ -253,6 +251,15 @@ export class Watcher {
       scripts: this._scriptBlueprints,
     };
 
+    // Normalise durable objects
+    options.processedDurableObjects = Object.entries(
+      options.durableObjects ?? {}
+    ).map(([name, details]) => ({
+      name,
+      className: typeof details === "object" ? details.className : details,
+      scriptPath: typeof details === "object" ? details.scriptPath : undefined,
+    }));
+
     // Run custom build command if this is the first time we're getting options
     // to make sure the scripts exist
     if (initial && options.buildCommand) {
@@ -269,7 +276,7 @@ export class Watcher {
       options.scriptPath = path.resolve(options.scriptPath);
     }
     await this._addScriptBlueprint(options.scriptPath);
-    for (const durableObject of options.durableObjects ?? []) {
+    for (const durableObject of options.processedDurableObjects ?? []) {
       durableObject.scriptPath = durableObject.scriptPath
         ? path.resolve(durableObject.scriptPath)
         : options.scriptPath;
@@ -305,12 +312,29 @@ export class Watcher {
     const envBindings = dotenv.parse(
       await this._readFile(options.envPath, envPathSet)
     );
-    // Rebuild bindings object taking into account priorities: envBindings
-    // should override wrangler and initialOptions should override everything
+
+    // Load WASM bindings
+    const wasmBindings: Record<string, WebAssembly.Module> = {};
+    for (const [name, wasmPath] of Object.entries(options.wasmBindings ?? {})) {
+      try {
+        wasmBindings[name] = new WebAssembly.Module(
+          await fs.readFile(wasmPath)
+        );
+      } catch (e) {
+        this._log.error(
+          `Unable to load WASM module "${name}": ${e} (ignoring)`
+        );
+      }
+    }
+
+    // Rebuild bindings object taking into account priorities: envBindings and
+    // wasmBindings should override wrangler, and initialOptions should override
+    // everything
     // TODO: test with bindings defined in all places, make sure all set, overridden correctly
     options.bindings = {
       ...wranglerOptions.bindings,
       ...envBindings,
+      ...wasmBindings,
       ...this._initialOptions.bindings,
     };
 

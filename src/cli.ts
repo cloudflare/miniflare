@@ -3,7 +3,6 @@ import { networkInterfaces } from "os";
 import yargs from "yargs";
 import { ConsoleLog } from "./log";
 import {
-  DurableObjectOption,
   ModuleRule,
   ModuleRuleType,
   Options,
@@ -32,17 +31,6 @@ function parseModuleRules(arr?: string[]): ModuleRule[] | undefined {
     type: type as ModuleRuleType,
     include: [glob],
     fallthrough: true,
-  }));
-}
-
-function parseDurableObjects(
-  arr?: string[]
-): DurableObjectOption[] | undefined {
-  const obj = parseObject(arr);
-  if (!obj) return undefined;
-  return Object.entries(obj).map<DurableObjectOption>(([name, className]) => ({
-    name,
-    className,
   }));
 }
 
@@ -169,6 +157,10 @@ export default function parseArgv(raw: string[]): Options {
         description: "Bind variable/secret (KEY=VALUE)",
         alias: "b",
       },
+      wasm: {
+        type: "array",
+        description: "WASM module to bind (NAME=PATH)",
+      },
     })
     .parse(raw);
 
@@ -194,10 +186,11 @@ export default function parseArgv(raw: string[]): Options {
     sitePath: argv.site,
     siteInclude: asStringArray(argv["site-include"]),
     siteExclude: asStringArray(argv["site-exclude"]),
-    durableObjects: parseDurableObjects(asStringArray(argv["do"])),
+    durableObjects: parseObject(asStringArray(argv["do"])),
     durableObjectPersist: argv["do-persist"] as boolean | string | undefined,
     envPath: argv.env,
     bindings: parseObject(asStringArray(argv.binding)),
+    wasmBindings: parseObject(asStringArray(argv.wasm)),
   });
 }
 
