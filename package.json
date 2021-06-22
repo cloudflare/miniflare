@@ -19,7 +19,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc -w",
-    "test": "ava",
+    "test": "esbuild --bundle --outdir=test/fixtures/dist test/fixtures/*.js && ava",
     "lint": "eslint '{src,test}/**/*.ts'",
     "prepublishOnly": "npm run lint && npm run build && npm run test"
   },

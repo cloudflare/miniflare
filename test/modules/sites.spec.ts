@@ -25,40 +25,48 @@ test("buildEnvironment: content namespace is read-only", async (t) => {
   });
 });
 
-const fixtureWranglerConfigPath = path.resolve(
+// Path to worker script with @cloudflare/kv-asset-handler bundled
+const sitesScriptPath = path.resolve(
   __dirname,
   "..",
   "fixtures",
-  "sites",
-  "wrangler.toml"
+  "dist",
+  "sites.js"
 );
 
-type FixturePath = keyof typeof fixturePathContents;
-const fixturePathContents = {
+type Route = keyof typeof routeContents;
+const routeContents = {
   "/": "<p>Index</p>",
   "/a.txt": "a",
   "/b/b.txt": "b",
 };
 
-// TODO: investigate why these sometimes fail, probably related to concurrent esbuilds
-const getMacro: Macro<[Options, Set<FixturePath>]> = async (
+const getMacro: Macro<[Options, Set<Route>]> = async (
   t,
   options,
-  expectedPaths
+  expectedRoutes
 ) => {
+  const tmp = await useTmp(t);
+  for (const [route, contents] of Object.entries(routeContents)) {
+    const routePath = path.join(tmp, route === "/" ? "index.html" : route);
+    await fs.mkdir(path.dirname(routePath), { recursive: true });
+    await fs.writeFile(routePath, contents, "utf8");
+  }
+
   const mf = new Miniflare({
     ...options,
-    wranglerConfigPath: fixtureWranglerConfigPath,
+    scriptPath: sitesScriptPath,
+    sitePath: tmp,
   });
 
-  for (const [path, expectedContents] of Object.entries(fixturePathContents)) {
+  for (const [route, expectedContents] of Object.entries(routeContents)) {
     const res = await mf.dispatchFetch(
-      new Request(`http://localhost:8787${path}`)
+      new Request(`http://localhost:8787${route}`)
     );
-    const expected = expectedPaths.has(path as FixturePath);
+    const expected = expectedRoutes.has(route as Route);
     const text = (await res.text()).trim();
-    t.is(res.status, expected ? 200 : 404, `${path}: ${text}`);
-    if (expected) t.is(text, expectedContents, path);
+    t.is(res.status, expected ? 200 : 404, `${route}: ${text}`);
+    if (expected) t.is(text, expectedContents, route);
   }
 };
 getMacro.title = (providedTitle) => `buildEnvironment: ${providedTitle}`;
@@ -67,32 +75,32 @@ test(
   "gets all assets with no filter",
   getMacro,
   {},
-  new Set<FixturePath>(["/", "/a.txt", "/b/b.txt"])
+  new Set<Route>(["/", "/a.txt", "/b/b.txt"])
 );
 test(
   "gets included assets with include filter",
   getMacro,
   { siteInclude: ["b"] },
-  new Set<FixturePath>(["/b/b.txt"])
+  new Set<Route>(["/b/b.txt"])
 );
 test(
   "gets all but excluded assets with include filter",
   getMacro,
   { siteExclude: ["b"] },
-  new Set<FixturePath>(["/", "/a.txt"])
+  new Set<Route>(["/", "/a.txt"])
 );
 test(
   "gets included assets with include and exclude filters",
   getMacro,
   { siteInclude: ["*.txt"], siteExclude: ["b"] },
-  new Set<FixturePath>(["/a.txt", "/b/b.txt"])
+  new Set<Route>(["/a.txt", "/b/b.txt"])
 );
 
 test("buildEnvironment: doesn't cache files", async (t) => {
   const tmp = await useTmp(t);
   const testPath = path.join(tmp, "test.txt");
   const mf = new Miniflare({
-    wranglerConfigPath: fixtureWranglerConfigPath,
+    scriptPath: sitesScriptPath,
     sitePath: tmp,
   });
 
