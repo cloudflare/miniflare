@@ -21,17 +21,17 @@ export class ScriptBlueprint {
     return new ScriptScriptInstance(vmContext, script);
   }
 
-  async buildModule<Namespace = any>(
+  async buildModule<Exports = any>(
     context: Context,
     linker: vm.ModuleLinker
-  ): Promise<ModuleScriptInstance<Namespace>> {
+  ): Promise<ModuleScriptInstance<Exports>> {
     const vmContext = ScriptBlueprint._createContext(context);
     if (!("SourceTextModule" in vm)) {
       throw new Error(
         "Modules support requires the --experimental-vm-modules flag"
       );
     }
-    const module = new vm.SourceTextModule<Namespace>(this.code, {
+    const module = new vm.SourceTextModule<Exports>(this.code, {
       identifier: this.fileName,
       context: vmContext,
     });
@@ -52,14 +52,14 @@ export class ScriptScriptInstance implements ScriptInstance {
   }
 }
 
-export class ModuleScriptInstance<Namespace = any> implements ScriptInstance {
-  constructor(private module: vm.SourceTextModule<Namespace>) {}
+export class ModuleScriptInstance<Exports = any> implements ScriptInstance {
+  constructor(private module: vm.SourceTextModule<Exports>) {}
 
   async run(): Promise<void> {
     await this.module.evaluate({ breakOnSigint: true });
   }
 
-  get namespace(): Namespace {
+  get exports(): Exports {
     return this.module.namespace;
   }
 }

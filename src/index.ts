@@ -4,9 +4,10 @@ import path from "path";
 import { BodyInit, Request } from "@mrbbot/node-fetch";
 import cron from "node-cron";
 import sourceMap from "source-map-support";
-import { KVStorageNamespace } from "./kv";
+import { Cache, KVStorageNamespace } from "./kv";
 import { ConsoleLog, Log, NoOpLog, logResponse } from "./log";
-import { Cache, ResponseWaitUntil } from "./modules";
+import { ResponseWaitUntil } from "./modules";
+import { DurableObjectConstructor } from "./modules/do";
 import { ModuleFetchListener, ModuleScheduledListener } from "./modules/events";
 import { Context } from "./modules/module";
 import * as modules from "./modules/modules";
@@ -19,8 +20,8 @@ type Modules = {
   [K in ModuleName]: InstanceType<typeof modules[K]>;
 };
 
-type ModuleNamespace = {
-  [key in Exclude<string, "default">]?: any; // TODO: change to durable object
+type ModuleExports = {
+  [key in Exclude<string, "default">]?: DurableObjectConstructor;
 } & {
   default?: {
     fetch?: ModuleFetchListener;
@@ -36,8 +37,8 @@ export class Miniflare {
   private _watcher?: Watcher;
   private _options?: ProcessedOptions;
 
-  private _sandbox?: Context;
-  private _environment?: Context;
+  private _sandbox: Context;
+  private _environment: Context;
   private _scheduledTasks?: cron.ScheduledTask[];
 
   constructor(options: Options) {
@@ -57,6 +58,10 @@ export class Miniflare {
       },
       {} as Modules
     );
+
+    // Defaults never used, will be overridden in _watchCallback
+    this._sandbox = {};
+    this._environment = {};
 
     this._initPromise = new Promise(async (resolve) => {
       this._initResolve = resolve;
@@ -118,7 +123,7 @@ export class Miniflare {
 
     // Reset state
     this._modules.EventsModule.resetEventListeners();
-    // TODO: reset durable object instances here
+    this._modules.DurableObjectsModule.resetInstances();
 
     // Build sandbox with global self-references, only including environment
     // in global scope if not using modules
@@ -130,13 +135,12 @@ export class Miniflare {
     sandbox.self = sandbox;
 
     // Parse and run all scripts
+    const moduleExports: Record<string, ModuleExports> = {};
     for (const script of Object.values(this._options.scripts)) {
       this.log.debug(`Reloading ${path.relative("", script.fileName)}...`);
 
       // Parse script and build instance
-      let instance:
-        | ScriptScriptInstance
-        | ModuleScriptInstance<ModuleNamespace>;
+      let instance: ScriptScriptInstance | ModuleScriptInstance<ModuleExports>;
       try {
         instance = this._options.modules
           ? await script.buildModule(sandbox, this._options.modulesLinker)
@@ -156,14 +160,16 @@ export class Miniflare {
         continue;
       }
 
+      // If this isn't a module instance, move on to the next script
+      if (!(instance instanceof ModuleScriptInstance)) continue;
+
+      // Store the namespace so we can extract its Durable Object constructors
+      moduleExports[script.fileName] = instance.exports;
+
       // If this is the main modules script, setup event listeners for
       // default exports
-      if (
-        script.fileName === this._options.scriptPath &&
-        instance instanceof ModuleScriptInstance &&
-        this._environment
-      ) {
-        const fetchListener = instance.namespace?.default?.fetch;
+      if (script.fileName === this._options.scriptPath) {
+        const fetchListener = instance.exports?.default?.fetch;
         if (fetchListener) {
           this._modules.EventsModule.addModuleFetchListener(
             fetchListener,
@@ -171,7 +177,7 @@ export class Miniflare {
           );
         }
 
-        const scheduledListener = instance.namespace?.default?.scheduled;
+        const scheduledListener = instance.exports?.default?.scheduled;
         if (scheduledListener) {
           this._modules.EventsModule.addModuleScheduledListener(
             scheduledListener,
@@ -181,7 +187,23 @@ export class Miniflare {
       }
     }
 
-    // TODO: pass script instance to durable objects module for object instance creation
+    // Reset durable objects with new constructors and environment
+    const constructors: Record<string, DurableObjectConstructor> = {};
+    for (const durableObject of this._options.processedDurableObjects ?? []) {
+      const constructor =
+        moduleExports[durableObject.scriptPath][durableObject.className];
+      if (constructor) {
+        constructors[durableObject.name] = constructor;
+      } else {
+        this.log.error(
+          `Unable to find class ${durableObject.className} for Durable Object ${durableObject.name} (ignoring)`
+        );
+      }
+    }
+    this._modules.DurableObjectsModule.setContext(
+      constructors,
+      this._environment
+    );
 
     this.log.info("Worker reloaded!");
   }

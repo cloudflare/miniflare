@@ -1,4 +1,4 @@
-export { Cache } from "./cache";
+export { DurableObject } from "./do";
 export { FetchEvent, ScheduledEvent, ResponseWaitUntil } from "./events";
 export {
   URL,

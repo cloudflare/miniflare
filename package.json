@@ -40,7 +40,7 @@
     "source-map-support": "^0.5.19",
     "toml": "^3.0.0",
     "tslib": "^2.1.0",
-    "typescript": "4",
+    "typescript": "^4.3.4",
     "web-streams-polyfill": "^3.0.1",
     "yargs": "^16.2.0"
   },

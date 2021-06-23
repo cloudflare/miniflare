@@ -251,15 +251,6 @@ export class Watcher {
       scripts: this._scriptBlueprints,
     };
 
-    // Normalise durable objects
-    options.processedDurableObjects = Object.entries(
-      options.durableObjects ?? {}
-    ).map(([name, details]) => ({
-      name,
-      className: typeof details === "object" ? details.className : details,
-      scriptPath: typeof details === "object" ? details.scriptPath : undefined,
-    }));
-
     // Run custom build command if this is the first time we're getting options
     // to make sure the scripts exist
     if (initial && options.buildCommand) {
@@ -276,13 +267,25 @@ export class Watcher {
       options.scriptPath = path.resolve(options.scriptPath);
     }
     await this._addScriptBlueprint(options.scriptPath);
-    for (const durableObject of options.processedDurableObjects ?? []) {
-      durableObject.scriptPath = durableObject.scriptPath
-        ? path.resolve(durableObject.scriptPath)
-        : options.scriptPath;
-      if (durableObject.scriptPath !== options.scriptPath) {
-        await this._addScriptBlueprint(durableObject.scriptPath);
-      }
+    // Make sure all durable objects have a scriptPath set
+    options.processedDurableObjects = Object.entries(
+      options.durableObjects ?? {}
+    ).map(([name, details]) => {
+      const className =
+        typeof details === "object" ? details.className : details;
+      const scriptPath =
+        typeof details === "object" ? details.scriptPath : undefined;
+      const resolvedScriptPath = scriptPath
+        ? path.resolve(scriptPath)
+        : (options.scriptPath as string);
+      return {
+        name,
+        className,
+        scriptPath: resolvedScriptPath,
+      };
+    });
+    for (const durableObject of options.processedDurableObjects) {
+      await this._addScriptBlueprint(durableObject.scriptPath);
     }
 
     // Parse module rules

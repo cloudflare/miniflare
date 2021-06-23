@@ -79,10 +79,7 @@ export class KVStorageNamespace {
 
   get(key: string): KVValue<string>;
   get(key: string, type: "text"): KVValue<string>;
-  get<ExpectedValue = unknown>(
-    key: string,
-    type: "json"
-  ): KVValue<ExpectedValue>;
+  get<Value = unknown>(key: string, type: "json"): KVValue<Value>;
   get(key: string, type: "arrayBuffer"): KVValue<ArrayBuffer>;
   get(key: string, type: "stream"): KVValue<ReadableStream>;
   async get(key: string, type: KVGetValueType = "text"): KVValue<any> {
@@ -96,10 +93,10 @@ export class KVStorageNamespace {
     key: string,
     type: "text"
   ): KVValueWithMetadata<string, Metadata>;
-  getWithMetadata<ExpectedValue = unknown, Metadata = unknown>(
+  getWithMetadata<Value = unknown, Metadata = unknown>(
     key: string,
     type: "json"
-  ): KVValueWithMetadata<ExpectedValue, Metadata>;
+  ): KVValueWithMetadata<Value, Metadata>;
   getWithMetadata<Metadata = unknown>(
     key: string,
     type: "arrayBuffer"

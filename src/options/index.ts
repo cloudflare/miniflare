@@ -29,10 +29,14 @@ export const defaultModuleRules: ModuleRule[] = [
   { type: "CommonJS", include: ["**/*.js", "**/*.cjs"] },
 ];
 
+export interface DurableObjectOptions {
+  [name: string]: string | { className: string; scriptPath?: string };
+}
+
 export interface ProcessedDurableObject {
   name: string;
   className: string;
-  scriptPath?: string;
+  scriptPath: string;
 }
 
 export interface Options {
@@ -66,10 +70,7 @@ export interface Options {
   siteInclude?: string[];
   siteExclude?: string[];
 
-  durableObjects?: Record<
-    string,
-    string | { className: string; scriptPath?: string }
-  >;
+  durableObjects?: DurableObjectOptions;
   durableObjectPersist?: boolean | string;
 
   envPath?: string;

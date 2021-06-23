@@ -25,10 +25,10 @@ export class KVModule extends Module {
   }
 
   buildEnvironment(options: ProcessedOptions): Context {
-    const sandbox: Context = {};
+    const environment: Context = {};
     for (const namespace of options.kvNamespaces ?? []) {
-      sandbox[namespace] = this.getNamespace(namespace, options.kvPersist);
+      environment[namespace] = this.getNamespace(namespace, options.kvPersist);
     }
-    return sandbox;
+    return environment;
   }
 }

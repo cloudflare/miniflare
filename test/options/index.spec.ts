@@ -57,8 +57,8 @@ test("logOptions: logs all options", (t) => {
     sitePath: "public",
     siteIncludeRegexps: [regexp1, regexp2],
     processedDurableObjects: [
-      { name: "OBJECT1", className: "Object1" },
-      { name: "OBJECT2", className: "Object2" },
+      { name: "OBJECT1", className: "Object1", scriptPath: "" },
+      { name: "OBJECT2", className: "Object2", scriptPath: "" },
     ],
     durableObjectPersist: true,
     bindings: { KEY: "value" },

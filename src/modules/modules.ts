@@ -1,4 +1,5 @@
 export { CacheModule } from "./cache";
+export { DurableObjectsModule } from "./do";
 export { EventsModule } from "./events";
 export { KVModule } from "./kv";
 export { SitesModule } from "./sites";

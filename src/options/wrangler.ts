@@ -1,6 +1,6 @@
 import path from "path";
 import toml from "toml";
-import { ModuleRuleType, Options } from "./index";
+import { DurableObjectOptions, ModuleRuleType, Options } from "./index";
 
 interface WranglerEnvironmentConfig {
   name: string;
@@ -26,6 +26,7 @@ interface WranglerEnvironmentConfig {
     bindings?: {
       name: string;
       class_name: string;
+      script_name?: string;
     }[];
   };
   triggers?: {
@@ -101,6 +102,13 @@ export function getWranglerOptions(
       : undefined,
     siteInclude: config.site?.include,
     siteExclude: config.site?.exclude,
+    durableObjects: config.durable_objects?.bindings?.reduce(
+      (objects, { name, class_name, script_name }) => {
+        objects[name] = { className: class_name, scriptPath: script_name };
+        return objects;
+      },
+      {} as DurableObjectOptions
+    ),
     crons: config.triggers?.crons,
     buildCommand: config.build?.command,
     buildBasePath: config.build?.cwd,
