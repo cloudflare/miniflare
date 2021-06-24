@@ -9,6 +9,8 @@ import {
 } from "../../../src";
 import { useTmp } from "../../helpers";
 
+const collator = new Intl.Collator();
+
 type TestStorageFactory = {
   name: string;
   factory: (t: ExecutionContext) => Promise<KVStorage>;
@@ -55,6 +57,18 @@ const emptyFileStorageFactory: TestStorageFactory = {
   name: "FileKVStorage",
   factory: async (t) => new FileKVStorage(await useTmp(t)),
 };
+
+const hasMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
+  const storage = await factory(t);
+  t.true(await storage.has("key1"));
+  t.true(await storage.has("key2"));
+  t.true(await storage.has("dir/key3"));
+  t.false(await storage.has("key4"));
+};
+hasMacro.title = (providedTitle, { name }) =>
+  `${name}: has: checks if keys exist`;
+test(hasMacro, memoryStorageFactory);
+test(hasMacro, fileStorageFactory);
 
 const getExistingMacro: Macro<[TestStorageFactory]> = async (
   t,
@@ -194,7 +208,7 @@ const listExistingMacro: Macro<[TestStorageFactory]> = async (
 ) => {
   const storage = await factory(t);
   const keys = await storage.list();
-  const sortedKeys = keys.sort((a, b) => a.name.localeCompare(b.name));
+  const sortedKeys = keys.sort((a, b) => collator.compare(a.name, b.name));
   t.deepEqual(sortedKeys, [
     { name: "dir/key3", expiration: undefined, metadata: undefined },
     { name: "key1", expiration: undefined, metadata: undefined },

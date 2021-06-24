@@ -6,10 +6,13 @@ Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
 
 - 📦 KV (with optional persistence)
 - ✨ Cache (with optional persistence)
+- 📌 Durable Objects (with optional persistence)
 - 🌐 Workers Sites
 - 📨 Fetch Events (with HTTP server and manual triggering)
 - ⏰ Scheduled Events (with manual and cron triggering)
 - 🔑 `.env` File Support (for secrets)
+- 🕸 Web Standards: Base64, Timers, Fetch, Encoding, URL, Streams, Web Crypto
+- 📚 ES Modules Support
 - 🛠 Custom Builds Support
 - ⚙️ WebAssembly Support
 - 🗺 Source Map Support
@@ -18,7 +21,6 @@ Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
 
 ## Coming Soon
 
-- 📌 Durable Objects
 - ✉️ WebSockets
 - 📄 HTMLRewriter
 - 🤹 Custom [Jest Environment](https://jestjs.io/docs/configuration#testenvironment-string)

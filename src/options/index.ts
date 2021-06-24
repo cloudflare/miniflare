@@ -71,7 +71,7 @@ export interface Options {
   siteExclude?: string[];
 
   durableObjects?: DurableObjectOptions;
-  durableObjectPersist?: boolean | string;
+  durableObjectsPersist?: boolean | string;
 
   envPath?: string;
   bindings?: Record<string, any>;
@@ -126,7 +126,7 @@ export function logOptions(log: Log, options: ProcessedOptions): void {
       ? undefined
       : options.siteExcludeRegexps,
     "Durable Objects": options.processedDurableObjects?.map(({ name }) => name),
-    "Durable Objects Persistence": options.durableObjectPersist,
+    "Durable Objects Persistence": options.durableObjectsPersist,
     Bindings: options.bindings ? Object.keys(options.bindings) : undefined,
   };
   log.debug("Options:");

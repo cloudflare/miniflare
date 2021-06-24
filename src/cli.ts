@@ -187,7 +187,7 @@ export default function parseArgv(raw: string[]): Options {
     siteInclude: asStringArray(argv["site-include"]),
     siteExclude: asStringArray(argv["site-exclude"]),
     durableObjects: parseObject(asStringArray(argv["do"])),
-    durableObjectPersist: argv["do-persist"] as boolean | string | undefined,
+    durableObjectsPersist: argv["do-persist"] as boolean | string | undefined,
     envPath: argv.env,
     bindings: parseObject(asStringArray(argv.binding)),
     wasmBindings: parseObject(asStringArray(argv.wasm)),

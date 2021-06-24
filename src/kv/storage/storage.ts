@@ -1,5 +1,3 @@
-// TODO: generify metadata, reuse for durable object storage
-
 export interface KVStoredValue<Value = Buffer> {
   value: Value;
   expiration?: number;
@@ -13,6 +11,7 @@ export interface KVStoredKey {
 }
 
 export interface KVStorage {
+  has(key: string): Promise<boolean>;
   get(key: string): Promise<KVStoredValue | undefined>;
   put(key: string, value: KVStoredValue): Promise<void>;
   delete(key: string): Promise<boolean>;

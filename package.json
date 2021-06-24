@@ -41,6 +41,8 @@
     "toml": "^3.0.0",
     "tslib": "^2.1.0",
     "typescript": "^4.3.4",
+    "typeson": "^6.1.0",
+    "typeson-registry": "^1.0.0-alpha.39",
     "web-streams-polyfill": "^3.0.1",
     "yargs": "^16.2.0"
   },

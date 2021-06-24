@@ -1,6 +1,8 @@
 import { ReadableStream } from "web-streams-polyfill/ponyfill/es6";
 import { KVStorage } from "./storage";
 
+const collator = new Intl.Collator();
+
 // Returns value as an integer or undefined if it isn't one
 function normaliseInt(value: string | number | undefined) {
   switch (typeof value) {
@@ -209,7 +211,7 @@ export class KVStorageNamespace {
         }
         return name.startsWith(prefix);
       })
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => collator.compare(a.name, b.name));
 
     // Delete expired keys
     for (const expiredKey of expiredKeys) {

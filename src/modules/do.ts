@@ -6,7 +6,7 @@ import {
   RequestInit,
   Response,
 } from "@mrbbot/node-fetch";
-import { DurableObjectStorage } from "../kv/do";
+import { DurableObjectStorage } from "../kv";
 import { KVStorageFactory } from "../kv/helpers";
 import { Log } from "../log";
 import { ProcessedOptions } from "../options";
@@ -32,16 +32,16 @@ export interface DurableObject {
 type DurableObjectFactory = (id: DurableObjectId) => Promise<DurableObject>;
 
 export class DurableObjectId {
-  constructor(private hexId: string, public name?: string) {}
+  constructor(private _hexId: string, public name?: string) {}
 
   toString(): string {
-    return this.hexId;
+    return this._hexId;
   }
 }
 
 export class DurableObjectStub {
   constructor(
-    private factory: DurableObjectFactory,
+    private _factory: DurableObjectFactory,
     public id: DurableObjectId
   ) {}
 
@@ -50,13 +50,16 @@ export class DurableObjectStub {
   }
 
   async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-    const instance = await this.factory(this.id);
+    const instance = await this._factory(this.id);
     return instance.fetch(new Request(input, init));
   }
 }
 
 export class DurableObjectNamespace {
-  constructor(private factory: DurableObjectFactory) {}
+  constructor(
+    private _objectName: string,
+    private _factory: DurableObjectFactory
+  ) {}
 
   newUniqueId(): DurableObjectId {
     // Create new zero-filled 32 byte buffer
@@ -70,9 +73,13 @@ export class DurableObjectNamespace {
   }
 
   idFromName(name: string): DurableObjectId {
-    const id = crypto.createHash("sha256").update(name).digest();
-    // Force first byte to be 1, ensuring no intersection with unique IDs
-    id[0] = 1;
+    const id = crypto
+      .createHash("sha256")
+      .update(this._objectName)
+      .update(name)
+      .digest();
+    // Force first bit to be 1, ensuring no intersection with unique IDs
+    id[0] |= 0b1000_0000;
     return new DurableObjectId(id.toString("hex"), name);
   }
 
@@ -81,7 +88,7 @@ export class DurableObjectNamespace {
   }
 
   get(id: DurableObjectId): DurableObjectStub {
-    return new DurableObjectStub(this.factory, id);
+    return new DurableObjectStub(this._factory, id);
   }
 }
 
@@ -89,21 +96,18 @@ const defaultPersistRoot = path.resolve(".mf", "do");
 
 export class DurableObjectsModule extends Module {
   private readonly storageFactory: KVStorageFactory;
-  readonly _instances: Map<string, DurableObject>;
+  readonly _instances = new Map<string, DurableObject>();
   private _contextPromise: Promise<void>;
   private _contextResolve?: () => void;
-  private _constructors: Record<string, DurableObjectConstructor>;
-  private _environment: Context;
+  private _constructors: Record<string, DurableObjectConstructor> = {};
+  private _environment: Context = {};
 
   constructor(log: Log, persistRoot = defaultPersistRoot) {
     super(log);
     this.storageFactory = new KVStorageFactory(persistRoot);
-    this._instances = new Map<string, DurableObject>();
     this._contextPromise = new Promise(
       (resolve) => (this._contextResolve = resolve)
     );
-    this._constructors = {};
-    this._environment = {};
   }
 
   resetInstances(): void {
@@ -141,12 +145,13 @@ export class DurableObjectsModule extends Module {
         this.storageFactory.getStorage(key, persist)
       );
       const state = new DurableObjectState(id, storage);
+      // TODO: throw more specific exception if constructor is undefined
       instance = new constructor(state, this._environment);
       this._instances.set(key, instance);
 
       return instance;
     };
-    return new DurableObjectNamespace(factory);
+    return new DurableObjectNamespace(objectName, factory);
   }
 
   buildEnvironment(options: ProcessedOptions): Context {
@@ -154,7 +159,7 @@ export class DurableObjectsModule extends Module {
     for (const object of options.processedDurableObjects ?? []) {
       environment[object.name] = this.getNamespace(
         object.name,
-        options.durableObjectPersist
+        options.durableObjectsPersist
       );
     }
     return environment;

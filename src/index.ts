@@ -191,12 +191,12 @@ export class Miniflare {
     const constructors: Record<string, DurableObjectConstructor> = {};
     for (const durableObject of this._options.processedDurableObjects ?? []) {
       const constructor =
-        moduleExports[durableObject.scriptPath][durableObject.className];
+        moduleExports[durableObject.scriptPath]?.[durableObject.className];
       if (constructor) {
         constructors[durableObject.name] = constructor;
       } else {
         this.log.error(
-          `Unable to find class ${durableObject.className} for Durable Object ${durableObject.name} (ignoring)`
+          `Unable to find class ${durableObject.className} for Durable Object ${durableObject.name}`
         );
       }
     }

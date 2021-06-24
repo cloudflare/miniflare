@@ -51,7 +51,7 @@ interface WranglerEnvironmentConfig {
     upstream?: string;
     kv_persist?: boolean | string;
     cache_persist?: boolean | string;
-    durable_object_persist?: boolean | string;
+    durable_objects_persist?: boolean | string;
     env_path?: string;
     host?: string;
     port?: number;
@@ -116,7 +116,7 @@ export function getWranglerOptions(
     upstream: config.miniflare?.upstream,
     kvPersist: config.miniflare?.kv_persist,
     cachePersist: config.miniflare?.cache_persist,
-    durableObjectPersist: config.miniflare?.durable_object_persist,
+    durableObjectsPersist: config.miniflare?.durable_objects_persist,
     envPath: config.miniflare?.env_path,
     host: config.miniflare?.host,
     port: config.miniflare?.port,

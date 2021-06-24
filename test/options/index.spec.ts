@@ -60,7 +60,7 @@ test("logOptions: logs all options", (t) => {
       { name: "OBJECT1", className: "Object1", scriptPath: "" },
       { name: "OBJECT2", className: "Object2", scriptPath: "" },
     ],
-    durableObjectPersist: true,
+    durableObjectsPersist: true,
     bindings: { KEY: "value" },
   });
 

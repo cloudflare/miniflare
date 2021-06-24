@@ -1,4 +1,4 @@
-import { promises as fs } from "fs";
+import { existsSync, promises as fs } from "fs";
 import path from "path";
 import { KVStorage, KVStoredKey, KVStoredValue } from "./storage";
 
@@ -63,6 +63,12 @@ export class FileKVStorage implements KVStorage {
 
   constructor(root: string) {
     this._root = path.resolve(root);
+  }
+
+  async has(key: string): Promise<boolean> {
+    // Check if file exists
+    const filePath = path.join(this._root, key);
+    return existsSync(filePath);
   }
 
   async get(key: string): Promise<KVStoredValue | undefined> {
