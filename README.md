@@ -135,12 +135,19 @@ const mf = new Miniflare({
 });
 
 // Manipulate KV outside of worker (useful for testing)
-const ns = await mf.getNamespace("TEST_NAMESPACE");
+const ns = await mf.getKVNamespace("TEST_NAMESPACE");
 await ns.put("key", "testing");
 
 // Manipulate cache outside of worker
 const cache = await mf.getCache();
 const cachedRes = await cache.match(new Request("http://localhost"));
+
+// Manipulate Durable Objects outside of worker
+const OBJECT = await mf.getDurableObjectNamespace("OBJECT");
+const stub = OBJECT.get(OBJECT.idFromName("name"));
+const doRes = await stub.fetch("http://localhost");
+const storage = await stub.storage(); // Extra Miniflare-only API
+await storage.put("key", new Set(["testing"]));
 
 // Dispatch fetch events and get body
 const res = await mf.dispatchFetch(new Request("http://localhost"));

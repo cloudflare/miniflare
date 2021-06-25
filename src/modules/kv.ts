@@ -8,11 +8,11 @@ import { Context, Module } from "./module";
 const defaultPersistRoot = path.resolve(".mf", "kv");
 
 export class KVModule extends Module {
-  private readonly storageFactory: KVStorageFactory;
+  private readonly _storageFactory: KVStorageFactory;
 
   constructor(log: Log, persistRoot = defaultPersistRoot) {
     super(log);
-    this.storageFactory = new KVStorageFactory(persistRoot);
+    this._storageFactory = new KVStorageFactory(persistRoot);
   }
 
   getNamespace(
@@ -20,7 +20,7 @@ export class KVModule extends Module {
     persist?: boolean | string
   ): KVStorageNamespace {
     return new KVStorageNamespace(
-      this.storageFactory.getStorage(namespace, persist)
+      this._storageFactory.getStorage(namespace, persist)
     );
   }
 

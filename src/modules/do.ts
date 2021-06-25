@@ -1,3 +1,4 @@
+import assert from "assert";
 import crypto from "crypto";
 import path from "path";
 import {
@@ -11,6 +12,12 @@ import { KVStorageFactory } from "../kv/helpers";
 import { Log } from "../log";
 import { ProcessedOptions } from "../options";
 import { Context, Module } from "./module";
+
+// Ideally we would store the storage on the DurableObject instance itself,
+// but we don't know what the user's Durable Object code does, so we store it
+// in a WeakMap instead. This means DurableObjectStorage instances can still be
+// garbage collected if the corresponding DurableObject instance is.
+const instancesStorage = new WeakMap<DurableObject, DurableObjectStorage>();
 
 export class DurableObjectState {
   constructor(
@@ -29,7 +36,9 @@ export interface DurableObject {
   fetch(request: Request): Response | Promise<Response>;
 }
 
-type DurableObjectFactory = (id: DurableObjectId) => Promise<DurableObject>;
+export type DurableObjectFactory = (
+  id: DurableObjectId
+) => Promise<DurableObject>;
 
 export class DurableObjectId {
   constructor(private _hexId: string, public name?: string) {}
@@ -52,6 +61,15 @@ export class DurableObjectStub {
   async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
     const instance = await this._factory(this.id);
     return instance.fetch(new Request(input, init));
+  }
+
+  // Extra Miniflare-only API exposed for easier testing
+  async storage(): Promise<DurableObjectStorage> {
+    const instance = await this._factory(this.id);
+    const storage = instancesStorage.get(instance);
+    // _factory will make sure instance's storage is in instancesStorage
+    assert(storage !== undefined);
+    return storage;
   }
 }
 
@@ -95,7 +113,7 @@ export class DurableObjectNamespace {
 const defaultPersistRoot = path.resolve(".mf", "do");
 
 export class DurableObjectsModule extends Module {
-  private readonly storageFactory: KVStorageFactory;
+  readonly _storageFactory: KVStorageFactory;
   readonly _instances = new Map<string, DurableObject>();
   private _contextPromise: Promise<void>;
   private _contextResolve?: () => void;
@@ -104,7 +122,7 @@ export class DurableObjectsModule extends Module {
 
   constructor(log: Log, persistRoot = defaultPersistRoot) {
     super(log);
-    this.storageFactory = new KVStorageFactory(persistRoot);
+    this._storageFactory = new KVStorageFactory(persistRoot);
     this._contextPromise = new Promise(
       (resolve) => (this._contextResolve = resolve)
     );
@@ -141,13 +159,15 @@ export class DurableObjectsModule extends Module {
 
       // Create and store new instance if none found
       const constructor = this._constructors[objectName];
+      // TODO: consider keeping these storages alive between context reloads
       const storage = new DurableObjectStorage(
-        this.storageFactory.getStorage(key, persist)
+        this._storageFactory.getStorage(key, persist)
       );
       const state = new DurableObjectState(id, storage);
       // TODO: throw more specific exception if constructor is undefined
       instance = new constructor(state, this._environment);
       this._instances.set(key, instance);
+      instancesStorage.set(instance, storage);
 
       return instance;
     };

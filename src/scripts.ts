@@ -27,6 +27,7 @@ export class ScriptBlueprint {
   ): Promise<ModuleScriptInstance<Exports>> {
     const vmContext = ScriptBlueprint._createContext(context);
     if (!("SourceTextModule" in vm)) {
+      // TODO: switch to Miniflare specific error class
       throw new Error(
         "Modules support requires the --experimental-vm-modules flag"
       );

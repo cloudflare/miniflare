@@ -1,13 +1,18 @@
 import assert from "assert";
 import http from "http";
 import path from "path";
-import { BodyInit, Request } from "@mrbbot/node-fetch";
+import {
+  BodyInit,
+  Request,
+  RequestInfo,
+  RequestInit,
+} from "@mrbbot/node-fetch";
 import cron from "node-cron";
 import sourceMap from "source-map-support";
 import { Cache, KVStorageNamespace } from "./kv";
 import { ConsoleLog, Log, NoOpLog, logResponse } from "./log";
 import { ResponseWaitUntil } from "./modules";
-import { DurableObjectConstructor } from "./modules/do";
+import { DurableObjectConstructor, DurableObjectNamespace } from "./modules/do";
 import { ModuleFetchListener, ModuleScheduledListener } from "./modules/events";
 import { Context } from "./modules/module";
 import * as modules from "./modules/modules";
@@ -146,6 +151,7 @@ export class Miniflare {
           ? await script.buildModule(sandbox, this._options.modulesLinker)
           : await script.buildScript(sandbox);
       } catch (e) {
+        // TODO: if this is because --experimental-vm-modules disabled, rethrow
         this.log.error(
           `Unable to parse ${path.relative("", script.fileName)}: ${e}`
         );
@@ -219,11 +225,12 @@ export class Miniflare {
   }
 
   async dispatchFetch<WaitUntil extends any[] = any[]>(
-    request: Request
+    input: RequestInfo,
+    init?: RequestInit
   ): Promise<ResponseWaitUntil<WaitUntil>> {
     await this._initPromise;
     return this._modules.EventsModule.dispatchFetch<WaitUntil>(
-      request,
+      new Request(input, init),
       this._options?.upstreamUrl
     );
   }
@@ -253,12 +260,21 @@ export class Miniflare {
     );
   }
 
-  // TODO: maybe rename to getKVNamespace()
-  async getNamespace(namespace: string): Promise<KVStorageNamespace> {
+  async getKVNamespace(namespace: string): Promise<KVStorageNamespace> {
     await this._initPromise;
     return this._modules.KVModule.getNamespace(
       namespace,
       this._options?.kvPersist
+    );
+  }
+
+  async getDurableObjectNamespace(
+    objectName: string
+  ): Promise<DurableObjectNamespace> {
+    await this._initPromise;
+    return this._modules.DurableObjectsModule.getNamespace(
+      objectName,
+      this._options?.durableObjectsPersist
     );
   }
 
