@@ -27,7 +27,7 @@
     "miniflare": "dist/src/cli.js"
   },
   "dependencies": {
-    "@mrbbot/node-fetch": "github:mrbbot/node-fetch",
+    "@mrbbot/node-fetch": "^4.0.1",
     "@peculiar/webcrypto": "^1.1.4",
     "chalk": "^4.1.0",
     "chokidar": "^3.5.1",
