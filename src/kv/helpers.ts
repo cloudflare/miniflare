@@ -14,6 +14,12 @@ export function intersects<T>(a: Set<T>, b: Set<T>): boolean {
   return false;
 }
 
+export type KVClock = () => number;
+export const defaultClock: KVClock = () => Date.now();
+export function millisToSeconds(millis: number): number {
+  return Math.floor(millis / 1000);
+}
+
 export class KVStorageFactory {
   constructor(
     private defaultPersistRoot: string,

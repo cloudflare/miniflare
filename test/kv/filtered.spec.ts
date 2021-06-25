@@ -1,17 +1,17 @@
 import anyTest, { TestInterface } from "ava";
 import {
   FilteredKVStorageNamespace,
-  KVClock,
   KVStorage,
   MemoryKVStorage,
 } from "../../src";
+import { KVClock } from "../../src/kv/helpers";
 
 // TODO: when testing options parsing, or maybe in sites module tests?,
 //  test with micromatch, file storage, all types of patterns too with resolved
 //  roots, but not resolved patterns (e.g. *.txt, **/*.txt,
 //  relative paths: dir/*.txt, absolute paths: /Users/.../dir/*.txt)
 
-const testClock: KVClock = () => 1000;
+const testClock: KVClock = () => 1000000;
 
 interface Context {
   storage: KVStorage;

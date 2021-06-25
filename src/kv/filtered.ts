@@ -1,5 +1,5 @@
+import { KVClock } from "./helpers";
 import {
-  KVClock,
   KVGetValueType,
   KVListOptions,
   KVListResult,

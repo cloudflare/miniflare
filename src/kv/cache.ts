@@ -1,6 +1,6 @@
 import { Headers, Request, Response } from "@mrbbot/node-fetch";
 import CachePolicy from "http-cache-semantics";
-import { sanitise } from "./helpers";
+import { KVClock, defaultClock, sanitise } from "./helpers";
 import { KVStorageNamespace } from "./namespace";
 import { KVStorage } from "./storage";
 
@@ -21,8 +21,11 @@ export interface CachedResponse {
 export class Cache {
   private readonly namespace: KVStorageNamespace;
 
-  constructor(private storage: KVStorage) {
-    this.namespace = new KVStorageNamespace(storage);
+  constructor(
+    private storage: KVStorage,
+    private clock: KVClock = defaultClock
+  ) {
+    this.namespace = new KVStorageNamespace(storage, clock);
   }
 
   private static _normaliseRequest(req: string | Request): Request {
@@ -73,30 +76,41 @@ export class Cache {
       status: res.status,
       headers: resHeaders,
     };
-    const policy = new CachePolicy(cacheReq, cacheRes, { shared: true });
 
-    // Check if the request & response is cacheable, if not return undefined
-    if (
-      req.method !== "GET" ||
-      "set-cookie" in resHeaders ||
-      !policy.storable()
-    ) {
-      return;
-    }
+    // @ts-expect-error `now` isn't included in CachePolicy's type definitions
+    const originalNow = CachePolicy.prototype.now;
+    // @ts-expect-error `now` isn't included in CachePolicy's type definitions
+    CachePolicy.prototype.now = this.clock;
+    try {
+      const policy = new CachePolicy(cacheReq, cacheRes, { shared: true });
+      // policy.now = this.clock;
 
-    // If it is cacheable, store it in KV
-    const key = Cache._getKey(req);
-    await this.namespace.put(
-      key,
-      JSON.stringify({
-        status: res.status,
-        headers: res.headers.raw(),
-        body: Buffer.from(await res.arrayBuffer()).toString("base64"),
-      } as CachedResponse),
-      {
-        expirationTtl: policy.timeToLive() / 1000,
+      // Check if the request & response is cacheable, if not return undefined
+      if (
+        req.method !== "GET" ||
+        "set-cookie" in resHeaders ||
+        !policy.storable()
+      ) {
+        return;
       }
-    );
+
+      // If it is cacheable, store it in KV
+      const key = Cache._getKey(req);
+      await this.namespace.put(
+        key,
+        JSON.stringify({
+          status: res.status,
+          headers: res.headers.raw(),
+          body: Buffer.from(await res.arrayBuffer()).toString("base64"),
+        } as CachedResponse),
+        {
+          expirationTtl: policy.timeToLive() / 1000,
+        }
+      );
+    } finally {
+      // @ts-expect-error `now` isn't included in CachePolicy's type definitions
+      CachePolicy.prototype.now = originalNow;
+    }
   }
 
   async match(

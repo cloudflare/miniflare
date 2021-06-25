@@ -1,4 +1,5 @@
 import { ReadableStream } from "web-streams-polyfill/ponyfill/es6";
+import { KVClock, defaultClock, millisToSeconds } from "./helpers";
 import { KVStorage } from "./storage";
 
 const collator = new Intl.Collator();
@@ -42,9 +43,6 @@ function consumeReadableStream(stream: ReadableStream) {
     push();
   });
 }
-
-export type KVClock = () => number;
-const defaultClock: KVClock = () => Math.floor(Date.now() / 1000);
 
 export type KVValue<Value> = Promise<Value | null>;
 export type KVValueWithMetadata<Value, Metadata> = Promise<{
@@ -127,7 +125,10 @@ export class KVStorageNamespace {
     const { value, expiration, metadata = null } = storedValue;
 
     // Delete key if expiration defined and expired
-    if (expiration !== undefined && expiration <= this.clock()) {
+    if (
+      expiration !== undefined &&
+      expiration <= millisToSeconds(this.clock())
+    ) {
       await this.delete(key);
       return { value: null, metadata: null };
     }
@@ -170,7 +171,7 @@ export class KVStorageNamespace {
     expiration = normaliseInt(expiration);
     expirationTtl = normaliseInt(expirationTtl);
     if (expirationTtl !== undefined) {
-      expiration = this.clock() + expirationTtl;
+      expiration = millisToSeconds(this.clock()) + expirationTtl;
     }
 
     // Store value with expiration and metadata
@@ -202,7 +203,7 @@ export class KVStorageNamespace {
     // Get all keys matching the prefix, sorted, recording expired keys along
     // the way
     const expiredKeys: string[] = [];
-    const time = this.clock();
+    const time = millisToSeconds(this.clock());
     const keys = (await this.storage.list())
       .filter(({ name, expiration }) => {
         if (expiration !== undefined && expiration <= time) {

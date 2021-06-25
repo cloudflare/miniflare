@@ -8,21 +8,20 @@ import {
   Request,
   Response,
 } from "../../src";
-import { wait } from "../helpers";
 
 interface Context {
   storage: KVStorage;
+  clock: { timestamp: number };
   cache: Cache;
-  start: number;
 }
 
 const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
   const storage = new MemoryKVStorage();
-  const cache = new Cache(storage);
-  const start = Date.now() / 1000;
-  t.context = { storage, cache, start };
+  const clock = { timestamp: 1000000 };
+  const cache = new Cache(storage, () => clock.timestamp);
+  t.context = { storage, clock, cache };
 });
 
 const testResponse = new Response("value", {
@@ -32,14 +31,14 @@ const testResponse = new Response("value", {
 // Cache:* tests adapted from Cloudworker:
 // https://github.com/dollarshaveclub/cloudworker/blob/master/lib/runtime/cache/__tests__/cache.test.js
 const putMacro: Macro<[string | Request], Context> = async (t, req) => {
-  const { storage, cache, start } = t.context;
+  const { storage, cache } = t.context;
   await cache.put(req, testResponse.clone());
 
   const storedValue = await storage.get("http___localhost_8787_test.json");
   t.not(storedValue, undefined);
   t.not(storedValue?.expiration, undefined);
   if (!storedValue?.expiration) return; // for TypeScript
-  t.true(Math.abs(storedValue.expiration - (start + 3600)) < 10);
+  t.is(storedValue.expiration, 1000 + 3600);
 
   const cached: CachedResponse = JSON.parse(storedValue.value.toString("utf8"));
   t.deepEqual(cached, {
@@ -101,18 +100,20 @@ const expireMacro: Macro<
   [{ headers: HeadersInit; expectedTtl: number }],
   Context
 > = async (t, { headers, expectedTtl }) => {
-  const { cache } = t.context;
+  const { clock, cache } = t.context;
   await cache.put(
     new Request("http://localhost:8787/test"),
     new Response("value", { headers })
   );
   t.not(await cache.match("http://localhost:8787/test"), undefined);
-  await wait(expectedTtl);
+  clock.timestamp += expectedTtl / 2;
+  t.not(await cache.match("http://localhost:8787/test"), undefined);
+  clock.timestamp += expectedTtl / 2;
   t.is(await cache.match("http://localhost:8787/test"), undefined);
 };
 expireMacro.title = (providedTitle) => `Cache: expires after ${providedTitle}`;
 test("Expires", expireMacro, {
-  headers: { Expires: new Date(Date.now() + 2000).toUTCString() },
+  headers: { Expires: new Date(1000000 + 2000).toUTCString() },
   expectedTtl: 2000,
 });
 test("Cache-Control's max-age", expireMacro, {

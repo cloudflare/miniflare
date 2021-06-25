@@ -1,7 +1,6 @@
 import anyTest, { Macro, TestInterface } from "ava";
 import { ReadableStream } from "web-streams-polyfill/ponyfill/es6";
 import {
-  KVClock,
   KVGetValueType,
   KVListOptions,
   KVPutOptions,
@@ -12,8 +11,9 @@ import {
   KVStoredValue,
   MemoryKVStorage,
 } from "../../src";
+import { KVClock } from "../../src/kv/helpers";
 
-const testClock: KVClock = () => 1000;
+const testClock: KVClock = () => 1000000;
 
 interface Context {
   storage: KVStorage;

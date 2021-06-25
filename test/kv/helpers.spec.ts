@@ -8,7 +8,7 @@ import {
   intersects,
   sanitise,
 } from "../../src/kv/helpers";
-import { useTmp } from "../helpers";
+import { useTmp, wait } from "../helpers";
 
 test("sanitise: sanitises file name", (t) => {
   t.is(sanitise("one:two/three"), "one_two_three");
@@ -82,7 +82,7 @@ test("Mutex: runs closures exclusively", async (t) => {
   await Promise.all([
     mutex.run(async () => {
       results.push(1);
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await wait(500);
       results.push(2);
     }),
     mutex.run(async () => {
