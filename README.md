@@ -77,7 +77,7 @@ port = 8787                     # --port
 upstream = "https://mrbbot.dev" # --upstream
 kv_persist = true               # --kv-persist
 cache_persist = true            # --cache-persist
-durable_object_persist = true   # --do-persist
+durable_objects_persist = true  # --do-persist
 env_path = ".env"               # --env
 wasm_bindings = [               # --wasm
   { name = "MODULE", path="module.wasm" }
