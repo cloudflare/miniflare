@@ -107,6 +107,9 @@ const mf = new Miniflare({
   kvNamespaces: ["TEST_NAMESPACE"],
   kvPersist: true,
   cachePersist: "./data/",
+  durableObjects: {
+    OBJECT: "ObjectClass",
+  },
   sitePath: "./public/",
   envPath: ".env",
 });
@@ -135,8 +138,8 @@ const mf = new Miniflare({
 });
 
 // Manipulate KV outside of worker (useful for testing)
-const ns = await mf.getKVNamespace("TEST_NAMESPACE");
-await ns.put("key", "testing");
+const TEST_NAMESPACE = await mf.getKVNamespace("TEST_NAMESPACE");
+await TEST_NAMESPACE.put("key", "testing");
 
 // Manipulate cache outside of worker
 const cache = await mf.getCache();
@@ -150,6 +153,7 @@ const storage = await stub.storage(); // Extra Miniflare-only API
 await storage.put("key", new Set(["testing"]));
 
 // Dispatch fetch events and get body
+const res = await mf.dispatchFetch("http://localhost", { method: "POST" });
 const res = await mf.dispatchFetch(new Request("http://localhost"));
 
 const body = await res.text();
