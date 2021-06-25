@@ -81,9 +81,9 @@ export class Cache {
     const originalNow = CachePolicy.prototype.now;
     // @ts-expect-error `now` isn't included in CachePolicy's type definitions
     CachePolicy.prototype.now = this.clock;
+    let expirationTtl: number;
     try {
       const policy = new CachePolicy(cacheReq, cacheRes, { shared: true });
-      // policy.now = this.clock;
 
       // Check if the request & response is cacheable, if not return undefined
       if (
@@ -94,23 +94,23 @@ export class Cache {
         return;
       }
 
-      // If it is cacheable, store it in KV
-      const key = Cache._getKey(req);
-      await this.namespace.put(
-        key,
-        JSON.stringify({
-          status: res.status,
-          headers: res.headers.raw(),
-          body: Buffer.from(await res.arrayBuffer()).toString("base64"),
-        } as CachedResponse),
-        {
-          expirationTtl: policy.timeToLive() / 1000,
-        }
-      );
+      expirationTtl = policy.timeToLive() / 1000;
     } finally {
       // @ts-expect-error `now` isn't included in CachePolicy's type definitions
       CachePolicy.prototype.now = originalNow;
     }
+
+    // If it is cacheable, store it in KV
+    const key = Cache._getKey(req);
+    await this.namespace.put(
+      key,
+      JSON.stringify({
+        status: res.status,
+        headers: res.headers.raw(),
+        body: Buffer.from(await res.arrayBuffer()).toString("base64"),
+      } as CachedResponse),
+      { expirationTtl }
+    );
   }
 
   async match(
