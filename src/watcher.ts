@@ -16,11 +16,18 @@ import {
   stringScriptPath,
 } from "./options";
 import { getWranglerOptions } from "./options/wrangler";
-import { ScriptBlueprint, buildLinker } from "./scripts";
+import { ScriptBlueprint } from "./scripts";
 
 const noop = () => {};
 
 const micromatchOptions: micromatch.Options = { contains: true };
+
+function pathSetToString(set: Set<string>): string {
+  return [...set]
+    .map((filePath) => path.relative("", filePath))
+    .sort()
+    .join(", ");
+}
 
 export type WatchCallback = (options: ProcessedOptions) => void;
 
@@ -36,6 +43,7 @@ export class Watcher {
 
   private _watcher?: chokidar.FSWatcher;
   private _watchedPaths?: Set<string>;
+  private _extraWatchedPaths?: Set<string>;
 
   constructor(log: Log, callback: WatchCallback, options: Options) {
     this._log = log;
@@ -52,7 +60,7 @@ export class Watcher {
   }
 
   private _getWatchedPaths(): Set<string> {
-    const watchedPaths = new Set<string>();
+    const watchedPaths = new Set<string>(this._extraWatchedPaths);
     if (this._wranglerConfigPath) watchedPaths.add(this._wranglerConfigPath);
     if (this._options?.envPath) watchedPaths.add(this._options.envPath);
     if (this._options?.buildWatchPath)
@@ -65,6 +73,44 @@ export class Watcher {
       watchedPaths.add(wasmPath);
     }
     return watchedPaths;
+  }
+
+  private _updateWatchedPaths(): void {
+    // Update watched paths only if we're watching files
+    if (this._watcher && this._watchedPaths) {
+      // Store changed paths for logging
+      const unwatchedPaths = new Set<string>();
+      const watchedPaths = new Set<string>();
+
+      const newWatchedPaths = this._getWatchedPaths();
+      // Unwatch paths that should no longer be watched
+      for (const watchedPath of this._watchedPaths) {
+        if (!newWatchedPaths.has(watchedPath)) {
+          unwatchedPaths.add(watchedPath);
+          this._watcher.unwatch(watchedPath);
+        }
+      }
+      // Watch paths that should now be watched
+      for (const newWatchedPath of newWatchedPaths) {
+        if (!this._watchedPaths.has(newWatchedPath)) {
+          watchedPaths.add(newWatchedPath);
+          this._watcher.add(newWatchedPath);
+        }
+      }
+      this._watchedPaths = newWatchedPaths;
+
+      if (unwatchedPaths.size > 0) {
+        this._log.debug(`Unwatching ${pathSetToString(unwatchedPaths)}...`);
+      }
+      if (watchedPaths.size > 0) {
+        this._log.debug(`Watching ${pathSetToString(watchedPaths)}...`);
+      }
+    }
+  }
+
+  setExtraWatchedPaths(paths?: Set<string>): void {
+    this._extraWatchedPaths = paths;
+    this._updateWatchedPaths();
   }
 
   private _runCustomBuild(command: string, basePath?: string): Promise<void> {
@@ -98,18 +144,12 @@ export class Watcher {
     // Get an array of watched file paths, storing the watchedEnvPath explicitly
     // so we can tell if it changes later
     this._watchedPaths = this._getWatchedPaths();
-    const watchedPaths = [...this._watchedPaths];
-    this._log.debug(
-      `Watching ${watchedPaths
-        .map((filePath) => path.relative("", filePath))
-        .sort()
-        .join(", ")}...`
-    );
+    this._log.debug(`Watching ${pathSetToString(this._watchedPaths)}...`);
 
     // Create watcher
     const boundCallback = this._watchedPathCallback.bind(this);
     this._watcher = chokidar
-      .watch(watchedPaths)
+      .watch([...this._watchedPaths])
       .on("change", boundCallback)
       .on("unlink", boundCallback);
   }
@@ -158,25 +198,7 @@ export class Watcher {
   async reloadOptions(log = true): Promise<void> {
     this._options = await this._getOptions();
     if (log) logOptions(this._log, this._options);
-
-    if (this._watcher && this._watchedPaths) {
-      // Update watched paths if we're watching files
-      const newWatchedPaths = this._getWatchedPaths();
-      for (const watchedPath of this._watchedPaths) {
-        if (!newWatchedPaths.has(watchedPath)) {
-          this._log.debug(`Unwatching ${path.relative("", watchedPath)}...`);
-          this._watcher.unwatch(watchedPath);
-        }
-      }
-      for (const newWatchedPath of newWatchedPaths) {
-        if (!this._watchedPaths.has(newWatchedPath)) {
-          this._log.debug(`Watching ${path.relative("", newWatchedPath)}...`);
-          this._watcher.add(newWatchedPath);
-        }
-      }
-      this._watchedPaths = newWatchedPaths;
-    }
-
+    this._updateWatchedPaths();
     this._callback(this._options);
   }
 
@@ -305,7 +327,6 @@ export class Watcher {
       });
       if (!rule.fallthrough) finalisedTypes.add(rule.type);
     }
-    options.modulesLinker = buildLinker(options.processedModulesRules);
 
     // Normalise the envPath (defaulting to .env) so we can compare it when
     // watching

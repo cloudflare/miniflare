@@ -1,6 +1,6 @@
 import { URL } from "url";
 import fetch, { FetchError, Request, Response } from "@mrbbot/node-fetch";
-import { Context, Module } from "./module";
+import { Context, EventListener, Module } from "./module";
 
 export class FetchEvent {
   readonly type: "fetch";
@@ -43,8 +43,6 @@ export class ScheduledEvent {
     this._waitUntilPromises.push(promise);
   }
 }
-
-type EventListener<Event> = (event: Event) => void;
 
 export type ModuleFetchListener = (
   request: Request,

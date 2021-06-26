@@ -7,8 +7,10 @@ import {
   RequestInfo,
   RequestInit,
 } from "@mrbbot/node-fetch";
+import chalk from "chalk";
 import cron from "node-cron";
 import sourceMap from "source-map-support";
+import ws from "ws";
 import { Cache, KVStorageNamespace } from "./kv";
 import { ConsoleLog, Log, NoOpLog, logResponse } from "./log";
 import { ResponseWaitUntil } from "./modules";
@@ -17,7 +19,11 @@ import { ModuleFetchListener, ModuleScheduledListener } from "./modules/events";
 import { Context } from "./modules/module";
 import * as modules from "./modules/modules";
 import { Options, ProcessedOptions, stringScriptPath } from "./options";
-import { ModuleScriptInstance, ScriptScriptInstance } from "./scripts";
+import {
+  ModuleScriptInstance,
+  ScriptScriptInstance,
+  buildLinker,
+} from "./scripts";
 import { Watcher } from "./watcher";
 
 type ModuleName = keyof typeof modules;
@@ -46,6 +52,8 @@ export class Miniflare {
   private _environment: Context;
   private _scheduledTasks?: cron.ScheduledTask[];
 
+  private readonly _wss: ws.Server;
+
   constructor(options: Options) {
     if (options.script) options.scriptPath = stringScriptPath;
     if (options.sourceMap) {
@@ -67,6 +75,13 @@ export class Miniflare {
     // Defaults never used, will be overridden in _watchCallback
     this._sandbox = {};
     this._environment = {};
+
+    // Initialise web socket server
+    this._wss = new ws.Server({ noServer: true });
+    this._wss.addListener(
+      "connection",
+      this._webSocketConnectionListener.bind(this)
+    );
 
     this._initPromise = new Promise(async (resolve) => {
       this._initResolve = resolve;
@@ -122,9 +137,14 @@ export class Miniflare {
   }
 
   private async _reloadWorker() {
-    // Should never return, only called in _watchCallback() after _options set
-    // and scripts and modulesLinker are always set
-    if (!(this._options?.scripts && this._options?.modulesLinker)) return;
+    // Only called in _watchCallback() after _options set and scripts and
+    // processedModulesRules are always set in this
+    assert(this._options?.scripts && this._options.processedModulesRules);
+
+    // Build modules linker maintaining set of referenced paths for watching
+    const { linker, referencedPaths } = buildLinker(
+      this._options.processedModulesRules
+    );
 
     // Reset state
     this._modules.EventsModule.resetEventListeners();
@@ -148,7 +168,7 @@ export class Miniflare {
       let instance: ScriptScriptInstance | ModuleScriptInstance<ModuleExports>;
       try {
         instance = this._options.modules
-          ? await script.buildModule(sandbox, this._options.modulesLinker)
+          ? await script.buildModule(sandbox, linker)
           : await script.buildScript(sandbox);
       } catch (e) {
         // TODO: if this is because --experimental-vm-modules disabled, rethrow
@@ -210,6 +230,15 @@ export class Miniflare {
       constructors,
       this._environment
     );
+
+    // Watch module referenced paths
+    assert(this._watcher !== undefined);
+    this._watcher.setExtraWatchedPaths(referencedPaths);
+
+    // Close all existing web sockets
+    for (const ws of this._wss.clients) {
+      ws.close(1012, "Service Restart");
+    }
 
     this.log.info("Worker reloaded!");
   }
@@ -280,8 +309,8 @@ export class Miniflare {
 
   private async _httpRequestListener(
     req: http.IncomingMessage,
-    res: http.ServerResponse
-  ) {
+    res?: http.ServerResponse
+  ): Promise<ResponseWaitUntil | undefined> {
     const start = process.hrtime();
     const url =
       (this._options?.upstreamUrl?.origin ?? `http://${req.headers.host}`) +
@@ -316,11 +345,12 @@ export class Miniflare {
       response = await this.dispatchFetch(request);
       response.headers.delete("content-length");
       response.headers.delete("content-encoding");
-      res.writeHead(response.status, response.headers.raw());
-      res.end(await response.buffer());
+      res?.writeHead(response.status, response.headers.raw());
+      res?.end(await response.buffer());
     } catch (e) {
-      res.writeHead(500);
-      res.end(e.stack);
+      res?.writeHead(500);
+      // TODO: pretty error page
+      res?.end(e.stack);
       this.log.error(e.stack);
     }
     await logResponse(this.log, {
@@ -330,10 +360,69 @@ export class Miniflare {
       status: response?.status ?? 500,
       waitUntil: response?.waitUntil(),
     });
+    return response;
+  }
+
+  private async _webSocketConnectionListener(
+    ws: ws,
+    req: http.IncomingMessage
+  ): Promise<void> {
+    // Handle request in worker
+    const response = await this._httpRequestListener(req);
+
+    // Check web socket response was returned
+    const webSocket = response?.webSocket;
+    if (response?.status !== 101 || !webSocket) {
+      ws.close(1002, "Protocol Error");
+      this.log.error(
+        "Web Socket request did not return status 101 Switching Protocols response with Web Socket"
+      );
+      return;
+    }
+    // Terminate the web socket here
+    webSocket.accept();
+
+    // Forward events from client to worker
+    ws.on("message", (message) => {
+      if (typeof message === "string") {
+        this.log.debug(`${chalk.bold("-->")} ${message}`);
+        webSocket.send(message);
+      } else {
+        ws.close(1003, "Unsupported Data");
+        this.log.error("Web Socket received unsupported binary data");
+      }
+    });
+    ws.on("close", (code, reason) => {
+      this.log.debug(`${chalk.bold("-->")} Closed: ${code} ${reason}`);
+      webSocket.close(code, reason);
+    });
+    ws.on("error", (error) => {
+      this.log.debug(`${chalk.bold("-->")} Error: ${error}`);
+      webSocket.dispatchEvent("error", { type: "error", error });
+    });
+
+    // Forward events from worker to client
+    webSocket.addEventListener("message", ({ data }) => {
+      this.log.debug(`${chalk.bold("<--")} ${data}`);
+      ws.send(data);
+    });
+    webSocket.addEventListener("close", ({ code, reason }) => {
+      this.log.debug(`${chalk.bold("<--")} Closed: ${code} ${reason}`);
+      ws.close(code, reason);
+    });
   }
 
   createServer(): http.Server {
-    return http.createServer(this._httpRequestListener.bind(this));
+    const server = http.createServer(this._httpRequestListener.bind(this));
+
+    // Handle web socket upgrades
+    server.on("upgrade", (req, socket, head) => {
+      this._wss.handleUpgrade(req, socket, head, (ws) => {
+        this._wss.emit("connection", ws, req);
+      });
+    });
+
+    return server;
   }
 }
 

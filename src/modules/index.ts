@@ -26,3 +26,4 @@ export {
   btoa,
   crypto,
 } from "./standards";
+export { WebSocket, WebSocketPair } from "./ws";

@@ -1,6 +1,5 @@
 import path from "path";
 import { URL } from "url";
-import { ModuleLinker } from "vm";
 import { Log } from "../log";
 import { ScriptBlueprint } from "../scripts";
 
@@ -81,7 +80,6 @@ export interface Options {
 export interface ProcessedOptions extends Options {
   scripts?: Record<string, ScriptBlueprint>; // (absolute path -> script)
   processedModulesRules?: ProcessedModuleRule[];
-  modulesLinker?: ModuleLinker;
   upstreamUrl?: URL;
   validatedCrons?: string[];
   siteIncludeRegexps?: RegExp[];

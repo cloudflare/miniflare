@@ -65,6 +65,8 @@ export class FileKVStorage implements KVStorage {
     this._root = path.resolve(root);
   }
 
+  // TODO: sanitise keys for file names
+
   async has(key: string): Promise<boolean> {
     // Check if file exists
     const filePath = path.join(this._root, key);

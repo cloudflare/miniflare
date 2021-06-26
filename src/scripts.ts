@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import vm from "vm";
+import vm, { ModuleLinker } from "vm";
 import { cjsToEsm } from "cjstoesm";
 import { ModuleKind, TranspileOptions, transpileModule } from "typescript";
 import { Context } from "./modules/module";
@@ -75,8 +75,9 @@ const commonJsTranspileOptions: TranspileOptions = {
 
 export function buildLinker(
   moduleRules: ProcessedModuleRule[]
-): vm.ModuleLinker {
-  return async (specifier, referencingModule) => {
+): { linker: vm.ModuleLinker; referencedPaths: Set<string> } {
+  const referencedPaths = new Set<string>();
+  const linker: ModuleLinker = async (specifier, referencingModule) => {
     const errorBase = `Unable to resolve "${path.relative(
       "",
       referencingModule.identifier
@@ -102,6 +103,7 @@ export function buildLinker(
     }
 
     // Load module based on rule type
+    referencedPaths.add(modulePath);
     const data = await fs.readFile(modulePath);
     const moduleOptions = {
       identifier: modulePath,
@@ -151,4 +153,5 @@ export function buildLinker(
         throw new Error(`${errorBase}: ${rule.type} modules are unsupported`);
     }
   };
+  return { linker, referencedPaths };
 }
