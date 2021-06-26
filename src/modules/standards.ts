@@ -173,7 +173,7 @@ export class StandardsModule extends Module {
     };
   }
 
-  fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
+  async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
     const request = new Request(input, init);
 
     // Cloudflare ignores request Host
@@ -193,15 +193,10 @@ export class StandardsModule extends Module {
       });
       this.webSockets.push(ws);
 
-      return new Promise((resolve, reject) => {
-        ws.once("open", () => {
-          // Terminate web socket with pair and resolve
-          const [worker, client] = Object.values(new WebSocketPair());
-          terminateWebSocket(ws, client);
-          resolve(new Response(null, { webSocket: worker }));
-        });
-        ws.once("error", reject);
-      });
+      // Terminate web socket with pair and resolve
+      const [worker, client] = Object.values(new WebSocketPair());
+      await terminateWebSocket(ws, client);
+      return new Response(null, { webSocket: worker });
     }
 
     return originalFetch(request);

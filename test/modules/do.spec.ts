@@ -2,13 +2,7 @@ import { existsSync, promises as fs } from "fs";
 import path from "path";
 import { Request, Response } from "@mrbbot/node-fetch";
 import test from "ava";
-import {
-  ConsoleLog,
-  DurableObject,
-  KVStoredValue,
-  Miniflare,
-  NoOpLog,
-} from "../../src";
+import { DurableObject, KVStoredValue, Miniflare, NoOpLog } from "../../src";
 import {
   DurableObjectFactory,
   DurableObjectId,
@@ -373,7 +367,6 @@ test("buildEnvironment: can fetch from instances", async (t) => {
     scriptPath: doScriptPath,
     modules: true,
     durableObjects: { OBJECT1: "Object1" },
-    log: new ConsoleLog(true),
   });
   const res = await mf.dispatchFetch("http://localhost:8787/1");
   t.is(await res.text(), "1");
@@ -385,7 +378,6 @@ test("buildEnvironment: can use instance storage", async (t) => {
     modules: true,
     durableObjects: { OBJECT1: "Object1" },
     durableObjectsPersist: tmp,
-    log: new ConsoleLog(true),
   });
   await mf.dispatchFetch("http://localhost:8787/1");
   const ns = await mf.getDurableObjectNamespace("OBJECT1");
@@ -402,7 +394,6 @@ test("buildEnvironment: can create instances from classes in multiple files", as
       OBJECT2: { className: "Object2", scriptPath: doScript2Path },
     },
     durableObjectsPersist: tmp,
-    log: new ConsoleLog(true),
   });
   const res1 = await mf.dispatchFetch("http://localhost:8787/1");
   const res2 = await mf.dispatchFetch("http://localhost:8787/2");

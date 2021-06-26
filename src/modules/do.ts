@@ -120,6 +120,8 @@ export class DurableObjectsModule extends Module {
   private _constructors: Record<string, DurableObjectConstructor> = {};
   private _environment: Context = {};
 
+  // TODO: take KVStorageFactory as argument instead so test s don't have to
+  //  access private members
   constructor(log: Log, persistRoot = defaultPersistRoot) {
     super(log);
     this._storageFactory = new KVStorageFactory(persistRoot);

@@ -175,7 +175,7 @@ test("dispatchFetch: stops calling listeners after first response", async (t) =>
 });
 
 test("dispatchFetch: passes through to upstream on no response", async (t) => {
-  const upstream = await useServer(t, (req, res) => res.end("upstream"));
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   const { module } = t.context;
   module.addEventListener("fetch", (e) => {
     e.waitUntil(Promise.resolve(1));
@@ -186,7 +186,7 @@ test("dispatchFetch: passes through to upstream on no response", async (t) => {
 });
 
 test("dispatchFetch: passes through to upstream on error", async (t) => {
-  const upstream = await useServer(t, (req, res) => res.end("upstream"));
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   const { module } = t.context;
   module.addEventListener("fetch", (e) => {
     e.waitUntil(Promise.resolve(1));

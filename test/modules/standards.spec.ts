@@ -36,6 +36,8 @@ test("crypto: computes other digest", async (t) => {
   );
 });
 
+// TODO: fetch with Web Sockets
+
 test("buildSandbox: includes web standards", (t) => {
   const module = new StandardsModule(new NoOpLog());
   const sandbox = module.buildSandbox();

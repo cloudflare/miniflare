@@ -382,7 +382,7 @@ export class Miniflare {
     }
 
     // Terminate the web socket here
-    terminateWebSocket(ws, webSocket);
+    await terminateWebSocket(ws, webSocket);
   }
 
   createServer(): http.Server {
