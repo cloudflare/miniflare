@@ -10,8 +10,9 @@ Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
 - 🌐 Workers Sites
 - 📨 Fetch Events (with HTTP server and manual triggering)
 - ⏰ Scheduled Events (with manual and cron triggering)
+- ✉️ WebSockets
 - 🔑 `.env` File Support (for secrets)
-- 🕸 Web Standards: Base64, Timers, Fetch, Encoding, URL, Streams, Web Crypto
+- 🕸 Web Standards: Base64, Timers, Fetch, Encoding, URL, Streams, Crypto
 - 📚 ES Modules Support
 - 🛠 Custom Builds Support
 - ⚙️ WebAssembly Support
@@ -21,7 +22,6 @@ Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
 
 ## Coming Soon
 
-- ✉️ WebSockets
 - 📄 HTMLRewriter
 - 🤹 Custom [Jest Environment](https://jestjs.io/docs/configuration#testenvironment-string)
 - ✅ More Tests

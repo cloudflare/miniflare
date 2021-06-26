@@ -7,10 +7,9 @@ import {
   RequestInfo,
   RequestInit,
 } from "@mrbbot/node-fetch";
-import chalk from "chalk";
 import cron from "node-cron";
 import sourceMap from "source-map-support";
-import ws from "ws";
+import WebSocket from "ws";
 import { Cache, KVStorageNamespace } from "./kv";
 import { ConsoleLog, Log, NoOpLog, logResponse } from "./log";
 import { ResponseWaitUntil } from "./modules";
@@ -18,6 +17,7 @@ import { DurableObjectConstructor, DurableObjectNamespace } from "./modules/do";
 import { ModuleFetchListener, ModuleScheduledListener } from "./modules/events";
 import { Context } from "./modules/module";
 import * as modules from "./modules/modules";
+import { terminateWebSocket } from "./modules/ws";
 import { Options, ProcessedOptions, stringScriptPath } from "./options";
 import {
   ModuleScriptInstance,
@@ -52,7 +52,7 @@ export class Miniflare {
   private _environment: Context;
   private _scheduledTasks?: cron.ScheduledTask[];
 
-  private readonly _wss: ws.Server;
+  private readonly _wss: WebSocket.Server;
 
   constructor(options: Options) {
     if (options.script) options.scriptPath = stringScriptPath;
@@ -77,7 +77,7 @@ export class Miniflare {
     this._environment = {};
 
     // Initialise web socket server
-    this._wss = new ws.Server({ noServer: true });
+    this._wss = new WebSocket.Server({ noServer: true });
     this._wss.addListener(
       "connection",
       this._webSocketConnectionListener.bind(this)
@@ -149,6 +149,7 @@ export class Miniflare {
     // Reset state
     this._modules.EventsModule.resetEventListeners();
     this._modules.DurableObjectsModule.resetInstances();
+    this._modules.StandardsModule.resetWebSockets();
 
     // Build sandbox with global self-references, only including environment
     // in global scope if not using modules
@@ -364,7 +365,7 @@ export class Miniflare {
   }
 
   private async _webSocketConnectionListener(
-    ws: ws,
+    ws: WebSocket,
     req: http.IncomingMessage
   ): Promise<void> {
     // Handle request in worker
@@ -379,37 +380,9 @@ export class Miniflare {
       );
       return;
     }
+
     // Terminate the web socket here
-    webSocket.accept();
-
-    // Forward events from client to worker
-    ws.on("message", (message) => {
-      if (typeof message === "string") {
-        this.log.debug(`${chalk.bold("-->")} ${message}`);
-        webSocket.send(message);
-      } else {
-        ws.close(1003, "Unsupported Data");
-        this.log.error("Web Socket received unsupported binary data");
-      }
-    });
-    ws.on("close", (code, reason) => {
-      this.log.debug(`${chalk.bold("-->")} Closed: ${code} ${reason}`);
-      webSocket.close(code, reason);
-    });
-    ws.on("error", (error) => {
-      this.log.debug(`${chalk.bold("-->")} Error: ${error}`);
-      webSocket.dispatchEvent("error", { type: "error", error });
-    });
-
-    // Forward events from worker to client
-    webSocket.addEventListener("message", ({ data }) => {
-      this.log.debug(`${chalk.bold("<--")} ${data}`);
-      ws.send(data);
-    });
-    webSocket.addEventListener("close", ({ code, reason }) => {
-      this.log.debug(`${chalk.bold("<--")} Closed: ${code} ${reason}`);
-      ws.close(code, reason);
-    });
+    terminateWebSocket(ws, webSocket);
   }
 
   createServer(): http.Server {

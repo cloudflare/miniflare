@@ -5,6 +5,7 @@ import {
   WebSocket as WebSocketInterface,
   WebSocketMessageEvent,
 } from "@mrbbot/node-fetch";
+import ws from "ws";
 import { Context, EventListener, Module } from "./module";
 
 type WebSocketEvent =
@@ -28,7 +29,7 @@ export class WebSocket implements WebSocketInterface {
   _pair?: WebSocket;
 
   accept(): void {
-    assert(this.readyState === WebSocket.CONNECTING);
+    assert.strictEqual(this.readyState, WebSocket.CONNECTING);
     this.readyState = WebSocket.OPEN;
   }
 
@@ -60,16 +61,28 @@ export class WebSocket implements WebSocketInterface {
 
   send(message: string): void {
     assert(this._pair !== undefined);
-    if (this._pair.readyState !== WebSocket.OPEN) return;
+    assert.strictEqual(this.readyState, WebSocket.OPEN);
+    assert.strictEqual(this._pair.readyState, WebSocket.OPEN);
     this._pair.dispatchEvent("message", { type: "message", data: message });
   }
 
   close(code?: number, reason?: string): void {
     assert(this._pair !== undefined);
-    if (this._pair.readyState !== WebSocket.OPEN) return;
+
+    if (
+      this.readyState === WebSocket.CLOSED ||
+      this._pair.readyState === WebSocket.CLOSED
+    ) {
+      return;
+    }
+
     this.readyState = WebSocket.CLOSING;
     this._pair.readyState = WebSocket.CLOSING;
-    this._pair.dispatchEvent("close", { type: "close", code, reason });
+
+    const event: WebSocketCloseEvent = { type: "close", code, reason };
+    this.dispatchEvent("close", event);
+    this._pair.dispatchEvent("close", event);
+
     this.readyState = WebSocket.CLOSED;
     this._pair.readyState = WebSocket.CLOSED;
   }
@@ -86,6 +99,34 @@ export class WebSocketPair {
     this[0]._pair = this[1];
     this[1]._pair = this[0];
   }
+}
+
+export function terminateWebSocket(ws: ws, pair: WebSocketInterface): void {
+  pair.accept();
+
+  // TODO: think about whether we want to log messages here
+  // Forward events from client to worker
+  ws.on("message", (message) => {
+    if (typeof message === "string") {
+      pair.send(message);
+    } else {
+      ws.close(1003, "Unsupported Data");
+    }
+  });
+  ws.on("close", (code, reason) => {
+    pair.close(code, reason);
+  });
+  ws.on("error", (error) => {
+    pair.dispatchEvent("error", { type: "error", error });
+  });
+
+  // Forward events from worker to client
+  pair.addEventListener("message", ({ data }) => {
+    ws.send(data);
+  });
+  pair.addEventListener("close", ({ code, reason }) => {
+    ws.close(code, reason);
+  });
 }
 
 export class WebSocketsModule extends Module {

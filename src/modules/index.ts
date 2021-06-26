@@ -5,7 +5,6 @@ export {
   URLSearchParams,
   TextDecoder,
   TextEncoder,
-  fetch,
   Headers,
   Request,
   Response,

@@ -1,7 +1,13 @@
 import { BinaryLike, createHash } from "crypto";
 import { URL, URLSearchParams } from "url";
 import { TextDecoder, TextEncoder } from "util";
-import fetch, { Headers, Request, Response } from "@mrbbot/node-fetch";
+import originalFetch, {
+  Headers,
+  Request,
+  RequestInfo,
+  RequestInit,
+  Response,
+} from "@mrbbot/node-fetch";
 import { Crypto } from "@peculiar/webcrypto";
 import {
   ByteLengthQueuingStrategy,
@@ -18,15 +24,16 @@ import {
   WritableStreamDefaultController,
   WritableStreamDefaultWriter,
 } from "web-streams-polyfill/ponyfill/es6";
+import WebSocket from "ws";
 import { Log } from "../log";
 import { Context, Module } from "./module";
+import { WebSocketPair, terminateWebSocket } from "./ws";
 
 export {
   URL,
   URLSearchParams,
   TextDecoder,
   TextEncoder,
-  fetch,
   Headers,
   Request,
   Response,
@@ -74,11 +81,13 @@ crypto.subtle.digest = function (algorithm, data) {
 };
 
 export class StandardsModule extends Module {
+  private webSockets: WebSocket[];
   private readonly sandbox: Context;
 
   constructor(log: Log) {
     // TODO: proxy Date.now() and add warning, maybe new Date() too?
     super(log);
+    this.webSockets = [];
     this.sandbox = {
       console,
 
@@ -94,7 +103,7 @@ export class StandardsModule extends Module {
       TextDecoder,
       TextEncoder,
 
-      fetch, // TODO: handle upstream correctly
+      fetch: this.fetch.bind(this),
       Headers,
       Request,
       Response,
@@ -162,6 +171,48 @@ export class StandardsModule extends Module {
       // Intl,
       // JSON,
     };
+  }
+
+  fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
+    const request = new Request(input, init);
+
+    // Cloudflare ignores request Host
+    request.headers.delete("host");
+
+    // Handle web socket upgrades
+    if (request.headers.get("upgrade") === "websocket") {
+      // Establish web socket connection
+      const headers: Record<string, string> = {};
+      for (const [key, value] of request.headers.entries()) {
+        headers[key] = value;
+      }
+      const ws = new WebSocket(request.url, {
+        followRedirects: request.redirect === "follow",
+        maxRedirects: request.follow,
+        headers,
+      });
+      this.webSockets.push(ws);
+
+      return new Promise((resolve, reject) => {
+        ws.once("open", () => {
+          // Terminate web socket with pair and resolve
+          const [worker, client] = Object.values(new WebSocketPair());
+          terminateWebSocket(ws, client);
+          resolve(new Response(null, { webSocket: worker }));
+        });
+        ws.once("error", reject);
+      });
+    }
+
+    return originalFetch(request);
+  }
+
+  resetWebSockets(): void {
+    // Ensure all fetched web sockets are closed
+    for (const ws of this.webSockets) {
+      ws.close(1012, "Service Restart");
+    }
+    this.webSockets = [];
   }
 
   buildSandbox(): Context {
