@@ -1,3 +1,4 @@
+import assert from "assert";
 import test from "ava";
 import { NoOpLog } from "../../src";
 import {
@@ -7,7 +8,7 @@ import {
   btoa,
   crypto,
 } from "../../src/modules/standards";
-import { runInWorker } from "../helpers";
+import { noop, runInWorker, triggerPromise, useServer } from "../helpers";
 
 test("atob: decodes base64 string", (t) => {
   t.is(atob("dGVzdA=="), "test");
@@ -36,7 +37,83 @@ test("crypto: computes other digest", async (t) => {
   );
 });
 
-// TODO: fetch with Web Sockets
+test("fetch: performs regular http request", async (t) => {
+  const module = new StandardsModule(new NoOpLog());
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  const res = await module.fetch(upstream);
+  t.is(await res.text(), "upstream");
+});
+test("fetch: performs web socket upgrade", async (t) => {
+  const module = new StandardsModule(new NoOpLog());
+  const server = await useServer(t, noop, (ws, req) => {
+    ws.send("hello client");
+    ws.send(req.headers["user-agent"]);
+    ws.addEventListener("message", ({ data }) => ws.send(data));
+  });
+  const res = await module.fetch(server.ws, {
+    headers: { upgrade: "websocket", "user-agent": "Test" },
+  });
+  const webSocket = res.webSocket;
+  t.not(webSocket, undefined);
+  assert(webSocket);
+
+  const [eventTrigger, eventPromise] = triggerPromise<void>();
+  const messages: string[] = [];
+  webSocket.addEventListener("message", (e) => {
+    messages.push(e.data);
+    if (e.data === "hello server") eventTrigger();
+  });
+  webSocket.accept();
+  webSocket.send("hello server");
+
+  await eventPromise;
+  t.deepEqual(messages, ["hello client", "Test", "hello server"]);
+});
+test("resetWebSockets: closes all web sockets", async (t) => {
+  const module = new StandardsModule(new NoOpLog());
+  const [eventTrigger, eventPromise] = triggerPromise<{
+    code: number;
+    reason: string;
+  }>();
+  const server = await useServer(t, noop, (ws) => {
+    ws.addEventListener("close", eventTrigger);
+  });
+  const res = await module.fetch(server.ws, {
+    headers: { upgrade: "websocket" },
+  });
+  const webSocket = res.webSocket;
+  t.not(webSocket, undefined);
+  assert(webSocket);
+  webSocket.accept();
+
+  module.resetWebSockets();
+  const event = await eventPromise;
+  t.is(event.code, 1012);
+  t.is(event.reason, "Service Restart");
+});
+test("resetWebSockets: closes already closed web sockets", async (t) => {
+  const module = new StandardsModule(new NoOpLog());
+  const [eventTrigger, eventPromise] = triggerPromise<{
+    code: number;
+    reason: string;
+  }>();
+  const server = await useServer(t, noop, (ws) => {
+    ws.addEventListener("close", eventTrigger);
+  });
+  const res = await module.fetch(server.ws, {
+    headers: { upgrade: "websocket" },
+  });
+  const webSocket = res.webSocket;
+  t.not(webSocket, undefined);
+  assert(webSocket);
+  webSocket.accept();
+  webSocket.close(1000, "Test Closure");
+
+  module.resetWebSockets();
+  const event = await eventPromise;
+  t.is(event.code, 1000);
+  t.is(event.reason, "Test Closure");
+});
 
 test("buildSandbox: includes web standards", (t) => {
   const module = new StandardsModule(new NoOpLog());

@@ -1,3 +1,4 @@
+import assert from "assert";
 import { HeadersInit } from "@mrbbot/node-fetch";
 import anyTest, { Macro, TestInterface } from "ava";
 import {
@@ -37,7 +38,7 @@ const putMacro: Macro<[string | Request], Context> = async (t, req) => {
   const storedValue = await storage.get("http___localhost_8787_test.json");
   t.not(storedValue, undefined);
   t.not(storedValue?.expiration, undefined);
-  if (!storedValue?.expiration) return; // for TypeScript
+  assert(storedValue?.expiration); // for TypeScript
   t.is(storedValue.expiration, 1000 + 3600);
 
   const cached: CachedResponse = JSON.parse(storedValue.value.toString("utf8"));

@@ -8,7 +8,7 @@ import {
   ScheduledEvent,
 } from "../../src";
 import { EventsModule } from "../../src/modules/events";
-import { TestLog, runInWorker, useServer } from "../helpers";
+import { TestLog, noop, runInWorker, useServer } from "../helpers";
 
 interface Context {
   log: TestLog;
@@ -99,7 +99,6 @@ test("addModuleScheduledListener: adds event listener", async (t) => {
 
 test("resetEventListeners: resets events listeners", (t) => {
   const { module } = t.context;
-  const noop = () => {};
   module.addEventListener("fetch", noop);
   t.deepEqual(module._listeners, { fetch: [noop] });
   module.resetEventListeners();

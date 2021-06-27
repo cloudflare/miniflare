@@ -1,19 +1,19 @@
+import assert from "assert";
 import {
+  Request,
   WebSocketCloseEvent,
   WebSocketErrorEvent,
   WebSocketMessageEvent,
 } from "@mrbbot/node-fetch";
 import test from "ava";
 import WebSocketClient from "ws";
-import { NoOpLog, WebSocket, WebSocketPair } from "../../src";
+import { Miniflare, NoOpLog, WebSocket, WebSocketPair } from "../../src";
 import {
   WebSocketEvent,
   WebSocketsModule,
   terminateWebSocket,
 } from "../../src/modules/ws";
-import { useServer } from "../helpers";
-
-const noop = () => {};
+import { noop, triggerPromise, useServer } from "../helpers";
 
 test("WebSocket: accepts only in connecting state", (t) => {
   const webSocket = new WebSocket();
@@ -157,15 +157,33 @@ test("WebSocketPair: creates linked pair of sockets", (t) => {
   t.deepEqual(messages2, ["from1"]);
 });
 
-test("terminateWebSocket: forwards messages from client to worker", async (t) => {
+test("terminateWebSocket: forwards messages from client to worker before termination", async (t) => {
   const server = await useServer(t, noop, (ws) => ws.send("test"));
   const ws = new WebSocketClient(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
+
+  // Accept before termination, simulates accepting in worker code before returning response
   worker.accept();
   const eventPromise = new Promise<WebSocketMessageEvent>((resolve) => {
     worker.addEventListener("message", resolve);
   });
   await terminateWebSocket(ws, client);
+
+  const event = await eventPromise;
+  t.is(event.data, "test");
+});
+test("terminateWebSocket: forwards messages from client to worker after termination", async (t) => {
+  const server = await useServer(t, noop, (ws) => ws.send("test"));
+  const ws = new WebSocketClient(server.ws);
+  const [client, worker] = Object.values(new WebSocketPair());
+
+  await terminateWebSocket(ws, client);
+  // Accept after termination, simulates accepting in worker code after returning response
+  const eventPromise = new Promise<WebSocketMessageEvent>((resolve) => {
+    worker.addEventListener("message", resolve);
+  });
+  // accept() after addEventListener() as it dispatches queued messages
+  worker.accept();
 
   const event = await eventPromise;
   t.is(event.data, "test");
@@ -204,30 +222,45 @@ test("terminateWebSocket: closes worker socket on client close", async (t) => {
   t.is(event.code, 1000);
   t.is(event.reason, "Test Closure");
 });
-test("terminateWebSocket: forwards messages from worker to client", async (t) => {
-  let eventResolve: (event: { data: any }) => void;
-  const eventPromise = new Promise<{ data: any }>(
-    (resolve) => (eventResolve = resolve)
-  );
+test("terminateWebSocket: forwards messages from worker to client before termination", async (t) => {
+  const [eventTrigger, eventPromise] = triggerPromise<{ data: any }>();
   const server = await useServer(t, noop, (ws) => {
-    ws.addEventListener("message", eventResolve);
+    ws.addEventListener("message", eventTrigger);
   });
   const ws = new WebSocketClient(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
+
   worker.accept();
+  // Send before termination, simulates sending message in worker code before returning response
   worker.send("test");
   await terminateWebSocket(ws, client);
 
   const event = await eventPromise;
   t.is(event.data, "test");
 });
-test("terminateWebSocket: closes client socket on worker close", async (t) => {
-  let eventResolve: (event: { code: number; reason: string }) => void;
-  const eventPromise = new Promise<{ code: number; reason: string }>(
-    (resolve) => (eventResolve = resolve)
-  );
+test("terminateWebSocket: forwards messages from worker to client after termination", async (t) => {
+  const [eventTrigger, eventPromise] = triggerPromise<{ data: any }>();
   const server = await useServer(t, noop, (ws) => {
-    ws.addEventListener("close", eventResolve);
+    ws.addEventListener("message", eventTrigger);
+  });
+  const ws = new WebSocketClient(server.ws);
+  const [client, worker] = Object.values(new WebSocketPair());
+
+  worker.accept();
+  await terminateWebSocket(ws, client);
+  // Send after termination, simulates sending message in worker code after returning response
+  worker.send("test");
+
+  const event = await eventPromise;
+  t.is(event.data, "test");
+});
+test("terminateWebSocket: closes client socket on worker close", async (t) => {
+  const [eventTrigger, eventPromise] = triggerPromise<{
+    code: number;
+    reason: string;
+  }>();
+  const server = await useServer(t, noop, (ws) => {
+    ws.addEventListener("close", eventTrigger);
   });
   const ws = new WebSocketClient(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
@@ -244,4 +277,42 @@ test("buildSandbox: includes WebSocketPair", (t) => {
   const module = new WebSocketsModule(new NoOpLog());
   const sandbox = module.buildSandbox();
   t.true(typeof sandbox.WebSocketPair === "function");
+});
+test("buildSandbox: sends and responds to web socket messages", async (t) => {
+  const script = `(${(() => {
+    const sandbox = self as any;
+    sandbox.addEventListener("fetch", (e: FetchEvent) => {
+      const [client, worker] = Object.values(new sandbox.WebSocketPair());
+      worker.accept();
+      // Echo received messages
+      worker.addEventListener("message", (e: WebSocketMessageEvent) => {
+        worker.send(e.data);
+      });
+      // Send message to test queuing
+      worker.send("hello client");
+      e.respondWith(
+        new sandbox.Response(null, {
+          status: 101,
+          webSocket: client,
+        })
+      );
+    });
+  }).toString()})()`;
+  const mf = new Miniflare({ script });
+  const res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
+  t.not(res.webSocket, undefined);
+  assert(res.webSocket); // for TypeScript
+
+  const [eventTrigger, eventPromise] = triggerPromise<void>();
+  const messages: string[] = [];
+  res.webSocket.addEventListener("message", (e) => {
+    messages.push(e.data);
+    if (e.data === "hello worker") eventTrigger();
+  });
+  // accept() after addEventListener() as it dispatches queued messages
+  res.webSocket.accept();
+  res.webSocket.send("hello worker");
+
+  await eventPromise;
+  t.deepEqual(messages, ["hello client", "hello worker"]);
 });

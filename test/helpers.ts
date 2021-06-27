@@ -22,6 +22,7 @@ export async function useTmp(t: ExecutionContext): Promise<string> {
   return filePath;
 }
 
+// TODO: maybe split this into two separate functions for http & ws?
 export async function useServer(
   t: ExecutionContext,
   listener: http.RequestListener,
@@ -64,6 +65,17 @@ export async function runInWorker<T>(
   const mf = new Miniflare({ ...options, script });
   const res = await mf.dispatchFetch(new Request("http://localhost:8787"));
   return res.json();
+}
+
+export function noop(): void {}
+
+export function triggerPromise<T>(): [
+  trigger: (result: T) => void,
+  promise: Promise<T>
+] {
+  let trigger: (result: T) => void = () => {};
+  const promise = new Promise<T>((resolve) => (trigger = resolve));
+  return [trigger, promise];
 }
 
 export function wait(t: number): Promise<void> {
