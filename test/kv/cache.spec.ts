@@ -36,7 +36,7 @@ const putMacro: Macro<[string | Request], Context> = async (t, req) => {
   const { storage, cache } = t.context;
   await cache.put(req, testResponse.clone());
 
-  const storedValue = await storage.get("http___localhost_8787_test.json");
+  const storedValue = await storage.get("http://localhost:8787/test.json");
   t.not(storedValue, undefined);
   t.not(storedValue?.expiration, undefined);
   assert(storedValue?.expiration); // for TypeScript
@@ -63,7 +63,7 @@ test("Cache: only puts GET requests", async (t) => {
   }
   t.deepEqual(
     (await storage.list()).map(({ name }) => name),
-    ["http___localhost_8787_GET.json"]
+    ["http://localhost:8787/GET.json"]
   );
 });
 
@@ -89,9 +89,9 @@ const deleteMacro: Macro<[string | Request], Context> = async (t, req) => {
     new Request("http://localhost:8787/test"),
     testResponse.clone()
   );
-  t.not(await storage.get("http___localhost_8787_test.json"), undefined);
+  t.not(await storage.get("http://localhost:8787/test.json"), undefined);
   t.true(await cache.delete(req));
-  t.is(await storage.get("http___localhost_8787_test.json"), undefined);
+  t.is(await storage.get("http://localhost:8787/test.json"), undefined);
   t.false(await cache.delete(req));
 };
 deleteMacro.title = (providedTitle) => `Cache: deletes ${providedTitle}`;
@@ -141,7 +141,7 @@ const isCachedMacro: Macro<
       },
     })
   );
-  const storedValue = await storage.get("http___localhost_8787_test.json");
+  const storedValue = await storage.get("http://localhost:8787/test.json");
   (stored ?? cached ? t.not : t.is)(storedValue, undefined);
   const cachedRes = await cache.match("http://localhost:8787/test");
   (cached ? t.not : t.is)(cachedRes, undefined);

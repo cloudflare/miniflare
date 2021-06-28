@@ -196,7 +196,7 @@ test("buildEnvironment: can put into namespace", async (t) => {
         "utf8"
       )
     ),
-    { metadata: { testing: true } }
+    { key: "key", metadata: { testing: true } }
   );
 });
 test("buildEnvironment: can delete from namespace", async (t) => {

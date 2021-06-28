@@ -22,7 +22,6 @@ export async function useTmp(t: ExecutionContext): Promise<string> {
   return filePath;
 }
 
-// TODO: maybe split this into two separate functions for http & ws?
 export async function useServer(
   t: ExecutionContext,
   listener: http.RequestListener,

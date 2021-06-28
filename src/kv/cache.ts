@@ -1,6 +1,6 @@
 import { Headers, Request, Response } from "@mrbbot/node-fetch";
 import CachePolicy from "http-cache-semantics";
-import { KVClock, defaultClock, sanitise } from "./helpers";
+import { KVClock, defaultClock } from "./helpers";
 import { KVStorageNamespace } from "./namespace";
 import { KVStorage } from "./storage";
 
@@ -30,7 +30,7 @@ function normaliseHeaders(headers: Headers): Record<string, string> {
 }
 
 function getKey(req: Request): string {
-  return `${sanitise(req.url)}.json`;
+  return `${req.url}.json`;
 }
 
 // TODO: make sure to test url key sanitization

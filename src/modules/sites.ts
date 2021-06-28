@@ -6,7 +6,9 @@ export class SitesModule extends Module {
   buildEnvironment(options: ProcessedOptions): Context {
     if (!options.sitePath) return {};
 
-    const storage = new FileKVStorage(options.sitePath);
+    // Create file KV storage with sanitisation DISABLED so paths containing
+    // /'s resolve correctly
+    const storage = new FileKVStorage(options.sitePath, false);
     return {
       __STATIC_CONTENT: new FilteredKVStorageNamespace(storage, {
         readOnly: true,
