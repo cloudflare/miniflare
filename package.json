@@ -45,7 +45,8 @@
     "typeson-registry": "^1.0.0-alpha.39",
     "web-streams-polyfill": "^3.0.1",
     "ws": "^7.5.0",
-    "yargs": "^16.2.0"
+    "yargs": "^16.2.0",
+    "youch": "^2.2.2"
   },
   "devDependencies": {
     "@cloudflare/kv-asset-handler": "^0.1.3",

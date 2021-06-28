@@ -10,6 +10,7 @@ import {
 import cron from "node-cron";
 import sourceMap from "source-map-support";
 import WebSocket from "ws";
+import Youch from "youch";
 import { Cache, KVStorageNamespace } from "./kv";
 import { ConsoleLog, Log, NoOpLog, logResponse } from "./log";
 import { ResponseWaitUntil } from "./modules";
@@ -349,9 +350,17 @@ export class Miniflare {
       res?.writeHead(response.status, response.headers.raw());
       res?.end(await response.buffer());
     } catch (e) {
+      const youch = new Youch(e, req);
+      youch.addLink(() => {
+        return [
+          '<a href="https://developers.cloudflare.com/workers/" target="_blank">Workers Docs</a>',
+          '<a href="https://discord.gg/cloudflaredev" target="_blank">Workers Discord</a>',
+          '<a href="https://github.com/mrbbot/miniflare" target="_blank">Miniflare Docs</a>',
+        ].join("");
+      });
+      const errorHtml = await youch.toHTML();
       res?.writeHead(500);
-      // TODO: pretty error page
-      res?.end(e.stack);
+      res?.end(errorHtml);
       this.log.error(e.stack);
     }
     await logResponse(this.log, {
