@@ -72,10 +72,13 @@ export interface KVListResult {
 }
 
 export class KVStorageNamespace {
-  constructor(
-    private storage: KVStorage,
-    private clock: KVClock = defaultClock
-  ) {}
+  readonly #storage: KVStorage;
+  readonly #clock: KVClock;
+
+  constructor(storage: KVStorage, clock: KVClock = defaultClock) {
+    this.#storage = storage;
+    this.#clock = clock;
+  }
 
   get(key: string): KVValue<string>;
   get(key: string, type: "text"): KVValue<string>;
@@ -118,7 +121,7 @@ export class KVStorageNamespace {
 
     // Get value with expiration and metadata, if we couldn't find anything,
     // return nulls
-    const storedValue = await this.storage.get(key);
+    const storedValue = await this.#storage.get(key);
     if (storedValue === undefined) {
       return { value: null, metadata: null };
     }
@@ -127,7 +130,7 @@ export class KVStorageNamespace {
     // Delete key if expiration defined and expired
     if (
       expiration !== undefined &&
-      expiration <= millisToSeconds(this.clock())
+      expiration <= millisToSeconds(this.#clock())
     ) {
       await this.delete(key);
       return { value: null, metadata: null };
@@ -171,11 +174,11 @@ export class KVStorageNamespace {
     expiration = normaliseInt(expiration);
     expirationTtl = normaliseInt(expirationTtl);
     if (expirationTtl !== undefined) {
-      expiration = millisToSeconds(this.clock()) + expirationTtl;
+      expiration = millisToSeconds(this.#clock()) + expirationTtl;
     }
 
     // Store value with expiration and metadata
-    await this.storage.put(key, {
+    await this.#storage.put(key, {
       value: buffer,
       expiration,
       metadata,
@@ -183,7 +186,7 @@ export class KVStorageNamespace {
   }
 
   async delete(key: string): Promise<void> {
-    await this.storage.delete(key);
+    await this.#storage.delete(key);
   }
 
   async list({
@@ -203,8 +206,8 @@ export class KVStorageNamespace {
     // Get all keys matching the prefix, sorted, recording expired keys along
     // the way
     const expiredKeys: string[] = [];
-    const time = millisToSeconds(this.clock());
-    const keys = (await this.storage.list())
+    const time = millisToSeconds(this.#clock());
+    const keys = (await this.#storage.list())
       .filter(({ name, expiration }) => {
         if (expiration !== undefined && expiration <= time) {
           expiredKeys.push(name);

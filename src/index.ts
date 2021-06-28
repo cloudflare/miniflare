@@ -42,17 +42,17 @@ type ModuleExports = {
 
 export class Miniflare {
   readonly log: Log;
-  private readonly _modules: Modules;
-  private readonly _initPromise: Promise<void>;
-  private _initResolve?: () => void;
-  private _watcher?: Watcher;
-  private _options?: ProcessedOptions;
+  readonly #modules: Modules;
+  readonly #initPromise: Promise<void>;
+  #initResolve?: () => void;
+  #watcher?: Watcher;
+  #options?: ProcessedOptions;
 
-  private _sandbox: Context;
-  private _environment: Context;
-  private _scheduledTasks?: cron.ScheduledTask[];
+  #sandbox: Context;
+  #environment: Context;
+  #scheduledTasks?: cron.ScheduledTask[];
 
-  private readonly _wss: WebSocket.Server;
+  readonly #wss: WebSocket.Server;
 
   constructor(options: Options) {
     if (options.script) options.scriptPath = stringScriptPath;
@@ -64,7 +64,7 @@ export class Miniflare {
       : options.log === true
       ? new ConsoleLog()
       : options.log;
-    this._modules = Object.entries(modules).reduce(
+    this.#modules = Object.entries(modules).reduce(
       (modules, [name, module]) => {
         modules[name as ModuleName] = new module(this.log) as any;
         return modules;
@@ -73,56 +73,56 @@ export class Miniflare {
     );
 
     // Defaults never used, will be overridden in _watchCallback
-    this._sandbox = {};
-    this._environment = {};
+    this.#sandbox = {};
+    this.#environment = {};
 
     // Initialise web socket server
-    this._wss = new WebSocket.Server({ noServer: true });
-    this._wss.addListener(
+    this.#wss = new WebSocket.Server({ noServer: true });
+    this.#wss.addListener(
       "connection",
-      this._webSocketConnectionListener.bind(this)
+      this.#webSocketConnectionListener.bind(this)
     );
 
-    this._initPromise = new Promise(async (resolve) => {
-      this._initResolve = resolve;
+    this.#initPromise = new Promise(async (resolve) => {
+      this.#initResolve = resolve;
 
-      this._watcher = new Watcher(
+      this.#watcher = new Watcher(
         this.log,
-        this._watchCallback.bind(this),
+        this.#watchCallback.bind(this),
         options
       );
     });
   }
 
-  private async _watchCallback(options: ProcessedOptions) {
-    this._options = options;
+  async #watchCallback(options: ProcessedOptions): Promise<void> {
+    this.#options = options;
     // Build sandbox and environment
-    const modules = Object.values(this._modules);
-    this._sandbox = modules.reduce(
+    const modules = Object.values(this.#modules);
+    this.#sandbox = modules.reduce(
       (sandbox, module) => Object.assign(sandbox, module.buildSandbox(options)),
       {} as Context
     );
-    this._environment = modules.reduce(
+    this.#environment = modules.reduce(
       (environment, module) =>
         Object.assign(environment, module.buildEnvironment(options)),
       {} as Context
     );
     // Assign bindings last so they can override modules if required
-    Object.assign(this._environment, options.bindings);
+    Object.assign(this.#environment, options.bindings);
 
-    this._reloadScheduled();
-    await this._reloadWorker();
+    this.#reloadScheduled();
+    await this.#reloadWorker();
 
     // This should never be undefined as _watchCallback is only called by the
     // watcher which is created after _initResolve is set
-    assert(this._initResolve !== undefined);
-    this._initResolve();
+    assert(this.#initResolve !== undefined);
+    this.#initResolve();
   }
 
-  private _reloadScheduled(): void {
+  #reloadScheduled(): void {
     // Schedule tasks, stopping all current ones first
-    this._scheduledTasks?.forEach((task) => task.destroy());
-    this._scheduledTasks = this._options?.validatedCrons?.map((spec) =>
+    this.#scheduledTasks?.forEach((task) => task.destroy());
+    this.#scheduledTasks = this.#options?.validatedCrons?.map((spec) =>
       cron.schedule(spec, async () => {
         const start = process.hrtime();
         const waitUntil = this.dispatchScheduled();
@@ -136,39 +136,39 @@ export class Miniflare {
     );
   }
 
-  private async _reloadWorker() {
+  async #reloadWorker(): Promise<void> {
     // Only called in _watchCallback() after _options set and scripts and
     // processedModulesRules are always set in this
-    assert(this._options?.scripts && this._options.processedModulesRules);
+    assert(this.#options?.scripts && this.#options.processedModulesRules);
 
     // Build modules linker maintaining set of referenced paths for watching
     const { linker, referencedPaths } = buildLinker(
-      this._options.processedModulesRules
+      this.#options.processedModulesRules
     );
 
     // Reset state
-    this._modules.EventsModule.resetEventListeners();
-    this._modules.DurableObjectsModule.resetInstances();
-    this._modules.StandardsModule.resetWebSockets();
+    this.#modules.EventsModule.resetEventListeners();
+    this.#modules.DurableObjectsModule.resetInstances();
+    this.#modules.StandardsModule.resetWebSockets();
 
     // Build sandbox with global self-references, only including environment
     // in global scope if not using modules
-    const sandbox = this._options.modules
-      ? { ...this._sandbox }
-      : { ...this._sandbox, ...this._environment };
+    const sandbox = this.#options.modules
+      ? { ...this.#sandbox }
+      : { ...this.#sandbox, ...this.#environment };
     sandbox.global = sandbox;
     sandbox.globalThis = sandbox;
     sandbox.self = sandbox;
 
     // Parse and run all scripts
     const moduleExports: Record<string, ModuleExports> = {};
-    for (const script of Object.values(this._options.scripts)) {
+    for (const script of Object.values(this.#options.scripts)) {
       this.log.debug(`Reloading ${path.relative("", script.fileName)}...`);
 
       // Parse script and build instance
       let instance: ScriptScriptInstance | ModuleScriptInstance<ModuleExports>;
       try {
-        instance = this._options.modules
+        instance = this.#options.modules
           ? await script.buildModule(sandbox, linker)
           : await script.buildScript(sandbox);
       } catch (e) {
@@ -195,20 +195,20 @@ export class Miniflare {
 
       // If this is the main modules script, setup event listeners for
       // default exports
-      if (script.fileName === this._options.scriptPath) {
+      if (script.fileName === this.#options.scriptPath) {
         const fetchListener = instance.exports?.default?.fetch;
         if (fetchListener) {
-          this._modules.EventsModule.addModuleFetchListener(
+          this.#modules.EventsModule.addModuleFetchListener(
             fetchListener,
-            this._environment
+            this.#environment
           );
         }
 
         const scheduledListener = instance.exports?.default?.scheduled;
         if (scheduledListener) {
-          this._modules.EventsModule.addModuleScheduledListener(
+          this.#modules.EventsModule.addModuleScheduledListener(
             scheduledListener,
-            this._environment
+            this.#environment
           );
         }
       }
@@ -216,7 +216,7 @@ export class Miniflare {
 
     // Reset durable objects with new constructors and environment
     const constructors: Record<string, DurableObjectConstructor> = {};
-    for (const durableObject of this._options.processedDurableObjects ?? []) {
+    for (const durableObject of this.#options.processedDurableObjects ?? []) {
       const constructor =
         moduleExports[durableObject.scriptPath]?.[durableObject.className];
       if (constructor) {
@@ -227,17 +227,17 @@ export class Miniflare {
         );
       }
     }
-    this._modules.DurableObjectsModule.setContext(
+    this.#modules.DurableObjectsModule.setContext(
       constructors,
-      this._environment
+      this.#environment
     );
 
     // Watch module referenced paths
-    assert(this._watcher !== undefined);
-    this._watcher.setExtraWatchedPaths(referencedPaths);
+    assert(this.#watcher !== undefined);
+    this.#watcher.setExtraWatchedPaths(referencedPaths);
 
     // Close all existing web sockets
-    for (const ws of this._wss.clients) {
+    for (const ws of this.#wss.clients) {
       ws.close(1012, "Service Restart");
     }
 
@@ -245,76 +245,76 @@ export class Miniflare {
   }
 
   async reloadScript(): Promise<void> {
-    await this._initPromise;
-    await this._watcher?.reloadScripts();
+    await this.#initPromise;
+    await this.#watcher?.reloadScripts();
   }
 
   async reloadOptions(): Promise<void> {
-    await this._initPromise;
-    await this._watcher?.reloadOptions();
+    await this.#initPromise;
+    await this.#watcher?.reloadOptions();
   }
 
   async dispatchFetch<WaitUntil extends any[] = any[]>(
     input: RequestInfo,
     init?: RequestInit
   ): Promise<ResponseWaitUntil<WaitUntil>> {
-    await this._initPromise;
-    return this._modules.EventsModule.dispatchFetch<WaitUntil>(
+    await this.#initPromise;
+    return this.#modules.EventsModule.dispatchFetch<WaitUntil>(
       new Request(input, init),
-      this._options?.upstreamUrl
+      this.#options?.upstreamUrl
     );
   }
 
   async dispatchScheduled<WaitUntil extends any[] = any[]>(
     scheduledTime?: number
   ): Promise<WaitUntil> {
-    await this._initPromise;
-    return this._modules.EventsModule.dispatchScheduled<WaitUntil>(
+    await this.#initPromise;
+    return this.#modules.EventsModule.dispatchScheduled<WaitUntil>(
       scheduledTime
     );
   }
 
   async getOptions(): Promise<ProcessedOptions> {
-    await this._initPromise;
+    await this.#initPromise;
     // This should never be undefined as _initPromise is only resolved once
     // _watchCallback has been called for the first time
-    assert(this._options !== undefined);
-    return this._options;
+    assert(this.#options !== undefined);
+    return this.#options;
   }
 
   async getCache(name?: string): Promise<Cache> {
-    await this._initPromise;
-    return this._modules.CacheModule.getCache(
+    await this.#initPromise;
+    return this.#modules.CacheModule.getCache(
       name,
-      this._options?.cachePersist
+      this.#options?.cachePersist
     );
   }
 
   async getKVNamespace(namespace: string): Promise<KVStorageNamespace> {
-    await this._initPromise;
-    return this._modules.KVModule.getNamespace(
+    await this.#initPromise;
+    return this.#modules.KVModule.getNamespace(
       namespace,
-      this._options?.kvPersist
+      this.#options?.kvPersist
     );
   }
 
   async getDurableObjectNamespace(
     objectName: string
   ): Promise<DurableObjectNamespace> {
-    await this._initPromise;
-    return this._modules.DurableObjectsModule.getNamespace(
+    await this.#initPromise;
+    return this.#modules.DurableObjectsModule.getNamespace(
       objectName,
-      this._options?.durableObjectsPersist
+      this.#options?.durableObjectsPersist
     );
   }
 
-  private async _httpRequestListener(
+  async #httpRequestListener(
     req: http.IncomingMessage,
     res?: http.ServerResponse
   ): Promise<ResponseWaitUntil | undefined> {
     const start = process.hrtime();
     const url =
-      (this._options?.upstreamUrl?.origin ?? `http://${req.headers.host}`) +
+      (this.#options?.upstreamUrl?.origin ?? `http://${req.headers.host}`) +
       req.url;
 
     let body: BodyInit | null = null;
@@ -364,12 +364,12 @@ export class Miniflare {
     return response;
   }
 
-  private async _webSocketConnectionListener(
+  async #webSocketConnectionListener(
     ws: WebSocket,
     req: http.IncomingMessage
   ): Promise<void> {
     // Handle request in worker
-    const response = await this._httpRequestListener(req);
+    const response = await this.#httpRequestListener(req);
 
     // Check web socket response was returned
     const webSocket = response?.webSocket;
@@ -386,12 +386,12 @@ export class Miniflare {
   }
 
   createServer(): http.Server {
-    const server = http.createServer(this._httpRequestListener.bind(this));
+    const server = http.createServer(this.#httpRequestListener.bind(this));
 
     // Handle web socket upgrades
     server.on("upgrade", (req, socket, head) => {
-      this._wss.handleUpgrade(req, socket, head, (ws) => {
-        this._wss.emit("connection", ws, req);
+      this.#wss.handleUpgrade(req, socket, head, (ws) => {
+        this.#wss.emit("connection", ws, req);
       });
     });
 

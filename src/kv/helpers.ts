@@ -46,23 +46,23 @@ export class KVStorageFactory {
 }
 
 export class Mutex {
-  private _locked = false;
-  private _resolveQueue: (() => void)[] = [];
+  private locked = false;
+  private resolveQueue: (() => void)[] = [];
 
   private lock(): Promise<void> {
-    if (!this._locked) {
-      this._locked = true;
+    if (!this.locked) {
+      this.locked = true;
       return Promise.resolve();
     }
-    return new Promise((resolve) => this._resolveQueue.push(resolve));
+    return new Promise((resolve) => this.resolveQueue.push(resolve));
   }
 
   private unlock(): void {
-    assert(this._locked);
-    if (this._resolveQueue.length > 0) {
-      this._resolveQueue.shift()?.();
+    assert(this.locked);
+    if (this.resolveQueue.length > 0) {
+      this.resolveQueue.shift()?.();
     } else {
-      this._locked = false;
+      this.locked = false;
     }
   }
 

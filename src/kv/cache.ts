@@ -16,46 +16,47 @@ export interface CachedResponse {
   body: string;
 }
 
+function normaliseRequest(req: string | Request): Request {
+  return typeof req === "string" ? new Request(req) : req;
+}
+
+function normaliseHeaders(headers: Headers): Record<string, string> {
+  const result: Record<string, string> = {};
+  // TODO: test this with multi-valued headers, may need to use `headers.raw()` instead
+  for (const [key, value] of headers) {
+    result[key.toLowerCase()] = value;
+  }
+  return result;
+}
+
+function getKey(req: Request): string {
+  return `${sanitise(req.url)}.json`;
+}
+
 // TODO: make sure to test url key sanitization
 // TODO: may need to add Cf-Cache-Status headers, check in actual workers environment
 export class Cache {
-  private readonly namespace: KVStorageNamespace;
+  readonly #storage: KVStorage;
+  readonly #clock: KVClock;
+  readonly #namespace: KVStorageNamespace;
 
-  constructor(
-    private storage: KVStorage,
-    private clock: KVClock = defaultClock
-  ) {
-    this.namespace = new KVStorageNamespace(storage, clock);
-  }
-
-  private static _normaliseRequest(req: string | Request): Request {
-    return typeof req === "string" ? new Request(req) : req;
-  }
-
-  private static _normaliseHeaders(headers: Headers): Record<string, string> {
-    const result: Record<string, string> = {};
-    // TODO: test this with multi-valued headers, may need to use `headers.raw()` instead
-    for (const [key, value] of headers) {
-      result[key.toLowerCase()] = value;
-    }
-    return result;
-  }
-
-  private static _getKey(req: Request) {
-    return `${sanitise(req.url)}.json`;
+  constructor(storage: KVStorage, clock: KVClock = defaultClock) {
+    this.#storage = storage;
+    this.#clock = clock;
+    this.#namespace = new KVStorageNamespace(storage, clock);
   }
 
   async put(req: string | Request, res: Response): Promise<undefined> {
-    req = Cache._normaliseRequest(req);
+    req = normaliseRequest(req);
 
     // Cloudflare ignores request Cache-Control
-    const reqHeaders = Cache._normaliseHeaders(req.headers);
+    const reqHeaders = normaliseHeaders(req.headers);
     delete reqHeaders["cache-control"];
 
     // Cloudflare never caches responses with Set-Cookie headers
     // If Cache-Control contains private=set-cookie, Cloudflare will remove
     // the Set-Cookie header automatically
-    const resHeaders = Cache._normaliseHeaders(res.headers);
+    const resHeaders = normaliseHeaders(res.headers);
     if (
       resHeaders["cache-control"]?.toLowerCase().includes("private=set-cookie")
     ) {
@@ -80,7 +81,7 @@ export class Cache {
     // @ts-expect-error `now` isn't included in CachePolicy's type definitions
     const originalNow = CachePolicy.prototype.now;
     // @ts-expect-error `now` isn't included in CachePolicy's type definitions
-    CachePolicy.prototype.now = this.clock;
+    CachePolicy.prototype.now = this.#clock;
     let expirationTtl: number;
     try {
       const policy = new CachePolicy(cacheReq, cacheRes, { shared: true });
@@ -101,8 +102,8 @@ export class Cache {
     }
 
     // If it is cacheable, store it in KV
-    const key = Cache._getKey(req);
-    await this.namespace.put(
+    const key = getKey(req);
+    await this.#namespace.put(
       key,
       JSON.stringify({
         status: res.status,
@@ -117,13 +118,13 @@ export class Cache {
     req: string | Request,
     options?: CacheMatchOptions
   ): Promise<Response | undefined> {
-    req = Cache._normaliseRequest(req);
+    req = normaliseRequest(req);
     // Cloudflare only caches GET requests
     if (req.method !== "GET" || options?.ignoreMethod) return;
 
     // Check if we have the response cached
-    const key = Cache._getKey(req);
-    const res = await this.namespace.get<CachedResponse>(key, "json");
+    const key = getKey(req);
+    const res = await this.#namespace.get<CachedResponse>(key, "json");
     if (!res) return;
 
     // Build Response from cache
@@ -143,13 +144,13 @@ export class Cache {
     req: string | Request,
     options?: CacheMatchOptions
   ): Promise<boolean> {
-    req = Cache._normaliseRequest(req);
+    req = normaliseRequest(req);
     // Cloudflare only caches GET requests
     if (req.method !== "GET" || options?.ignoreMethod) return false;
 
     // Delete the cached response if it exists (we delete from this.storage not
     // this.namespace since we need to know whether we deleted something)
-    const key = Cache._getKey(req);
-    return this.storage.delete(key);
+    const key = getKey(req);
+    return this.#storage.delete(key);
   }
 }

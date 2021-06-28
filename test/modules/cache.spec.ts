@@ -2,6 +2,7 @@ import { existsSync, promises as fs } from "fs";
 import path from "path";
 import test from "ava";
 import { Cache, CachedResponse, NoOpLog, Response } from "../../src";
+import { KVStorageFactory } from "../../src/kv/helpers";
 import { CacheModule } from "../../src/modules/cache";
 import { runInWorker, useTmp } from "../helpers";
 
@@ -11,7 +12,7 @@ const testResponse = new Response("value", {
 
 test("getCache: creates persistent cache at default location", async (t) => {
   const tmp = await useTmp(t);
-  const module = new CacheModule(new NoOpLog(), tmp);
+  const module = new CacheModule(new NoOpLog(), new KVStorageFactory(tmp));
   const cache = module.getCache("test", true);
   await cache.put("http://localhost:8787/", testResponse.clone());
   t.true(existsSync(path.join(tmp, "test", "http___localhost_8787_.json")));
@@ -20,7 +21,10 @@ test("getCache: creates persistent cache at default location", async (t) => {
 test("getCache: creates persistent cache at custom location", async (t) => {
   const tmpDefault = await useTmp(t);
   const tmpCustom = await useTmp(t);
-  const module = new CacheModule(new NoOpLog(), tmpDefault);
+  const module = new CacheModule(
+    new NoOpLog(),
+    new KVStorageFactory(tmpDefault)
+  );
   const cache = module.getCache("test", tmpCustom);
   await cache.put("http://localhost:8787/", testResponse.clone());
   t.false(
@@ -33,7 +37,7 @@ test("getCache: creates persistent cache at custom location", async (t) => {
 });
 test("getCache: creates in-memory cache", async (t) => {
   const tmp = await useTmp(t);
-  const module = new CacheModule(new NoOpLog(), tmp);
+  const module = new CacheModule(new NoOpLog(), new KVStorageFactory(tmp));
   const cache = module.getCache("test");
   await cache.put("http://localhost:8787/", testResponse.clone());
   t.false(existsSync(path.join(tmp, "test", "http___localhost_8787_.json")));
@@ -41,7 +45,7 @@ test("getCache: creates in-memory cache", async (t) => {
 });
 test("getCache: reuses existing storage for in-memory cache", async (t) => {
   const tmp = await useTmp(t);
-  const module = new CacheModule(new NoOpLog(), tmp);
+  const module = new CacheModule(new NoOpLog(), new KVStorageFactory(tmp));
   const cache1 = module.getCache("test", false);
   await cache1.put(
     "http://localhost:8787/1",
@@ -62,7 +66,7 @@ test("getCache: reuses existing storage for in-memory cache", async (t) => {
 
 test("buildSandbox: creates persistent default cache at default location", async (t) => {
   const tmp = await useTmp(t);
-  const module = new CacheModule(new NoOpLog(), tmp);
+  const module = new CacheModule(new NoOpLog(), new KVStorageFactory(tmp));
   const { caches } = module.buildSandbox({ cachePersist: true });
   t.true("default" in caches);
   await caches.default.put("http://localhost:8787/", testResponse.clone());
@@ -75,7 +79,10 @@ test("buildSandbox: creates persistent default cache at default location", async
 test("buildSandbox: creates persistent default cache at custom location", async (t) => {
   const tmpDefault = await useTmp(t);
   const tmpCustom = await useTmp(t);
-  const module = new CacheModule(new NoOpLog(), tmpDefault);
+  const module = new CacheModule(
+    new NoOpLog(),
+    new KVStorageFactory(tmpDefault)
+  );
   const { caches } = module.buildSandbox({ cachePersist: tmpCustom });
   t.true("default" in caches);
   await caches.default.put("http://localhost:8787/", testResponse.clone());
@@ -92,7 +99,7 @@ test("buildSandbox: creates persistent default cache at custom location", async 
 });
 test("buildSandbox: creates in-memory default cache", async (t) => {
   const tmp = await useTmp(t);
-  const module = new CacheModule(new NoOpLog(), tmp);
+  const module = new CacheModule(new NoOpLog(), new KVStorageFactory(tmp));
   const { caches } = module.buildSandbox({ cachePersist: false });
   t.true("default" in caches);
   await caches.default.put("http://localhost:8787/", testResponse.clone());
@@ -104,7 +111,7 @@ test("buildSandbox: creates in-memory default cache", async (t) => {
 });
 test("buildSandbox: reuses existing storage for default cache", async (t) => {
   const tmp = await useTmp(t);
-  const module = new CacheModule(new NoOpLog(), tmp);
+  const module = new CacheModule(new NoOpLog(), new KVStorageFactory(tmp));
   const { caches: caches1 } = module.buildSandbox({});
   t.true("default" in caches1);
   await caches1.default.put(

@@ -1,46 +1,52 @@
+import assert from "assert";
 import { URL } from "url";
 import fetch, { FetchError, Request, Response } from "@mrbbot/node-fetch";
 import { Context, EventListener, Module } from "./module";
 
+// Event properties that need to be accessible in the events module but not
+// to user code, exported for testing
+export const responseMap = new WeakMap<FetchEvent, Promise<Response>>();
+export const passThroughMap = new WeakMap<FetchEvent, boolean>();
+export const waitUntilMap = new WeakMap<
+  FetchEvent | ScheduledEvent,
+  Promise<any>[]
+>();
+
 export class FetchEvent {
   readonly type: "fetch";
   readonly request: Request;
-  _response?: Promise<Response>;
-  _passThrough?: boolean;
-  readonly _waitUntilPromises: Promise<any>[];
 
   constructor(request: Request) {
     this.type = "fetch";
     this.request = request;
-    this._waitUntilPromises = [];
+    waitUntilMap.set(this, []);
   }
 
   respondWith(response: Response | Promise<Response>): void {
-    this._response = Promise.resolve(response);
+    responseMap.set(this, Promise.resolve(response));
   }
 
   passThroughOnException(): void {
-    this._passThrough = true;
+    passThroughMap.set(this, true);
   }
 
   waitUntil(promise: Promise<any>): void {
-    this._waitUntilPromises.push(promise);
+    waitUntilMap.get(this)?.push(promise);
   }
 }
 
 export class ScheduledEvent {
   readonly type: "scheduled";
   readonly scheduledTime: number;
-  readonly _waitUntilPromises: Promise<any>[];
 
   constructor(scheduledTime: number) {
     this.type = "scheduled";
     this.scheduledTime = scheduledTime;
-    this._waitUntilPromises = [];
+    waitUntilMap.set(this, []);
   }
 
   waitUntil(promise: Promise<any>): void {
-    this._waitUntilPromises.push(promise);
+    waitUntilMap.get(this)?.push(promise);
   }
 }
 
@@ -128,18 +134,22 @@ export class EventsModule extends Module {
     // origin must also be upstreamUrl.
 
     const event = new FetchEvent(request.clone());
-    const waitUntil = async () =>
-      (await Promise.all(event._waitUntilPromises)) as WaitUntil;
+    const waitUntil = async () => {
+      const waitUntilPromises = waitUntilMap.get(event);
+      assert(waitUntilPromises);
+      return (await Promise.all(waitUntilPromises)) as WaitUntil;
+    };
     for (const listener of this._listeners.fetch ?? []) {
       try {
         listener(event);
-        if (event._response) {
-          const response = (await event._response) as ResponseWaitUntil<WaitUntil>;
+        const responsePromise = responseMap.get(event);
+        if (responsePromise) {
+          const response = (await responsePromise) as ResponseWaitUntil<WaitUntil>;
           response.waitUntil = waitUntil;
           return response;
         }
       } catch (e) {
-        if (event._passThrough) {
+        if (passThroughMap.get(event)) {
           this.log.error(e.stack);
           break;
         }
@@ -167,6 +177,8 @@ export class EventsModule extends Module {
     for (const listener of this._listeners.scheduled ?? []) {
       listener(event);
     }
-    return (await Promise.all(event._waitUntilPromises)) as WaitUntil;
+    const waitUntilPromises = waitUntilMap.get(event);
+    assert(waitUntilPromises);
+    return (await Promise.all(waitUntilPromises)) as WaitUntil;
   }
 }

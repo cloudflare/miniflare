@@ -82,6 +82,15 @@ export function wait(t: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, t));
 }
 
+export function getObjectProperties<T>(obj: T): string[] {
+  return [
+    ...Object.getOwnPropertyNames(obj),
+    ...Object.getOwnPropertyNames(Object.getPrototypeOf(obj)),
+  ]
+    .filter((property) => property !== "constructor")
+    .sort();
+}
+
 export class TestLog implements Log {
   debugs: string[] = [];
   errors: string[] = [];

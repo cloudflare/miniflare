@@ -58,10 +58,7 @@ test("WebSocket: handles events", (t) => {
   t.deepEqual(events2, [messageEvent, closeEvent, errorEvent]);
 });
 test("WebSocket: sends message to pair", (t) => {
-  const webSocket1 = new WebSocket();
-  const webSocket2 = new WebSocket();
-  webSocket1._pair = webSocket2;
-  webSocket2._pair = webSocket1;
+  const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
   webSocket1.accept();
   webSocket2.accept();
 
@@ -78,10 +75,7 @@ test("WebSocket: sends message to pair", (t) => {
   t.deepEqual(messages2, ["from1"]);
 });
 test("WebSocket: queues messages if pair connecting", (t) => {
-  const webSocket1 = new WebSocket();
-  const webSocket2 = new WebSocket();
-  webSocket1._pair = webSocket2;
-  webSocket2._pair = webSocket1;
+  const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
 
   const messages1: string[] = [];
   const messages2: string[] = [];
@@ -107,10 +101,7 @@ test("WebSocket: queues messages if pair connecting", (t) => {
   t.deepEqual(messages2, ["from1_1", "from1_2"]);
 });
 test("WebSocket: fails to send message to pair if either side closed", (t) => {
-  const webSocket1 = new WebSocket();
-  const webSocket2 = new WebSocket();
-  webSocket1._pair = webSocket2;
-  webSocket2._pair = webSocket1;
+  const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
 
   webSocket1.accept();
   webSocket2.accept();
@@ -125,10 +116,7 @@ test("WebSocket: fails to send message to pair if either side closed", (t) => {
   });
 });
 test("WebSocket: closes both sides of pair", (t) => {
-  const webSocket1 = new WebSocket();
-  const webSocket2 = new WebSocket();
-  webSocket1._pair = webSocket2;
-  webSocket2._pair = webSocket1;
+  const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
   webSocket1.accept();
   webSocket2.accept();
 
@@ -139,22 +127,6 @@ test("WebSocket: closes both sides of pair", (t) => {
   webSocket1.close();
   // Check both event listeners called once
   t.deepEqual(closes, [1, 2]);
-});
-
-test("WebSocketPair: creates linked pair of sockets", (t) => {
-  const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
-  webSocket1.accept();
-  webSocket2.accept();
-
-  const messages1: string[] = [];
-  const messages2: string[] = [];
-  webSocket1.addEventListener("message", (e) => messages1.push(e.data));
-  webSocket2.addEventListener("message", (e) => messages2.push(e.data));
-
-  webSocket1.send("from1");
-  webSocket2.send("from2");
-  t.deepEqual(messages1, ["from2"]);
-  t.deepEqual(messages2, ["from1"]);
 });
 
 test("terminateWebSocket: forwards messages from client to worker before termination", async (t) => {

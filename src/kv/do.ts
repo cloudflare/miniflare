@@ -40,24 +40,50 @@ export interface DurableObjectOperator {
 // The toy implementation here https://github.com/mwhittaker/occ is also very
 // helpful.
 
+const internalsMap = new WeakMap<
+  DurableObjectTransaction,
+  DurableObjectTransactionInternals
+>();
+
+// Class containing everything related to DurableObjectTransactions that needs
+// to be accessible to DurableObjectStorage
+class DurableObjectTransactionInternals {
+  readonly readSet = new Set<string>();
+  readonly copies = new Map<string, Buffer | undefined>();
+  rolledback = false;
+
+  constructor(public startTxnCount: number) {}
+
+  get writeSet(): Set<string> {
+    return new Set(this.copies.keys());
+  }
+}
+
 export class DurableObjectTransaction implements DurableObjectOperator {
-  readonly _readSet = new Set<string>();
-  readonly _copies = new Map<string, Buffer | undefined>();
-  _rolledback = false;
+  readonly #storage: KVStorage;
 
-  constructor(private _storage: KVStorage, public _startTxnCount: number) {}
-
-  get _writeSet(): Set<string> {
-    return new Set(this._copies.keys());
+  constructor(storage: KVStorage, startTxnCount: number) {
+    this.#storage = storage;
+    internalsMap.set(
+      this,
+      new DurableObjectTransactionInternals(startTxnCount)
+    );
   }
 
-  private async _get(key: string): Promise<Buffer | undefined> {
-    this._readSet.add(key);
-    if (this._copies.has(key)) {
+  get #internals(): DurableObjectTransactionInternals {
+    const internals = internalsMap.get(this);
+    assert(internals);
+    return internals;
+  }
+
+  async #get(key: string): Promise<Buffer | undefined> {
+    const internals = this.#internals;
+    internals.readSet.add(key);
+    if (internals.copies.has(key)) {
       // Value may be undefined if key deleted so need explicit has
-      return this._copies.get(key);
+      return internals.copies.get(key);
     } else {
-      return (await this._storage.get(key))?.value;
+      return (await this.#storage.get(key))?.value;
     }
   }
 
@@ -66,18 +92,19 @@ export class DurableObjectTransaction implements DurableObjectOperator {
   async get<Value = unknown>(
     keys: string | string[]
   ): Promise<Value | undefined | Map<string, Value>> {
-    assert(!this._rolledback);
+    const internals = this.#internals;
+    assert(!internals.rolledback);
     if (Array.isArray(keys)) {
       // If array of keys passed, build map of results
       const values = new Map<string, Value>();
       for (const key of keys) {
-        const value = await this._get(key);
+        const value = await this.#get(key);
         if (value) values.set(key, TSON.parse(value.toString("utf8")));
       }
       return values;
     } else {
       // Otherwise, return a single result
-      const value = await this._get(keys);
+      const value = await this.#get(keys);
       return value ? TSON.parse(value.toString("utf8")) : undefined;
     }
   }
@@ -88,7 +115,8 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     entries: string | Record<string, Value>,
     value?: Value
   ): Promise<void> {
-    assert(!this._rolledback);
+    const internals = this.#internals;
+    assert(!internals.rolledback);
     // If a single key/value pair was passed, normalise it to an object
     if (typeof entries === "string") {
       assert(value !== undefined);
@@ -97,14 +125,15 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     // Update shadow copies for each entry, and record operation in write log
     for (const [key, rawValue] of Object.entries(entries)) {
       const value = Buffer.from(TSON.stringify(rawValue), "utf8");
-      this._copies.set(key, value);
+      internals.copies.set(key, value);
     }
   }
 
   delete(key: string): Promise<boolean>;
   delete(keys: string[]): Promise<number>;
   async delete(keys: string | string[]): Promise<boolean | number> {
-    assert(!this._rolledback);
+    const internals = this.#internals;
+    assert(!internals.rolledback);
     // Record whether an array was passed so we know what to return at the end
     const arrayKeys = Array.isArray(keys);
     // Normalise keys argument to string array
@@ -112,30 +141,30 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     // Delete shadow copies for each entry, and record operation in write log
     let deleted = 0;
     for (const key of keys) {
-      this._readSet.add(key);
-      deleted += (await this._storage.has(key)) ? 1 : 0;
-      this._copies.set(key, undefined);
+      internals.readSet.add(key);
+      deleted += (await this.#storage.has(key)) ? 1 : 0;
+      internals.copies.set(key, undefined);
     }
     return arrayKeys ? deleted : deleted > 0;
   }
 
   async deleteAll(): Promise<void> {
-    assert(!this._rolledback);
+    assert(!this.#internals.rolledback);
     // Delete all existing keys
     // TODO: think about whether it's correct to use list() here, what if a
     //  transaction adding a new commits before this commits?
-    const keys = (await this._storage.list()).map(({ name }) => name);
+    const keys = (await this.#storage.list()).map(({ name }) => name);
     await this.delete(keys);
   }
 
   async list<Value = unknown>(
     options?: DurableObjectListOptions
   ): Promise<Map<string, Value>> {
-    assert(!this._rolledback);
+    assert(!this.#internals.rolledback);
     // Get all matching key names, sorted
     const direction = options?.reverse ? 1 : -1;
     // TODO: check whether reverse is applied during filter, not after
-    let keys = (await this._storage.list())
+    let keys = (await this.#storage.list())
       .filter(({ name }) => {
         return !(
           (options?.prefix && !name.startsWith(options.prefix)) ||
@@ -152,8 +181,9 @@ export class DurableObjectTransaction implements DurableObjectOperator {
   }
 
   rollback(): void {
-    assert(!this._rolledback);
-    this._rolledback = true;
+    const internals = this.#internals;
+    assert(!internals.rolledback);
+    internals.rolledback = true;
   }
 }
 
@@ -162,66 +192,80 @@ export class DurableObjectTransaction implements DurableObjectOperator {
 // storage instance
 const txnMapSize = 16;
 
+// Symbols for private methods of DurableObjectStorage exposed for testing
+export const transactionReadSymbol = Symbol(
+  "DurableObjectStorage transactionRead"
+);
+export const transactionValidateWriteSymbol = Symbol(
+  "DurableObjectStorage transactionValidateAndWrite"
+);
+
 export class DurableObjectStorage implements DurableObjectOperator {
-  _txnCount = 0;
-  private _txnWriteSets = new Map<number, Set<string>>();
-  private _mutex = new Mutex();
+  #txnCount = 0;
+  #txnWriteSets = new Map<number, Set<string>>();
+  #mutex = new Mutex();
+  readonly #storage: KVStorage;
 
   // TODO: probably want a way to abort all in-progress transactions when
   //  reloading worker
 
-  constructor(private _storage: KVStorage) {}
+  constructor(storage: KVStorage) {
+    this.#storage = storage;
+  }
 
-  async _transactionRead<T>(
+  async [transactionReadSymbol]<T>(
     closure: (txn: DurableObjectTransaction) => Promise<T>
   ): Promise<{ txn: DurableObjectTransaction; result: T }> {
     // 1. Read Phase
-    const txn = new DurableObjectTransaction(this._storage, this._txnCount);
+    const txn = new DurableObjectTransaction(this.#storage, this.#txnCount);
     const result = await closure(txn);
     return { txn, result };
   }
 
-  async _transactionValidateAndWrite(
+  async [transactionValidateWriteSymbol](
     txn: DurableObjectTransaction
   ): Promise<boolean> {
+    const internals = internalsMap.get(txn);
+    assert(internals);
+    if (internals.rolledback) return true; // TODO: check if storage disposed?
+
     // Mutex needed as write phase is asynchronous and these phases need to be
     // performed as a critical section
-    return this._mutex.run(async () => {
+    return this.#mutex.run(async () => {
       // 2. Validate Phase
-      const finishTxnCount = this._txnCount;
-      for (let t = txn._startTxnCount + 1; t <= finishTxnCount; t++) {
-        const otherTxnWriteSet = this._txnWriteSets.get(t);
-        if (!otherTxnWriteSet || intersects(otherTxnWriteSet, txn._readSet)) {
+      const finishTxnCount = this.#txnCount;
+      for (let t = internals.startTxnCount + 1; t <= finishTxnCount; t++) {
+        const otherWriteSet = this.#txnWriteSets.get(t);
+        if (!otherWriteSet || intersects(otherWriteSet, internals.readSet)) {
           return false;
         }
       }
 
       // 3. Write Phase
-      for (const [key, value] of txn._copies.entries()) {
+      for (const [key, value] of internals.copies.entries()) {
         if (value) {
-          await this._storage.put(key, { value });
+          await this.#storage.put(key, { value });
         } else {
-          await this._storage.delete(key);
+          await this.#storage.delete(key);
         }
       }
 
-      this._txnCount++;
-      this._txnWriteSets.set(this._txnCount, txn._writeSet);
+      this.#txnCount++;
+      this.#txnWriteSets.set(this.#txnCount, internals.writeSet);
       // Keep _txnWriteSets.size <= txnMapSize (if deleted key is negative,
       // i.e. transaction never existed, map delete won't do anything)
-      this._txnWriteSets.delete(this._txnCount - txnMapSize);
+      this.#txnWriteSets.delete(this.#txnCount - txnMapSize);
       return true;
     });
   }
 
-  private async _transaction<T>(
+  async #transaction<T>(
     closure: (txn: DurableObjectTransaction) => Promise<T>
   ): Promise<T> {
     // TODO: maybe throw exception after n retries?
     while (true) {
-      const { txn, result } = await this._transactionRead(closure);
-      if (txn._rolledback) return result; // TODO: check if storage disposed?
-      if (await this._transactionValidateAndWrite(txn)) return result;
+      const { txn, result } = await this[transactionReadSymbol](closure);
+      if (await this[transactionValidateWriteSymbol](txn)) return result;
     }
   }
 
@@ -230,7 +274,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
   get<Value = unknown>(
     key: string | string[]
   ): Promise<Value | undefined | Map<string, Value>> {
-    return this._transaction((txn) => txn.get(key as any));
+    return this.#transaction((txn) => txn.get(key as any));
   }
 
   put<Value = unknown>(key: string, value: Value): Promise<void>;
@@ -239,28 +283,28 @@ export class DurableObjectStorage implements DurableObjectOperator {
     keyEntries: string | Record<string, Value>,
     value?: Value
   ): Promise<void> {
-    return this._transaction((txn) => txn.put(keyEntries as any, value));
+    return this.#transaction((txn) => txn.put(keyEntries as any, value));
   }
 
   delete(key: string): Promise<boolean>;
   delete(keys: string[]): Promise<number>;
   delete(key: string | string[]): Promise<boolean | number> {
-    return this._transaction((txn) => txn.delete(key as any));
+    return this.#transaction((txn) => txn.delete(key as any));
   }
 
   deleteAll(): Promise<void> {
-    return this._transaction((txn) => txn.deleteAll());
+    return this.#transaction((txn) => txn.deleteAll());
   }
 
   list<Value = unknown>(
     options?: DurableObjectListOptions
   ): Promise<Map<string, Value>> {
-    return this._transaction((txn) => txn.list(options));
+    return this.#transaction((txn) => txn.list(options));
   }
 
   async transaction(
     closure: (txn: DurableObjectTransaction) => Promise<void>
   ): Promise<void> {
-    await this._transaction(closure);
+    await this.#transaction(closure);
   }
 }

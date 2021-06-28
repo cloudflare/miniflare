@@ -12,6 +12,7 @@ import {
   MemoryKVStorage,
 } from "../../src";
 import { KVClock } from "../../src/kv/helpers";
+import { getObjectProperties } from "../helpers";
 
 const testClock: KVClock = () => 1000000;
 
@@ -481,4 +482,15 @@ test("list: ignores and removes expired keys", async (t) => {
   t.is(await storage.get("key1"), undefined);
   t.is(await storage.get("key2"), undefined);
   t.is(await storage.get("key3"), undefined);
+});
+
+test("hides implementation details", (t) => {
+  const { ns } = t.context;
+  t.deepEqual(getObjectProperties(ns), [
+    "delete",
+    "get",
+    "getWithMetadata",
+    "list",
+    "put",
+  ]);
 });

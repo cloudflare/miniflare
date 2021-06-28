@@ -9,6 +9,7 @@ import {
   Request,
   Response,
 } from "../../src";
+import { getObjectProperties } from "../helpers";
 
 interface Context {
   storage: KVStorage;
@@ -174,3 +175,8 @@ test(
     cached: true,
   }
 );
+
+test("Cache: hides implementation details", (t) => {
+  const { cache } = t.context;
+  t.deepEqual(getObjectProperties(cache), ["delete", "match", "put"]);
+});

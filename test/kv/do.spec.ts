@@ -1,3 +1,4 @@
+import { AssertionError } from "assert";
 import anyTest, { Macro, TestInterface } from "ava";
 import {
   DurableObjectListOptions,
@@ -7,6 +8,11 @@ import {
   KVStoredValue,
   MemoryKVStorage,
 } from "../../src";
+import {
+  transactionReadSymbol,
+  transactionValidateWriteSymbol,
+} from "../../src/kv/do";
+import { getObjectProperties } from "../helpers";
 
 interface Context {
   backing: KVStorage;
@@ -267,7 +273,6 @@ test("transaction: commits single transaction", async (t) => {
   await backing.put("a", storedValue(1));
   await backing.put("b", storedValue(2));
   await storage.transaction(incrementTransaction("a", "b"));
-  t.is(storage._txnCount, 1);
   t.deepEqual(await backing.get("a"), storedValue(2));
   t.deepEqual(await backing.get("b"), storedValue(3));
 });
@@ -275,11 +280,10 @@ test("transaction: commits concurrent transactions operating on disjoint keys", 
   const { backing, storage } = t.context;
   await backing.put("a", storedValue(1));
   await backing.put("b", storedValue(2));
-  const txnA = await storage._transactionRead(incrementTransaction("a"));
-  const txnB = await storage._transactionRead(incrementTransaction("b"));
-  t.true(await storage._transactionValidateAndWrite(txnA.txn));
-  t.true(await storage._transactionValidateAndWrite(txnB.txn));
-  t.is(storage._txnCount, 2);
+  const txnA = await storage[transactionReadSymbol](incrementTransaction("a"));
+  const txnB = await storage[transactionReadSymbol](incrementTransaction("b"));
+  t.true(await storage[transactionValidateWriteSymbol](txnA.txn));
+  t.true(await storage[transactionValidateWriteSymbol](txnB.txn));
   t.deepEqual(await backing.get("a"), storedValue(2));
   t.deepEqual(await backing.get("b"), storedValue(3));
 });
@@ -287,11 +291,12 @@ test("transaction: aborts concurrent transactions operating on conflicting keys"
   const { backing, storage } = t.context;
   await backing.put("a", storedValue(1));
   await backing.put("b", storedValue(2));
-  const txnA = await storage._transactionRead(incrementTransaction("a"));
-  const txnB = await storage._transactionRead(incrementTransaction("a", "b"));
-  t.true(await storage._transactionValidateAndWrite(txnA.txn));
-  t.false(await storage._transactionValidateAndWrite(txnB.txn));
-  t.is(storage._txnCount, 1);
+  const txnA = await storage[transactionReadSymbol](incrementTransaction("a"));
+  const txnB = await storage[transactionReadSymbol](
+    incrementTransaction("a", "b")
+  );
+  t.true(await storage[transactionValidateWriteSymbol](txnA.txn));
+  t.false(await storage[transactionValidateWriteSymbol](txnB.txn));
   t.deepEqual(await backing.get("a"), storedValue(2));
   t.deepEqual(await backing.get("b"), storedValue(2));
 });
@@ -304,8 +309,58 @@ test("transaction: retries concurrent transactions operating on conflicting keys
     await storage.transaction(incrementTransaction("a")),
     await storage.transaction(incrementTransaction("a", "b")),
   ]);
-  t.is(storage._txnCount, 2);
   t.deepEqual(await backing.get("a"), storedValue(3));
   t.deepEqual(await backing.get("b"), storedValue(3));
 });
 // TODO: test concurrent transactions using other operations (e.g. delete, deleteAll, list, etc)
+test("transaction: rolledback transaction doesn't commit", async (t) => {
+  const { backing, storage } = t.context;
+  await backing.put("key", storedValue("old"));
+  await storage.transaction(async (txn) => {
+    await txn.put("a", storedValue("new"));
+    txn.rollback();
+  });
+  t.deepEqual(await backing.get("key"), storedValue("old"));
+});
+test("transaction: cannot perform more operations after rollback", async (t) => {
+  const { storage } = t.context;
+  t.plan(6);
+  await storage.transaction(async (txn) => {
+    txn.rollback();
+    await t.throwsAsync(txn.get("key"), { instanceOf: AssertionError });
+    await t.throwsAsync(txn.put("key", "value"), {
+      instanceOf: AssertionError,
+    });
+    await t.throwsAsync(txn.delete("key"), { instanceOf: AssertionError });
+    await t.throwsAsync(txn.deleteAll(), { instanceOf: AssertionError });
+    await t.throwsAsync(txn.list(), { instanceOf: AssertionError });
+    await t.throws(() => txn.rollback(), { instanceOf: AssertionError });
+  });
+});
+
+test("hides implementation details", (t) => {
+  const { storage } = t.context;
+  t.deepEqual(getObjectProperties(storage), [
+    "delete",
+    "deleteAll",
+    "get",
+    "list",
+    "put",
+    "transaction",
+  ]);
+});
+test("transaction: hides implementation details", async (t) => {
+  const { storage } = t.context;
+  let properties: string[] = [];
+  await storage.transaction(async (txn) => {
+    properties = getObjectProperties(txn);
+  });
+  t.deepEqual(properties, [
+    "delete",
+    "deleteAll",
+    "get",
+    "list",
+    "put",
+    "rollback",
+  ]);
+});

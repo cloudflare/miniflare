@@ -39,7 +39,7 @@
     "sanitize-filename": "^1.6.3",
     "source-map-support": "^0.5.19",
     "toml": "^3.0.0",
-    "tslib": "^2.1.0",
+    "tslib": "^2.3.0",
     "typescript": "^4.3.4",
     "typeson": "^6.1.0",
     "typeson-registry": "^1.0.0-alpha.39",

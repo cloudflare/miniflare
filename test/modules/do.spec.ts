@@ -3,6 +3,7 @@ import path from "path";
 import { Request, Response } from "@mrbbot/node-fetch";
 import test from "ava";
 import { DurableObject, KVStoredValue, Miniflare, NoOpLog } from "../../src";
+import { KVStorageFactory } from "../../src/kv/helpers";
 import {
   DurableObjectFactory,
   DurableObjectId,
@@ -163,18 +164,22 @@ test("getNamespace: can fetch from factory created instances", async (t) => {
   t.is(await res.text(), `${testId}:request1:http://localhost:8787/`);
 });
 test("getNamespace: factory creates instances with correct IDs and environment", async (t) => {
-  const module = new DurableObjectsModule(new NoOpLog());
+  const tmp = await useTmp(t);
+  const storageFactory = new KVStorageFactory(tmp);
+  const module = new DurableObjectsModule(new NoOpLog(), storageFactory);
   module.setContext({ OBJECT: TestDurableObject }, { KEY: "value" });
   const ns = module.getNamespace("OBJECT");
   await ns.get(ns.idFromString(testId)).fetch("http://localhost:8787/");
-  const storage = module._storageFactory.getStorage(`OBJECT_${testId}`);
+  const storage = storageFactory.getStorage(`OBJECT_${testId}`);
   t.deepEqual(await storage.get("id"), storedValue(testId));
   t.deepEqual(await storage.get("env"), storedValue({ KEY: "value" }));
 });
 test("getNamespace: factory waits for context before creating instances", async (t) => {
-  const module = new DurableObjectsModule(new NoOpLog());
+  const tmp = await useTmp(t);
+  const storageFactory = new KVStorageFactory(tmp);
+  const module = new DurableObjectsModule(new NoOpLog(), storageFactory);
   const ns = module.getNamespace("OBJECT");
-  const storage = module._storageFactory.getStorage(`OBJECT_${testId}`);
+  const storage = storageFactory.getStorage(`OBJECT_${testId}`);
   const promise = ns
     .get(ns.idFromString(testId))
     .fetch("http://localhost:8787/");
@@ -196,7 +201,10 @@ test("getNamespace: factory reuses existing instances", async (t) => {
 });
 test("getNamespace: factory creates persistent storage at default location", async (t) => {
   const tmp = await useTmp(t);
-  const module = new DurableObjectsModule(new NoOpLog(), tmp);
+  const module = new DurableObjectsModule(
+    new NoOpLog(),
+    new KVStorageFactory(tmp)
+  );
   module.setContext({ OBJECT: TestDurableObject }, {});
   const ns = module.getNamespace("OBJECT", true);
   await ns.get(ns.idFromString(testId)).fetch("http://localhost:8787/");
@@ -208,7 +216,10 @@ test("getNamespace: factory creates persistent storage at default location", asy
 test("getNamespace: factory creates persistent storage at custom location", async (t) => {
   const tmpDefault = await useTmp(t);
   const tmpCustom = await useTmp(t);
-  const module = new DurableObjectsModule(new NoOpLog(), tmpDefault);
+  const module = new DurableObjectsModule(
+    new NoOpLog(),
+    new KVStorageFactory(tmpDefault)
+  );
   module.setContext({ OBJECT: TestDurableObject }, {});
   const ns = module.getNamespace("OBJECT", tmpCustom);
   await ns.get(ns.idFromString(testId)).fetch("http://localhost:8787/");
@@ -220,17 +231,19 @@ test("getNamespace: factory creates persistent storage at custom location", asyn
 });
 test("getNamespace: factory creates in-memory storage", async (t) => {
   const tmp = await useTmp(t);
-  const module = new DurableObjectsModule(new NoOpLog(), tmp);
+  const storageFactory = new KVStorageFactory(tmp);
+  const module = new DurableObjectsModule(new NoOpLog(), storageFactory);
   module.setContext({ OBJECT: TestDurableObject }, {});
   const ns = module.getNamespace("OBJECT");
   await ns.get(ns.idFromString(testId)).fetch("http://localhost:8787/");
   t.false(existsSync(path.join(tmp, `OBJECT_${testId}`, "id")));
-  const storage = module._storageFactory.getStorage(`OBJECT_${testId}`);
+  const storage = storageFactory.getStorage(`OBJECT_${testId}`);
   t.deepEqual(await storage.get("id"), storedValue(testId));
 });
 test("getNamespace: factory reuses existing storage for in-memory storage", async (t) => {
   const tmp = await useTmp(t);
-  const module = new DurableObjectsModule(new NoOpLog(), tmp);
+  const storageFactory = new KVStorageFactory(tmp);
+  const module = new DurableObjectsModule(new NoOpLog(), storageFactory);
   module.setContext({ OBJECT: TestDurableObject }, {});
   const ns = module.getNamespace("OBJECT");
   const res1 = await ns
@@ -242,7 +255,7 @@ test("getNamespace: factory reuses existing storage for in-memory storage", asyn
     .fetch("http://localhost:8787/2");
   t.is(await res2.text(), `${testId}:request2:http://localhost:8787/2`);
   t.false(existsSync(path.join(tmp, `OBJECT_${testId}`, "id")));
-  const storage = module._storageFactory.getStorage(`OBJECT_${testId}`);
+  const storage = storageFactory.getStorage(`OBJECT_${testId}`);
   t.deepEqual(await storage.get("requestCount"), storedValue(2));
   t.deepEqual(
     await storage.get("request1"),
@@ -266,7 +279,10 @@ test("getNamespace: factory exposes instance storage", async (t) => {
 
 test("buildEnvironment: creates persistent storage at default location", async (t) => {
   const tmp = await useTmp(t);
-  const module = new DurableObjectsModule(new NoOpLog(), tmp);
+  const module = new DurableObjectsModule(
+    new NoOpLog(),
+    new KVStorageFactory(tmp)
+  );
   module.setContext(
     { OBJECT1: TestDurableObject, OBJECT2: TestDurableObject },
     {}
@@ -298,7 +314,10 @@ test("buildEnvironment: creates persistent storage at default location", async (
 test("buildEnvironment: creates persistent storage at custom location", async (t) => {
   const tmpDefault = await useTmp(t);
   const tmpCustom = await useTmp(t);
-  const module = new DurableObjectsModule(new NoOpLog(), tmpDefault);
+  const module = new DurableObjectsModule(
+    new NoOpLog(),
+    new KVStorageFactory(tmpDefault)
+  );
   module.setContext(
     { OBJECT1: TestDurableObject, OBJECT2: TestDurableObject },
     {}
@@ -331,7 +350,8 @@ test("buildEnvironment: creates persistent storage at custom location", async (t
 });
 test("buildEnvironment: creates in-memory storage", async (t) => {
   const tmp = await useTmp(t);
-  const module = new DurableObjectsModule(new NoOpLog(), tmp);
+  const storageFactory = new KVStorageFactory(tmp);
+  const module = new DurableObjectsModule(new NoOpLog(), storageFactory);
   module.setContext(
     { OBJECT1: TestDurableObject, OBJECT2: TestDurableObject },
     {}
@@ -353,8 +373,8 @@ test("buildEnvironment: creates in-memory storage", async (t) => {
   ).fetch("http://localhost:8787/");
   t.false(existsSync(path.join(tmp, `OBJECT1_${testId}`, "id")));
   t.false(existsSync(path.join(tmp, `OBJECT2_${testId2}`, "id")));
-  const storage1 = module._storageFactory.getStorage(`OBJECT1_${testId}`);
-  const storage2 = module._storageFactory.getStorage(`OBJECT2_${testId2}`);
+  const storage1 = storageFactory.getStorage(`OBJECT1_${testId}`);
+  const storage2 = storageFactory.getStorage(`OBJECT2_${testId2}`);
   t.deepEqual(await storage1.get("id"), storedValue(testId));
   t.deepEqual(await storage2.get("id"), storedValue(testId2));
 });

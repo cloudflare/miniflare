@@ -1,3 +1,4 @@
+import assert from "assert";
 import { FetchError } from "@mrbbot/node-fetch";
 import anyTest, { TestInterface } from "ava";
 import {
@@ -7,8 +8,19 @@ import {
   Response,
   ScheduledEvent,
 } from "../../src";
-import { EventsModule } from "../../src/modules/events";
-import { TestLog, noop, runInWorker, useServer } from "../helpers";
+import {
+  EventsModule,
+  passThroughMap,
+  responseMap,
+  waitUntilMap,
+} from "../../src/modules/events";
+import {
+  TestLog,
+  getObjectProperties,
+  noop,
+  runInWorker,
+  useServer,
+} from "../helpers";
 
 interface Context {
   log: TestLog;
@@ -78,9 +90,12 @@ test("addModuleFunctionListener: adds event listener", async (t) => {
   );
   const event = new FetchEvent(new Request("http://localhost:8787/"));
   module._listeners.fetch[0](event);
-  t.true(event._passThrough);
-  t.deepEqual(await Promise.all(event._waitUntilPromises), ["value"]);
-  t.is(await (await event._response)?.text(), "http://localhost:8787/");
+  t.true(passThroughMap.get(event));
+  const waitUntilPromises = waitUntilMap.get(event);
+  t.not(waitUntilPromises, undefined);
+  assert(waitUntilPromises);
+  t.deepEqual(await Promise.all(waitUntilPromises), ["value"]);
+  t.is(await (await responseMap.get(event))?.text(), "http://localhost:8787/");
 });
 
 test("addModuleScheduledListener: adds event listener", async (t) => {
@@ -94,7 +109,10 @@ test("addModuleScheduledListener: adds event listener", async (t) => {
   );
   const event = new ScheduledEvent(1000);
   module._listeners.scheduled[0](event);
-  t.deepEqual(await Promise.all(event._waitUntilPromises), ["value", 1000]);
+  const waitUntilPromises = waitUntilMap.get(event);
+  t.not(waitUntilPromises, undefined);
+  assert(waitUntilPromises);
+  t.deepEqual(await Promise.all(waitUntilPromises), ["value", 1000]);
 });
 
 test("resetEventListeners: resets events listeners", (t) => {
@@ -238,4 +256,23 @@ test("dispatchScheduled: dispatches event", async (t) => {
   });
   const res = await module.dispatchScheduled(1000);
   t.deepEqual(res, [1, 2, 3, 1000]);
+});
+
+test("FetchEvent: hides implementation details", (t) => {
+  const event = new FetchEvent(new Request("http://localhost:8787"));
+  t.deepEqual(getObjectProperties(event), [
+    "passThroughOnException",
+    "request",
+    "respondWith",
+    "type",
+    "waitUntil",
+  ]);
+});
+test("ScheduledEvent: hides implementation details", (t) => {
+  const event = new ScheduledEvent(1000);
+  t.deepEqual(getObjectProperties(event), [
+    "scheduledTime",
+    "type",
+    "waitUntil",
+  ]);
 });

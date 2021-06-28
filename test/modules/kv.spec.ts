@@ -2,12 +2,13 @@ import { existsSync, promises as fs } from "fs";
 import path from "path";
 import test from "ava";
 import { KVStorageNamespace, NoOpLog } from "../../src";
+import { KVStorageFactory } from "../../src/kv/helpers";
 import { KVModule } from "../../src/modules/kv";
 import { runInWorker, useTmp } from "../helpers";
 
 test("getNamespace: creates persistent namespace at default location", async (t) => {
   const tmp = await useTmp(t);
-  const module = new KVModule(new NoOpLog(), tmp);
+  const module = new KVModule(new NoOpLog(), new KVStorageFactory(tmp));
   const ns = module.getNamespace("TEST_NAMESPACE", true);
   await ns.put("key", "value");
   t.is(
@@ -18,7 +19,7 @@ test("getNamespace: creates persistent namespace at default location", async (t)
 test("getNamespace: creates persistent namespace at custom location", async (t) => {
   const tmpDefault = await useTmp(t);
   const tmpCustom = await useTmp(t);
-  const module = new KVModule(new NoOpLog(), tmpDefault);
+  const module = new KVModule(new NoOpLog(), new KVStorageFactory(tmpDefault));
   const ns = module.getNamespace("TEST_NAMESPACE", tmpCustom);
   await ns.put("key", "value");
   t.false(existsSync(path.join(tmpDefault, "TEST_NAMESPACE", "key")));
@@ -29,7 +30,7 @@ test("getNamespace: creates persistent namespace at custom location", async (t) 
 });
 test("getNamespace: creates in-memory namespace", async (t) => {
   const tmp = await useTmp(t);
-  const module = new KVModule(new NoOpLog(), tmp);
+  const module = new KVModule(new NoOpLog(), new KVStorageFactory(tmp));
   const ns = module.getNamespace("TEST_NAMESPACE");
   await ns.put("key", "value");
   t.false(existsSync(path.join(tmp, "TEST_NAMESPACE", "key")));
@@ -37,7 +38,7 @@ test("getNamespace: creates in-memory namespace", async (t) => {
 });
 test("getNamespace: reuses existing storage for in-memory namespace", async (t) => {
   const tmp = await useTmp(t);
-  const module = new KVModule(new NoOpLog(), tmp);
+  const module = new KVModule(new NoOpLog(), new KVStorageFactory(tmp));
   const ns1 = module.getNamespace("TEST_NAMESPACE", false);
   await ns1.put("key1", "value1");
   const ns2 = module.getNamespace("TEST_NAMESPACE", false);
@@ -52,7 +53,7 @@ test("getNamespace: reuses existing storage for in-memory namespace", async (t) 
 
 test("buildEnvironment: creates persistent namespaces at default location", async (t) => {
   const tmp = await useTmp(t);
-  const module = new KVModule(new NoOpLog(), tmp);
+  const module = new KVModule(new NoOpLog(), new KVStorageFactory(tmp));
   const environment = module.buildEnvironment({
     kvNamespaces: ["TEST_NAMESPACE_1", "TEST_NAMESPACE_2"],
     kvPersist: true,
@@ -73,7 +74,7 @@ test("buildEnvironment: creates persistent namespaces at default location", asyn
 test("buildEnvironment: creates persistent namespaces at custom location", async (t) => {
   const tmpDefault = await useTmp(t);
   const tmpCustom = await useTmp(t);
-  const module = new KVModule(new NoOpLog(), tmpDefault);
+  const module = new KVModule(new NoOpLog(), new KVStorageFactory(tmpDefault));
   const environment = module.buildEnvironment({
     kvNamespaces: ["TEST_NAMESPACE_1", "TEST_NAMESPACE_2"],
     kvPersist: tmpCustom,
@@ -95,7 +96,7 @@ test("buildEnvironment: creates persistent namespaces at custom location", async
 });
 test("buildEnvironment: creates in-memory namespaces", async (t) => {
   const tmp = await useTmp(t);
-  const module = new KVModule(new NoOpLog(), tmp);
+  const module = new KVModule(new NoOpLog(), new KVStorageFactory(tmp));
   const environment = module.buildEnvironment({
     kvNamespaces: ["TEST_NAMESPACE_1", "TEST_NAMESPACE_2"],
     kvPersist: false,
@@ -111,7 +112,7 @@ test("buildEnvironment: creates in-memory namespaces", async (t) => {
 });
 test("buildEnvironment: reuses existing storage for in-memory namespaces", async (t) => {
   const tmp = await useTmp(t);
-  const module = new KVModule(new NoOpLog(), tmp);
+  const module = new KVModule(new NoOpLog(), new KVStorageFactory(tmp));
 
   const environment1 = module.buildEnvironment({
     kvNamespaces: ["TEST_NAMESPACE_1", "TEST_NAMESPACE_2"],

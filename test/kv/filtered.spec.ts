@@ -5,6 +5,7 @@ import {
   MemoryKVStorage,
 } from "../../src";
 import { KVClock } from "../../src/kv/helpers";
+import { getObjectProperties } from "../helpers";
 
 // TODO: when testing options parsing, or maybe in sites module tests?,
 //  test with micromatch, file storage, all types of patterns too with resolved
@@ -317,4 +318,15 @@ test("list: ignores exclude if include set", async (t) => {
     list_complete: true,
     cursor: "",
   });
+});
+
+test("hides implementation details", (t) => {
+  const ns = new FilteredKVStorageNamespace(t.context.storage);
+  t.deepEqual(getObjectProperties(ns), [
+    "delete",
+    "get",
+    "getWithMetadata",
+    "list",
+    "put",
+  ]);
 });

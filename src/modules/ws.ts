@@ -18,35 +18,39 @@ type WebSocketEventListener =
   | EventListener<WebSocketCloseEvent>
   | EventListener<WebSocketErrorEvent>;
 
+// Maps web sockets to the other side of their connections, we don't want to
+// expose this to the user, but this cannot be a private field as we need to
+// construct both sockets before setting the circular references
+const pairMap = new WeakMap<WebSocket, WebSocket>();
+
 export class WebSocket implements WebSocketInterface {
   public static CONNECTING = 0;
   public static OPEN = 1;
   public static CLOSING = 2;
   public static CLOSED = 3;
 
-  private _listeners: Record<string, WebSocketEventListener[]> = {};
-  private _readyState = WebSocket.CONNECTING;
-  private _sendQueue?: WebSocketMessageEvent[] = [];
-  _pair?: WebSocket;
+  #listeners: Record<string, WebSocketEventListener[]> = {};
+  #readyState = WebSocket.CONNECTING;
+  #sendQueue?: WebSocketMessageEvent[] = [];
 
   get readyState(): number {
-    return this._readyState;
+    return this.#readyState;
   }
 
   accept(): void {
-    if (this._readyState !== WebSocket.CONNECTING) {
+    if (this.#readyState !== WebSocket.CONNECTING) {
       throw new Error(
-        `WebSocket is not connecting: readyState ${this._readyState} (${
-          readyStateNames[this._readyState]
+        `WebSocket is not connecting: readyState ${this.#readyState} (${
+          readyStateNames[this.#readyState]
         })`
       );
     }
-    this._readyState = WebSocket.OPEN;
-    if (this._sendQueue) {
-      for (const event of this._sendQueue) {
+    this.#readyState = WebSocket.OPEN;
+    if (this.#sendQueue) {
+      for (const event of this.#sendQueue) {
         this.dispatchEvent("message", event);
       }
-      delete this._sendQueue;
+      this.#sendQueue = undefined;
     }
   }
 
@@ -63,63 +67,65 @@ export class WebSocket implements WebSocketInterface {
     listener: EventListener<WebSocketErrorEvent>
   ): void;
   addEventListener(type: string, listener: WebSocketEventListener): void {
-    if (!(type in this._listeners)) this._listeners[type] = [];
-    this._listeners[type].push(listener);
+    if (!(type in this.#listeners)) this.#listeners[type] = [];
+    this.#listeners[type].push(listener);
   }
 
   dispatchEvent(type: "message", event: WebSocketMessageEvent): void;
   dispatchEvent(type: "close", event: WebSocketCloseEvent): void;
   dispatchEvent(type: "error", event: WebSocketErrorEvent): void;
   dispatchEvent(type: string, event: WebSocketEvent): void {
-    for (const listener of this._listeners[type] ?? []) {
+    for (const listener of this.#listeners[type] ?? []) {
       listener(event as any);
     }
   }
 
   send(message: string): void {
-    assert(this._pair !== undefined);
-    if (this._readyState >= WebSocket.CLOSING) {
+    const pair = pairMap.get(this);
+    assert(pair !== undefined);
+    if (this.#readyState >= WebSocket.CLOSING) {
       throw new Error(
-        `WebSocket is not connecting/open: readyState ${this._readyState} (${
-          readyStateNames[this._readyState]
+        `WebSocket is not connecting/open: readyState ${this.#readyState} (${
+          readyStateNames[this.#readyState]
         })`
       );
     }
     const event: WebSocketMessageEvent = { type: "message", data: message };
-    if (this._pair._readyState === WebSocket.OPEN) {
-      this._pair.dispatchEvent("message", event);
+    if (pair.#readyState === WebSocket.OPEN) {
+      pair.dispatchEvent("message", event);
     } else {
-      if (this._pair._readyState !== WebSocket.CONNECTING) {
+      if (pair.#readyState !== WebSocket.CONNECTING) {
         throw new Error(
-          `Pair WebSocket is not connecting: readyState ${
-            this._pair._readyState
-          } (${readyStateNames[this._pair._readyState]})`
+          `Pair WebSocket is not connecting: readyState ${pair.#readyState} (${
+            readyStateNames[pair.#readyState]
+          })`
         );
       }
-      assert(this._pair._sendQueue !== undefined);
-      this._pair._sendQueue.push(event);
+      assert(pair.#sendQueue !== undefined);
+      pair.#sendQueue.push(event);
     }
   }
 
   close(code?: number, reason?: string): void {
-    assert(this._pair !== undefined);
+    const pair = pairMap.get(this);
+    assert(pair !== undefined);
 
     if (
-      this._readyState === WebSocket.CLOSED ||
-      this._pair._readyState === WebSocket.CLOSED
+      this.#readyState === WebSocket.CLOSED ||
+      pair.#readyState === WebSocket.CLOSED
     ) {
       return;
     }
 
-    this._readyState = WebSocket.CLOSING;
-    this._pair._readyState = WebSocket.CLOSING;
+    this.#readyState = WebSocket.CLOSING;
+    pair.#readyState = WebSocket.CLOSING;
 
     const event: WebSocketCloseEvent = { type: "close", code, reason };
     this.dispatchEvent("close", event);
-    this._pair.dispatchEvent("close", event);
+    pair.dispatchEvent("close", event);
 
-    this._readyState = WebSocket.CLOSED;
-    this._pair._readyState = WebSocket.CLOSED;
+    this.#readyState = WebSocket.CLOSED;
+    pair.#readyState = WebSocket.CLOSED;
   }
 }
 
@@ -138,8 +144,8 @@ export class WebSocketPair {
   constructor() {
     this[0] = new WebSocket();
     this[1] = new WebSocket();
-    this[0]._pair = this[1];
-    this[1]._pair = this[0];
+    pairMap.set(this[0], this[1]);
+    pairMap.set(this[1], this[0]);
   }
 }
 

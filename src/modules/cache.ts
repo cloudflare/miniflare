@@ -8,15 +8,15 @@ import { Context, Module } from "./module";
 const defaultPersistRoot = path.resolve(".mf", "cache");
 
 export class CacheModule extends Module {
-  private readonly _storageFactory: KVStorageFactory;
-
-  constructor(log: Log, persistRoot = defaultPersistRoot) {
+  constructor(
+    log: Log,
+    private storageFactory = new KVStorageFactory(defaultPersistRoot)
+  ) {
     super(log);
-    this._storageFactory = new KVStorageFactory(persistRoot);
   }
 
   getCache(name = "default", persist?: boolean | string): Cache {
-    return new Cache(this._storageFactory.getStorage(name, persist));
+    return new Cache(this.storageFactory.getStorage(name, persist));
   }
 
   buildSandbox(options: ProcessedOptions): Context {

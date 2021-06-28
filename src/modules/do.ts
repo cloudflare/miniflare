@@ -113,7 +113,6 @@ export class DurableObjectNamespace {
 const defaultPersistRoot = path.resolve(".mf", "do");
 
 export class DurableObjectsModule extends Module {
-  readonly _storageFactory: KVStorageFactory;
   readonly _instances = new Map<string, DurableObject>();
   private _contextPromise: Promise<void>;
   private _contextResolve?: () => void;
@@ -122,9 +121,11 @@ export class DurableObjectsModule extends Module {
 
   // TODO: take KVStorageFactory as argument instead so test s don't have to
   //  access private members
-  constructor(log: Log, persistRoot = defaultPersistRoot) {
+  constructor(
+    log: Log,
+    private storageFactory = new KVStorageFactory(defaultPersistRoot)
+  ) {
     super(log);
-    this._storageFactory = new KVStorageFactory(persistRoot);
     this._contextPromise = new Promise(
       (resolve) => (this._contextResolve = resolve)
     );
@@ -163,7 +164,7 @@ export class DurableObjectsModule extends Module {
       const constructor = this._constructors[objectName];
       // TODO: consider keeping these storages alive between context reloads
       const storage = new DurableObjectStorage(
-        this._storageFactory.getStorage(key, persist)
+        this.storageFactory.getStorage(key, persist)
       );
       const state = new DurableObjectState(id, storage);
       // TODO: throw more specific exception if constructor is undefined
