@@ -241,7 +241,6 @@ test(
 test(
   "lists keys with start, limit and prefix in reverse",
   listMacro,
-  // TODO: check this shouldn't be ["section2key2", "section2key1"]
   ["section3key2", "section3key1"],
   { start: "section2", prefix: "section", limit: 2, reverse: true }
 );

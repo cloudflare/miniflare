@@ -26,8 +26,6 @@ export interface DurableObjectOperator {
   delete(key: string): Promise<boolean>;
   delete(keys: string[]): Promise<number>;
 
-  // TODO: implement this properly, our semantics are slightly different
-  //  to Cloudflare's
   deleteAll(): Promise<void>;
 
   list<Value = unknown>(
@@ -148,11 +146,14 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     return arrayKeys ? deleted : deleted > 0;
   }
 
+  // TODO: (low priority) implement this properly, our semantics are slightly
+  //  different to Cloudflare's:
+  //  https://developers.cloudflare.com/workers/runtime-apis/durable-objects#methods
   async deleteAll(): Promise<void> {
     assert(!this.#internals.rolledback);
     // Delete all existing keys
-    // TODO: think about whether it's correct to use list() here, what if a
-    //  transaction adding a new commits before this commits?
+    // TODO: (low priority) think about whether it's correct to use list() here,
+    //  what if a transaction adding a new key commits before this commits?
     const keys = (await this.#storage.list()).map(({ name }) => name);
     await this.delete(keys);
   }
@@ -163,7 +164,6 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     assert(!this.#internals.rolledback);
     // Get all matching key names, sorted
     const direction = options?.reverse ? 1 : -1;
-    // TODO: check whether reverse is applied during filter, not after
     let keys = (await this.#storage.list())
       .filter(({ name }) => {
         return !(
