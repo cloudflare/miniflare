@@ -334,13 +334,19 @@ export class Miniflare {
       }
     }
 
+    // Add additional Cloudflare specific headers:
+    // https://support.cloudflare.com/hc/en-us/articles/200170986-How-does-Cloudflare-handle-HTTP-Request-headers-
+    req.headers["cf-connecting-ip"] = req.socket.remoteAddress;
+    req.headers["cf-ipcountry"] = "XX";
+    req.headers["cf-ray"] = "";
+    req.headers["cf-request-id"] = "";
+    req.headers["cf-visitor"] = '{"scheme":"http"}';
+
     const request = new Request(url, {
       method: req.method,
       headers: req.headers,
       body: body,
     });
-
-    // TODO: add cf headers
 
     let response: ResponseWaitUntil | undefined;
     try {
