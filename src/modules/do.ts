@@ -8,6 +8,7 @@ import {
   Response,
 } from "@mrbbot/node-fetch";
 import { DurableObjectStorage } from "../kv";
+import { abortAllSymbol } from "../kv/do";
 import { KVStorageFactory } from "../kv/helpers";
 import { Log } from "../log";
 import { ProcessedOptions } from "../options";
@@ -68,7 +69,7 @@ export class DurableObjectStub {
     const instance = await this._factory(this.id);
     const storage = instancesStorage.get(instance);
     // _factory will make sure instance's storage is in instancesStorage
-    assert(storage !== undefined);
+    assert(storage);
     return storage;
   }
 }
@@ -119,8 +120,6 @@ export class DurableObjectsModule extends Module {
   private _constructors: Record<string, DurableObjectConstructor> = {};
   private _environment: Context = {};
 
-  // TODO: take KVStorageFactory as argument instead so test s don't have to
-  //  access private members
   constructor(
     log: Log,
     private storageFactory = new KVStorageFactory(defaultPersistRoot)
@@ -132,7 +131,14 @@ export class DurableObjectsModule extends Module {
   }
 
   resetInstances(): void {
+    // Abort all instance storage transactions and delete instances
+    for (const instance of this._instances.values()) {
+      const storage = instancesStorage.get(instance);
+      assert(storage);
+      storage[abortAllSymbol]();
+    }
     this._instances.clear();
+
     this._contextPromise = new Promise(
       (resolve) => (this._contextResolve = resolve)
     );
@@ -162,7 +168,6 @@ export class DurableObjectsModule extends Module {
 
       // Create and store new instance if none found
       const constructor = this._constructors[objectName];
-      // TODO: consider keeping these storages alive between context reloads
       const storage = new DurableObjectStorage(
         this.storageFactory.getStorage(key, persist)
       );

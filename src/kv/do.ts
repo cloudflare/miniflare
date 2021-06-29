@@ -192,22 +192,22 @@ export class DurableObjectTransaction implements DurableObjectOperator {
 // storage instance
 const txnMapSize = 16;
 
-// Symbols for private methods of DurableObjectStorage exposed for testing
+// Private methods of DurableObjectStorage exposed for testing
 export const transactionReadSymbol = Symbol(
   "DurableObjectStorage transactionRead"
 );
 export const transactionValidateWriteSymbol = Symbol(
   "DurableObjectStorage transactionValidateAndWrite"
 );
+// Private method of DurableObjectStorage exposed for module
+export const abortAllSymbol = Symbol("DurableObjectStorage abortAll");
 
 export class DurableObjectStorage implements DurableObjectOperator {
   #txnCount = 0;
   #txnWriteSets = new Map<number, Set<string>>();
   #mutex = new Mutex();
+  #abortedAll = false;
   readonly #storage: KVStorage;
-
-  // TODO: probably want a way to abort all in-progress transactions when
-  //  reloading worker
 
   constructor(storage: KVStorage) {
     this.#storage = storage;
@@ -225,9 +225,12 @@ export class DurableObjectStorage implements DurableObjectOperator {
   async [transactionValidateWriteSymbol](
     txn: DurableObjectTransaction
   ): Promise<boolean> {
+    // This function returns false iff the transaction should be retried
+
     const internals = internalsMap.get(txn);
     assert(internals);
-    if (internals.rolledback) return true; // TODO: check if storage disposed?
+    // Don't commit if rolledback or aborted all
+    if (internals.rolledback || this.#abortedAll) return true;
 
     // Mutex needed as write phase is asynchronous and these phases need to be
     // performed as a critical section
@@ -259,10 +262,14 @@ export class DurableObjectStorage implements DurableObjectOperator {
     });
   }
 
+  [abortAllSymbol](): void {
+    this.#abortedAll = true;
+  }
+
   async #transaction<T>(
     closure: (txn: DurableObjectTransaction) => Promise<T>
   ): Promise<T> {
-    // TODO: maybe throw exception after n retries?
+    // TODO: (low priority) maybe throw exception after n retries?
     while (true) {
       const { txn, result } = await this[transactionReadSymbol](closure);
       if (await this[transactionValidateWriteSymbol](txn)) return result;

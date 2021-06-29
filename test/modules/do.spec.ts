@@ -13,7 +13,7 @@ import {
   DurableObjectsModule,
 } from "../../src/modules/do";
 import { Context } from "../../src/modules/module";
-import { useTmp, wait } from "../helpers";
+import { triggerPromise, useTmp, wait } from "../helpers";
 
 // Test IDs are sha256("test") and sha256("test2")
 const testId =
@@ -152,6 +152,44 @@ test("resetInstances: deletes all instances", async (t) => {
   t.is(module._instances.size, 2);
   module.resetInstances();
   t.is(module._instances.size, 0);
+});
+test("resetInstances: aborts all in-progress transactions", async (t) => {
+  const [initTrigger, initPromise] = triggerPromise<void>();
+  const [barrierTrigger, barrierPromise] = triggerPromise<void>();
+  class Object implements DurableObject {
+    constructor(private state: DurableObjectState) {
+      initTrigger();
+    }
+
+    async fetch(): Promise<Response> {
+      await this.state.storage.transaction(async (txn) => {
+        await txn.put("key", "new");
+        await barrierPromise;
+      });
+      return new Response();
+    }
+  }
+
+  const tmp = await useTmp(t);
+  const storageFactory = new KVStorageFactory(tmp);
+  const storage = storageFactory.getStorage(`OBJECT_${testId}`);
+  await storage.put("key", storedValue("old"));
+
+  const module = new DurableObjectsModule(new NoOpLog(), storageFactory);
+  module.setContext({ OBJECT: Object }, {});
+  const ns = module.getNamespace("OBJECT");
+
+  const stub = ns.get(ns.idFromString(testId));
+  const res = stub.fetch("http://localhost:8787/put");
+
+  // Make sure the instance is initialised...
+  await initPromise;
+  // ...then abort all, and allow the transaction to complete
+  module.resetInstances();
+  barrierTrigger();
+  await res;
+
+  t.deepEqual(await storage.get("key"), storedValue("old"));
 });
 
 test("getNamespace: can fetch from factory created instances", async (t) => {

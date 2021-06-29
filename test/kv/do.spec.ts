@@ -9,10 +9,11 @@ import {
   MemoryKVStorage,
 } from "../../src";
 import {
+  abortAllSymbol,
   transactionReadSymbol,
   transactionValidateWriteSymbol,
 } from "../../src/kv/do";
-import { getObjectProperties } from "../helpers";
+import { getObjectProperties, triggerPromise } from "../helpers";
 
 interface Context {
   backing: KVStorage;
@@ -317,7 +318,7 @@ test("transaction: rolledback transaction doesn't commit", async (t) => {
   const { backing, storage } = t.context;
   await backing.put("key", storedValue("old"));
   await storage.transaction(async (txn) => {
-    await txn.put("a", storedValue("new"));
+    await txn.put("key", "new");
     txn.rollback();
   });
   t.deepEqual(await backing.get("key"), storedValue("old"));
@@ -336,6 +337,22 @@ test("transaction: cannot perform more operations after rollback", async (t) => 
     await t.throwsAsync(txn.list(), { instanceOf: AssertionError });
     await t.throws(() => txn.rollback(), { instanceOf: AssertionError });
   });
+});
+test("transaction: aborts all in-progress transactions", async (t) => {
+  const { backing, storage } = t.context;
+  await backing.put("key", storedValue("old"));
+  const [barrierTrigger, barrierPromise] = triggerPromise<void>();
+  const txnPromise = storage.transaction(async (txn) => {
+    await txn.put("key", "new");
+    await barrierPromise;
+  });
+
+  // Abort all, then allow the transaction to complete
+  storage[abortAllSymbol]();
+  barrierTrigger();
+  await txnPromise;
+
+  t.deepEqual(await backing.get("key"), storedValue("old"));
 });
 
 test("hides implementation details", (t) => {
