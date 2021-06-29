@@ -166,25 +166,66 @@ test("buildSandbox: includes web standards", (t) => {
   t.true(typeof sandbox.Int16Array === "function");
   t.true(typeof sandbox.Int32Array === "function");
   t.true(typeof sandbox.Map === "function");
-  t.true(typeof sandbox.Promise === "function");
+  t.true(typeof sandbox.Set === "function");
   t.true(typeof sandbox.SharedArrayBuffer === "function");
   t.true(typeof sandbox.Uint8Array === "function");
   t.true(typeof sandbox.Uint8ClampedArray === "function");
   t.true(typeof sandbox.Uint16Array === "function");
   t.true(typeof sandbox.Uint32Array === "function");
   t.true(typeof sandbox.WeakMap === "function");
+  t.true(typeof sandbox.WeakSet === "function");
   t.true(typeof sandbox.WebAssembly === "object");
+});
+
+test("buildSandbox: includes omitted web standards", async (t) => {
+  const result = await runInWorker({}, async () => {
+    // noinspection SuspiciousTypeOfGuard
+    return {
+      Array: typeof Array === "function",
+      Boolean: typeof Boolean === "function",
+      Function: typeof Function === "function",
+      Error: typeof Error === "function",
+      EvalError: typeof EvalError === "function",
+      Math: typeof Math === "object",
+      NaN: typeof NaN === "number",
+      Number: typeof Number === "function",
+      BigInt: typeof BigInt === "function",
+      Object: typeof Object === "function",
+      Promise: typeof Promise === "function",
+      Proxy: typeof Proxy === "function",
+      RangeError: typeof RangeError === "function",
+      ReferenceError: typeof ReferenceError === "function",
+      Reflect: typeof Reflect === "object",
+      RegExp: typeof RegExp === "function",
+      String: typeof String === "function",
+      Symbol: typeof Symbol === "function",
+      SyntaxError: typeof SyntaxError === "function",
+      TypeError: typeof TypeError === "function",
+      URIError: typeof URIError === "function",
+      Intl: typeof Intl === "object",
+      JSON: typeof JSON === "object",
+    };
+  });
+  for (const [key, value] of Object.entries(result)) {
+    t.true(value, key);
+  }
 });
 
 test("buildSandbox: can use instanceof with literals", async (t) => {
   const result = await runInWorker({}, async () => {
+    // noinspection ES6MissingAwait
     return {
       array: [] instanceof Array,
       object: {} instanceof Object,
       function: (() => {}) instanceof Function,
+      regexp: /abc/ instanceof RegExp,
+      promise: Promise.resolve() instanceof Promise,
+      promiseAsync: (async () => {})() instanceof Promise,
+      jsonArray: JSON.parse("[]") instanceof Array,
+      jsonObject: JSON.parse("{}") instanceof Object,
     };
   });
-  t.true(result.array);
-  t.true(result.object);
-  t.true(result.function);
+  for (const [key, value] of Object.entries(result)) {
+    t.true(value, key);
+  }
 });

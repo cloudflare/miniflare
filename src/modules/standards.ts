@@ -124,6 +124,11 @@ export class StandardsModule extends Module {
       WritableStreamDefaultController,
       WritableStreamDefaultWriter,
 
+      // The types below would be included automatically, but it's not possible
+      // to create instances of them without using their constructors and they
+      // may be returned from Miniflare's realm (e.g. ArrayBuffer responses,
+      // Durable Object listed keys) so it makes sense to share these so
+      // instanceof behaves correctly.
       ArrayBuffer,
       Atomics,
       BigInt64Array,
@@ -136,17 +141,21 @@ export class StandardsModule extends Module {
       Int16Array,
       Int32Array,
       Map,
-      Promise,
+      Set,
       SharedArrayBuffer,
       Uint8Array,
       Uint8ClampedArray,
       Uint16Array,
       Uint32Array,
       WeakMap,
-      WebAssembly, // TODO: check this works correctly
+      WeakSet,
+      WebAssembly,
 
-      // TODO: document decision not to include Object, Array, etc
-      // TODO: tidy these up, sort sensibly too
+      // The types below are included automatically. By not including Array,
+      // Object, Function and RegExp, instanceof will return true for these
+      // types on literals. JSON.parse will return instances of its realm's
+      // objects/arrays too, hence it is not included. See tests for examples.
+      //
       // Array,
       // Boolean,
       // Function,
@@ -157,12 +166,12 @@ export class StandardsModule extends Module {
       // Number,
       // BigInt,
       // Object,
+      // Promise,
       // Proxy,
       // RangeError,
       // ReferenceError,
       // Reflect,
       // RegExp,
-      // Set,
       // String,
       // Symbol,
       // SyntaxError,
