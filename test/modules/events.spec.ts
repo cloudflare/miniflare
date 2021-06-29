@@ -45,23 +45,23 @@ test("addEventListener: adds event listeners", (t) => {
     calls.push(`fetch2:${e.request.url}`)
   );
   module.addEventListener("scheduled", (e) =>
-    calls.push(`scheduled1:${e.scheduledTime}`)
+    calls.push(`scheduled1:${e.scheduledTime}:${e.cron}`)
   );
   module.addEventListener("scheduled", (e) =>
-    calls.push(`scheduled2:${e.scheduledTime}`)
+    calls.push(`scheduled2:${e.scheduledTime}:${e.cron}`)
   );
   t.is(log.warns.length, 0);
   module._listeners.fetch.forEach((listener) =>
     listener(new FetchEvent(new Request("http://localhost:8787/")))
   );
   module._listeners.scheduled.forEach((listener) =>
-    listener(new ScheduledEvent(1000))
+    listener(new ScheduledEvent(1000, "30 * * * *"))
   );
   t.deepEqual(calls, [
     "fetch1:http://localhost:8787/",
     "fetch2:http://localhost:8787/",
-    "scheduled1:1000",
-    "scheduled2:1000",
+    "scheduled1:1000:30 * * * *",
+    "scheduled2:1000:30 * * * *",
   ]);
 });
 
@@ -103,16 +103,21 @@ test("addModuleScheduledListener: adds event listener", async (t) => {
   module.addModuleScheduledListener(
     (controller, env, ctx) => {
       ctx.waitUntil(Promise.resolve(env.KEY));
-      return controller.scheduledTime;
+      ctx.waitUntil(Promise.resolve(controller.scheduledTime));
+      return controller.cron;
     },
     { KEY: "value" }
   );
-  const event = new ScheduledEvent(1000);
+  const event = new ScheduledEvent(1000, "30 * * * *");
   module._listeners.scheduled[0](event);
   const waitUntilPromises = waitUntilMap.get(event);
   t.not(waitUntilPromises, undefined);
   assert(waitUntilPromises);
-  t.deepEqual(await Promise.all(waitUntilPromises), ["value", 1000]);
+  t.deepEqual(await Promise.all(waitUntilPromises), [
+    "value",
+    1000,
+    "30 * * * *",
+  ]);
 });
 
 test("resetEventListeners: resets events listeners", (t) => {
@@ -146,13 +151,15 @@ test("buildSandbox: adds fetch event listener", async (t) => {
 test("buildSandbox: adds scheduled event listener", async (t) => {
   const script = `(${(() => {
     const sandbox = self as any;
-    sandbox.addEventListener("scheduled", (e: ScheduledEvent) =>
-      e.waitUntil(Promise.resolve(e.scheduledTime))
-    );
+    sandbox.addEventListener("scheduled", (e: ScheduledEvent) => {
+      e.waitUntil(Promise.resolve(e.scheduledTime));
+      e.waitUntil(Promise.resolve(e.cron));
+    });
   }).toString()})()`;
   const mf = new Miniflare({ script });
-  const res = await mf.dispatchScheduled(1000);
+  const res = await mf.dispatchScheduled(1000, "30 * * * *");
   t.is(res[0], 1000);
+  t.is(res[1], "30 * * * *");
 });
 
 test("dispatchFetch: dispatches event", async (t) => {
@@ -253,9 +260,10 @@ test("dispatchScheduled: dispatches event", async (t) => {
   module.addEventListener("scheduled", (e) => {
     e.waitUntil(Promise.resolve(3));
     e.waitUntil(Promise.resolve(e.scheduledTime));
+    e.waitUntil(Promise.resolve(e.cron));
   });
-  const res = await module.dispatchScheduled(1000);
-  t.deepEqual(res, [1, 2, 3, 1000]);
+  const res = await module.dispatchScheduled(1000, "30 * * * *");
+  t.deepEqual(res, [1, 2, 3, 1000, "30 * * * *"]);
 });
 
 test("FetchEvent: hides implementation details", (t) => {
@@ -269,8 +277,9 @@ test("FetchEvent: hides implementation details", (t) => {
   ]);
 });
 test("ScheduledEvent: hides implementation details", (t) => {
-  const event = new ScheduledEvent(1000);
+  const event = new ScheduledEvent(1000, "30 * * * *");
   t.deepEqual(getObjectProperties(event), [
+    "cron",
     "scheduledTime",
     "type",
     "waitUntil",

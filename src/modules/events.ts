@@ -38,10 +38,12 @@ export class FetchEvent {
 export class ScheduledEvent {
   readonly type: "scheduled";
   readonly scheduledTime: number;
+  readonly cron: string;
 
-  constructor(scheduledTime: number) {
+  constructor(scheduledTime: number, cron: string) {
     this.type = "scheduled";
     this.scheduledTime = scheduledTime;
+    this.cron = cron;
     waitUntilMap.set(this, []);
   }
 
@@ -60,7 +62,7 @@ export type ModuleFetchListener = (
 ) => Response | Promise<Response>;
 
 export type ModuleScheduledListener = (
-  controller: { scheduledTime: number },
+  controller: { scheduledTime: number; cron: string },
   environment: Context,
   ctx: { waitUntil: (promise: Promise<any>) => void }
 ) => any;
@@ -106,7 +108,7 @@ export class EventsModule extends Module {
     environment: Context
   ): void {
     this.addEventListener("scheduled", (e) => {
-      const controller = { scheduledTime: e.scheduledTime };
+      const controller = { cron: e.cron, scheduledTime: e.scheduledTime };
       const ctx = { waitUntil: e.waitUntil.bind(e) };
       const res = listener(controller, environment, ctx);
       e.waitUntil(Promise.resolve(res));
@@ -171,9 +173,10 @@ export class EventsModule extends Module {
   }
 
   async dispatchScheduled<WaitUntil extends any[] = any[]>(
-    scheduledTime?: number
+    scheduledTime?: number,
+    cron?: string
   ): Promise<WaitUntil> {
-    const event = new ScheduledEvent(scheduledTime ?? Date.now());
+    const event = new ScheduledEvent(scheduledTime ?? Date.now(), cron ?? "");
     for (const listener of this._listeners.scheduled ?? []) {
       listener(event);
     }

@@ -126,7 +126,7 @@ export class Miniflare {
     this.#scheduledTasks = this.#options?.validatedCrons?.map((spec) =>
       cron.schedule(spec, async () => {
         const start = process.hrtime();
-        const waitUntil = this.dispatchScheduled();
+        const waitUntil = this.dispatchScheduled(undefined, spec);
         await logResponse(this.log, {
           start,
           method: "SCHD",
@@ -267,11 +267,13 @@ export class Miniflare {
   }
 
   async dispatchScheduled<WaitUntil extends any[] = any[]>(
-    scheduledTime?: number
+    scheduledTime?: number,
+    cron?: string
   ): Promise<WaitUntil> {
     await this.#initPromise;
     return this.#modules.EventsModule.dispatchScheduled<WaitUntil>(
-      scheduledTime
+      scheduledTime,
+      cron
     );
   }
 
@@ -349,16 +351,20 @@ export class Miniflare {
       body: body,
     });
 
-    // Check path matches "/_mf/scheduled" ignoring trailing slash
+    // Check path matches "/.mf/scheduled" ignoring trailing slash
     const scheduled =
-      parsedUrl.pathname.replace(/\/$/, "") === "/_mf/scheduled";
+      parsedUrl.pathname.replace(/\/$/, "") === "/.mf/scheduled";
     let response: ResponseWaitUntil | undefined;
     let waitUntil: Promise<any[]> | undefined;
 
     if (scheduled) {
       req.method = "SCHD";
       const time = parsedUrl.searchParams.get("time");
-      waitUntil = this.dispatchScheduled(time ? parseInt(time) : undefined);
+      const cron = parsedUrl.searchParams.get("cron");
+      waitUntil = this.dispatchScheduled(
+        time ? parseInt(time) : undefined,
+        cron ?? undefined
+      );
       res?.end();
     } else {
       try {
@@ -378,8 +384,8 @@ export class Miniflare {
           ].join("");
         });
         const errorHtml = await youch.toHTML();
-        res?.writeHead(500);
-        res?.end(errorHtml);
+        res?.writeHead(500, { "Content-Type": "text/html; charset=UTF-8" });
+        res?.end(errorHtml, "utf8");
         this.log.error(e.stack);
       }
     }
