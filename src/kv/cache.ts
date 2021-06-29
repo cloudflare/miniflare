@@ -6,7 +6,6 @@ import { KVStorage } from "./storage";
 
 export interface CacheMatchOptions {
   // Consider the request's method GET, regardless of its actual value
-  // TODO: check we actually want this, does cloudflare have it?
   ignoreMethod?: boolean;
 }
 
@@ -20,9 +19,12 @@ function normaliseRequest(req: string | Request): Request {
   return typeof req === "string" ? new Request(req) : req;
 }
 
+// Normalises headers to object mapping lower-case names to single values.
+// Single values are OK here as the headers we care about for determining
+// cacheability are all single-valued, and we store the raw, multi-valued
+// headers in KV once this has been determined.
 function normaliseHeaders(headers: Headers): Record<string, string> {
   const result: Record<string, string> = {};
-  // TODO: test this with multi-valued headers, may need to use `headers.raw()` instead
   for (const [key, value] of headers) {
     result[key.toLowerCase()] = value;
   }
@@ -33,8 +35,6 @@ function getKey(req: Request): string {
   return `${req.url}.json`;
 }
 
-// TODO: make sure to test url key sanitization
-// TODO: may need to add Cf-Cache-Status headers, check in actual workers environment
 export class Cache {
   readonly #storage: KVStorage;
   readonly #clock: KVClock;
@@ -120,7 +120,7 @@ export class Cache {
   ): Promise<Response | undefined> {
     req = normaliseRequest(req);
     // Cloudflare only caches GET requests
-    if (req.method !== "GET" || options?.ignoreMethod) return;
+    if (req.method !== "GET" && !options?.ignoreMethod) return;
 
     // Check if we have the response cached
     const key = getKey(req);
@@ -128,12 +128,7 @@ export class Cache {
     if (!res) return;
 
     // Build Response from cache
-    const headers = new Headers();
-    for (const [key, values] of Object.entries(res.headers)) {
-      for (const value of values) {
-        headers.append(key, value);
-      }
-    }
+    res.headers["CF-Cache-Status"] = ["HIT"];
     return new Response(Buffer.from(res.body, "base64"), {
       status: res.status,
       headers: res.headers,
@@ -146,7 +141,7 @@ export class Cache {
   ): Promise<boolean> {
     req = normaliseRequest(req);
     // Cloudflare only caches GET requests
-    if (req.method !== "GET" || options?.ignoreMethod) return false;
+    if (req.method !== "GET" && !options?.ignoreMethod) return false;
 
     // Delete the cached response if it exists (we delete from this.storage not
     // this.namespace since we need to know whether we deleted something)

@@ -76,12 +76,26 @@ const matchMacro: Macro<[string | Request], Context> = async (t, req) => {
 
   const cached = await cache.match(req);
   t.is(cached?.status, 200);
-  t.deepEqual(cached?.headers.raw(), { "Cache-Control": ["max-age=3600"] });
+  t.deepEqual(cached?.headers.raw(), {
+    "Cache-Control": ["max-age=3600"],
+    "CF-Cache-Status": ["HIT"],
+  });
   t.is(await cached?.text(), "value");
 };
 matchMacro.title = (providedTitle) => `Cache: matches ${providedTitle}`;
 test("request", matchMacro, new Request("http://localhost:8787/test"));
 test("string request", matchMacro, "http://localhost:8787/test");
+
+test("Cache: only matches non-GET requests when ignoring method", async (t) => {
+  const { cache } = t.context;
+  await cache.put(
+    new Request("http://localhost:8787/test"),
+    testResponse.clone()
+  );
+  const req = new Request("http://localhost:8787/test", { method: "POST" });
+  t.is(await cache.match(req), undefined);
+  t.not(await cache.match(req, { ignoreMethod: true }), undefined);
+});
 
 const deleteMacro: Macro<[string | Request], Context> = async (t, req) => {
   const { storage, cache } = t.context;
@@ -97,6 +111,17 @@ const deleteMacro: Macro<[string | Request], Context> = async (t, req) => {
 deleteMacro.title = (providedTitle) => `Cache: deletes ${providedTitle}`;
 test("request", deleteMacro, new Request("http://localhost:8787/test"));
 test("string request", deleteMacro, "http://localhost:8787/test");
+
+test("Cache: only deletes non-GET requests when ignoring method", async (t) => {
+  const { cache } = t.context;
+  await cache.put(
+    new Request("http://localhost:8787/test"),
+    testResponse.clone()
+  );
+  const req = new Request("http://localhost:8787/test", { method: "POST" });
+  t.false(await cache.delete(req));
+  t.true(await cache.delete(req, { ignoreMethod: true }));
+});
 
 const expireMacro: Macro<
   [{ headers: HeadersInit; expectedTtl: number }],

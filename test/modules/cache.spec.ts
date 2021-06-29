@@ -192,7 +192,10 @@ test("buildSandbox: can match with default cache", async (t) => {
   });
   t.deepEqual(cached, {
     status: 200,
-    headers: { "Cache-Control": ["max-age=3600"] },
+    headers: {
+      "Cache-Control": ["max-age=3600"],
+      "CF-Cache-Status": ["HIT"],
+    },
     body: "value",
   });
 });
