@@ -317,6 +317,7 @@ export class Miniflare {
     const url =
       (this.#options?.upstreamUrl?.origin ?? `http://${req.headers.host}`) +
       req.url;
+    const parsedUrl = new URL(url);
 
     let body: BodyInit | null = null;
     if (req.method !== "GET" && req.method !== "HEAD") {
@@ -348,33 +349,48 @@ export class Miniflare {
       body: body,
     });
 
+    // Check path matches "/_mf/scheduled" ignoring trailing slash
+    const scheduled =
+      parsedUrl.pathname.replace(/\/$/, "") === "/_mf/scheduled";
     let response: ResponseWaitUntil | undefined;
-    try {
-      response = await this.dispatchFetch(request);
-      response.headers.delete("content-length");
-      response.headers.delete("content-encoding");
-      res?.writeHead(response.status, response.headers.raw());
-      res?.end(await response.buffer());
-    } catch (e) {
-      const youch = new Youch(e, req);
-      youch.addLink(() => {
-        return [
-          '<a href="https://developers.cloudflare.com/workers/" target="_blank">Workers Docs</a>',
-          '<a href="https://discord.gg/cloudflaredev" target="_blank">Workers Discord</a>',
-          '<a href="https://github.com/mrbbot/miniflare" target="_blank">Miniflare Docs</a>',
-        ].join("");
-      });
-      const errorHtml = await youch.toHTML();
-      res?.writeHead(500);
-      res?.end(errorHtml);
-      this.log.error(e.stack);
+    let waitUntil: Promise<any[]> | undefined;
+
+    if (scheduled) {
+      req.method = "SCHD";
+      const time = parsedUrl.searchParams.get("time");
+      waitUntil = this.dispatchScheduled(time ? parseInt(time) : undefined);
+      res?.end();
+    } else {
+      try {
+        response = await this.dispatchFetch(request);
+        waitUntil = response.waitUntil();
+        response.headers.delete("content-length");
+        response.headers.delete("content-encoding");
+        res?.writeHead(response.status, response.headers.raw());
+        res?.end(await response.buffer());
+      } catch (e) {
+        const youch = new Youch(e, req);
+        youch.addLink(() => {
+          return [
+            '<a href="https://developers.cloudflare.com/workers/" target="_blank">Workers Docs</a>',
+            '<a href="https://discord.gg/cloudflaredev" target="_blank">Workers Discord</a>',
+            '<a href="https://github.com/mrbbot/miniflare" target="_blank">Miniflare Docs</a>',
+          ].join("");
+        });
+        const errorHtml = await youch.toHTML();
+        res?.writeHead(500);
+        res?.end(errorHtml);
+        this.log.error(e.stack);
+      }
     }
+
     await logResponse(this.log, {
       start,
       method: req.method,
       url: req.url,
-      status: response?.status ?? 500,
-      waitUntil: response?.waitUntil(),
+      // Don't log 500 status if this is manual scheduled event trigger
+      status: scheduled ? undefined : response?.status ?? 500,
+      waitUntil,
     });
     return response;
   }
