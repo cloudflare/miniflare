@@ -1,3 +1,4 @@
+import assert from "assert";
 import childProcess from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
@@ -36,7 +37,7 @@ export class Watcher {
   private readonly _callback: WatchCallback;
 
   private readonly _initialOptions: Options;
-  private readonly _wranglerConfigPath?: string;
+  private readonly _wranglerConfigPath: string;
 
   private _scriptBlueprints: Record<string, ScriptBlueprint>;
   private _options?: ProcessedOptions;
@@ -51,25 +52,26 @@ export class Watcher {
 
     // Setup initial options
     this._initialOptions = options;
-    this._wranglerConfigPath = options.wranglerConfigPath
-      ? path.resolve(options.wranglerConfigPath)
-      : undefined;
+    this._wranglerConfigPath = path.resolve(
+      options.wranglerConfigPath ?? "wrangler.toml"
+    );
 
     this._scriptBlueprints = {};
     void this._init();
   }
 
   private _getWatchedPaths(): Set<string> {
+    assert(this._options);
     const watchedPaths = new Set<string>(this._extraWatchedPaths);
-    if (this._wranglerConfigPath) watchedPaths.add(this._wranglerConfigPath);
-    if (this._options?.envPath) watchedPaths.add(this._options.envPath);
-    if (this._options?.buildWatchPath)
+    watchedPaths.add(this._wranglerConfigPath);
+    if (this._options.envPath) watchedPaths.add(this._options.envPath);
+    if (this._options.buildWatchPath)
       watchedPaths.add(this._options.buildWatchPath);
-    if (this._options?.scriptPath) watchedPaths.add(this._options.scriptPath);
-    for (const durableObject of this._options?.processedDurableObjects ?? []) {
+    if (this._options.scriptPath) watchedPaths.add(this._options.scriptPath);
+    for (const durableObject of this._options.processedDurableObjects ?? []) {
       if (durableObject.scriptPath) watchedPaths.add(durableObject.scriptPath);
     }
-    for (const wasmPath of Object.values(this._options?.wasmBindings ?? {})) {
+    for (const wasmPath of Object.values(this._options.wasmBindings ?? {})) {
       watchedPaths.add(wasmPath);
     }
     return watchedPaths;
@@ -115,7 +117,7 @@ export class Watcher {
 
   private _runCustomBuild(command: string, basePath?: string): Promise<void> {
     return new Promise((resolve) => {
-      // TODO: may want to mutex this, so only one build at a time
+      // TODO: (low priority) may want to mutex this, so only one build at a time
       const build = childProcess.spawn(command, {
         cwd: basePath,
         shell: true,
@@ -248,23 +250,23 @@ export class Watcher {
   private async _getOptions(initial?: boolean): Promise<ProcessedOptions> {
     // Get wrangler options first (if set) since initialOptions override these
     let wranglerOptions: Options = {};
-    // TODO: default this to wrangler.toml, see handling of .env files below
-    if (this._wranglerConfigPath) {
-      try {
-        wranglerOptions = getWranglerOptions(
-          await this._readFile(this._wranglerConfigPath),
-          path.dirname(this._wranglerConfigPath),
-          this._initialOptions.wranglerConfigEnv // TODO: make sure this is working
-        );
-      } catch (e) {
-        this._log.error(
-          `Unable to parse ${path.relative(
-            "",
-            this._wranglerConfigPath
-          )}: ${e} (line: ${e.line}, col: ${e.column})`
-        );
-      }
+    const wranglerConfigPathSet =
+      this._initialOptions.wranglerConfigPath !== undefined;
+    try {
+      wranglerOptions = getWranglerOptions(
+        await this._readFile(this._wranglerConfigPath, wranglerConfigPathSet),
+        path.dirname(this._wranglerConfigPath),
+        this._initialOptions.wranglerConfigEnv // TODO: make sure this is working
+      );
+    } catch (e) {
+      this._log.error(
+        `Unable to parse ${path.relative(
+          "",
+          this._wranglerConfigPath
+        )}: ${e} (line: ${e.line}, col: ${e.column})`
+      );
     }
+
     // Override wrangler options with initialOptions, since these should have
     // higher priority
     const options: ProcessedOptions = {
@@ -281,7 +283,7 @@ export class Watcher {
 
     // Make sure we've got a main script
     if (options.scriptPath === undefined) {
-      // TODO: consider replacing this with a more friendly error message (with help for fixing)
+      // TODO: consider replacing this with a more friendly error message (with help for fixing), probably miniflare specific error then catch in CLI?
       throw new TypeError("No script defined");
     }
     // Resolve and load all scripts (including Durable Objects')
