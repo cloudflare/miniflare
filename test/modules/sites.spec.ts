@@ -96,6 +96,30 @@ test(
   new Set<Route>(["/a.txt", "/b/b.txt"])
 );
 
+// Tests for checking different types of globs are matched correctly
+const matchMacro: Macro<[(tmp: string) => string]> = async (t, include) => {
+  const tmp = await useTmp(t);
+  const dir = path.join(tmp, "a", "b", "c");
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, "test.txt"), "test", "utf8");
+  const mf = new Miniflare({
+    siteInclude: [include(tmp)],
+    scriptPath: sitesScriptPath,
+    sitePath: tmp,
+  });
+  const res = await mf.dispatchFetch(
+    new Request(`http://localhost:8787/a/b/c/test.txt`)
+  );
+  t.is(res.status, 200);
+};
+matchMacro.title = (providedTitle) => `buildEnvironment: ${providedTitle}`;
+
+test("matches file name pattern", matchMacro, () => "test.txt");
+test("matches exact pattern", matchMacro, () => "a/b/c/test.txt");
+test("matches extension patterns", matchMacro, () => "*.txt");
+test("matches globstar patterns", matchMacro, () => "**/*.txt");
+test("matches wildcard directory patterns", matchMacro, () => "a/*/c/*.txt");
+
 test("buildEnvironment: doesn't cache files", async (t) => {
   const tmp = await useTmp(t);
   const testPath = path.join(tmp, "test.txt");
