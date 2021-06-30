@@ -6,6 +6,7 @@ import chokidar from "chokidar";
 import dotenv from "dotenv";
 import micromatch from "micromatch";
 import cron from "node-cron";
+import { Mutex } from "./kv/helpers";
 import { Log } from "./log";
 import {
   ModuleRuleType,
@@ -39,12 +40,14 @@ export class Watcher {
   private readonly _initialOptions: Options;
   private readonly _wranglerConfigPath: string;
 
-  private _scriptBlueprints: Record<string, ScriptBlueprint>;
+  private _scriptBlueprints: Record<string, ScriptBlueprint> = {};
   private _options?: ProcessedOptions;
 
   private _watcher?: chokidar.FSWatcher;
   private _watchedPaths?: Set<string>;
   private _extraWatchedPaths?: Set<string>;
+
+  private _buildMutex = new Mutex();
 
   constructor(log: Log, callback: WatchCallback, options: Options) {
     this._log = log;
@@ -56,7 +59,6 @@ export class Watcher {
       options.wranglerConfigPath ?? "wrangler.toml"
     );
 
-    this._scriptBlueprints = {};
     void this._init();
   }
 
@@ -115,22 +117,24 @@ export class Watcher {
   }
 
   private _runCustomBuild(command: string, basePath?: string): Promise<void> {
-    return new Promise((resolve) => {
-      // TODO: (low priority) may want to mutex this, so only one build at a time
-      const build = childProcess.spawn(command, {
-        cwd: basePath,
-        shell: true,
-        stdio: "inherit",
-      });
-      build.on("exit", (code) => {
-        if (code === 0) {
-          this._log.info("Build succeeded");
-        } else {
-          this._log.error(`Build failed with exit code ${code}`);
-        }
-        resolve();
-      });
-    });
+    return this._buildMutex.run(
+      () =>
+        new Promise((resolve) => {
+          const build = childProcess.spawn(command, {
+            cwd: basePath,
+            shell: true,
+            stdio: "inherit",
+          });
+          build.on("exit", (code) => {
+            if (code === 0) {
+              this._log.info("Build succeeded");
+            } else {
+              this._log.error(`Build failed with exit code ${code}`);
+            }
+            resolve();
+          });
+        })
+    );
   }
 
   private async _init(): Promise<void> {

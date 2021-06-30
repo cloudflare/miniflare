@@ -344,7 +344,10 @@ export class Miniflare {
 
     // Add additional Cloudflare specific headers:
     // https://support.cloudflare.com/hc/en-us/articles/200170986-How-does-Cloudflare-handle-HTTP-Request-headers-
-    req.headers["cf-connecting-ip"] = req.socket.remoteAddress;
+    let ip = req.socket.remoteAddress;
+    // Remove IPv6 prefix for IPv4 addresses
+    if (ip?.startsWith("::ffff:")) ip = ip?.substring("::ffff:".length);
+    req.headers["cf-connecting-ip"] = ip;
     req.headers["cf-ipcountry"] = "XX";
     req.headers["cf-ray"] = "";
     req.headers["cf-request-id"] = "";
@@ -384,9 +387,9 @@ export class Miniflare {
         const youch = new Youch(e, req);
         youch.addLink(() => {
           return [
-            '<a href="https://developers.cloudflare.com/workers/" target="_blank">Workers Docs</a>',
-            '<a href="https://discord.gg/cloudflaredev" target="_blank">Workers Discord</a>',
-            '<a href="https://github.com/mrbbot/miniflare" target="_blank">Miniflare Docs</a>',
+            '<a href="https://developers.cloudflare.com/workers/" target="_blank" style="text-decoration:none">📚 Workers Docs</a>',
+            '<a href="https://discord.gg/cloudflaredev" target="_blank" style="text-decoration:none">💬 Workers Discord</a>',
+            '<a href="https://github.com/mrbbot/miniflare" target="_blank" style="text-decoration:none">🔥 Miniflare Docs</a>',
           ].join("");
         });
         const errorHtml = await youch.toHTML();
