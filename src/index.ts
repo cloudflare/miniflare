@@ -74,7 +74,7 @@ export class Miniflare {
       {} as Modules
     );
 
-    // Defaults never used, will be overridden in _watchCallback
+    // Defaults never used, will be overridden in #watchCallback
     this.#sandbox = {};
     this.#environment = {};
 
@@ -115,8 +115,8 @@ export class Miniflare {
     this.#reloadScheduled();
     await this.#reloadWorker();
 
-    // This should never be undefined as _watchCallback is only called by the
-    // watcher which is created after _initResolve is set
+    // This should never be undefined as #watchCallback is only called by the
+    // watcher which is created after #initResolve is set
     assert(this.#initResolve !== undefined);
     this.#initResolve();
   }
@@ -139,7 +139,7 @@ export class Miniflare {
   }
 
   async #reloadWorker(): Promise<void> {
-    // Only called in _watchCallback() after _options set and scripts and
+    // Only called in #watchCallback() after #options set and scripts and
     // processedModulesRules are always set in this
     assert(this.#options?.scripts && this.#options.processedModulesRules);
 
@@ -284,8 +284,8 @@ export class Miniflare {
 
   async getOptions(): Promise<ProcessedOptions> {
     await this.#initPromise;
-    // This should never be undefined as _initPromise is only resolved once
-    // _watchCallback has been called for the first time
+    // This should never be undefined as #initPromise is only resolved once
+    // #watchCallback has been called for the first time
     assert(this.#options !== undefined);
     return this.#options;
   }
@@ -379,6 +379,8 @@ export class Miniflare {
       try {
         response = await this.dispatchFetch(request);
         waitUntil = response.waitUntil();
+        // node-fetch will decompress compressed responses meaning these
+        // headers are probably wrong
         response.headers.delete("content-length");
         response.headers.delete("content-encoding");
         res?.writeHead(response.status, response.headers.raw());

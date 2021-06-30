@@ -77,8 +77,8 @@ export function getWranglerOptions(
     Object.assign(config, config.env[env]);
   }
 
-  // Auto-fill build configuration for "webpack" and "rust" worker types if not
-  // defined using "wrangler build"
+  // Auto-fill build configuration for "webpack" and "rust" worker types using
+  // "wrangler build" if not already defined
   if (!config.build) {
     config.build = { upload: { dir: "" } };
     assert(config.build.upload); // TypeScript gets annoyed if this isn't here

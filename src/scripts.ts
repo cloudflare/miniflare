@@ -86,7 +86,9 @@ export function buildLinker(
     )}" dependency "${specifier}"`;
 
     if (referencingModule.identifier === stringScriptPath) {
-      throw new Error(`${errorBase}: imports unsupported with string script`);
+      throw new ScriptError(
+        `${errorBase}: imports unsupported with string script`
+      );
     }
 
     // Get path to specified module relative to referencing module and make
@@ -101,7 +103,7 @@ export function buildLinker(
       rule.include.some((regexp) => modulePath.match(regexp))
     );
     if (rule === undefined) {
-      throw new Error(`${errorBase}: no matching module rules`);
+      throw new ScriptError(`${errorBase}: no matching module rules`);
     }
 
     // Load module based on rule type
@@ -152,7 +154,9 @@ export function buildLinker(
           moduleOptions
         );
       default:
-        throw new Error(`${errorBase}: ${rule.type} modules are unsupported`);
+        throw new ScriptError(
+          `${errorBase}: ${rule.type} modules are unsupported`
+        );
     }
   };
   return { linker, referencedPaths };

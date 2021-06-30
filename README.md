@@ -1,6 +1,6 @@
 # 🔥 Miniflare (WIP)
 
-Fun, full-featured, fully-local Cloudflare Workers simulator for developing and testing Workers
+Fun, full-featured, fully-local simulator for developing and testing Cloudflare Workers
 
 ## Features
 

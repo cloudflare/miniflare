@@ -291,7 +291,7 @@ export class Watcher {
     // Make sure we've got a main script
     if (options.scriptPath === undefined) {
       throw new OptionsError(
-        "No script defined, either include it in options, or set build.upload.main in wrangler.toml"
+        "No script defined, either include it in options, or set build.upload.main in Wrangler configuration"
       );
     }
     // Resolve and load all scripts (including Durable Objects')
