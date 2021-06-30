@@ -3,8 +3,11 @@ import path from "path";
 import vm, { ModuleLinker } from "vm";
 import { cjsToEsm } from "cjstoesm";
 import { ModuleKind, TranspileOptions, transpileModule } from "typescript";
+import { MiniflareError } from "./error";
 import { Context } from "./modules/module";
 import { ProcessedModuleRule, stringScriptPath } from "./options";
+
+export class ScriptError extends MiniflareError {}
 
 export class ScriptBlueprint {
   constructor(private code: string, public fileName: string) {}
@@ -27,8 +30,7 @@ export class ScriptBlueprint {
   ): Promise<ModuleScriptInstance<Exports>> {
     const vmContext = ScriptBlueprint._createContext(context);
     if (!("SourceTextModule" in vm)) {
-      // TODO: switch to Miniflare specific error class
-      throw new Error(
+      throw new ScriptError(
         "Modules support requires the --experimental-vm-modules flag"
       );
     }
@@ -113,7 +115,7 @@ export function buildLinker(
       case "ESModule":
         return new vm.SourceTextModule(data.toString("utf8"), moduleOptions);
       case "CommonJS":
-        // TODO: try do this without TypeScript
+        // TODO: (low priority) try do this without TypeScript
         const transpiled = transpileModule(
           data.toString("utf8"),
           commonJsTranspileOptions

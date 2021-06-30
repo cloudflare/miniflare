@@ -48,12 +48,12 @@ export async function useServer(
 
 export async function runInWorker<T>(
   options: Options,
-  f: () => Promise<T>
+  f: () => T | Promise<T>
 ): Promise<T> {
   const script = `
   addEventListener("fetch", (e) => {
     e.respondWith(
-      (${f.toString()})().then((v) => {
+      Promise.resolve((${f.toString()})()).then((v) => {
         return new Response(JSON.stringify(v === undefined ? null : v), {
           headers: { "Content-Type": "application/json" },
         });
@@ -91,29 +91,29 @@ export function getObjectProperties<T>(obj: T): string[] {
 }
 
 export class TestLog implements Log {
-  debugs: string[] = [];
-  errors: string[] = [];
-  infos: string[] = [];
   logs: string[] = [];
+  debugs: string[] = [];
+  infos: string[] = [];
   warns: string[] = [];
+  errors: string[] = [];
+
+  log(data: string): void {
+    this.logs.push(data);
+  }
 
   debug(data: string): void {
     this.debugs.push(data);
-  }
-
-  error(data: string): void {
-    this.errors.push(data);
   }
 
   info(data: string): void {
     this.infos.push(data);
   }
 
-  log(data: string): void {
-    this.logs.push(data);
-  }
-
   warn(data: string): void {
     this.warns.push(data);
+  }
+
+  error(data: string): void {
+    this.errors.push(data);
   }
 }

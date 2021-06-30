@@ -178,7 +178,7 @@ test("buildSandbox: includes web standards", (t) => {
 });
 
 test("buildSandbox: includes omitted web standards", async (t) => {
-  const result = await runInWorker({}, async () => {
+  const result = await runInWorker({}, () => {
     // noinspection SuspiciousTypeOfGuard
     return {
       Array: typeof Array === "function",
@@ -212,17 +212,15 @@ test("buildSandbox: includes omitted web standards", async (t) => {
 });
 
 test("buildSandbox: can use instanceof with literals", async (t) => {
-  const result = await runInWorker({}, async () => {
-    // noinspection ES6MissingAwait
+  const result = await runInWorker({}, () => {
     return {
-      array: [] instanceof Array,
-      object: {} instanceof Object,
-      function: (() => {}) instanceof Function,
-      regexp: /abc/ instanceof RegExp,
-      promise: Promise.resolve() instanceof Promise,
-      promiseAsync: (async () => {})() instanceof Promise,
-      jsonArray: JSON.parse("[]") instanceof Array,
-      jsonObject: JSON.parse("{}") instanceof Object,
+      Array: [] instanceof Array,
+      Object: {} instanceof Object,
+      Function: (() => {}) instanceof Function,
+      RegExp: /abc/ instanceof RegExp,
+      Promise: (async () => {})() instanceof Promise,
+      JSONArray: JSON.parse("[]") instanceof Array,
+      JSONObject: JSON.parse("{}") instanceof Object,
     };
   });
   for (const [key, value] of Object.entries(result)) {

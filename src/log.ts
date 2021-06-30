@@ -10,11 +10,11 @@ export interface Log {
 }
 
 export class NoOpLog implements Log {
-  debug(): void {}
-  error(): void {}
-  info(): void {}
   log(): void {}
+  debug(): void {}
+  info(): void {}
   warn(): void {}
+  error(): void {}
 }
 
 export class ConsoleLog implements Log {

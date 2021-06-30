@@ -11,6 +11,7 @@ import cron from "node-cron";
 import sourceMap from "source-map-support";
 import WebSocket from "ws";
 import Youch from "youch";
+import { MiniflareError } from "./error";
 import { Cache, KVStorageNamespace } from "./kv";
 import { ConsoleLog, Log, NoOpLog, logResponse } from "./log";
 import { ResponseWaitUntil } from "./modules";
@@ -173,9 +174,13 @@ export class Miniflare {
           ? await script.buildModule(sandbox, linker)
           : await script.buildScript(sandbox);
       } catch (e) {
-        // TODO: if this is because --experimental-vm-modules disabled, rethrow
+        // If this is because --experimental-vm-modules disabled, rethrow
+        if (e instanceof MiniflareError) throw e;
         this.log.error(
-          `Unable to parse ${path.relative("", script.fileName)}: ${e}`
+          `Unable to parse ${path.relative(
+            "",
+            script.fileName
+          )}: ${e} (ignoring)`
         );
         continue;
       }
@@ -365,6 +370,7 @@ export class Miniflare {
         time ? parseInt(time) : undefined,
         cron ?? undefined
       );
+      res?.writeHead(200, { "Content-Type": "text/html; charset=UTF-8" });
       res?.end();
     } else {
       try {

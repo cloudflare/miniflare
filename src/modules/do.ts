@@ -7,6 +7,7 @@ import {
   RequestInit,
   Response,
 } from "@mrbbot/node-fetch";
+import { MiniflareError } from "../error";
 import { DurableObjectStorage } from "../kv";
 import { abortAllSymbol } from "../kv/do";
 import { KVStorageFactory } from "../kv/helpers";
@@ -111,6 +112,8 @@ export class DurableObjectNamespace {
   }
 }
 
+export class DurableObjectInstanceError extends MiniflareError {}
+
 const defaultPersistRoot = path.resolve(".mf", "do");
 
 export class DurableObjectsModule extends Module {
@@ -168,11 +171,15 @@ export class DurableObjectsModule extends Module {
 
       // Create and store new instance if none found
       const constructor = this._constructors[objectName];
+      if (constructor === undefined) {
+        throw new DurableObjectInstanceError(
+          `Missing constructor for Durable Object ${objectName}`
+        );
+      }
       const storage = new DurableObjectStorage(
         this.storageFactory.getStorage(key, persist)
       );
       const state = new DurableObjectState(id, storage);
-      // TODO: throw more specific exception if constructor is undefined
       instance = new constructor(state, this._environment);
       this._instances.set(key, instance);
       instancesStorage.set(instance, storage);

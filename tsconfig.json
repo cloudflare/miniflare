@@ -10,7 +10,8 @@
     "outDir": "dist",
     "declaration": true,
     "importHelpers": true,
-    "removeComments": true
+    "removeComments": true,
+    "sourceMap": true
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "types"],
   "exclude": ["node_modules"],

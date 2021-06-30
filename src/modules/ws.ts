@@ -153,7 +153,6 @@ export async function terminateWebSocket(
   ws: ws,
   pair: WebSocketInterface
 ): Promise<void> {
-  // TODO: think about whether we want to log messages here
   // Forward events from client to worker
   ws.on("message", (message) => {
     if (typeof message === "string") {

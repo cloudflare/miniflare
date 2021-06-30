@@ -1,4 +1,3 @@
-import assert from "assert";
 import childProcess from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
@@ -11,6 +10,7 @@ import { Log } from "./log";
 import {
   ModuleRuleType,
   Options,
+  OptionsError,
   ProcessedOptions,
   defaultModuleRules,
   logOptions,
@@ -61,17 +61,16 @@ export class Watcher {
   }
 
   private _getWatchedPaths(): Set<string> {
-    assert(this._options);
     const watchedPaths = new Set<string>(this._extraWatchedPaths);
     watchedPaths.add(this._wranglerConfigPath);
-    if (this._options.envPath) watchedPaths.add(this._options.envPath);
-    if (this._options.buildWatchPath)
+    if (this._options?.envPath) watchedPaths.add(this._options.envPath);
+    if (this._options?.buildWatchPath)
       watchedPaths.add(this._options.buildWatchPath);
-    if (this._options.scriptPath) watchedPaths.add(this._options.scriptPath);
-    for (const durableObject of this._options.processedDurableObjects ?? []) {
+    if (this._options?.scriptPath) watchedPaths.add(this._options.scriptPath);
+    for (const durableObject of this._options?.processedDurableObjects ?? []) {
       if (durableObject.scriptPath) watchedPaths.add(durableObject.scriptPath);
     }
-    for (const wasmPath of Object.values(this._options.wasmBindings ?? {})) {
+    for (const wasmPath of Object.values(this._options?.wasmBindings ?? {})) {
       watchedPaths.add(wasmPath);
     }
     return watchedPaths;
@@ -136,12 +135,16 @@ export class Watcher {
 
   private async _init(): Promise<void> {
     // Yield initial values
-    this._options = await this._getOptions(true);
-    logOptions(this._log, this._options);
-    this._callback(this._options);
+    try {
+      this._options = await this._getOptions(true);
+      logOptions(this._log, this._options);
+      this._callback(this._options);
+    } catch (e) {
+      this._log.error(e.stack);
+    }
 
     // Stop here if we're not watching files
-    if (!this._options.watch) return;
+    if (!this._options?.watch) return;
 
     // Get an array of watched file paths, storing the watchedEnvPath explicitly
     // so we can tell if it changes later
@@ -263,7 +266,7 @@ export class Watcher {
         `Unable to parse ${path.relative(
           "",
           this._wranglerConfigPath
-        )}: ${e} (line: ${e.line}, col: ${e.column})`
+        )}: ${e} (line: ${e.line}, col: ${e.column}) (ignoring)`
       );
     }
 
@@ -283,8 +286,9 @@ export class Watcher {
 
     // Make sure we've got a main script
     if (options.scriptPath === undefined) {
-      // TODO: consider replacing this with a more friendly error message (with help for fixing), probably miniflare specific error then catch in CLI?
-      throw new TypeError("No script defined");
+      throw new OptionsError(
+        "No script defined, either include it in options, or set build.upload.main in wrangler.toml"
+      );
     }
     // Resolve and load all scripts (including Durable Objects')
     if (options.scriptPath !== stringScriptPath) {

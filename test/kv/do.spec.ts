@@ -301,7 +301,7 @@ test("transaction: aborts concurrent transactions operating on conflicting keys"
   t.deepEqual(await backing.get("b"), storedValue(2));
 });
 test("transaction: retries concurrent transactions operating on conflicting keys", async (t) => {
-  // TODO: fix this test's scenario, currently each transaction is just run once
+  // TODO: (low priority) fix this test's scenario, currently each transaction is just run once
   const { backing, storage } = t.context;
   await backing.put("a", storedValue(1));
   await backing.put("b", storedValue(2));
@@ -312,7 +312,7 @@ test("transaction: retries concurrent transactions operating on conflicting keys
   t.deepEqual(await backing.get("a"), storedValue(3));
   t.deepEqual(await backing.get("b"), storedValue(3));
 });
-// TODO: test concurrent transactions using other operations (e.g. delete, deleteAll, list, etc)
+// TODO: (low priority) test concurrent transactions using other operations (e.g. delete, deleteAll, list, etc)
 test("transaction: rolledback transaction doesn't commit", async (t) => {
   const { backing, storage } = t.context;
   await backing.put("key", storedValue("old"));
