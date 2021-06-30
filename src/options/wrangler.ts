@@ -1,3 +1,4 @@
+import assert from "assert";
 import path from "path";
 import toml from "toml";
 import { DurableObjectOptions, ModuleRuleType, Options } from "./index";
@@ -60,7 +61,7 @@ interface WranglerEnvironmentConfig {
 }
 
 interface WranglerConfig extends WranglerEnvironmentConfig {
-  type: "javascript" | "webpack" | "rust"; // TODO: support these (with default `build` configs)
+  type: "javascript" | "webpack" | "rust";
   usage_model?: "bundled" | "unbound";
   env?: Record<string, WranglerEnvironmentConfig>;
 }
@@ -74,6 +75,29 @@ export function getWranglerOptions(
   const config: WranglerConfig = toml.parse(input);
   if (env && config.env && env in config.env) {
     Object.assign(config, config.env[env]);
+  }
+
+  // Auto-fill build configuration for "webpack" and "rust" worker types if not
+  // defined using "wrangler build"
+  if (!config.build) {
+    config.build = { upload: { dir: "" } };
+    assert(config.build.upload); // TypeScript gets annoyed if this isn't here
+    if (config.type === "webpack") {
+      config.build.command = "wrangler build";
+      config.build.upload.main = path.join("worker", "script.js");
+    } else if (config.type === "rust") {
+      const rustScript = path.join(__dirname, "rust.js");
+      config.build.command = `wrangler build && node ${rustScript}`;
+      config.build.upload.main = path.join("worker", "generated", "script.js");
+
+      // Add wasm binding, script.wasm will be created by rustScript
+      if (!config.miniflare) config.miniflare = {};
+      if (!config.miniflare.wasm_bindings) config.miniflare.wasm_bindings = [];
+      config.miniflare.wasm_bindings.push({
+        name: "wasm",
+        path: path.join("worker", "generated", "script.wasm"),
+      });
+    }
   }
 
   // Map wrangler keys to miniflare's
