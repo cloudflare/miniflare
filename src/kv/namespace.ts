@@ -51,6 +51,9 @@ export type KVValueWithMetadata<Value, Metadata> = Promise<{
 }>;
 
 export type KVGetValueType = "text" | "json" | "arrayBuffer" | "stream";
+export type KVGetOptions =
+  | KVGetValueType
+  | { type?: KVGetValueType; cacheTtl?: number };
 
 export type KVPutValueType = string | ReadableStream | ArrayBuffer;
 export interface KVPutOptions {
@@ -80,25 +83,50 @@ export class KVStorageNamespace {
     this.#clock = clock;
   }
 
-  get(key: string): KVValue<string>;
+  get(key: string, options?: { cacheTtl?: number }): KVValue<string>;
   get(key: string, type: "text"): KVValue<string>;
+  get(
+    key: string,
+    options: { type: "text"; cacheTtl?: number }
+  ): KVValue<string>;
   get<Value = unknown>(key: string, type: "json"): KVValue<Value>;
+  get<Value = unknown>(
+    key: string,
+    options: { type: "json"; cacheTtl?: number }
+  ): KVValue<Value>;
   get(key: string, type: "arrayBuffer"): KVValue<ArrayBuffer>;
+  get(
+    key: string,
+    options: { type: "arrayBuffer"; cacheTtl?: number }
+  ): KVValue<ArrayBuffer>;
   get(key: string, type: "stream"): KVValue<ReadableStream>;
-  async get(key: string, type: KVGetValueType = "text"): KVValue<any> {
-    return (await this.getWithMetadata(key, type as any)).value;
+  get(
+    key: string,
+    options: { type: "stream"; cacheTtl?: number }
+  ): KVValue<ReadableStream>;
+  async get(key: string, options: KVGetOptions = {}): KVValue<any> {
+    return (await this.getWithMetadata(key, options as any)).value;
   }
 
   getWithMetadata<Metadata = unknown>(
-    key: string
+    key: string,
+    options?: { cacheTtl?: number }
   ): KVValueWithMetadata<string, Metadata>;
   getWithMetadata<Metadata = unknown>(
     key: string,
     type: "text"
   ): KVValueWithMetadata<string, Metadata>;
+  getWithMetadata<Metadata = unknown>(
+    key: string,
+    options: { type: "text"; cacheTtl?: number }
+  ): KVValueWithMetadata<string, Metadata>;
   getWithMetadata<Value = unknown, Metadata = unknown>(
     key: string,
     type: "json"
+  ): KVValueWithMetadata<Value, Metadata>;
+  getWithMetadata<Value = unknown, Metadata = unknown>(
+    key: string,
+    options: { type: "json"; cacheTtl?: number }
   ): KVValueWithMetadata<Value, Metadata>;
   getWithMetadata<Metadata = unknown>(
     key: string,
@@ -106,12 +134,24 @@ export class KVStorageNamespace {
   ): KVValueWithMetadata<ArrayBuffer, Metadata>;
   getWithMetadata<Metadata = unknown>(
     key: string,
+    options: { type: "arrayBuffer"; cacheTtl?: number }
+  ): KVValueWithMetadata<ArrayBuffer, Metadata>;
+  getWithMetadata<Metadata = unknown>(
+    key: string,
     type: "stream"
+  ): KVValueWithMetadata<ReadableStream, Metadata>;
+  getWithMetadata<Metadata = unknown>(
+    key: string,
+    options: { type: "stream"; cacheTtl?: number }
   ): KVValueWithMetadata<ReadableStream, Metadata>;
   async getWithMetadata<Metadata = unknown>(
     key: string,
-    type: KVGetValueType = "text"
+    options: KVGetOptions = {}
   ): KVValueWithMetadata<any, Metadata> {
+    // Normalise type, ignoring cacheTtl as there is only one "edge location":
+    // the user's computer
+    const type = typeof options === "string" ? options : options.type ?? "text";
+
     // Validate type
     if (!["text", "json", "arrayBuffer", "stream"].includes(type)) {
       throw new TypeError(

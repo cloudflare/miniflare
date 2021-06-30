@@ -1,6 +1,6 @@
 import { KVClock } from "./helpers";
 import {
-  KVGetValueType,
+  KVGetOptions,
   KVListOptions,
   KVListResult,
   KVPutOptions,
@@ -39,16 +39,16 @@ export class FilteredKVStorageNamespace extends KVStorageNamespace {
     return true;
   }
 
-  async get(key: string, type?: KVGetValueType): KVValue<any> {
-    return (await this.getWithMetadata(key, type as any)).value;
+  async get(key: string, options?: KVGetOptions): KVValue<any> {
+    return (await this.getWithMetadata(key, options as any)).value;
   }
 
   async getWithMetadata<Metadata = unknown>(
     key: string,
-    type?: KVGetValueType
+    options?: KVGetOptions
   ): KVValueWithMetadata<any, Metadata> {
     if (!this.#isIncluded(key)) return { value: null, metadata: null };
-    return super.getWithMetadata(key, type as any);
+    return super.getWithMetadata(key, options as any);
   }
 
   async put(
