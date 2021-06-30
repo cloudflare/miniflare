@@ -29,6 +29,7 @@
   "dependencies": {
     "@mrbbot/node-fetch": "^4.1.0",
     "@peculiar/webcrypto": "^1.1.4",
+    "@worker-tools/parsed-html-rewriter": "^0.1.5",
     "chalk": "^4.1.0",
     "chokidar": "^3.5.1",
     "cjstoesm": "^1.1.4",

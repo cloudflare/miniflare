@@ -1,6 +1,6 @@
 # 🔥 Miniflare (WIP)
 
-Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
+Fun, full-featured, fully-local Cloudflare Workers simulator for developing and testing Workers
 
 ## Features
 
@@ -11,6 +11,7 @@ Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
 - 📨 Fetch Events (with HTTP server and manual triggering)
 - ⏰ Scheduled Events (with manual and cron triggering)
 - ✉️ WebSockets
+- 📄 HTMLRewriter
 - 🔑 `.env` File Support (for secrets)
 - 🕸 Web Standards: Base64, Timers, Fetch, Encoding, URL, Streams, Crypto
 - 📚 ES Modules Support
@@ -19,12 +20,6 @@ Fun, fully-local Cloudflare Workers simulator for developing and testing Workers
 - 🗺 Source Map Support
 - 👀 Automatic Reload on File Changes
 - 💪 Written in TypeScript
-
-## Coming Soon
-
-- 📄 HTMLRewriter
-- 🤹 Custom [Jest Environment](https://jestjs.io/docs/configuration#testenvironment-string)
-- ✅ More Tests
 
 ## CLI Usage
 

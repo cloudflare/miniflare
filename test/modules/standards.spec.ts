@@ -1,6 +1,7 @@
 import assert from "assert";
+import { Request } from "@mrbbot/node-fetch";
 import test from "ava";
-import { NoOpLog } from "../../src";
+import { Miniflare, NoOpLog } from "../../src";
 import {
   StandardsModule,
   TextEncoder,
@@ -115,6 +116,41 @@ test("resetWebSockets: closes already closed web sockets", async (t) => {
   t.is(event.reason, "Test Closure");
 });
 
+test("HTMLRewriter: transforms responses", async (t) => {
+  // @worker-tools/parsed-html-rewriter has its own tests, this is just to
+  // make sure all the global manipulation is wired up correctly
+  const originalResponse = global.Response;
+  const originalTextEncoder = global.TextEncoder;
+  const originalTransformStream = global.TransformStream;
+
+  const script = `(${(() => {
+    const sandbox = self as any;
+    sandbox.addEventListener("fetch", (e: FetchEvent) => {
+      const elementHandler = {
+        element(element: { setInnerContent: (content: string) => void }) {
+          element.setInnerContent("new");
+        },
+      };
+      // TODO: add onDocument handler here too
+      const rewriter = new sandbox.HTMLRewriter().on("p", elementHandler);
+
+      e.respondWith(
+        rewriter.transform(
+          new sandbox.Response('<html lang="en"><body><p>old</p></body></html>')
+        )
+      );
+    });
+  }).toString()})()`;
+  const mf = new Miniflare({ script });
+  const res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
+  t.is(await res.text(), '<html lang="en"><body><p>new</p></body></html>');
+
+  // Make sure globals are restored (even if they were undefined)
+  t.is(global.Response, originalResponse);
+  t.is(global.TextEncoder, originalTextEncoder);
+  t.is(global.TransformStream, originalTransformStream);
+});
+
 test("buildSandbox: includes web standards", (t) => {
   const module = new StandardsModule(new NoOpLog());
   const sandbox = module.buildSandbox();
@@ -139,6 +175,8 @@ test("buildSandbox: includes web standards", (t) => {
   t.true(typeof sandbox.Response === "function");
   t.true(typeof sandbox.URL === "function");
   t.true(typeof sandbox.URLSearchParams === "function");
+
+  t.true(typeof sandbox.HTMLRewriter === "function");
 
   t.true(typeof sandbox.ByteLengthQueuingStrategy === "function");
   t.true(typeof sandbox.CountQueuingStrategy === "function");

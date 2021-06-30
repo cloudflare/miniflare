@@ -8,6 +8,7 @@ export {
   Headers,
   Request,
   Response,
+  HTMLRewriter,
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
   ReadableByteStreamController,

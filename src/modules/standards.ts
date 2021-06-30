@@ -9,6 +9,7 @@ import originalFetch, {
   Response,
 } from "@mrbbot/node-fetch";
 import { Crypto } from "@peculiar/webcrypto";
+import { ParsedHTMLRewriter } from "@worker-tools/parsed-html-rewriter";
 import {
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
@@ -80,12 +81,37 @@ crypto.subtle.digest = function (algorithm, data) {
   return originalDigest(algorithm, data);
 };
 
+export class HTMLRewriter extends ParsedHTMLRewriter {
+  // @ts-expect-error we're using @mrbbot/node-fetch's types instead
+  transform(response: Response): Response {
+    // ParsedHTMLRewriter expects Response, TextEncoder and TransformStream to
+    // be in the global scope so make sure they are, restoring them afterwards
+    // :nauseated_face: (at least this function isn't async :sweat_smile:)
+    const originalResponse = global.Response;
+    const originalTextEncoder = global.TextEncoder;
+    const originalTransformStream = global.TransformStream;
+    // @ts-expect-error we're using @mrbbot/node-fetch's types instead
+    global.Response = Response;
+    global.TextEncoder = TextEncoder;
+    // @ts-expect-error we're using web-streams-polyfill's types instead
+    global.TransformStream = TransformStream;
+    try {
+      // @ts-expect-error we're using @mrbbot/node-fetch's types instead
+      return super.transform(response);
+    } finally {
+      global.Response = originalResponse;
+      global.TextEncoder = originalTextEncoder;
+      global.TransformStream = originalTransformStream;
+    }
+  }
+}
+
 export class StandardsModule extends Module {
   private webSockets: WebSocket[];
   private readonly sandbox: Context;
 
   constructor(log: Log) {
-    // TODO: proxy Date.now() and add warning, maybe new Date() too?
+    // TODO: (low priority) proxy Date.now() and add warning, maybe new Date() too?
     super(log);
     this.webSockets = [];
     this.sandbox = {
@@ -109,6 +135,8 @@ export class StandardsModule extends Module {
       Response,
       URL,
       URLSearchParams,
+
+      HTMLRewriter,
 
       ByteLengthQueuingStrategy,
       CountQueuingStrategy,
