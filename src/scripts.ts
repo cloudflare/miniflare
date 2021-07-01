@@ -10,7 +10,7 @@ import { ProcessedModuleRule, stringScriptPath } from "./options";
 export class ScriptError extends MiniflareError {}
 
 export class ScriptBlueprint {
-  constructor(private code: string, public fileName: string) {}
+  constructor(public readonly code: string, public readonly fileName: string) {}
 
   private static _createContext(context: Context): vm.Context {
     return vm.createContext(context, {

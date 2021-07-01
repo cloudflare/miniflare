@@ -4,5 +4,3 @@
 .tmp
 node_modules
 dist
-.env
-/*.toml

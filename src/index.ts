@@ -20,13 +20,13 @@ import { ModuleFetchListener, ModuleScheduledListener } from "./modules/events";
 import { Context } from "./modules/module";
 import * as modules from "./modules/modules";
 import { terminateWebSocket } from "./modules/ws";
-import { Options, ProcessedOptions, stringScriptPath } from "./options";
+import { Options, ProcessedOptions } from "./options";
+import { Watcher } from "./options/watcher";
 import {
   ModuleScriptInstance,
   ScriptScriptInstance,
   buildLinker,
 } from "./scripts";
-import { Watcher } from "./watcher";
 
 type ModuleName = keyof typeof modules;
 type Modules = {
@@ -57,7 +57,6 @@ export class Miniflare {
   readonly #wss: WebSocket.Server;
 
   constructor(options: Options) {
-    if (options.script) options.scriptPath = stringScriptPath;
     if (options.sourceMap) {
       sourceMap.install({ emptyCacheBetweenOperations: true });
     }
