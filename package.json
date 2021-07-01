@@ -1,7 +1,7 @@
 {
   "name": "miniflare",
   "version": "1.0.0",
-  "description": "Fully-local Cloudflare Workers Simulator",
+  "description": "Fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
     "workers",

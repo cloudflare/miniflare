@@ -14,7 +14,7 @@ Fun, full-featured, fully-local simulator for developing and testing Cloudflare 
 - 📄 HTMLRewriter
 - 🔑 `.env` File Support (for secrets)
 - 🕸 Web Standards: Base64, Timers, Fetch, Encoding, URL, Streams, Crypto
-- 📚 ES Modules Support
+- 📚 Modules Support
 - 🛠 Custom Builds Support
 - ⚙️ WebAssembly Support
 - 🗺 Source Map Support

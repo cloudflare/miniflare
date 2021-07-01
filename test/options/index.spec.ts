@@ -84,6 +84,13 @@ test("logOptions: logs all options", (t) => {
   ]);
 });
 
+test("logOptions: doesn't log build base path if current working directory", (t) => {
+  const log = new TestLog();
+  logOptions(log, {
+    buildBasePath: process.cwd(),
+  });
+  t.deepEqual(log.debugs, ["Options:"]);
+});
 test("logOptions: only logs module rules if modules enabled", (t) => {
   const log = new TestLog();
   logOptions(log, {

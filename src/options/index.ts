@@ -103,7 +103,10 @@ export function logOptions(log: Log, options: ProcessedOptions): void {
   // Log final parsed options
   const entries = {
     "Build Command": options.buildCommand,
-    "Build Base Path": options.buildBasePath,
+    // Make path undefined if relative path resolves to empty string (is cwd)
+    "Build Base Path": options.buildBasePath
+      ? path.relative("", options.buildBasePath) || undefined
+      : undefined,
     Scripts: options.scripts
       ? Object.values(options.scripts).map((script) =>
           path.relative("", script.fileName)

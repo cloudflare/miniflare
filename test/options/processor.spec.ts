@@ -95,7 +95,7 @@ test("getWranglerOptions: loads wrangler configuration from custom file", async 
   const options = await processor.getWranglerOptions();
   t.deepEqual(options.bindings, { KEY: "value" });
 });
-test("getWranglerOptions: loads correct environment's wrangler configuration", async (t) => {
+test("getWranglerOptions: selects environment's wrangler configuration", async (t) => {
   const tmp = await useTmp(t);
   const wranglerConfigPath = path.join(tmp, "wrangler.toml");
   await fs.writeFile(

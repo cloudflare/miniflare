@@ -161,7 +161,7 @@ export class EventsModule extends Module {
 
     if (!upstreamUrl) {
       throw new FetchError(
-        "Unable to proxy request to upstream: no upstream specified",
+        "No fetch handler responded and unable to proxy request to upstream: no upstream specified. Have you added a fetch event listener?",
         "upstream"
       );
     }

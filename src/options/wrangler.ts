@@ -79,14 +79,21 @@ export function getWranglerOptions(
 
   // Auto-fill build configuration for "webpack" and "rust" worker types using
   // "wrangler build" if not already defined
-  if (!config.build) {
-    config.build = { upload: { dir: "" } };
+  if (!config.build && (config.type === "webpack" || config.type === "rust")) {
+    // Explicitly set dir to empty string, this will exclude it when resolving.
+    // config.build.upload.main's below will be resolved relative to inputDir
+    config.build = { cwd: inputDir, upload: { dir: "" } };
     assert(config.build.upload); // TypeScript gets annoyed if this isn't here
     if (config.type === "webpack") {
       config.build.command = "wrangler build";
       config.build.upload.main = path.join("worker", "script.js");
     } else if (config.type === "rust") {
-      const rustScript = path.join(__dirname, "rust.js");
+      // In tests, __dirname will refer to src folder containing .ts files
+      // so make sure we're referring to the dist folder containing .js files
+      const distDir = __filename.endsWith(".ts")
+        ? path.resolve(__dirname, "..", "..", "dist", "src", "options")
+        : __dirname;
+      const rustScript = path.join(distDir, "rust.js");
       config.build.command = `wrangler build && node ${rustScript}`;
       config.build.upload.main = path.join("worker", "generated", "script.js");
 
@@ -95,7 +102,8 @@ export function getWranglerOptions(
       if (!config.miniflare.wasm_bindings) config.miniflare.wasm_bindings = [];
       config.miniflare.wasm_bindings.push({
         name: "wasm",
-        path: path.join("worker", "generated", "script.wasm"),
+        // WASM bindings aren't implicitly resolved relative to inputDir
+        path: path.join(inputDir, "worker", "generated", "script.wasm"),
       });
     }
   }
@@ -111,7 +119,10 @@ export function getWranglerOptions(
       : undefined,
     modules:
       config.build?.upload?.format === "modules" ||
-      (config.durable_objects?.bindings?.length ?? 0) !== 0,
+      // This flag means all scripts will be treated as modules. This is
+      // required if we're using Durable Objects, as we need to be able to
+      // access script exports.
+      (config.durable_objects?.bindings?.length ?? 0) > 0,
     modulesRules: config.build?.upload?.rules?.map(
       ({ type, globs, fallthrough }) => ({
         type,
