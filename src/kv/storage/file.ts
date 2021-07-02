@@ -1,5 +1,6 @@
-import { promises as fs } from "fs";
+import { existsSync, promises as fs } from "fs";
 import path from "path";
+import { sanitise } from "../helpers";
 import { KVStorage, KVStoredKey, KVStoredValue } from "./storage";
 
 function onNotFound<T, V>(promise: Promise<T>, value: V): Promise<T | V> {
@@ -60,14 +61,29 @@ const metaSuffix = ".meta.json";
 
 export class FileKVStorage implements KVStorage {
   private readonly _root: string;
+  // Allow sanitisation to be disable for read-only Workers Site's namespaces
+  //  so paths containing /'s resolve correctly
+  private readonly _sanitise: boolean;
 
-  constructor(root: string) {
+  constructor(root: string, sanitise = true) {
     this._root = path.resolve(root);
+    this._sanitise = sanitise;
+  }
+
+  private _keyFilePath(key: string): [path: string, sanitised: boolean] {
+    const sanitisedKey = this._sanitise ? sanitise(key) : key;
+    return [path.join(this._root, sanitisedKey), sanitisedKey !== key];
+  }
+
+  async has(key: string): Promise<boolean> {
+    // Check if file exists
+    const [filePath] = this._keyFilePath(key);
+    return existsSync(filePath);
   }
 
   async get(key: string): Promise<KVStoredValue | undefined> {
     // Try to get file data, if it doesn't exist, the key doesn't either
-    const filePath = path.join(this._root, key);
+    const [filePath] = this._keyFilePath(key);
     const value = await readFile(filePath);
     if (!value) return undefined;
 
@@ -87,13 +103,17 @@ export class FileKVStorage implements KVStorage {
     { value, expiration, metadata }: KVStoredValue
   ): Promise<void> {
     // Write value to file
-    const filePath = path.join(this._root, key);
+    const [filePath, sanitised] = this._keyFilePath(key);
     await writeFile(filePath, value);
 
-    // Write metadata to file if there is any, otherwise delete old metadata
+    // Write metadata to file if there is any, otherwise delete old metadata,
+    // also storing key if it was sanitised so list results are correct
     const metaFilePath = filePath + metaSuffix;
-    if (expiration !== undefined || metadata !== undefined) {
-      await writeFile(metaFilePath, JSON.stringify({ expiration, metadata }));
+    if (expiration !== undefined || metadata !== undefined || sanitised) {
+      await writeFile(
+        metaFilePath,
+        JSON.stringify({ key, expiration, metadata })
+      );
     } else {
       await deleteFile(metaFilePath);
     }
@@ -101,7 +121,7 @@ export class FileKVStorage implements KVStorage {
 
   async delete(key: string): Promise<boolean> {
     // Delete value file and associated metadata
-    const filePath = path.join(this._root, key);
+    const [filePath] = this._keyFilePath(key);
     const existed = await deleteFile(filePath);
     await deleteFile(filePath + metaSuffix);
     return existed;
@@ -125,8 +145,8 @@ export class FileKVStorage implements KVStorage {
       if (!metadataValue) {
         keys.push({ name, expiration: undefined, metadata: undefined });
       } else {
-        const { expiration, metadata } = JSON.parse(metadataValue);
-        keys.push({ name, expiration, metadata });
+        const { key, expiration, metadata } = JSON.parse(metadataValue);
+        keys.push({ name: key ?? name, expiration, metadata });
       }
     }
     return keys;

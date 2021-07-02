@@ -1,5 +1,6 @@
 import http from "http";
 import chalk from "chalk";
+import { MiniflareError } from "./error";
 
 export interface Log {
   log(data: string): void;
@@ -10,11 +11,17 @@ export interface Log {
 }
 
 export class NoOpLog implements Log {
-  debug(): void {}
-  error(): void {}
-  info(): void {}
   log(): void {}
+  debug(): void {}
+  info(): void {}
   warn(): void {}
+  error(data: string): void {
+    // Throw errors with NoOpLog, otherwise we'd have no way of knowing they
+    // were occurring. Remove " (default..." or "(ignoring..." from error
+    // message though since we're throwing instead of defaulting now.
+    data = data.replace(/ \((default|ignoring).*$/, "");
+    throw new MiniflareError(data);
+  }
 }
 
 export class ConsoleLog implements Log {
@@ -25,19 +32,19 @@ export class ConsoleLog implements Log {
   }
 
   debug(data: string): void {
-    if (this.logDebug) console.debug(chalk.grey(`[mf:debug] ${data}`));
+    if (this.logDebug) console.log(chalk.grey(`[mf:dbg] ${data}`));
   }
 
   info(data: string): void {
-    console.debug(chalk.green(`[mf:info] ${data}`));
+    console.log(chalk.green(`[mf:inf] ${data}`));
   }
 
   warn(data: string): void {
-    console.debug(chalk.yellow(`[mf:warn] ${data}`));
+    console.log(chalk.yellow(`[mf:wrn] ${data}`));
   }
 
   error(data: string): void {
-    console.debug(chalk.red(`[mf:error] ${data}`));
+    console.log(chalk.red(`[mf:err] ${data}`));
   }
 }
 

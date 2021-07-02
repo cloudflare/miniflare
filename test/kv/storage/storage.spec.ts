@@ -9,6 +9,8 @@ import {
 } from "../../../src";
 import { useTmp } from "../../helpers";
 
+const collator = new Intl.Collator();
+
 type TestStorageFactory = {
   name: string;
   factory: (t: ExecutionContext) => Promise<KVStorage>;
@@ -40,9 +42,29 @@ const fileStorageFactory: TestStorageFactory = {
       JSON.stringify({ expiration: 1000, metadata: { testing: true } }),
       "utf8"
     );
+    await fs.writeFile(path.join(tmp, "dir_key3"), "value3", "utf8");
+    await fs.writeFile(
+      path.join(tmp, "dir_key3.meta.json"),
+      JSON.stringify({ key: "dir/key3" }),
+      "utf8"
+    );
+    return new FileKVStorage(tmp);
+  },
+};
+const unsanitisedFileStorageFactory: TestStorageFactory = {
+  name: "FileKVStorage (Unsanitised)",
+  async factory(t) {
+    const tmp = await useTmp(t);
+    await fs.writeFile(path.join(tmp, "key1"), "value1", "utf8");
+    await fs.writeFile(path.join(tmp, "key2"), "value2", "utf8");
+    await fs.writeFile(
+      path.join(tmp, "key2.meta.json"),
+      JSON.stringify({ expiration: 1000, metadata: { testing: true } }),
+      "utf8"
+    );
     await fs.mkdir(path.join(tmp, "dir"));
     await fs.writeFile(path.join(tmp, "dir", "key3"), "value3", "utf8");
-    return new FileKVStorage(tmp);
+    return new FileKVStorage(tmp, false);
   },
 };
 
@@ -55,6 +77,19 @@ const emptyFileStorageFactory: TestStorageFactory = {
   name: "FileKVStorage",
   factory: async (t) => new FileKVStorage(await useTmp(t)),
 };
+
+const hasMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
+  const storage = await factory(t);
+  t.true(await storage.has("key1"));
+  t.true(await storage.has("key2"));
+  t.true(await storage.has("dir/key3"));
+  t.false(await storage.has("key4"));
+};
+hasMacro.title = (providedTitle, { name }) =>
+  `${name}: has: checks if keys exist`;
+test(hasMacro, memoryStorageFactory);
+test(hasMacro, fileStorageFactory);
+test(hasMacro, unsanitisedFileStorageFactory);
 
 const getExistingMacro: Macro<[TestStorageFactory]> = async (
   t,
@@ -121,11 +156,21 @@ const putNewDirectoryMacro: Macro<[TestStorageFactory]> = async (
   t.is(value?.value.toString("utf8"), "newvalue");
   t.is(value?.expiration, undefined);
   t.is(value?.metadata, undefined);
+  // Check real key was stored if path sanitised
+  const keys = await storage.list();
+  const sortedKeys = keys.sort((a, b) => collator.compare(a.name, b.name));
+  t.deepEqual(sortedKeys, [
+    { name: "dir/key3", expiration: undefined, metadata: undefined },
+    { name: "dir/newkey", expiration: undefined, metadata: undefined },
+    { name: "key1", expiration: undefined, metadata: undefined },
+    { name: "key2", expiration: 1000, metadata: { testing: true } },
+  ]);
 };
 putNewDirectoryMacro.title = (providedTitle, { name }) =>
   `${name}: put: puts new key in new directory`;
 test(putNewDirectoryMacro, memoryStorageFactory);
 test(putNewDirectoryMacro, fileStorageFactory);
+test(putNewDirectoryMacro, unsanitisedFileStorageFactory);
 
 const putNewWithMetadataMacro: Macro<[TestStorageFactory]> = async (
   t,
@@ -194,7 +239,7 @@ const listExistingMacro: Macro<[TestStorageFactory]> = async (
 ) => {
   const storage = await factory(t);
   const keys = await storage.list();
-  const sortedKeys = keys.sort((a, b) => a.name.localeCompare(b.name));
+  const sortedKeys = keys.sort((a, b) => collator.compare(a.name, b.name));
   t.deepEqual(sortedKeys, [
     { name: "dir/key3", expiration: undefined, metadata: undefined },
     { name: "key1", expiration: undefined, metadata: undefined },
@@ -205,6 +250,7 @@ listExistingMacro.title = (providedTitle, { name }) =>
   `${name}: list: lists existing keys`;
 test(listExistingMacro, memoryStorageFactory);
 test(listExistingMacro, fileStorageFactory);
+test(listExistingMacro, unsanitisedFileStorageFactory);
 
 const listEmptyMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
   const storage = await factory(t);

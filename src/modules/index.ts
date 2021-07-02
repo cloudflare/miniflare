@@ -1,14 +1,14 @@
-export { Cache } from "./cache";
+export { DurableObject } from "./do";
 export { FetchEvent, ScheduledEvent, ResponseWaitUntil } from "./events";
 export {
   URL,
   URLSearchParams,
   TextDecoder,
   TextEncoder,
-  fetch,
   Headers,
   Request,
   Response,
+  HTMLRewriter,
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
   ReadableByteStreamController,
@@ -26,3 +26,4 @@ export {
   btoa,
   crypto,
 } from "./standards";
+export { WebSocket, WebSocketPair } from "./ws";

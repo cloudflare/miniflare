@@ -1,7 +1,6 @@
 import anyTest, { Macro, TestInterface } from "ava";
 import { ReadableStream } from "web-streams-polyfill/ponyfill/es6";
 import {
-  KVClock,
   KVGetValueType,
   KVListOptions,
   KVPutOptions,
@@ -12,8 +11,10 @@ import {
   KVStoredValue,
   MemoryKVStorage,
 } from "../../src";
+import { KVClock } from "../../src/kv/helpers";
+import { getObjectProperties } from "../helpers";
 
-const testClock: KVClock = () => 1000;
+const testClock: KVClock = () => 1000000;
 
 interface Context {
   storage: KVStorage;
@@ -34,7 +35,9 @@ const getMacro: Macro<
 > = async (t, { value, type, expected }) => {
   const { storage, ns } = t.context;
   await storage.put("key", { value: Buffer.from(value, "utf8") });
+  // Test both ways of specifying the type
   t.deepEqual(await ns.get("key", type as any), expected);
+  t.deepEqual(await ns.get("key", { type: type as any }), expected);
 };
 getMacro.title = (providedTitle) => `get: gets ${providedTitle}`;
 
@@ -84,6 +87,14 @@ test("get: returns null for and removes expired keys", async (t) => {
   t.is(await ns.get("key"), null);
   t.is(await storage.get("key"), undefined);
 });
+test("get: ignores cache ttl", async (t) => {
+  const { storage, ns } = t.context;
+  await storage.put("key", { value: Buffer.from('{"field":"value"}', "utf8") });
+  t.is(await ns.get("key", { cacheTtl: 3600 }), '{"field":"value"}');
+  t.deepEqual(await ns.get("key", { type: "json", cacheTtl: 3600 }), {
+    field: "value",
+  });
+});
 
 const getWithMetadataMacro: Macro<
   [{ value: string; type?: KVGetValueType; expected: any }],
@@ -94,7 +105,12 @@ const getWithMetadataMacro: Macro<
     value: Buffer.from(value, "utf8"),
     metadata: { testing: true },
   });
+  // Test both ways of specifying the type
   t.deepEqual(await ns.getWithMetadata("key", type as any), {
+    value: expected,
+    metadata: { testing: true },
+  });
+  t.deepEqual(await ns.getWithMetadata("key", { type: type as any }), {
     value: expected,
     metadata: { testing: true },
   });
@@ -160,6 +176,24 @@ test("getWithMetadata: returns null for and removes expired keys with metadata",
     metadata: null,
   });
   t.is(await storage.get("key"), undefined);
+});
+test("getWithMetadata: ignores cache ttl", async (t) => {
+  const { storage, ns } = t.context;
+  await storage.put("key", {
+    value: Buffer.from('{"field":"value"}', "utf8"),
+    metadata: { testing: true },
+  });
+  t.deepEqual(await ns.getWithMetadata("key", { cacheTtl: 3600 }), {
+    value: '{"field":"value"}',
+    metadata: { testing: true },
+  });
+  t.deepEqual(
+    await ns.getWithMetadata("key", { type: "json", cacheTtl: 3600 }),
+    {
+      value: { field: "value" },
+      metadata: { testing: true },
+    }
+  );
 });
 
 const putMacro: Macro<
@@ -481,4 +515,15 @@ test("list: ignores and removes expired keys", async (t) => {
   t.is(await storage.get("key1"), undefined);
   t.is(await storage.get("key2"), undefined);
   t.is(await storage.get("key3"), undefined);
+});
+
+test("hides implementation details", (t) => {
+  const { ns } = t.context;
+  t.deepEqual(getObjectProperties(ns), [
+    "delete",
+    "get",
+    "getWithMetadata",
+    "list",
+    "put",
+  ]);
 });

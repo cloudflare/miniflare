@@ -3,16 +3,16 @@ import { KVStorageNamespace } from "../kv";
 import { KVStorageFactory } from "../kv/helpers";
 import { Log } from "../log";
 import { ProcessedOptions } from "../options";
-import { Module, Sandbox } from "./module";
+import { Context, Module } from "./module";
 
 const defaultPersistRoot = path.resolve(".mf", "kv");
 
 export class KVModule extends Module {
-  private readonly storageFactory: KVStorageFactory;
-
-  constructor(log: Log, persistRoot = defaultPersistRoot) {
+  constructor(
+    log: Log,
+    private storageFactory = new KVStorageFactory(defaultPersistRoot)
+  ) {
     super(log);
-    this.storageFactory = new KVStorageFactory(persistRoot);
   }
 
   getNamespace(
@@ -24,11 +24,11 @@ export class KVModule extends Module {
     );
   }
 
-  buildSandbox(options: ProcessedOptions): Sandbox {
-    const sandbox: Sandbox = {};
+  buildEnvironment(options: ProcessedOptions): Context {
+    const environment: Context = {};
     for (const namespace of options.kvNamespaces ?? []) {
-      sandbox[namespace] = this.getNamespace(namespace, options.kvPersist);
+      environment[namespace] = this.getNamespace(namespace, options.kvPersist);
     }
-    return sandbox;
+    return environment;
   }
 }

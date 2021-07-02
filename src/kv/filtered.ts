@@ -1,6 +1,6 @@
+import { KVClock } from "./helpers";
 import {
-  KVClock,
-  KVGetValueType,
+  KVGetOptions,
   KVListOptions,
   KVListResult,
   KVPutOptions,
@@ -18,34 +18,37 @@ export interface FilteredKVStorageNamespaceOptions {
 }
 
 export class FilteredKVStorageNamespace extends KVStorageNamespace {
+  readonly #options: FilteredKVStorageNamespaceOptions;
+
   constructor(
     storage: KVStorage,
-    private options: FilteredKVStorageNamespaceOptions = {},
+    options: FilteredKVStorageNamespaceOptions = {},
     clock?: KVClock
   ) {
     super(storage, clock);
+    this.#options = options;
   }
 
-  private _isIncluded(key: string): boolean {
-    if (this.options.include?.length) {
-      return this.options.include.some((regexp) => key.match(regexp));
+  #isIncluded(key: string): boolean {
+    if (this.#options.include?.length) {
+      return this.#options.include.some((regexp) => key.match(regexp));
     }
-    if (this.options.exclude?.length) {
-      return !this.options.exclude.some((regexp) => key.match(regexp));
+    if (this.#options.exclude?.length) {
+      return !this.#options.exclude.some((regexp) => key.match(regexp));
     }
     return true;
   }
 
-  async get(key: string, type?: KVGetValueType): KVValue<any> {
-    return (await this.getWithMetadata(key, type as any)).value;
+  async get(key: string, options?: KVGetOptions): KVValue<any> {
+    return (await this.getWithMetadata(key, options as any)).value;
   }
 
   async getWithMetadata<Metadata = unknown>(
     key: string,
-    type?: KVGetValueType
+    options?: KVGetOptions
   ): KVValueWithMetadata<any, Metadata> {
-    if (!this._isIncluded(key)) return { value: null, metadata: null };
-    return super.getWithMetadata(key, type as any);
+    if (!this.#isIncluded(key)) return { value: null, metadata: null };
+    return super.getWithMetadata(key, options as any);
   }
 
   async put(
@@ -53,14 +56,14 @@ export class FilteredKVStorageNamespace extends KVStorageNamespace {
     value: KVPutValueType,
     options?: KVPutOptions
   ): Promise<void> {
-    if (this.options.readOnly) {
+    if (this.#options.readOnly) {
       throw new TypeError("Unable to put into read-only namespace");
     }
     return super.put(key, value, options);
   }
 
   async delete(key: string): Promise<void> {
-    if (this.options.readOnly) {
+    if (this.#options.readOnly) {
       throw new TypeError("Unable to delete from read-only namespace");
     }
     return super.delete(key);
@@ -69,7 +72,7 @@ export class FilteredKVStorageNamespace extends KVStorageNamespace {
   async list(options?: KVListOptions): Promise<KVListResult> {
     const { keys, list_complete, cursor } = await super.list(options);
     return {
-      keys: keys.filter((key) => this._isIncluded(key.name)),
+      keys: keys.filter((key) => this.#isIncluded(key.name)),
       list_complete,
       cursor,
     };

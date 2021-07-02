@@ -1,7 +1,7 @@
 {
   "name": "miniflare",
-  "version": "0.1.1",
-  "description": "Fully-local Cloudflare Workers Simulator",
+  "version": "1.0.0",
+  "description": "Fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
     "workers",
@@ -14,45 +14,60 @@
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "files": [
-    "dist/src"
+    "dist/src",
+    "src"
   ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc -w",
-    "test": "ava",
+    "test": "esbuild --bundle --outdir=test/fixtures/dist test/fixtures/sites.js && ava",
     "lint": "eslint '{src,test}/**/*.ts'",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run lint && npm run build && npm run test",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:serve": "vitepress serve docs"
   },
   "bin": {
     "miniflare": "dist/src/cli.js"
   },
   "dependencies": {
-    "@mrbbot/node-fetch": "^4.0.1",
+    "@mrbbot/node-fetch": "^4.2.0",
     "@peculiar/webcrypto": "^1.1.4",
+    "@mrbbot/parsed-html-rewriter": "^0.1.6",
     "chalk": "^4.1.0",
     "chokidar": "^3.5.1",
+    "cjstoesm": "^1.1.4",
     "dotenv": "^8.2.0",
     "http-cache-semantics": "^4.1.0",
-    "minimatch": "^3.0.4",
+    "micromatch": "^4.0.4",
     "node-cron": "^2.0.3",
     "sanitize-filename": "^1.6.3",
     "source-map-support": "^0.5.19",
     "toml": "^3.0.0",
-    "tslib": "^2.1.0",
+    "tslib": "^2.3.0",
+    "typescript": "^4.3.4",
+    "typeson": "^6.1.0",
+    "typeson-registry": "^1.0.0-alpha.39",
     "web-streams-polyfill": "^3.0.1",
-    "yargs": "^16.2.0"
+    "ws": "^7.5.0",
+    "yargs": "^16.2.0",
+    "youch": "^2.2.2"
   },
   "devDependencies": {
+    "@cloudflare/kv-asset-handler": "^0.1.3",
     "@types/http-cache-semantics": "^4.0.0",
-    "@types/minimatch": "^3.0.3",
+    "@types/micromatch": "^4.0.1",
     "@types/node": "^14.14.20",
     "@types/node-cron": "^2.0.3",
     "@types/rimraf": "^3.0.0",
     "@types/source-map-support": "^0.5.3",
+    "@types/which": "^2.0.0",
+    "@types/ws": "^7.4.5",
     "@types/yargs": "^15.0.12",
-    "@typescript-eslint/eslint-plugin": "^4.13.0",
-    "@typescript-eslint/parser": "^4.13.0",
+    "@typescript-eslint/eslint-plugin": "^4.28.0",
+    "@typescript-eslint/parser": "^4.28.0",
     "ava": "^3.15.0",
+    "esbuild": "^0.12.9",
     "eslint": "^7.18.0",
     "eslint-config-prettier": "^7.1.0",
     "eslint-plugin-import": "^2.22.1",
@@ -60,7 +75,8 @@
     "prettier": "^2.2.1",
     "rimraf": "^3.0.2",
     "ts-node": "^9.1.1",
-    "typescript": "^4.1.3"
+    "vitepress": "^0.15.5",
+    "which": "^2.0.2"
   },
   "engines": {
     "node": ">=10.12.0"

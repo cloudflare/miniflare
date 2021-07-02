@@ -1,51 +1,71 @@
+import assert from "assert";
 import { URL } from "url";
 import fetch, { FetchError, Request, Response } from "@mrbbot/node-fetch";
-import { ProcessedOptions } from "../options";
-import { Module, Sandbox } from "./module";
+import { Context, EventListener, Module } from "./module";
+
+// Event properties that need to be accessible in the events module but not
+// to user code, exported for testing
+export const responseMap = new WeakMap<FetchEvent, Promise<Response>>();
+export const passThroughMap = new WeakMap<FetchEvent, boolean>();
+export const waitUntilMap = new WeakMap<
+  FetchEvent | ScheduledEvent,
+  Promise<any>[]
+>();
 
 export class FetchEvent {
   readonly type: "fetch";
   readonly request: Request;
-  _response?: Promise<Response>;
-  _passThrough?: boolean;
-  readonly _waitUntilPromises: Promise<any>[];
 
   constructor(request: Request) {
     this.type = "fetch";
     this.request = request;
-    this._waitUntilPromises = [];
+    waitUntilMap.set(this, []);
   }
 
   respondWith(response: Response | Promise<Response>): void {
-    this._response = Promise.resolve(response);
+    responseMap.set(this, Promise.resolve(response));
   }
 
   passThroughOnException(): void {
-    this._passThrough = true;
+    passThroughMap.set(this, true);
   }
 
   waitUntil(promise: Promise<any>): void {
-    this._waitUntilPromises.push(promise);
+    waitUntilMap.get(this)?.push(promise);
   }
 }
 
 export class ScheduledEvent {
   readonly type: "scheduled";
   readonly scheduledTime: number;
-  readonly _waitUntilPromises: Promise<any>[];
+  readonly cron: string;
 
-  constructor(scheduledTime: number) {
+  constructor(scheduledTime: number, cron: string) {
     this.type = "scheduled";
     this.scheduledTime = scheduledTime;
-    this._waitUntilPromises = [];
+    this.cron = cron;
+    waitUntilMap.set(this, []);
   }
 
   waitUntil(promise: Promise<any>): void {
-    this._waitUntilPromises.push(promise);
+    waitUntilMap.get(this)?.push(promise);
   }
 }
 
-type EventListener<Event> = (event: Event) => void;
+export type ModuleFetchListener = (
+  request: Request,
+  environment: Context,
+  ctx: {
+    passThroughOnException: () => void;
+    waitUntil: (promise: Promise<any>) => void;
+  }
+) => Response | Promise<Response>;
+
+export type ModuleScheduledListener = (
+  controller: { scheduledTime: number; cron: string },
+  environment: Context,
+  ctx: { waitUntil: (promise: Promise<any>) => void }
+) => any;
 
 export type ResponseWaitUntil<WaitUntil extends any[] = any[]> = Response & {
   waitUntil: () => Promise<WaitUntil>;
@@ -69,11 +89,37 @@ export class EventsModule extends Module {
     this._listeners[type].push(listener);
   }
 
-  removeEventListeners(): void {
+  addModuleFetchListener(
+    listener: ModuleFetchListener,
+    environment: Context
+  ): void {
+    this.addEventListener("fetch", (e) => {
+      const ctx = {
+        passThroughOnException: e.passThroughOnException.bind(e),
+        waitUntil: e.waitUntil.bind(e),
+      };
+      const res = listener(e.request, environment, ctx);
+      e.respondWith(res);
+    });
+  }
+
+  addModuleScheduledListener(
+    listener: ModuleScheduledListener,
+    environment: Context
+  ): void {
+    this.addEventListener("scheduled", (e) => {
+      const controller = { cron: e.cron, scheduledTime: e.scheduledTime };
+      const ctx = { waitUntil: e.waitUntil.bind(e) };
+      const res = listener(controller, environment, ctx);
+      e.waitUntil(Promise.resolve(res));
+    });
+  }
+
+  resetEventListeners(): void {
     this._listeners = {};
   }
 
-  buildSandbox(_options: ProcessedOptions): Sandbox {
+  buildSandbox(): Context {
     return {
       FetchEvent,
       ScheduledEvent,
@@ -90,19 +136,24 @@ export class EventsModule extends Module {
     // origin must also be upstreamUrl.
 
     const event = new FetchEvent(request.clone());
-    const waitUntil = async () =>
-      (await Promise.all(event._waitUntilPromises)) as WaitUntil;
+    const waitUntil = async () => {
+      const waitUntilPromises = waitUntilMap.get(event);
+      assert(waitUntilPromises);
+      return (await Promise.all(waitUntilPromises)) as WaitUntil;
+    };
     for (const listener of this._listeners.fetch ?? []) {
       try {
         listener(event);
-        if (event._response) {
-          const response = (await event._response) as ResponseWaitUntil<WaitUntil>;
+        const responsePromise = responseMap.get(event);
+        if (responsePromise) {
+          const response = (await responsePromise) as ResponseWaitUntil<WaitUntil>;
           response.waitUntil = waitUntil;
           return response;
         }
       } catch (e) {
-        if (event._passThrough) {
-          this.log.error(e.stack);
+        if (passThroughMap.get(event)) {
+          // warn instead of error so we don't throw an exception when not logging
+          this.log.warn(e.stack);
           break;
         }
         throw e;
@@ -111,7 +162,7 @@ export class EventsModule extends Module {
 
     if (!upstreamUrl) {
       throw new FetchError(
-        "Unable to proxy request to upstream: no upstream specified",
+        "No fetch handler responded and unable to proxy request to upstream: no upstream specified. Have you added a fetch event listener?",
         "upstream"
       );
     }
@@ -123,12 +174,15 @@ export class EventsModule extends Module {
   }
 
   async dispatchScheduled<WaitUntil extends any[] = any[]>(
-    scheduledTime?: number
+    scheduledTime?: number,
+    cron?: string
   ): Promise<WaitUntil> {
-    const event = new ScheduledEvent(scheduledTime ?? Date.now());
+    const event = new ScheduledEvent(scheduledTime ?? Date.now(), cron ?? "");
     for (const listener of this._listeners.scheduled ?? []) {
       listener(event);
     }
-    return (await Promise.all(event._waitUntilPromises)) as WaitUntil;
+    const waitUntilPromises = waitUntilMap.get(event);
+    assert(waitUntilPromises);
+    return (await Promise.all(waitUntilPromises)) as WaitUntil;
   }
 }

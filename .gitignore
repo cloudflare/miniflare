@@ -4,5 +4,9 @@
 .tmp
 node_modules
 dist
-.env
-*.toml
+
+# wrangler build artifacts
+test/fixtures/wrangler/rust/pkg
+test/fixtures/wrangler/rust/target
+test/fixtures/wrangler/rust/worker/generated
+test/fixtures/wrangler/webpack/worker

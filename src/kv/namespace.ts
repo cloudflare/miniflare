@@ -1,5 +1,8 @@
 import { ReadableStream } from "web-streams-polyfill/ponyfill/es6";
+import { KVClock, defaultClock, millisToSeconds } from "./helpers";
 import { KVStorage } from "./storage";
+
+const collator = new Intl.Collator();
 
 // Returns value as an integer or undefined if it isn't one
 function normaliseInt(value: string | number | undefined) {
@@ -41,9 +44,6 @@ function consumeReadableStream(stream: ReadableStream) {
   });
 }
 
-export type KVClock = () => number;
-const defaultClock: KVClock = () => Math.floor(Date.now() / 1000);
-
 export type KVValue<Value> = Promise<Value | null>;
 export type KVValueWithMetadata<Value, Metadata> = Promise<{
   value: Value | null;
@@ -51,6 +51,9 @@ export type KVValueWithMetadata<Value, Metadata> = Promise<{
 }>;
 
 export type KVGetValueType = "text" | "json" | "arrayBuffer" | "stream";
+export type KVGetOptions =
+  | KVGetValueType
+  | { type?: KVGetValueType; cacheTtl?: number };
 
 export type KVPutValueType = string | ReadableStream | ArrayBuffer;
 export interface KVPutOptions {
@@ -72,46 +75,83 @@ export interface KVListResult {
 }
 
 export class KVStorageNamespace {
-  constructor(
-    private storage: KVStorage,
-    private clock: KVClock = defaultClock
-  ) {}
+  readonly #storage: KVStorage;
+  readonly #clock: KVClock;
 
-  get(key: string): KVValue<string>;
+  constructor(storage: KVStorage, clock: KVClock = defaultClock) {
+    this.#storage = storage;
+    this.#clock = clock;
+  }
+
+  get(key: string, options?: { cacheTtl?: number }): KVValue<string>;
   get(key: string, type: "text"): KVValue<string>;
-  get<ExpectedValue = unknown>(
+  get(
     key: string,
-    type: "json"
-  ): KVValue<ExpectedValue>;
+    options: { type: "text"; cacheTtl?: number }
+  ): KVValue<string>;
+  get<Value = unknown>(key: string, type: "json"): KVValue<Value>;
+  get<Value = unknown>(
+    key: string,
+    options: { type: "json"; cacheTtl?: number }
+  ): KVValue<Value>;
   get(key: string, type: "arrayBuffer"): KVValue<ArrayBuffer>;
+  get(
+    key: string,
+    options: { type: "arrayBuffer"; cacheTtl?: number }
+  ): KVValue<ArrayBuffer>;
   get(key: string, type: "stream"): KVValue<ReadableStream>;
-  async get(key: string, type: KVGetValueType = "text"): KVValue<any> {
-    return (await this.getWithMetadata(key, type as any)).value;
+  get(
+    key: string,
+    options: { type: "stream"; cacheTtl?: number }
+  ): KVValue<ReadableStream>;
+  async get(key: string, options: KVGetOptions = {}): KVValue<any> {
+    return (await this.getWithMetadata(key, options as any)).value;
   }
 
   getWithMetadata<Metadata = unknown>(
-    key: string
+    key: string,
+    options?: { cacheTtl?: number }
   ): KVValueWithMetadata<string, Metadata>;
   getWithMetadata<Metadata = unknown>(
     key: string,
     type: "text"
   ): KVValueWithMetadata<string, Metadata>;
-  getWithMetadata<ExpectedValue = unknown, Metadata = unknown>(
+  getWithMetadata<Metadata = unknown>(
+    key: string,
+    options: { type: "text"; cacheTtl?: number }
+  ): KVValueWithMetadata<string, Metadata>;
+  getWithMetadata<Value = unknown, Metadata = unknown>(
     key: string,
     type: "json"
-  ): KVValueWithMetadata<ExpectedValue, Metadata>;
+  ): KVValueWithMetadata<Value, Metadata>;
+  getWithMetadata<Value = unknown, Metadata = unknown>(
+    key: string,
+    options: { type: "json"; cacheTtl?: number }
+  ): KVValueWithMetadata<Value, Metadata>;
   getWithMetadata<Metadata = unknown>(
     key: string,
     type: "arrayBuffer"
   ): KVValueWithMetadata<ArrayBuffer, Metadata>;
   getWithMetadata<Metadata = unknown>(
     key: string,
+    options: { type: "arrayBuffer"; cacheTtl?: number }
+  ): KVValueWithMetadata<ArrayBuffer, Metadata>;
+  getWithMetadata<Metadata = unknown>(
+    key: string,
     type: "stream"
+  ): KVValueWithMetadata<ReadableStream, Metadata>;
+  getWithMetadata<Metadata = unknown>(
+    key: string,
+    options: { type: "stream"; cacheTtl?: number }
   ): KVValueWithMetadata<ReadableStream, Metadata>;
   async getWithMetadata<Metadata = unknown>(
     key: string,
-    type: KVGetValueType = "text"
+    options: KVGetOptions = {}
   ): KVValueWithMetadata<any, Metadata> {
+    // Normalise type, ignoring cacheTtl as there is only one "edge location":
+    // the user's computer
+    const type = typeof options === "string" ? options : options.type ?? "text";
+
     // Validate type
     if (!["text", "json", "arrayBuffer", "stream"].includes(type)) {
       throw new TypeError(
@@ -121,14 +161,17 @@ export class KVStorageNamespace {
 
     // Get value with expiration and metadata, if we couldn't find anything,
     // return nulls
-    const storedValue = await this.storage.get(key);
+    const storedValue = await this.#storage.get(key);
     if (storedValue === undefined) {
       return { value: null, metadata: null };
     }
     const { value, expiration, metadata = null } = storedValue;
 
     // Delete key if expiration defined and expired
-    if (expiration !== undefined && expiration <= this.clock()) {
+    if (
+      expiration !== undefined &&
+      expiration <= millisToSeconds(this.#clock())
+    ) {
       await this.delete(key);
       return { value: null, metadata: null };
     }
@@ -171,11 +214,11 @@ export class KVStorageNamespace {
     expiration = normaliseInt(expiration);
     expirationTtl = normaliseInt(expirationTtl);
     if (expirationTtl !== undefined) {
-      expiration = this.clock() + expirationTtl;
+      expiration = millisToSeconds(this.#clock()) + expirationTtl;
     }
 
     // Store value with expiration and metadata
-    await this.storage.put(key, {
+    await this.#storage.put(key, {
       value: buffer,
       expiration,
       metadata,
@@ -183,7 +226,7 @@ export class KVStorageNamespace {
   }
 
   async delete(key: string): Promise<void> {
-    await this.storage.delete(key);
+    await this.#storage.delete(key);
   }
 
   async list({
@@ -203,8 +246,8 @@ export class KVStorageNamespace {
     // Get all keys matching the prefix, sorted, recording expired keys along
     // the way
     const expiredKeys: string[] = [];
-    const time = this.clock();
-    const keys = (await this.storage.list())
+    const time = millisToSeconds(this.#clock());
+    const keys = (await this.#storage.list())
       .filter(({ name, expiration }) => {
         if (expiration !== undefined && expiration <= time) {
           expiredKeys.push(name);
@@ -212,7 +255,7 @@ export class KVStorageNamespace {
         }
         return name.startsWith(prefix);
       })
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => collator.compare(a.name, b.name));
 
     // Delete expired keys
     for (const expiredKey of expiredKeys) {

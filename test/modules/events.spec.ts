@@ -1,4 +1,4 @@
-import vm from "vm";
+import assert from "assert";
 import { FetchError } from "@mrbbot/node-fetch";
 import anyTest, { TestInterface } from "ava";
 import {
@@ -8,8 +8,19 @@ import {
   Response,
   ScheduledEvent,
 } from "../../src";
-import { EventsModule } from "../../src/modules/events";
-import { TestLog, runInWorker, useServer } from "../helpers";
+import {
+  EventsModule,
+  passThroughMap,
+  responseMap,
+  waitUntilMap,
+} from "../../src/modules/events";
+import {
+  TestLog,
+  getObjectProperties,
+  noop,
+  runInWorker,
+  useServer,
+} from "../helpers";
 
 interface Context {
   log: TestLog;
@@ -34,23 +45,23 @@ test("addEventListener: adds event listeners", (t) => {
     calls.push(`fetch2:${e.request.url}`)
   );
   module.addEventListener("scheduled", (e) =>
-    calls.push(`scheduled1:${e.scheduledTime}`)
+    calls.push(`scheduled1:${e.scheduledTime}:${e.cron}`)
   );
   module.addEventListener("scheduled", (e) =>
-    calls.push(`scheduled2:${e.scheduledTime}`)
+    calls.push(`scheduled2:${e.scheduledTime}:${e.cron}`)
   );
   t.is(log.warns.length, 0);
   module._listeners.fetch.forEach((listener) =>
     listener(new FetchEvent(new Request("http://localhost:8787/")))
   );
   module._listeners.scheduled.forEach((listener) =>
-    listener(new ScheduledEvent(1000))
+    listener(new ScheduledEvent(1000, "30 * * * *"))
   );
   t.deepEqual(calls, [
     "fetch1:http://localhost:8787/",
     "fetch2:http://localhost:8787/",
-    "scheduled1:1000",
-    "scheduled2:1000",
+    "scheduled1:1000:30 * * * *",
+    "scheduled2:1000:30 * * * *",
   ]);
 });
 
@@ -67,12 +78,53 @@ test("addEventListener: warns on invalid event type", (t) => {
   t.deepEqual(calls, ["random"]);
 });
 
-test("removeEventListeners: resets events listeners", (t) => {
+test("addModuleFunctionListener: adds event listener", async (t) => {
   const { module } = t.context;
-  const noop = () => {};
+  module.addModuleFetchListener(
+    (request, env, ctx) => {
+      ctx.passThroughOnException();
+      ctx.waitUntil(Promise.resolve(env.KEY));
+      return new Response(request.url);
+    },
+    { KEY: "value" }
+  );
+  const event = new FetchEvent(new Request("http://localhost:8787/"));
+  module._listeners.fetch[0](event);
+  t.true(passThroughMap.get(event));
+  const waitUntilPromises = waitUntilMap.get(event);
+  t.not(waitUntilPromises, undefined);
+  assert(waitUntilPromises);
+  t.deepEqual(await Promise.all(waitUntilPromises), ["value"]);
+  t.is(await (await responseMap.get(event))?.text(), "http://localhost:8787/");
+});
+
+test("addModuleScheduledListener: adds event listener", async (t) => {
+  const { module } = t.context;
+  module.addModuleScheduledListener(
+    (controller, env, ctx) => {
+      ctx.waitUntil(Promise.resolve(env.KEY));
+      ctx.waitUntil(Promise.resolve(controller.scheduledTime));
+      return controller.cron;
+    },
+    { KEY: "value" }
+  );
+  const event = new ScheduledEvent(1000, "30 * * * *");
+  module._listeners.scheduled[0](event);
+  const waitUntilPromises = waitUntilMap.get(event);
+  t.not(waitUntilPromises, undefined);
+  assert(waitUntilPromises);
+  t.deepEqual(await Promise.all(waitUntilPromises), [
+    "value",
+    1000,
+    "30 * * * *",
+  ]);
+});
+
+test("resetEventListeners: resets events listeners", (t) => {
+  const { module } = t.context;
   module.addEventListener("fetch", noop);
   t.deepEqual(module._listeners, { fetch: [noop] });
-  module.removeEventListeners();
+  module.resetEventListeners();
   t.deepEqual(module._listeners, {});
 });
 
@@ -91,7 +143,7 @@ test("buildSandbox: adds fetch event listener", async (t) => {
       e.respondWith(new sandbox.Response(e.request.url))
     );
   }).toString()})()`;
-  const mf = new Miniflare(new vm.Script(script));
+  const mf = new Miniflare({ script });
   const res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
   t.is(await res.text(), "http://localhost:8787/");
 });
@@ -99,13 +151,15 @@ test("buildSandbox: adds fetch event listener", async (t) => {
 test("buildSandbox: adds scheduled event listener", async (t) => {
   const script = `(${(() => {
     const sandbox = self as any;
-    sandbox.addEventListener("scheduled", (e: ScheduledEvent) =>
-      e.waitUntil(Promise.resolve(e.scheduledTime))
-    );
+    sandbox.addEventListener("scheduled", (e: ScheduledEvent) => {
+      e.waitUntil(Promise.resolve(e.scheduledTime));
+      e.waitUntil(Promise.resolve(e.cron));
+    });
   }).toString()})()`;
-  const mf = new Miniflare(new vm.Script(script));
-  const res = await mf.dispatchScheduled(1000);
+  const mf = new Miniflare({ script });
+  const res = await mf.dispatchScheduled(1000, "30 * * * *");
   t.is(res[0], 1000);
+  t.is(res[1], "30 * * * *");
 });
 
 test("dispatchFetch: dispatches event", async (t) => {
@@ -145,7 +199,7 @@ test("dispatchFetch: stops calling listeners after first response", async (t) =>
 });
 
 test("dispatchFetch: passes through to upstream on no response", async (t) => {
-  const upstream = await useServer(t, (req, res) => res.end("upstream"));
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   const { module } = t.context;
   module.addEventListener("fetch", (e) => {
     e.waitUntil(Promise.resolve(1));
@@ -156,7 +210,7 @@ test("dispatchFetch: passes through to upstream on no response", async (t) => {
 });
 
 test("dispatchFetch: passes through to upstream on error", async (t) => {
-  const upstream = await useServer(t, (req, res) => res.end("upstream"));
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   const { module } = t.context;
   module.addEventListener("fetch", (e) => {
     e.waitUntil(Promise.resolve(1));
@@ -192,7 +246,9 @@ test("dispatchFetch: throws error if pass through with no upstream", async (t) =
     () => module.dispatchFetch(new Request("http://localhost:8787/")),
     {
       instanceOf: FetchError,
-      message: "Unable to proxy request to upstream: no upstream specified",
+      message:
+        "No fetch handler responded and unable to proxy request to upstream: " +
+        "no upstream specified. Have you added a fetch event listener?",
     }
   );
 });
@@ -206,7 +262,28 @@ test("dispatchScheduled: dispatches event", async (t) => {
   module.addEventListener("scheduled", (e) => {
     e.waitUntil(Promise.resolve(3));
     e.waitUntil(Promise.resolve(e.scheduledTime));
+    e.waitUntil(Promise.resolve(e.cron));
   });
-  const res = await module.dispatchScheduled(1000);
-  t.deepEqual(res, [1, 2, 3, 1000]);
+  const res = await module.dispatchScheduled(1000, "30 * * * *");
+  t.deepEqual(res, [1, 2, 3, 1000, "30 * * * *"]);
+});
+
+test("FetchEvent: hides implementation details", (t) => {
+  const event = new FetchEvent(new Request("http://localhost:8787"));
+  t.deepEqual(getObjectProperties(event), [
+    "passThroughOnException",
+    "request",
+    "respondWith",
+    "type",
+    "waitUntil",
+  ]);
+});
+test("ScheduledEvent: hides implementation details", (t) => {
+  const event = new ScheduledEvent(1000, "30 * * * *");
+  t.deepEqual(getObjectProperties(event), [
+    "cron",
+    "scheduledTime",
+    "type",
+    "waitUntil",
+  ]);
 });
