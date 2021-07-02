@@ -1,27 +1,68 @@
-# 🔥 Miniflare (WIP)
+# 🔥 Miniflare
 
-Fun, full-featured, fully-local simulator for developing and testing Cloudflare Workers
+Fun, full-featured, fully-local simulator for developing and testing Cloudflare
+Workers
+
+**See <https://miniflare.dev> for many more details.**
 
 ## Features
 
+- 📨 Fetch Events (with HTTP server and manual triggering)
+- ⏰ Scheduled Events (with manual and cron triggering)
+- 🔑 Variables and Secrets with `.env` Files
+- 📚 Modules Support
 - 📦 KV (with optional persistence)
 - ✨ Cache (with optional persistence)
 - 📌 Durable Objects (with optional persistence)
 - 🌐 Workers Sites
-- 📨 Fetch Events (with HTTP server and manual triggering)
-- ⏰ Scheduled Events (with manual and cron triggering)
 - ✉️ WebSockets
-- 📄 HTMLRewriter
-- 🔑 `.env` File Support (for secrets)
-- 🕸 Web Standards: Base64, Timers, Fetch, Encoding, URL, Streams, Crypto
-- 📚 Modules Support
-- 🛠 Custom Builds Support
+- 🛠 Custom & Wrangler Builds Support
 - ⚙️ WebAssembly Support
 - 🗺 Source Map Support
+- 🕸 Web Standards: Base64, Timers, Fetch, Encoding, URL, Streams, Crypto
+- 📄 HTMLRewriter
 - 👀 Automatic Reload on File Changes
 - 💪 Written in TypeScript
 
-## CLI Usage
+## Install
+
+Miniflare is installed using npm:
+
+```shell
+$ npm install -g miniflare # either globally..
+$ npm install -D miniflare # ...or as a dev dependency
+```
+
+## Using the CLI
+
+```shell
+$ miniflare worker.js --watch --debug
+[mf:dbg] Options:
+[mf:dbg] - Scripts: worker.js
+[mf:dbg] Reloading worker.js...
+[mf:inf] Worker reloaded!
+[mf:dbg] Watching .env, worker.js, wrangler.toml...
+[mf:inf] Listening on :8787
+[mf:inf] - http://127.0.0.1:8787
+```
+
+## Using the API
+
+```js
+import { Miniflare } from "miniflare";
+
+const mf = new Miniflare({
+  script: `
+  addEventListener("fetch", (event) => {
+    event.respondWith(new Response("Hello Miniflare!"));
+  });
+  `,
+});
+const res = await mf.dispatchFetch("http://localhost:8787/");
+console.log(await res.text()); // Hello Miniflare!
+```
+
+## CLI Reference
 
 ```
 Usage: miniflare [script] [options]
@@ -34,8 +75,8 @@ Options:
   -d, --debug             Log debug messages                           [boolean]
   -c, --wrangler-config   Path to wrangler.toml                         [string]
       --wrangler-env      Environment in wrangler.toml to use           [string]
-  -m, --modules           Enable ES modules                            [boolean]
-      --modules-rule      ES modules import rule (TYPE=GLOB)             [array]
+  -m, --modules           Enable modules                               [boolean]
+      --modules-rule      Modules import rule (TYPE=GLOB)                [array]
       --build-command     Command to build project                      [string]
       --build-base-path   Working directory for build command           [string]
       --build-watch-path  Directory to watch for rebuilding on changes  [string]
@@ -56,115 +97,10 @@ Options:
       --wasm              WASM module to bind (NAME=PATH)                [array]
 ```
 
-`[script]` should be a path to a pre-bundled Worker.
-If you're using Webpack for instance, set this to your output file.
-
-**(Recommended)** Use `--debug`/`-d` to see additional log messages including processed options and watched files.
-
-**(Recommended)** Use `--wrangler-config <toml_path>`/`-c <toml_path>` to load options for KV, cache, etc from a `wrangler.toml` file.
-If `[script]` is omitted, Miniflare tries to automatically infer it from the `wrangler.toml` file.
-You can also include an additional `[miniflare]` section for Miniflare specific configuration:
-
-```toml
-[miniflare]
-host = "127.0.0.1"              # --host
-port = 8787                     # --port
-upstream = "https://mrbbot.dev" # --upstream
-kv_persist = true               # --kv-persist
-cache_persist = true            # --cache-persist
-durable_objects_persist = true  # --do-persist
-env_path = ".env"               # --env
-wasm_bindings = [               # --wasm
-  { name = "MODULE", path="module.wasm" }
-]
-```
-
-KV and cache persistence can be enabled with the `--kv-persist` and `--cache-persist` flags respectively.
-Including these on their own will store KV and Cache data in the `.mf` directory.
-Optionally, you can specify a path (e.g. `--kv-persist ./data`) to use a different location.
-
-## Programmatic Usage
-
-```javascript
-import { ConsoleLog, Miniflare, Request } from "miniflare";
-
-// Loading script from file
-const mf = new Miniflare({
-  // Some options omitted, see src/options/index.ts for the full list
-  scriptPath: "./path/to/script.js",
-  sourceMap: true,
-  log: new ConsoleLog(), // Defaults to no-op logger
-  wranglerConfigPath: "wrangler.toml",
-  watch: true,
-  port: 8787,
-  upstream: "https://mrbbot.dev",
-  crons: ["0 * * * *"],
-  kvNamespaces: ["TEST_NAMESPACE"],
-  kvPersist: true,
-  cachePersist: "./data/",
-  durableObjects: {
-    OBJECT: "ObjectClass",
-  },
-  sitePath: "./public/",
-  envPath: ".env",
-});
-
-// Loading script from string
-const mf = new Miniflare({
-  script: `
-      addEventListener("fetch", (event) => {
-        event.respondWith(handleRequest(event.request));
-        event.waitUntil(Promise.resolve("Something"));
-      });
-      
-      async function handleRequest(request) {
-        const value = await TEST_NAMESPACE.get("key");
-        return new Response(\`Hello from Miniflare! key="\${value}"\`, {
-          headers: { "content-type": "text/plain" },
-        })
-      }
-      
-      addEventListener("scheduled", (event) => {
-        event.waitUntil(Promise.resolve("Something else"));
-      });
-    `,
-  kvNamespaces: ["TEST_NAMESPACE"],
-  log: new ConsoleLog(),
-});
-
-// Manipulate KV outside of worker (useful for testing)
-const TEST_NAMESPACE = await mf.getKVNamespace("TEST_NAMESPACE");
-await TEST_NAMESPACE.put("key", "testing");
-
-// Manipulate cache outside of worker
-const cache = await mf.getCache();
-const cachedRes = await cache.match(new Request("http://localhost"));
-
-// Manipulate Durable Objects outside of worker
-const OBJECT = await mf.getDurableObjectNamespace("OBJECT");
-const stub = OBJECT.get(OBJECT.idFromName("name"));
-const doRes = await stub.fetch("http://localhost");
-const storage = await stub.storage(); // Extra Miniflare-only API
-await storage.put("key", new Set(["testing"]));
-
-// Dispatch fetch events and get body
-const res = await mf.dispatchFetch("http://localhost", { method: "POST" });
-const res = await mf.dispatchFetch(new Request("http://localhost"));
-
-const body = await res.text();
-console.log(body); // Hello from Miniflare! key="testing"
-
-const waitUntil = await res.waitUntil();
-console.log(waitUntil[0]); // Something
-
-// Start HTTP server
-mf.createServer().listen(3000);
-
-// Dispatch scheduled event at specific time
-const waitUntil2 = await mf.dispatchScheduled(Date.now());
-console.log(waitUntil2[0]); // Something else
-```
-
 ## Acknowledgements
 
-Many thanks to [dollarshaveclub/cloudworker](https://github.com/dollarshaveclub/cloudworker) and [gja/cloudflare-worker-local](https://github.com/gja/cloudflare-worker-local) for inspiration.
+Many thanks to
+[dollarshaveclub/cloudworker](https://github.com/dollarshaveclub/cloudworker)
+and
+[gja/cloudflare-worker-local](https://github.com/gja/cloudflare-worker-local)
+for inspiration.

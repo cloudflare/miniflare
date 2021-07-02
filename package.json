@@ -14,7 +14,8 @@
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "files": [
-    "dist/src"
+    "dist/src",
+    "src"
   ],
   "scripts": {
     "build": "tsc",
@@ -32,7 +33,7 @@
   "dependencies": {
     "@mrbbot/node-fetch": "^4.2.0",
     "@peculiar/webcrypto": "^1.1.4",
-    "@worker-tools/parsed-html-rewriter": "^0.1.5",
+    "@mrbbot/parsed-html-rewriter": "^0.1.6",
     "chalk": "^4.1.0",
     "chokidar": "^3.5.1",
     "cjstoesm": "^1.1.4",
