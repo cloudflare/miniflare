@@ -6,7 +6,7 @@ Access to the default cache is enabled by default:
 
 ```js
 addEventListener("fetch", (e) => {
-  e.respondWith(caches.default.match("http://miniflare.dev"));
+  e.respondWith(caches.default.match("http://miniflare.pages.dev"));
 });
 ```
 
@@ -50,11 +50,11 @@ const mf = new Miniflare({
       const url = new URL(request.url);
       const cache = caches.default;
       if(url.pathname === "/put") {
-        await cache.put("https://miniflare.dev/", new Response("1", {
+        await cache.put("https://miniflare.pages.dev/", new Response("1", {
           headers: { "Cache-Control": "max-age=3600" },
         }));
       }
-      return cache.match("https://miniflare.dev/");
+      return cache.match("https://miniflare.pages.dev/");
     }
   }
   `,
@@ -63,11 +63,11 @@ let res = await mf.dispatchFetch("http://localhost:8787/put");
 console.log(await res.text()); // 1
 
 const cache = await mf.getCache();
-const cachedRes = await cache.match("https://miniflare.dev/");
+const cachedRes = await cache.match("https://miniflare.pages.dev/");
 console.log(await cachedRes.text()); // 1
 
 await cache.put(
-  "https://miniflare.dev",
+  "https://miniflare.pages.dev",
   new Response("2", {
     headers: { "Cache-Control": "max-age=3600" },
   })

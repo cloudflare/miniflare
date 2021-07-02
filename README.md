@@ -3,7 +3,7 @@
 Fun, full-featured, fully-local simulator for developing and testing Cloudflare
 Workers
 
-**See <https://miniflare.dev> for many more details.**
+**See <https://miniflare.pages.dev> for many more details.**
 
 ## Features
 
