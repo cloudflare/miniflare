@@ -21,7 +21,7 @@ import { Context } from "./modules/module";
 import * as modules from "./modules/modules";
 import { terminateWebSocket } from "./modules/ws";
 import { Options, ProcessedOptions } from "./options";
-import { Watcher } from "./options/watcher";
+import { OptionsWatcher } from "./options/watcher";
 import {
   ModuleScriptInstance,
   ScriptScriptInstance,
@@ -47,7 +47,7 @@ export class Miniflare {
   readonly #modules: Modules;
   readonly #initPromise: Promise<void>;
   #initResolve?: () => void;
-  #watcher?: Watcher;
+  #watcher?: OptionsWatcher;
   #options?: ProcessedOptions;
 
   #sandbox: Context;
@@ -87,7 +87,7 @@ export class Miniflare {
     this.#initPromise = new Promise(async (resolve) => {
       this.#initResolve = resolve;
 
-      this.#watcher = new Watcher(
+      this.#watcher = new OptionsWatcher(
         this.log,
         this.#watchCallback.bind(this),
         options
@@ -313,6 +313,10 @@ export class Miniflare {
       objectName,
       this.#options?.durableObjectsPersist
     );
+  }
+
+  async dispose(): Promise<void> {
+    await this.#watcher?.dispose();
   }
 
   async #httpRequestListener(

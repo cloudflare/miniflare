@@ -37,7 +37,7 @@ webpackTest('getWranglerOptions: builds type "webpack" projects', async (t) => {
   const mf = new Miniflare({
     wranglerConfigPath: path.join(webpackPath, "wrangler.toml"),
   });
-  await mf.getOptions();
+  await mf.getOptions(); // Resolves once worker has been built
   t.true(existsSync(path.join(webpackPath, "worker", "script.js")));
 
   const res = await mf.dispatchFetch("http://localhost:8787/");
@@ -50,7 +50,7 @@ rustTest('getWranglerOptions: builds type "rust" projects', async (t) => {
   const mf = new Miniflare({
     wranglerConfigPath: path.join(rustPath, "wrangler.toml"),
   });
-  await mf.getOptions();
+  await mf.getOptions(); // Resolves once worker has been built
   t.true(existsSync(path.join(rustPath, "worker", "generated", "script.js")));
   t.true(existsSync(path.join(rustPath, "worker", "generated", "script.wasm")));
 

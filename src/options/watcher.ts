@@ -11,9 +11,9 @@ function pathSetToString(set: Set<string>): string {
     .join(", ");
 }
 
-export type WatchCallback = (options: ProcessedOptions) => void;
+export type OptionsWatchCallback = (options: ProcessedOptions) => void;
 
-export class Watcher {
+export class OptionsWatcher {
   private _processor: OptionsProcessor;
   private _options?: ProcessedOptions;
 
@@ -23,7 +23,7 @@ export class Watcher {
 
   constructor(
     private log: Log,
-    private callback: WatchCallback,
+    private callback: OptionsWatchCallback,
     private initialOptions: Options
   ) {
     this._processor = new OptionsProcessor(log, initialOptions);
@@ -107,7 +107,8 @@ export class Watcher {
     // Create watcher
     const boundCallback = this._watchedPathCallback.bind(this);
     this._watcher = chokidar
-      .watch([...this._watchedPaths])
+      .watch([...this._watchedPaths], { ignoreInitial: true })
+      .on("add", boundCallback)
       .on("change", boundCallback)
       .on("unlink", boundCallback);
   }
@@ -158,5 +159,9 @@ export class Watcher {
     if (log) logOptions(this.log, this._options);
     this._updateWatchedPaths();
     this.callback(this._options);
+  }
+
+  async dispose(): Promise<void> {
+    await this._watcher?.close();
   }
 }

@@ -97,7 +97,7 @@ test("logOptions: only logs module rules if modules enabled", (t) => {
     modules: false,
     processedModulesRules: [{ type: "ESModule", include: [regexp1] }],
   });
-  t.deepEqual(log.debugs, ["Options:", "- Modules: false"]);
+  t.deepEqual(log.debugs, ["Options:"]);
 
   log.debugs = [];
   logOptions(log, {

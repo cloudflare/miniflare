@@ -112,7 +112,7 @@ export function logOptions(log: Log, options: ProcessedOptions): void {
           path.relative("", script.fileName)
         )
       : undefined,
-    Modules: options.modules,
+    Modules: options.modules || undefined,
     "Modules Rules": options.modules
       ? options.processedModulesRules?.map(
           (rule) => `{${rule.type}: ${rule.include.join(", ")}}`
