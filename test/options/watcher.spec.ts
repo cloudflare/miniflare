@@ -22,7 +22,9 @@ const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
   const optionsQueue: ProcessedOptions[] = [];
-  const callback = (options: ProcessedOptions) => optionsQueue.push(options);
+  const callback = (options: ProcessedOptions) => {
+    optionsQueue.push(options);
+  };
 
   // Poll optionsQueue for new options every 50ms
   const next = async () => {
@@ -392,7 +394,7 @@ test.skip("switches watched path for durable object scripts", switchMacro, {
 });
 // TODO: (low priority) test switches watched path for build watch path & wasm bindings
 
-test.skip("reloadScripts: reloads scripts manually", async (t) => {
+test("reloadScripts: reloads scripts manually", async (t) => {
   const { callback, next } = t.context;
   const log = new TestLog();
 
@@ -416,7 +418,7 @@ test.skip("reloadScripts: reloads scripts manually", async (t) => {
   t.deepEqual(log.debugs, []);
   t.is(options.scripts?.[scriptPath].code, "// test2");
 });
-test.skip("reloadOptions: reloads options manually", async (t) => {
+test("reloadOptions: reloads options manually", async (t) => {
   const { callback, next } = t.context;
   const log = new TestLog();
 

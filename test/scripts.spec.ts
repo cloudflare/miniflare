@@ -2,12 +2,13 @@ import path from "path";
 import { TextEncoder } from "util";
 import test from "ava";
 import micromatch from "micromatch";
+import { MiniflareError } from "../src";
 import {
   ModuleRule,
   ProcessedModuleRule,
   stringScriptPath,
 } from "../src/options";
-import { ScriptBlueprint, ScriptError, buildLinker } from "../src/scripts";
+import { ScriptBlueprint, buildLinker } from "../src/scripts";
 
 const micromatchOptions: micromatch.Options = { contains: true };
 const moduleRules: ModuleRule[] = [
@@ -184,7 +185,7 @@ test("buildLinker: throws error if trying to import from string script", async (
   );
   const { linker } = buildLinker(processedModuleRules);
   await t.throwsAsync(blueprint.buildModule({}, linker), {
-    instanceOf: ScriptError,
+    instanceOf: MiniflareError,
     message: /imports unsupported with string script$/,
   });
 });
@@ -195,7 +196,7 @@ test("buildLinker: throws error if no matching module rule", async (t) => {
   );
   const { linker } = buildLinker(processedModuleRules);
   await t.throwsAsync(blueprint.buildModule({}, linker), {
-    instanceOf: ScriptError,
+    instanceOf: MiniflareError,
     message: /no matching module rules$/,
   });
 });
@@ -206,7 +207,7 @@ test("buildLinker: throws error for unsupported module type", async (t) => {
   );
   const { linker } = buildLinker(processedModuleRules);
   await t.throwsAsync(blueprint.buildModule({}, linker), {
-    instanceOf: ScriptError,
+    instanceOf: MiniflareError,
     message: /PNG modules are unsupported$/,
   });
 });

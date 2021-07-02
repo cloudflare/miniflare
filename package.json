@@ -27,7 +27,7 @@
     "miniflare": "dist/src/cli.js"
   },
   "dependencies": {
-    "@mrbbot/node-fetch": "^4.1.0",
+    "@mrbbot/node-fetch": "^4.2.0",
     "@peculiar/webcrypto": "^1.1.4",
     "@worker-tools/parsed-html-rewriter": "^0.1.5",
     "chalk": "^4.1.0",

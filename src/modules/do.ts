@@ -112,8 +112,6 @@ export class DurableObjectNamespace {
   }
 }
 
-export class DurableObjectInstanceError extends MiniflareError {}
-
 const defaultPersistRoot = path.resolve(".mf", "do");
 
 export class DurableObjectsModule extends Module {
@@ -172,7 +170,7 @@ export class DurableObjectsModule extends Module {
       // Create and store new instance if none found
       const constructor = this._constructors[objectName];
       if (constructor === undefined) {
-        throw new DurableObjectInstanceError(
+        throw new MiniflareError(
           `Missing constructor for Durable Object ${objectName}`
         );
       }

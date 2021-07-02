@@ -6,6 +6,7 @@ import {
   WebSocketMessageEvent,
 } from "@mrbbot/node-fetch";
 import ws from "ws";
+import { MiniflareError } from "../error";
 import { Context, EventListener, Module } from "./module";
 
 export type WebSocketEvent =
@@ -176,16 +177,21 @@ export async function terminateWebSocket(
     ws.close(code, reason);
   });
 
-  // Wait for client to be open before accepting worker pair
-  await new Promise((resolve, reject) => {
-    ws.once("open", () => {
-      ws.off("close", reject);
-      ws.off("error", reject);
-      resolve(undefined);
+  // Our constants are the same as ws's
+  if (ws.readyState >= WebSocket.CLOSING) {
+    throw new MiniflareError("WebSocket already closed");
+  } else if (ws.readyState === WebSocket.CONNECTING) {
+    // Wait for client to be open before accepting worker pair
+    await new Promise((resolve, reject) => {
+      ws.on("open", () => {
+        ws.off("close", reject);
+        ws.off("error", reject);
+        resolve(undefined);
+      });
+      ws.once("close", reject);
+      ws.once("error", reject);
     });
-    ws.once("close", reject);
-    ws.once("error", reject);
-  });
+  }
 
   pair.accept();
 }

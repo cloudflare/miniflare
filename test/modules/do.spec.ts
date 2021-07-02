@@ -2,7 +2,13 @@ import { existsSync, promises as fs } from "fs";
 import path from "path";
 import { Request, Response } from "@mrbbot/node-fetch";
 import test from "ava";
-import { DurableObject, KVStoredValue, Miniflare, NoOpLog } from "../../src";
+import {
+  DurableObject,
+  KVStoredValue,
+  Miniflare,
+  MiniflareError,
+  NoOpLog,
+} from "../../src";
 import { KVStorageFactory } from "../../src/kv/helpers";
 import {
   DurableObjectFactory,
@@ -313,6 +319,16 @@ test("getNamespace: factory exposes instance storage", async (t) => {
   const res = await stub.fetch("http://localhost:8787/");
   t.is(await res.text(), `${testId}:request4:http://localhost:8787/`);
   t.is(await (await stub.storage()).get("requestCount"), 4);
+});
+test("getNamespace: factory throws if constructor not found", async (t) => {
+  const module = new DurableObjectsModule(new NoOpLog());
+  module.setContext({}, {});
+  const ns = module.getNamespace("OBJECT");
+  const stub = ns.get(ns.idFromString(testId));
+  await t.throwsAsync(stub.fetch("http://localhost:8787/"), {
+    instanceOf: MiniflareError,
+    message: `Missing constructor for Durable Object OBJECT`,
+  });
 });
 
 test("buildEnvironment: creates persistent storage at default location", async (t) => {

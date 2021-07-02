@@ -11,7 +11,9 @@ function pathSetToString(set: Set<string>): string {
     .join(", ");
 }
 
-export type OptionsWatchCallback = (options: ProcessedOptions) => void;
+export type OptionsWatchCallback = (
+  options: ProcessedOptions
+) => void | Promise<void>;
 
 export class OptionsWatcher {
   private _processor: OptionsProcessor;
@@ -21,6 +23,8 @@ export class OptionsWatcher {
   private _watchedPaths?: Set<string>;
   private _extraWatchedPaths?: Set<string>;
 
+  readonly initPromise: Promise<void>;
+
   constructor(
     private log: Log,
     private callback: OptionsWatchCallback,
@@ -29,7 +33,7 @@ export class OptionsWatcher {
     this._processor = new OptionsProcessor(log, initialOptions);
 
     // Setup initial options
-    void this._init();
+    this.initPromise = this._init();
   }
 
   private _getWatchedPaths(): Set<string> {
@@ -88,19 +92,15 @@ export class OptionsWatcher {
 
   private async _init(): Promise<void> {
     // Yield initial values
-    try {
-      this._options = await this._processor.getProcessedOptions(true);
-      logOptions(this.log, this._options);
-      this.callback(this._options);
-    } catch (e) {
-      this.log.error(e.stack);
-    }
+    this._options = await this._processor.getProcessedOptions(true);
+    logOptions(this.log, this._options);
+    await this.callback(this._options);
 
     // Stop here if we're not watching files
     if (!this._options?.watch) return;
 
-    // Get an array of watched file paths, storing the watchedEnvPath explicitly
-    // so we can tell if it changes later
+    // Get an array of watched file paths, storing them so we can tell if they
+    // change later
     this._watchedPaths = this._getWatchedPaths();
     this.log.debug(`Watching ${pathSetToString(this._watchedPaths)}...`);
 
@@ -158,7 +158,7 @@ export class OptionsWatcher {
     this._options = await this._processor.getProcessedOptions();
     if (log) logOptions(this.log, this._options);
     this._updateWatchedPaths();
-    this.callback(this._options);
+    await this.callback(this._options);
   }
 
   async dispose(): Promise<void> {

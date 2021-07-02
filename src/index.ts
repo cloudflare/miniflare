@@ -45,9 +45,7 @@ type ModuleExports = {
 export class Miniflare {
   readonly log: Log;
   readonly #modules: Modules;
-  readonly #initPromise: Promise<void>;
-  #initResolve?: () => void;
-  #watcher?: OptionsWatcher;
+  readonly #watcher: OptionsWatcher;
   #options?: ProcessedOptions;
 
   #sandbox: Context;
@@ -84,15 +82,11 @@ export class Miniflare {
       this.#webSocketConnectionListener.bind(this)
     );
 
-    this.#initPromise = new Promise(async (resolve) => {
-      this.#initResolve = resolve;
-
-      this.#watcher = new OptionsWatcher(
-        this.log,
-        this.#watchCallback.bind(this),
-        options
-      );
-    });
+    this.#watcher = new OptionsWatcher(
+      this.log,
+      this.#watchCallback.bind(this),
+      options
+    );
   }
 
   async #watchCallback(options: ProcessedOptions): Promise<void> {
@@ -113,11 +107,6 @@ export class Miniflare {
 
     this.#reloadScheduled();
     await this.#reloadWorker();
-
-    // This should never be undefined as #watchCallback is only called by the
-    // watcher which is created after #initResolve is set
-    assert(this.#initResolve !== undefined);
-    this.#initResolve();
   }
 
   #reloadScheduled(): void {
@@ -250,20 +239,20 @@ export class Miniflare {
   }
 
   async reloadScript(): Promise<void> {
-    await this.#initPromise;
-    await this.#watcher?.reloadScripts();
+    await this.#watcher.initPromise;
+    await this.#watcher.reloadScripts();
   }
 
   async reloadOptions(): Promise<void> {
-    await this.#initPromise;
-    await this.#watcher?.reloadOptions();
+    await this.#watcher.initPromise;
+    await this.#watcher.reloadOptions();
   }
 
   async dispatchFetch<WaitUntil extends any[] = any[]>(
     input: RequestInfo,
     init?: RequestInit
   ): Promise<ResponseWaitUntil<WaitUntil>> {
-    await this.#initPromise;
+    await this.#watcher.initPromise;
     return this.#modules.EventsModule.dispatchFetch<WaitUntil>(
       new Request(input, init),
       this.#options?.upstreamUrl
@@ -274,7 +263,7 @@ export class Miniflare {
     scheduledTime?: number,
     cron?: string
   ): Promise<WaitUntil> {
-    await this.#initPromise;
+    await this.#watcher.initPromise;
     return this.#modules.EventsModule.dispatchScheduled<WaitUntil>(
       scheduledTime,
       cron
@@ -282,15 +271,15 @@ export class Miniflare {
   }
 
   async getOptions(): Promise<ProcessedOptions> {
-    await this.#initPromise;
-    // This should never be undefined as #initPromise is only resolved once
+    await this.#watcher.initPromise;
+    // This should never be undefined as initPromise is only resolved once
     // #watchCallback has been called for the first time
     assert(this.#options !== undefined);
     return this.#options;
   }
 
   async getCache(name?: string): Promise<Cache> {
-    await this.#initPromise;
+    await this.#watcher.initPromise;
     return this.#modules.CacheModule.getCache(
       name,
       this.#options?.cachePersist
@@ -298,7 +287,7 @@ export class Miniflare {
   }
 
   async getKVNamespace(namespace: string): Promise<KVStorageNamespace> {
-    await this.#initPromise;
+    await this.#watcher.initPromise;
     return this.#modules.KVModule.getNamespace(
       namespace,
       this.#options?.kvPersist
@@ -308,7 +297,7 @@ export class Miniflare {
   async getDurableObjectNamespace(
     objectName: string
   ): Promise<DurableObjectNamespace> {
-    await this.#initPromise;
+    await this.#watcher.initPromise;
     return this.#modules.DurableObjectsModule.getNamespace(
       objectName,
       this.#options?.durableObjectsPersist
@@ -316,7 +305,7 @@ export class Miniflare {
   }
 
   async dispose(): Promise<void> {
-    await this.#watcher?.dispose();
+    await this.#watcher.dispose();
   }
 
   async #httpRequestListener(
@@ -356,10 +345,23 @@ export class Miniflare {
     req.headers["cf-request-id"] = "";
     req.headers["cf-visitor"] = '{"scheme":"http"}';
 
+    // Create Request with additional Cloudflare specific properties:
+    // https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties
     const request = new Request(url, {
       method: req.method,
       headers: req.headers,
       body: body,
+      cf: {
+        asn: 0,
+        colo: "XXX",
+        country: "XX",
+        httpProtocol: `HTTP/${req.httpVersion}`,
+        requestPriority: null,
+        tlsCipher: "",
+        tlsClientAuth: null,
+        tlsVersion: "",
+        timezone: "",
+      },
     });
 
     // Check path matches "/.mf/scheduled" ignoring trailing slash
@@ -453,4 +455,4 @@ export class Miniflare {
 export * from "./kv";
 export * from "./modules";
 export { Log, NoOpLog, ConsoleLog } from "./log";
-export { Options };
+export { Options, MiniflareError };

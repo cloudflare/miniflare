@@ -7,7 +7,13 @@ import {
 } from "@mrbbot/node-fetch";
 import test from "ava";
 import WebSocketClient from "ws";
-import { Miniflare, NoOpLog, WebSocket, WebSocketPair } from "../../src";
+import {
+  Miniflare,
+  MiniflareError,
+  NoOpLog,
+  WebSocket,
+  WebSocketPair,
+} from "../../src";
 import {
   WebSocketEvent,
   WebSocketsModule,
@@ -243,6 +249,43 @@ test("terminateWebSocket: closes client socket on worker close", async (t) => {
   const event = await eventPromise;
   t.is(event.code, 1000);
   t.is(event.reason, "Test Closure");
+});
+test("terminateWebSocket: accepts worker socket immediately if already open", async (t) => {
+  const [eventTrigger, eventPromise] = triggerPromise<{ data: any }>();
+  const server = await useServer(t, noop, (ws) => {
+    ws.addEventListener("message", eventTrigger);
+  });
+  const ws = new WebSocketClient(server.ws);
+  const [client, worker] = Object.values(new WebSocketPair());
+
+  worker.accept();
+  // Send before termination, simulates sending message in worker code before returning response
+  worker.send("test");
+  // Make sure socket is open before terminating
+  const [openTrigger, openPromise] = triggerPromise<void>();
+  ws.addEventListener("open", openTrigger);
+  await openPromise;
+  await terminateWebSocket(ws, client);
+
+  const event = await eventPromise;
+  t.is(event.data, "test");
+});
+test("terminateWebSocket: throws if web socket already closed", async (t) => {
+  const server = await useServer(t, noop, noop);
+  const ws = new WebSocketClient(server.ws);
+  const [client, worker] = Object.values(new WebSocketPair());
+
+  worker.accept();
+  // Make sure socket is open before closing
+  const [openTrigger, openPromise] = triggerPromise<void>();
+  ws.addEventListener("open", openTrigger);
+  await openPromise;
+  // Make sure socket is closed before terminating
+  ws.close(1000, "Test Closure");
+  await t.throwsAsync(terminateWebSocket(ws, client), {
+    instanceOf: MiniflareError,
+    message: "WebSocket already closed",
+  });
 });
 
 test("buildSandbox: includes WebSocketPair", (t) => {

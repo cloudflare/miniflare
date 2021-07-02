@@ -210,16 +210,18 @@ if (module === require.main) {
     return originalEmitWarning(warning, name, ctor);
   };
 
-  mf.getOptions().then(({ host, port = defaultPort }) => {
-    mf.createServer().listen(port, host, () => {
-      mf.log.info(`Listening on ${host ?? ""}:${port}`);
-      if (host) {
-        mf.log.info(`- http://${host}:${port}`);
-      } else {
-        for (const accessibleHost of getAccessibleHosts()) {
-          mf.log.info(`- http://${accessibleHost}:${port}`);
+  mf.getOptions()
+    .then(({ host, port = defaultPort }) => {
+      mf.createServer().listen(port, host, () => {
+        mf.log.info(`Listening on ${host ?? ""}:${port}`);
+        if (host) {
+          mf.log.info(`- http://${host}:${port}`);
+        } else {
+          for (const accessibleHost of getAccessibleHosts()) {
+            mf.log.info(`- http://${accessibleHost}:${port}`);
+          }
         }
-      }
-    });
-  });
+      });
+    })
+    .catch((err) => mf.log.error(err));
 }

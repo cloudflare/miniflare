@@ -5,6 +5,7 @@ import { URL } from "url";
 import dotenv from "dotenv";
 import micromatch from "micromatch";
 import cron from "node-cron";
+import { MiniflareError } from "../error";
 import { Mutex } from "../kv/helpers";
 import { Log } from "../log";
 import { ScriptBlueprint } from "../scripts";
@@ -12,7 +13,6 @@ import { getWranglerOptions } from "./wrangler";
 import {
   ModuleRuleType,
   Options,
-  OptionsError,
   ProcessedDurableObject,
   ProcessedModuleRule,
   ProcessedOptions,
@@ -107,10 +107,15 @@ export class OptionsProcessor {
     let wranglerOptions: Options = {};
     const wranglerConfigPathSet =
       this.initialOptions.wranglerConfigPath !== undefined;
+    const input = await this._readFile(
+      this.wranglerConfigPath,
+      wranglerConfigPathSet
+    );
+    const inputDir = path.dirname(this.wranglerConfigPath);
     try {
       wranglerOptions = getWranglerOptions(
-        await this._readFile(this.wranglerConfigPath, wranglerConfigPathSet),
-        path.dirname(this.wranglerConfigPath),
+        input,
+        inputDir,
         this.initialOptions.wranglerConfigEnv
       );
     } catch (e) {
@@ -127,8 +132,8 @@ export class OptionsProcessor {
   getScriptPath(options: Options): string {
     // Make sure we've got a main script
     if (options.scriptPath === undefined) {
-      throw new OptionsError(
-        "No script defined, either include it in options, or set build.upload.main in Wrangler configuration"
+      throw new MiniflareError(
+        "No script defined, either include it explicitly, or set build.upload.main in Wrangler configuration"
       );
     }
     // Resolve and load script

@@ -1,6 +1,5 @@
 import path from "path";
 import { URL } from "url";
-import { MiniflareError } from "../error";
 import { Log } from "../log";
 import { ScriptBlueprint } from "../scripts";
 
@@ -87,8 +86,6 @@ export interface ProcessedOptions extends Options {
   siteExcludeRegexps?: RegExp[];
   processedDurableObjects?: ProcessedDurableObject[];
 }
-
-export class OptionsError extends MiniflareError {}
 
 export function stripUndefinedOptions(options: Options): Options {
   return Object.entries(options)

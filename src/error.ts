@@ -1,4 +1,4 @@
-export abstract class MiniflareError extends Error {
+export class MiniflareError extends Error {
   constructor(message?: string) {
     super(message);
     // Restore prototype chain:

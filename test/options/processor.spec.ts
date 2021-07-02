@@ -3,8 +3,8 @@ import { existsSync, promises as fs } from "fs";
 import path from "path";
 import { URL } from "url";
 import test from "ava";
-import { NoOpLog, Options } from "../../src";
-import { OptionsError, stringScriptPath } from "../../src/options";
+import { MiniflareError, NoOpLog, Options } from "../../src";
+import { stringScriptPath } from "../../src/options";
 import { OptionsProcessor } from "../../src/options/processor";
 import { TestLog, useTmp } from "../helpers";
 
@@ -141,7 +141,7 @@ test("getWranglerOptions: logs error if cannot parse configuration", async (t) =
 test("getScriptPath: throws if no script defined", (t) => {
   const processor = new OptionsProcessor(new NoOpLog(), {});
   t.throws(() => processor.getScriptPath({}), {
-    instanceOf: OptionsError,
+    instanceOf: MiniflareError,
     message: /^No script defined/,
   });
 });

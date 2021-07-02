@@ -7,8 +7,6 @@ import { MiniflareError } from "./error";
 import { Context } from "./modules/module";
 import { ProcessedModuleRule, stringScriptPath } from "./options";
 
-export class ScriptError extends MiniflareError {}
-
 export class ScriptBlueprint {
   constructor(public readonly code: string, public readonly fileName: string) {}
 
@@ -30,7 +28,7 @@ export class ScriptBlueprint {
   ): Promise<ModuleScriptInstance<Exports>> {
     const vmContext = ScriptBlueprint._createContext(context);
     if (!("SourceTextModule" in vm)) {
-      throw new ScriptError(
+      throw new MiniflareError(
         "Modules support requires the --experimental-vm-modules flag"
       );
     }
@@ -86,7 +84,7 @@ export function buildLinker(
     )}" dependency "${specifier}"`;
 
     if (referencingModule.identifier === stringScriptPath) {
-      throw new ScriptError(
+      throw new MiniflareError(
         `${errorBase}: imports unsupported with string script`
       );
     }
@@ -103,7 +101,7 @@ export function buildLinker(
       rule.include.some((regexp) => modulePath.match(regexp))
     );
     if (rule === undefined) {
-      throw new ScriptError(`${errorBase}: no matching module rules`);
+      throw new MiniflareError(`${errorBase}: no matching module rules`);
     }
 
     // Load module based on rule type
@@ -154,7 +152,7 @@ export function buildLinker(
           moduleOptions
         );
       default:
-        throw new ScriptError(
+        throw new MiniflareError(
           `${errorBase}: ${rule.type} modules are unsupported`
         );
     }
