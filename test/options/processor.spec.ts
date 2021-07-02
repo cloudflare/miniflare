@@ -299,8 +299,8 @@ test("getWasmBindings: defaults to empty object", async (t) => {
 
 test("getUpstreamUrl: parses upstream url", (t) => {
   const processor = new OptionsProcessor(new NoOpLog(), {});
-  const url = processor.getUpstreamUrl({ upstream: "https://mrbbot.dev" });
-  t.deepEqual(url, new URL("https://mrbbot.dev"));
+  const url = processor.getUpstreamUrl({ upstream: "https://miniflare.dev" });
+  t.deepEqual(url, new URL("https://miniflare.dev"));
 });
 test("getUpstreamUrl: logs error if cannot parse upstream url", (t) => {
   const log = new TestLog();
@@ -355,7 +355,7 @@ test("getProcessedOptions: includes all processed options", async (t) => {
     wranglerConfigPath,
     modules: true,
     modulesRules: [{ type: "Text", include: ["**/*.txt"] }],
-    upstream: "https://mrbbot.dev",
+    upstream: "https://miniflare.dev",
     crons: ["* * * * *"],
     siteInclude: ["**/*.html"],
     siteExclude: ["**/*.png"],
@@ -412,7 +412,7 @@ test("getProcessedOptions: includes all processed options", async (t) => {
   t.is(instance.exports.add(1, 2), 3);
 
   // Check upstream url
-  t.deepEqual(processedOptions.upstreamUrl, new URL("https://mrbbot.dev"));
+  t.deepEqual(processedOptions.upstreamUrl, new URL("https://miniflare.dev"));
 
   // Check validated crons
   t.deepEqual(processedOptions.validatedCrons, ["* * * * *"]);

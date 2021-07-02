@@ -131,8 +131,16 @@ test("HTMLRewriter: transforms responses", async (t) => {
           element.setInnerContent("new");
         },
       };
-      // TODO: add onDocument handler here too
-      const rewriter = new sandbox.HTMLRewriter().on("p", elementHandler);
+      const documentHandler = {
+        end(end: {
+          append: (content: string, options?: { html?: boolean }) => void;
+        }) {
+          end.append("<!--after-->", { html: true });
+        },
+      };
+      const rewriter = new sandbox.HTMLRewriter()
+        .on("p", elementHandler)
+        .onDocument(documentHandler);
 
       e.respondWith(
         rewriter.transform(
@@ -143,7 +151,10 @@ test("HTMLRewriter: transforms responses", async (t) => {
   }).toString()})()`;
   const mf = new Miniflare({ script });
   const res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
-  t.is(await res.text(), '<html lang="en"><body><p>new</p></body></html>');
+  t.is(
+    await res.text(),
+    '<html lang="en"><body><p>new</p></body></html><!--after-->'
+  );
 
   // Make sure globals are restored (even if they were undefined)
   t.is(global.Response, originalResponse);

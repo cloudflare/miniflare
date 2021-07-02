@@ -77,12 +77,12 @@ export default function parseArgv(raw: string[]): Options {
       },
       modules: {
         type: "boolean",
-        description: "Enable ES modules",
+        description: "Enable modules",
         alias: "m",
       },
       "modules-rule": {
         type: "array",
-        description: "ES modules import rule (TYPE=GLOB)",
+        description: "Modules import rule (TYPE=GLOB)",
       },
       "build-command": {
         type: "string",

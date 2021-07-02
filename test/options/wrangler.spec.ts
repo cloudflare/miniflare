@@ -95,7 +95,7 @@ test("getWranglerOptions: maps all options", (t) => {
     globs = ["**/*.js"]
     
     [miniflare]
-    upstream = "https://mrbbot.dev"
+    upstream = "https://miniflare.dev"
     kv_persist = true
     cache_persist = "./cache"
     durable_objects_persist = true
@@ -126,7 +126,7 @@ test("getWranglerOptions: maps all options", (t) => {
     modulesRules: [
       { type: "ESModule", include: ["**/*.js"], fallthrough: undefined },
     ],
-    upstream: "https://mrbbot.dev",
+    upstream: "https://miniflare.dev",
     kvPersist: true,
     cachePersist: "./cache",
     durableObjectsPersist: true,

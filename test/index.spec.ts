@@ -101,11 +101,11 @@ test("getCache: gets cache for manipulation", async (t) => {
         const url = new URL(request.url);
         const cache = caches.default;
         if(url.pathname === "/put") {
-          await cache.put("https://mrbbot.dev/", new Response("1", {
+          await cache.put("https://miniflare.dev/", new Response("1", {
             headers: { "Cache-Control": "max-age=3600" },
           }));
         }
-        return cache.match("https://mrbbot.dev/");
+        return cache.match("https://miniflare.dev/");
       }
     }`,
   });
@@ -113,11 +113,11 @@ test("getCache: gets cache for manipulation", async (t) => {
   t.is(await res.text(), "1");
 
   const cache = await mf.getCache();
-  const cachedRes = await cache.match("https://mrbbot.dev/");
+  const cachedRes = await cache.match("https://miniflare.dev/");
   t.is(await cachedRes?.text(), "1");
 
   await cache.put(
-    "https://mrbbot.dev",
+    "https://miniflare.dev",
     new Response("2", {
       headers: { "Cache-Control": "max-age=3600" },
     })

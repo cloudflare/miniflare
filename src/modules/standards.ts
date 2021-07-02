@@ -8,8 +8,8 @@ import originalFetch, {
   RequestInit,
   Response,
 } from "@mrbbot/node-fetch";
+import { ParsedHTMLRewriter } from "@mrbbot/parsed-html-rewriter";
 import { Crypto } from "@peculiar/webcrypto";
-import { ParsedHTMLRewriter } from "@worker-tools/parsed-html-rewriter";
 import {
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,

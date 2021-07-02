@@ -54,7 +54,7 @@ export class Miniflare {
 
   readonly #wss: WebSocket.Server;
 
-  constructor(options: Options) {
+  constructor(options: Options = {}) {
     if (options.sourceMap) {
       sourceMap.install({ emptyCacheBetweenOperations: true });
     }
@@ -396,7 +396,7 @@ export class Miniflare {
           return [
             '<a href="https://developers.cloudflare.com/workers/" target="_blank" style="text-decoration:none">📚 Workers Docs</a>',
             '<a href="https://discord.gg/cloudflaredev" target="_blank" style="text-decoration:none">💬 Workers Discord</a>',
-            '<a href="https://github.com/mrbbot/miniflare" target="_blank" style="text-decoration:none">🔥 Miniflare Docs</a>',
+            '<a href="https://miniflare.dev" target="_blank" style="text-decoration:none">🔥 Miniflare Docs</a>',
           ].join("");
         });
         const errorHtml = await youch.toHTML();

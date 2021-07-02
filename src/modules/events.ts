@@ -152,7 +152,8 @@ export class EventsModule extends Module {
         }
       } catch (e) {
         if (passThroughMap.get(event)) {
-          this.log.error(e.stack);
+          // warn instead of error so we don't throw an exception when not logging
+          this.log.warn(e.stack);
           break;
         }
         throw e;
