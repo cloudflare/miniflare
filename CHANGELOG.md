@@ -1,5 +1,12 @@
 # 🚧 Changelog
 
+## 1.0.1
+
+- Fix
+  `/usr/bin/env: 'node --experimental-vm-modules': No such file or directory`
+  error when running the CLI in Linux. See
+  [💻 Using the CLI](https://miniflare.dev/cli.html#usage) for more details.
+
 ## 1.0.0
 
 ### Breaking Changes
@@ -86,8 +93,6 @@
   `Promise`, so `(async () => {})() instanceof Promise` evaluates to `true`
 
 ## 0.1.1
-
-### Fixes
 
 - Depend on `@mrbbot/node-fetch` from npm instead of GitHub, closes
   [issue #2](https://github.com/mrbbot/miniflare/issues/2)
