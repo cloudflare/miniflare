@@ -3,7 +3,7 @@
 Fun, full-featured, fully-local simulator for developing and testing Cloudflare
 Workers
 
-**See <https://miniflare.dev> for many more details.**
+**See <https://miniflare.dev> for more detailed documentation.**
 
 ## Features
 
@@ -104,3 +104,9 @@ Many thanks to
 and
 [gja/cloudflare-worker-local](https://github.com/gja/cloudflare-worker-local)
 for inspiration.
+
+Durable Object's transactions are implemented using Optimistic Concurrency
+Control (OCC) as described in
+["On optimistic methods for concurrency control." ACM Transactions on Database Systems](https://dl.acm.org/doi/10.1145/319566.319567).
+Thanks to [Alistair O'Brien](https://github.com/johnyob) for helping me
+understand this.

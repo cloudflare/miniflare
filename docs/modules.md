@@ -1,5 +1,7 @@
 # 📚 Modules
 
+- [Modules Reference](https://developers.cloudflare.com/workers/cli-wrangler/configuration#modules)
+
 ## Enabling Modules
 
 Miniflare supports both the traditional `service-worker` and newer `modules`

@@ -8,7 +8,7 @@ title: 🔥 Home
 [**Cloudflare Workers**](https://workers.cloudflare.com/).
 
 - 🎉 **Fun:** develop Workers easily with detailed logging, file watching and
-  beautiful error pages supporting source maps.
+  pretty error pages supporting source maps.
 - 🔋 **Full-featured:** supports most Workers features, including KV, Durable
   Objects, WebSockets, modules and more.
 - ⚡ **Fully-local:** test and develop Workers without an internet connection.

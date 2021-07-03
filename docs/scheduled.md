@@ -1,5 +1,8 @@
 # ⏰ Scheduled Events
 
+- [`ScheduledEvent` Reference](https://developers.cloudflare.com/workers/runtime-apis/scheduled-event)
+- [`addEventListener` Reference](https://developers.cloudflare.com/workers/runtime-apis/add-event-listener)
+
 ## Cron Triggers
 
 `scheduled` events are automatically dispatched according to the specified cron

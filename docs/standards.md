@@ -1,5 +1,14 @@
 # 🕸 Web Standards
 
+- [Web Standards Reference](https://developers.cloudflare.com/workers/runtime-apis/web-standards)
+- [Encoding Reference](https://developers.cloudflare.com/workers/runtime-apis/encoding)
+- [Fetch Reference](https://developers.cloudflare.com/workers/runtime-apis/fetch)
+- [Request Reference](https://developers.cloudflare.com/workers/runtime-apis/request)
+- [Response Reference](https://developers.cloudflare.com/workers/runtime-apis/response)
+- [Streams Reference](https://developers.cloudflare.com/workers/runtime-apis/streams)
+- [Using Streams](https://developers.cloudflare.com/workers/learning/using-streams)
+- [Web Crypto Reference](https://developers.cloudflare.com/workers/runtime-apis/web-crypto)
+
 Miniflare supports the following Web Standards in its sandbox:
 
 - **Console:** `console.*`

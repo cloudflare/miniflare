@@ -1,5 +1,7 @@
 # 🛠 Builds
 
+- [Custom Builds Reference](https://developers.cloudflare.com/workers/cli-wrangler/configuration#build)
+
 ## Custom Builds
 
 Custom builds can be enabled by specifying a build command. You can also specify

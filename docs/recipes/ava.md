@@ -85,5 +85,5 @@ test("increments path count for existing paths", async (t) => {
 
 ## More Examples
 
-For more examples of testing workers with AVA, Miniflare itself uses AVA for
+For more examples of testing workers with AVA, Miniflare uses AVA for
 [its own testing](https://github.com/mrbbot/miniflare/tree/master/test/).

@@ -1,5 +1,7 @@
 # 📦 KV
 
+- [KV Reference](https://developers.cloudflare.com/workers/runtime-apis/kv)
+
 ## Namespaces
 
 Specify KV namespaces to add to your environment as follows:
@@ -39,6 +41,10 @@ export default {
   },
 };
 ```
+
+Miniflare supports all KV operations and data types. Whilst it accepts the
+`cacheTtl` options, it is ignored since there's only one "edge location" (the
+user's computer) so it doesn't really mean anything.
 
 ## Persistence
 

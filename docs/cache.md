@@ -1,5 +1,7 @@
 # ✨ Cache
 
+- [Cache Reference](https://developers.cloudflare.com/workers/runtime-apis/cache)
+
 ## Default Cache
 
 Access to the default cache is enabled by default:

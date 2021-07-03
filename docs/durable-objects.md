@@ -1,5 +1,8 @@
 # 📌 Durable Objects
 
+- [Durable Objects Reference](https://developers.cloudflare.com/workers/runtime-apis/durable-objects)
+- [Using Durable Objects](https://developers.cloudflare.com/workers/learning/using-durable-objects)
+
 ## Objects
 
 Specify Durable Objects to add to your environment as follows:

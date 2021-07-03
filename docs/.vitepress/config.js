@@ -15,7 +15,7 @@ module.exports = {
           { text: "🔥 Miniflare", link: "/" },
           { text: "💻 Using the CLI", link: "/cli.html" },
           { text: "🧰 Using the API", link: "/api.html" },
-          // { text: "🚧 Changelog", link: "/changelog.html" },
+          { text: "🚧 Changelog", link: "/changelog.html" },
         ],
       },
       {

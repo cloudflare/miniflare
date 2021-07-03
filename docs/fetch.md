@@ -1,14 +1,22 @@
 # 📨 Fetch Events
 
+- [`FetchEvent` Reference](https://developers.cloudflare.com/workers/runtime-apis/fetch-event)
+- [`FetchEvent` Lifecycle](https://developers.cloudflare.com/workers/learning/fetch-event-lifecycle)
+- [`addEventListener` Reference](https://developers.cloudflare.com/workers/runtime-apis/add-event-listener)
+
 ## HTTP Requests
 
 When using the CLI, an HTTP server is automatically started. Whenever an HTTP
 request is made, it is converted to a workers-compatible `Request` object,
-dispatched to your worker, then the produced `Response` is returned. Miniflare
-will log the method, path, status, the time it took to respond, and the time
-taken for all `waitUntil` promises to resolve.
+dispatched to your worker, then the generated `Response` is returned. The
+`Request` object will include
+[`CF-*` headers](https://support.cloudflare.com/hc/en-us/articles/200170986-How-does-Cloudflare-handle-HTTP-Request-headers-)
+and a
+[`cf` object](https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties).
+Miniflare will log the method, path, status, the time it took to respond, and
+the time taken for all `waitUntil` promises to resolve.
 
-If the worker throws an error whilst producing a response, an error page
+If the worker throws an error whilst generating a response, an error page
 containing the stack trace is returned instead. You can use
 [🗺 Source Maps](/source-maps.html) to make these point to your source files.
 

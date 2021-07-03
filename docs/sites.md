@@ -1,5 +1,8 @@
 # 🌐 Workers Sites
 
+- [Workers Sites Worker Quickstart](https://developers.cloudflare.com/workers/platform/sites/start-from-worker)
+- [Workers Sites Configuration Reference](https://developers.cloudflare.com/workers/platform/sites/configuration)
+
 <!--prettier-ignore-start-->
 ::: warning
 This page refers to

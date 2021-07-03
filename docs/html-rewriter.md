@@ -1,5 +1,7 @@
 # 📄 HTMLRewriter
 
+- [`HTMLRewriter` Reference](https://developers.cloudflare.com/workers/runtime-apis/html-rewriter)
+
 Miniflare includes `HTMLRewriter` in its sandbox. It is powered by
 [@worker-tools/parsed-html-rewriter](https://github.com/worker-tools/parsed-html-rewriter).
 Note this isn't a streaming parser: the entire document is parsed, then

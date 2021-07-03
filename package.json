@@ -23,8 +23,9 @@
     "test": "esbuild --bundle --outdir=test/fixtures/dist test/fixtures/sites.js && ava",
     "lint": "eslint '{src,test}/**/*.ts'",
     "prepublishOnly": "npm run lint && npm run build && npm run test",
-    "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs",
+    "docs:changelog": "node docs/.vitepress/changelog.js",
+    "docs:dev": "npm run docs:changelog && vitepress dev docs",
+    "docs:build": "npm run docs:changelog && vitepress build docs",
     "docs:serve": "vitepress serve docs"
   },
   "bin": {

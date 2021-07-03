@@ -1,5 +1,8 @@
 # ✉️ WebSockets
 
+- [WebSockets Reference](https://developers.cloudflare.com/workers/runtime-apis/websockets)
+- [Using WebSockets](https://developers.cloudflare.com/workers/learning/using-websockets)
+
 ## Server
 
 When using the CLI, or the `createServer` method, Miniflare will always upgrade
@@ -27,7 +30,7 @@ export default {
 
 When using `dispatchFetch`, you are responsible for handling WebSockets by using
 the `webSocket` property on `Response`. As an example, if the above worker
-script is stored in `echo.mjs`:
+script was stored in `echo.mjs`:
 
 ```js{9-15}
 import { Miniflare } from "miniflare";
