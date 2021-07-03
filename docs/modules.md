@@ -8,7 +8,7 @@ Miniflare supports both the traditional `service-worker` and newer `modules`
 formats for writing workers. To use the `modules` format, enable it with:
 
 ```shell
-$ miniflare --modules
+$ miniflare --modules # or -m
 ```
 
 ```toml

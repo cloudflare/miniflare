@@ -1,7 +1,7 @@
 # ✨ Cache
 
 - [Cache Reference](https://developers.cloudflare.com/workers/runtime-apis/cache)
-- [How the Cache workers](https://developers.cloudflare.com/workers/learning/how-the-cache-works#cache-api)
+- [How the Cache works](https://developers.cloudflare.com/workers/learning/how-the-cache-works#cache-api)
   (note that cache using `fetch` is unsupported)
 
 ## Default Cache
