@@ -236,6 +236,10 @@ export class StandardsModule extends Module {
       return new Response(null, { webSocket: worker });
     }
 
+    // TODO: (low priority) support cache using fetch:
+    //  https://developers.cloudflare.com/workers/learning/how-the-cache-works#fetch
+    //  https://developers.cloudflare.com/workers/examples/cache-using-fetch
+
     return originalFetch(request);
   }
 

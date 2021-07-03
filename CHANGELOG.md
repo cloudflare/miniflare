@@ -1,8 +1,17 @@
 # 🚧 Changelog
 
+## 1.1.0
+
+### Features
+
+- Added support for namespaced caches with `caches.open`. See
+  [✨ Cache](https://miniflare.dev/cache.html) for more details.
+
 ## 1.0.1
 
-- Fix
+### Fixes
+
+- Fixed
   `/usr/bin/env: 'node --experimental-vm-modules': No such file or directory`
   error when running the CLI in Linux. See
   [💻 Using the CLI](https://miniflare.dev/cli.html#usage) for more details.
@@ -93,6 +102,8 @@
   `Promise`, so `(async () => {})() instanceof Promise` evaluates to `true`
 
 ## 0.1.1
+
+### Fixes
 
 - Depend on `@mrbbot/node-fetch` from npm instead of GitHub, closes
   [issue #2](https://github.com/mrbbot/miniflare/issues/2)

@@ -1,7 +1,13 @@
 import { existsSync, promises as fs } from "fs";
 import path from "path";
 import test from "ava";
-import { Cache, CachedResponse, NoOpLog, Response } from "../../src";
+import {
+  Cache,
+  CachedResponse,
+  MiniflareError,
+  NoOpLog,
+  Response,
+} from "../../src";
 import { KVStorageFactory } from "../../src/kv/helpers";
 import { CacheModule } from "../../src/modules/cache";
 import { runInWorker, useTmp } from "../helpers";
@@ -216,4 +222,44 @@ test("buildSandbox: can delete from default cache", async (t) => {
   t.false(
     existsSync(path.join(tmp, "default", "http___localhost_8787_test.json"))
   );
+});
+test("buildSandbox: namespaced cache is separate from default cache", async (t) => {
+  const tmp = await useTmp(t);
+  const cached = await runInWorker({ cachePersist: tmp }, async () => {
+    const sandbox = self as any;
+
+    // Store something at the same URLs in default and other caches
+    const defaultCache = sandbox.caches.default as Cache;
+    const otherCache = (await sandbox.caches.open("other")) as Cache;
+
+    await defaultCache.put(
+      "http://localhost:8787/test",
+      new sandbox.Response("default", {
+        headers: { "Cache-Control": "max-age=3600" },
+      })
+    );
+    await otherCache.put(
+      "http://localhost:8787/test",
+      new sandbox.Response("other", {
+        headers: { "Cache-Control": "max-age=3600" },
+      })
+    );
+
+    const defaultCached = await defaultCache.match(
+      "http://localhost:8787/test"
+    );
+    const otherCached = await otherCache.match("http://localhost:8787/test");
+
+    return [await defaultCached?.text(), await otherCached?.text()];
+  });
+  t.deepEqual(cached, ["default", "other"]);
+});
+test("buildSandbox: trying to open default cache throws", async (t) => {
+  const tmp = await useTmp(t);
+  const module = new CacheModule(new NoOpLog(), new KVStorageFactory(tmp));
+  const { caches } = module.buildSandbox({});
+  await t.throwsAsync(caches.open("default"), {
+    instanceOf: MiniflareError,
+    message: '"default" is a reserved cache name',
+  });
 });
