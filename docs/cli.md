@@ -45,6 +45,19 @@ See [🛠 Builds](/builds.html) for more details.
 :::
 <!--prettier-ignore-end-->
 
+<!--prettier-ignore-start-->
+::: warning
+[📚 Modules](/modules.html) support currently requires the
+`--experimental-vm-modules` flag. This is enabled by default, but requires the
+`-S` flag of `/usr/bin/env`. If your operating system doesn't support the `-S`
+flag (e.g. Ubuntu 18.04), you can run the following instead:
+
+```shell
+$ node --experimental-vm-modules ./node_modules/.bin/miniflare worker.js
+```
+:::
+<!--prettier-ignore-end-->
+
 ### Watching and Debugging
 
 Add `--watch`/`-w` and `--debug`/`-d` flags to reload the worker whenever

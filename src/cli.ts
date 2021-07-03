@@ -1,4 +1,4 @@
-#!/usr/bin/env node --experimental-vm-modules
+#!/usr/bin/env -S node --experimental-vm-modules
 import { networkInterfaces } from "os";
 import yargs from "yargs";
 import { ConsoleLog } from "./log";
