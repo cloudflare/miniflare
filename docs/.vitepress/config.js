@@ -3,7 +3,7 @@ const pkg = require("../../package.json");
 module.exports = {
   title: "Miniflare",
   description: pkg.description,
-  head: [["meta", { name: "og:description", content: pkg.description }]],
+  head: [["meta", { property: "og:description", content: pkg.description }]],
   themeConfig: {
     repo: "mrbbot/miniflare",
     docsDir: "docs",
