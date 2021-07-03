@@ -1,7 +1,9 @@
+const pkg = require("../../package.json");
+
 module.exports = {
   title: "Miniflare",
-  description:
-    "Fun, full-featured, fully-local simulator for Cloudflare Workers",
+  description: pkg.description,
+  head: [["meta", { name: "og:description", content: pkg.description }]],
   themeConfig: {
     repo: "mrbbot/miniflare",
     docsDir: "docs",

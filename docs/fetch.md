@@ -81,13 +81,13 @@ has been called, the response will be fetched from the specified upstream
 instead:
 
 ```shell
-$ miniflare --upstream https://miniflare.pages.dev # or -u
+$ miniflare --upstream https://miniflare.dev # or -u
 ```
 
 ```toml
 # wrangler.toml
 [miniflare]
-upstream = "https://miniflare.pages.dev"
+upstream = "https://miniflare.dev"
 ```
 
 ```js
@@ -100,9 +100,9 @@ const mf = new Miniflare({
     throw new Error();
   });
   `,
-  upstream: "https://miniflare.pages.dev",
+  upstream: "https://miniflare.dev",
 });
 // MUST use same upstream URL when dispatching
-const res = await mf.dispatchFetch("https://miniflare.pages.dev/fetch.html");
+const res = await mf.dispatchFetch("https://miniflare.dev/fetch.html");
 console.log(await res.text()); // Source code of this page
 ```

@@ -178,7 +178,7 @@ type = "ESModule"
 globs = ["**/*.js"]
 
 [miniflare]
-upstream = "https://miniflare.pages.dev" ## --upstream
+upstream = "https://miniflare.dev" ## --upstream
 kv_persist = true               ## --kv-persist
 cache_persist = "./cache"       ## --cache-persist
 durable_objects_persist = true  ## --do-persist

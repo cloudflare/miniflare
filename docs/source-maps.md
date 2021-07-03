@@ -7,10 +7,10 @@ for more details.
 
 ## Enabling Source Map Support
 
-When using the CLI, source maps are always enabled automatically. 🎉
+When using the CLI, source map support is always enabled automatically. 🎉
 
-When using the API, source maps can be enabled with the `sourceMap` option. Note
-this will install source map support **globally** in your entire application:
+When using the API, source map support can be enabled with the `sourceMap`
+option. Note this will install support **globally** in your entire application:
 
 ```js
 const mf = new Miniflare({
@@ -20,8 +20,8 @@ const mf = new Miniflare({
 
 ## Outputting Source Maps
 
-How you generated source maps depends on your build tool. Here is how you do it
-for some popular tools.
+How you generate source maps depends on your build tool. Here's how to do it for
+some popular tools:
 
 ### esbuild
 

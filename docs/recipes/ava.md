@@ -10,7 +10,7 @@ We'll now add unit tests with [AVA](https://github.com/avajs/ava) to our
 $ npm install -D ava
 ```
 
-Enabled ES modules mode, and add a new `test` script in `package.json`:
+Enable ES modules mode, and add a new `test` script in `package.json`:
 
 ```json
 {
@@ -37,7 +37,8 @@ test.beforeEach((t) => {
   // Create a new Miniflare environment for each test
   const mf = new Miniflare({
     // We don't want to rebuild our worker for each test, we're already doing
-    // it once before we run all our tests in package.json, so override it here
+    // it once before we run all tests in package.json, so disable it here.
+    // This will override the option in wrangler.toml.
     buildCommand: undefined,
   });
   t.context = { mf };
@@ -75,8 +76,10 @@ test("increments path count for existing paths", async (t) => {
   await ns.put("/a", "5");
   // Dispatch a fetch event to our worker
   const res = await mf.dispatchFetch("http://localhost:8787/a");
-  // Check the count is now "6"
+  // Check returned count is now "6"
   t.is(await res.text(), "6");
+  // Check KV count is now "6" too
+  t.is(await ns.get("/a"), "6");
 });
 ```
 

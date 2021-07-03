@@ -36,7 +36,7 @@ const mf = new Miniflare({
   }
   `,
   durableObjects: {
-    // Note Object1 is exported from string script
+    // Note Object1 is exported from main (string) script
     OBJECT1: "Object1",
     // Object2 class must be exported from ./object2.mjs
     OBJECT2: { className: "Object2", scriptPath: "./object2.mjs" },
@@ -81,10 +81,10 @@ persistence directory.
 
 ## Manipulating Outside Workers
 
-For testing, it can be useful to set/get data from KV outside a worker. You can
-do this with the `getDurableObjectNamespace` method. Durable Object stubs expose
-a non-standard `storage()` method to access the instance's transactional
-storage:
+For testing, it can be useful to put/get data from Durable Object storage
+outside a worker. You can do this with the `getDurableObjectNamespace` method.
+Durable Object stubs expose a non-standard `storage()` method to access the
+instance's transactional storage:
 
 ```js{30-37}
 import { Miniflare, Response } from "miniflare";

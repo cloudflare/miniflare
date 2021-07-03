@@ -57,6 +57,9 @@ const mf = new Miniflare({
 :::
 <!--prettier-ignore-end-->
 
+Note that options specified in the constructor have higher priority than those
+in `wrangler.toml`.
+
 ### String and File Scripts
 
 Note in the above example we're specifying `script` as a string. We could've
@@ -67,6 +70,30 @@ property instead:
 const mf = new Miniflare({
   scriptPath: "worker.js",
 });
+```
+
+### Watching and Reloading
+
+You can watch scripts, `.env` files and `wrangler.toml` files with the `watch`
+option. When this is enabled, you must `dispose` of the watcher when you're done
+with the `Miniflare` instance:
+
+```js
+const mf = new Miniflare({
+  watch: true,
+});
+...
+await mf.dispose();
+```
+
+You can also manually reload scripts (main and Durable Object's) and options
+(`.env` and `wrangler.toml`) too with `reloadScript` and `reloadOptions`.
+Reloading scripts implicitly reloads options too:
+
+```js
+const mf = new Miniflare({ ... });
+await mf.reloadScript();
+await mf.reloadOptions();
 ```
 
 ### Getting Processed Options

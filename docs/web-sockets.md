@@ -4,7 +4,7 @@
 
 When using the CLI, or the `createServer` method, Miniflare will always upgrade
 Web Socket connections. The worker must then respond with a status
-`101 Switching Protocols` response with a `webSocket` set. For example, the
+`101 Switching Protocols` response including a `webSocket`. For example, the
 worker below implements an echo WebSocket server:
 
 ```js
@@ -70,3 +70,5 @@ export default {
   },
 };
 ```
+
+All WebSockets are automatically closed when the worker is reloaded.

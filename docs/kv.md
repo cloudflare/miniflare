@@ -71,7 +71,7 @@ be returned when listing keys.
 
 ## Manipulating Outside Workers
 
-For testing, it can be useful to set/get data from KV outside a worker. You can
+For testing, it can be useful to put/get data from KV outside a worker. You can
 do this with the `getKVNamespace` method:
 
 ```js{17-18,22}

@@ -2,8 +2,7 @@
 
 ## Bindings
 
-WebAssembly modules can are bound as follows. The bound keys will be instances
-of
+WebAssembly modules are bound as follows. The bound keys will be instances of
 [WebAssembly.Module](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/Module):
 
 ```shell
@@ -33,7 +32,7 @@ You can then use the WebAssembly modules in your workers:
 const instance = new WebAssembly.Instance(MODULE1);
 
 addEventListener("fetch", (e) => {
-  // Assuming MODULE1 exports a function summing 2 integer arguments
+  // Assuming MODULE1 exports a function `add` summing 2 integer arguments
   const value = instance.exports.add(1, 2);
   e.respondWith(new Response(value.toString()));
 });

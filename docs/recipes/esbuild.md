@@ -52,7 +52,7 @@ main = "./index.js"
 
 ## Worker Script
 
-Each time a path is accessed, our worker will increment that paths count in KV
+Each time a path is accessed, our worker will increment that path's count in KV
 and return the new count. We'll store our request handling logic in a separate
 file to demonstrate esbuild's bundling. Create the following 2 scripts:
 

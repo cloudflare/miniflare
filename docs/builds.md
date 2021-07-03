@@ -25,7 +25,7 @@ const mf = new Miniflare({
   buildCommand: "npm run build",
   // Below options are optional
   buildBasePath: "build",
-  buildWatchPath: "src",
+  buildWatchPath: "source", // Defaults to "src" if command set
 });
 ```
 
@@ -43,8 +43,8 @@ main = "./output.js"
 ## Wrangler Builds
 
 Miniflare supports building `webpack` and `rust` type Wrangler projects too.
-This is done by setting a default custom build configuration which calls
-`wrangler build` to do the actual building.
+This is done internally by automatically setting a default custom build
+configuration which calls `wrangler build` to do the actual building.
 
 ### Webpack
 
