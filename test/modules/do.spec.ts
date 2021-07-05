@@ -19,7 +19,7 @@ import {
   DurableObjectsModule,
 } from "../../src/modules/do";
 import { Context } from "../../src/modules/module";
-import { triggerPromise, useTmp, wait } from "../helpers";
+import { getObjectProperties, triggerPromise, useTmp, wait } from "../helpers";
 
 // Test IDs are sha256("test") and sha256("test2")
 const testId =
@@ -69,6 +69,10 @@ class TestDurableObject implements DurableObject {
 test("DurableObjectId: toString: returns hex ID", (t) => {
   t.is(new DurableObjectId(testId).toString(), testId);
 });
+test("DurableObjectId: hides implementation details", (t) => {
+  const id = new DurableObjectId(testId);
+  t.deepEqual(getObjectProperties(id), ["name", "toString"]);
+});
 
 test("DurableObjectStub: name: returns ID's name if defined", (t) => {
   t.is(
@@ -97,6 +101,10 @@ test("DurableObjectStub: fetch: creates and dispatches request to instance", asy
   // Check factory called for each fetch
   await stub.fetch("http://localhost:8787/");
   t.is(factoryCalls, 2);
+});
+test("DurableObjectStub: hides implementation details", (t) => {
+  const stub = new DurableObjectStub(throws, new DurableObjectId(testId));
+  t.deepEqual(getObjectProperties(stub), ["fetch", "id", "name", "storage"]);
 });
 
 test("DurableObjectNamespace: newUniqueId: generates unique IDs", (t) => {
@@ -147,6 +155,15 @@ test("DurableObjectNamespace: get: returns stub using namespace's factory", asyn
   const res = await stub.fetch("http://localhost:8787/");
   t.is(factoryCalls, 1);
   t.is(await res.text(), testId);
+});
+test("DurableObjectNamespace: hides implementation details", (t) => {
+  const namespace = new DurableObjectNamespace("OBJECT", throws);
+  t.deepEqual(getObjectProperties(namespace), [
+    "get",
+    "idFromName",
+    "idFromString",
+    "newUniqueId",
+  ]);
 });
 
 test("resetInstances: deletes all instances", async (t) => {

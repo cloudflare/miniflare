@@ -43,43 +43,51 @@ export type DurableObjectFactory = (
 ) => Promise<DurableObject>;
 
 export class DurableObjectId {
-  constructor(private _hexId: string, public name?: string) {}
+  readonly #hexId: string;
+
+  constructor(hexId: string, public name?: string) {
+    this.#hexId = hexId;
+  }
 
   toString(): string {
-    return this._hexId;
+    return this.#hexId;
   }
 }
 
 export class DurableObjectStub {
-  constructor(
-    private _factory: DurableObjectFactory,
-    public id: DurableObjectId
-  ) {}
+  readonly #factory: DurableObjectFactory;
+
+  constructor(factory: DurableObjectFactory, public id: DurableObjectId) {
+    this.#factory = factory;
+  }
 
   get name(): string | undefined {
     return this.id.name;
   }
 
   async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-    const instance = await this._factory(this.id);
+    const instance = await this.#factory(this.id);
     return instance.fetch(new Request(input, init));
   }
 
   // Extra Miniflare-only API exposed for easier testing
   async storage(): Promise<DurableObjectStorage> {
-    const instance = await this._factory(this.id);
+    const instance = await this.#factory(this.id);
     const storage = instancesStorage.get(instance);
-    // _factory will make sure instance's storage is in instancesStorage
+    // #factory will make sure instance's storage is in instancesStorage
     assert(storage);
     return storage;
   }
 }
 
 export class DurableObjectNamespace {
-  constructor(
-    private _objectName: string,
-    private _factory: DurableObjectFactory
-  ) {}
+  readonly #objectName: string;
+  readonly #factory: DurableObjectFactory;
+
+  constructor(objectName: string, factory: DurableObjectFactory) {
+    this.#objectName = objectName;
+    this.#factory = factory;
+  }
 
   newUniqueId(): DurableObjectId {
     // Create new zero-filled 32 byte buffer
@@ -95,7 +103,7 @@ export class DurableObjectNamespace {
   idFromName(name: string): DurableObjectId {
     const id = crypto
       .createHash("sha256")
-      .update(this._objectName)
+      .update(this.#objectName)
       .update(name)
       .digest();
     // Force first bit to be 1, ensuring no intersection with unique IDs
@@ -108,7 +116,7 @@ export class DurableObjectNamespace {
   }
 
   get(id: DurableObjectId): DurableObjectStub {
-    return new DurableObjectStub(this._factory, id);
+    return new DurableObjectStub(this.#factory, id);
   }
 }
 
