@@ -59,6 +59,7 @@ $ miniflare --kv-persist ./data/  # Custom path
 
 ```toml
 # wrangler.toml
+[miniflare]
 kv_persist = true # Defaults to ./mf/kv
 kv_persist = "./data/" # Custom path
 ```

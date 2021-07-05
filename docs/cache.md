@@ -36,6 +36,7 @@ $ miniflare --cache-persist ./data/  # Custom path
 
 ```toml
 # wrangler.toml
+[miniflare]
 cache_persist = true # Defaults to ./mf/cache
 cache_persist = "./data/" # Custom path
 ```

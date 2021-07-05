@@ -68,6 +68,7 @@ $ miniflare --do-persist ./data/  # Custom path
 
 ```toml
 # wrangler.toml
+[miniflare]
 durable_objects_persist = true # Defaults to ./mf/do
 durable_objects_persist = "./data/" # Custom path
 ```
