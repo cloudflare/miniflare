@@ -79,7 +79,7 @@ let res = await mf.dispatchFetch("http://localhost:8787/put");
 console.log(await res.text()); // 1
 
 const cache = await mf.getCache(); // Gets the default cache
-const namedCache = await mf.getCached("cache_name"); // Gets a namespaced cache
+const namedCache = await mf.getCache("cache_name"); // Gets a namespaced cache
 const cachedRes = await cache.match("https://miniflare.dev/");
 console.log(await cachedRes.text()); // 1
 
