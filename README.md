@@ -1,7 +1,17 @@
 # 🔥 Miniflare
 
-Fun, full-featured, fully-local simulator for developing and testing Cloudflare
-Workers
+**Miniflare** is a simulator for developing and testing
+[**Cloudflare Workers**](https://workers.cloudflare.com/).
+
+- 🎉 **Fun:** develop workers easily with detailed logging, file watching and
+  pretty error pages supporting source maps.
+- 🔋 **Full-featured:** supports most Workers features, including KV, Durable
+  Objects, WebSockets, modules and more.
+- ⚡ **Fully-local:** test and develop Workers without an internet connection.
+  Reload code on change quickly.
+
+It's an alternative to `wrangler dev`, written in TypeScript, that runs your
+workers in a sandbox implementing Workers' runtime APIs.
 
 **See <https://miniflare.dev> for more detailed documentation.**
 

@@ -7,7 +7,7 @@ title: 🔥 Home
 **Miniflare** is a simulator for developing and testing
 [**Cloudflare Workers**](https://workers.cloudflare.com/).
 
-- 🎉 **Fun:** develop Workers easily with detailed logging, file watching and
+- 🎉 **Fun:** develop workers easily with detailed logging, file watching and
   pretty error pages supporting source maps.
 - 🔋 **Full-featured:** supports most Workers features, including KV, Durable
   Objects, WebSockets, modules and more.
