@@ -481,6 +481,20 @@ test("getProcessedOptions: loads script from string", async (t) => {
   assert(scripts);
   t.is(scripts[stringScriptPath].code, "// test");
 });
+test("getProcessedOptions: modules enabled automatically if using durable objects", async (t) => {
+  let processor = new OptionsProcessor(new NoOpLog(), {
+    script: "// test",
+  });
+  let options = await processor.getProcessedOptions();
+  t.false(options.modules);
+
+  processor = new OptionsProcessor(new NoOpLog(), {
+    script: "// test",
+    durableObjects: { OBJECT: "Object" },
+  });
+  options = await processor.getProcessedOptions();
+  t.true(options.modules);
+});
 test("getProcessedOptions: prioritises initial option's bindings, then wasm, then env, then wrangler configuration's", async (t) => {
   const tmp = await useTmp(t);
 

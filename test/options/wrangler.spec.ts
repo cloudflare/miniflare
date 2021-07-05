@@ -163,7 +163,7 @@ test("getWranglerOptions: resolves script path relative to input, default and cu
   );
   t.is(options.scriptPath, path.join(inputDir, "worker", "index.mjs"));
 });
-test("getWranglerOptions: enable modules with explicit format or durable objects", (t) => {
+test("getWranglerOptions: enables modules with format set to modules", (t) => {
   const cwd = process.cwd();
 
   let options = getWranglerOptions(
@@ -179,17 +179,6 @@ test("getWranglerOptions: enable modules with explicit format or durable objects
     `
     [build.upload]
     format = "modules"
-    `,
-    cwd
-  );
-  t.true(options.modules);
-
-  options = getWranglerOptions(
-    `
-    [durable_objects]
-    bindings = [
-      { name = "OBJECT", class_name = "Object", script_name = "./object.mjs" }
-    ]
     `,
     cwd
   );

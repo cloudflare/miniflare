@@ -117,12 +117,7 @@ export function getWranglerOptions(
           config.build.upload.main
         )
       : undefined,
-    modules:
-      config.build?.upload?.format === "modules" ||
-      // This flag means all scripts will be treated as modules. This is
-      // required if we're using Durable Objects, as we need to be able to
-      // access script exports.
-      (config.durable_objects?.bindings?.length ?? 0) > 0,
+    modules: config.build?.upload?.format === "modules",
     modulesRules: config.build?.upload?.rules?.map(
       ({ type, globs, fallthrough }) => ({
         type,

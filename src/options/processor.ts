@@ -264,6 +264,11 @@ export class OptionsProcessor {
     for (const durableObject of options.processedDurableObjects) {
       await this.addScriptBlueprint(durableObject.scriptPath);
     }
+    // Force modules mode if we're using Durable Objects: we need to be able to
+    // access named script exports
+    if (options.processedDurableObjects.length > 0) {
+      options.modules = true;
+    }
 
     options.processedModulesRules = this.getProcessedModulesRules(options);
 
