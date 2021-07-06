@@ -10,6 +10,7 @@ import originalFetch, {
 } from "@mrbbot/node-fetch";
 import { ParsedHTMLRewriter } from "@mrbbot/parsed-html-rewriter";
 import { Crypto } from "@peculiar/webcrypto";
+import FormData from "formdata-node";
 import {
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
@@ -36,6 +37,7 @@ export {
   TextDecoder,
   TextEncoder,
   Headers,
+  FormData,
   Request,
   Response,
   ByteLengthQueuingStrategy,
@@ -133,6 +135,7 @@ export class StandardsModule extends Module {
       Headers,
       Request,
       Response,
+      FormData,
       URL,
       URLSearchParams,
 

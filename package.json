@@ -39,6 +39,7 @@
     "chokidar": "^3.5.1",
     "cjstoesm": "^1.1.4",
     "dotenv": "^8.2.0",
+    "formdata-node": "^2.4.0",
     "http-cache-semantics": "^4.1.0",
     "micromatch": "^4.0.4",
     "node-cron": "^2.0.3",

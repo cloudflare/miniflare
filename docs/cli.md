@@ -158,47 +158,47 @@ For Miniflare specific options, the keys are in the special `[miniflare]`
 section.
 
 ```toml
-kv_namespaces = [               ## --kv
+kv_namespaces = [                  ## --kv
   { binding = "TEST_NAMESPACE", id = "", preview_id = "" }
 ]
 
 [durable_objects]
-bindings = [                    ## --do
+bindings = [                       ## --do
   { name = "OBJECT", class_name = "Object", script_name = "./object.mjs" }
 ]
 
-[vars]                          ## --binding
+[vars]                             ## --binding
 KEY = "value"
 
 [site]
-bucket = "./public"             ## --site
-include = ["upload_dir"]        ## --site-include
-exclude = ["ignore_dir"]        ## --site-exclude
+bucket = "./public"                ## --site
+include = ["upload_dir"]           ## --site-include
+exclude = ["ignore_dir"]           ## --site-exclude
 
 [triggers]
-crons = ["30 * * * *"]          ## --cron
+crons = ["30 * * * *"]             ## --cron
 
 [build]
-command = "npm run build"       ## --build-command
-cwd = "build_cwd"               ## --build-base-path
-watch_dir = "build_watch_dir"   ## --build-watch-path
+command = "npm run build"          ## --build-command
+cwd = "build_cwd"                  ## --build-base-path
+watch_dir = "build_watch_dir"      ## --build-watch-path
 [build.upload]
-format = "modules"              ## --modules
+format = "modules"                 ## --modules
 dir = "worker"
-main = "./index.mjs"            ## [script]
-[[build.upload.rules]]          ## --modules-rule
+main = "./index.mjs"               ## [script]
+[[build.upload.rules]]             ## --modules-rule
 type = "ESModule"
 globs = ["**/*.js"]
 
 [miniflare]
 upstream = "https://miniflare.dev" ## --upstream
-kv_persist = true               ## --kv-persist
-cache_persist = "./cache"       ## --cache-persist
-durable_objects_persist = true  ## --do-persist
-env_path = ".env.test"          ## --env
-host = "127.0.0.1"              ## --host
-port = 1337                     ## --port
-wasm_bindings = [               ## --wasm
+kv_persist = true                  ## --kv-persist
+cache_persist = "./cache"          ## --cache-persist
+durable_objects_persist = true     ## --do-persist
+env_path = ".env.test"             ## --env
+host = "127.0.0.1"                 ## --host
+port = 1337                        ## --port
+wasm_bindings = [                  ## --wasm
   { name = "MODULE", path="module.wasm" }
 ]
 ```

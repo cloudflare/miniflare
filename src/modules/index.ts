@@ -6,6 +6,7 @@ export {
   TextDecoder,
   TextEncoder,
   Headers,
+  FormData,
   Request,
   Response,
   HTMLRewriter,
