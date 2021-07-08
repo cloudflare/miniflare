@@ -3,7 +3,7 @@ import Typeson from "typeson";
 // @ts-expect-error typeson-registry doesn't have types
 import structuredCloneThrowing from "typeson-registry/dist/presets/structured-cloning-throwing";
 import { Mutex, intersects } from "./helpers";
-import { KVStorage } from "./storage";
+import { KVStorage, KVStoredValue } from "./storage";
 
 const collator = new Intl.Collator();
 const TSON = new Typeson().register(structuredCloneThrowing);
@@ -74,15 +74,35 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     return internals;
   }
 
-  async #get(key: string): Promise<Buffer | undefined> {
+  async #get(keys: string[]): Promise<(Buffer | undefined)[]> {
     const internals = this.#internals;
-    internals.readSet.add(key);
-    if (internals.copies.has(key)) {
-      // Value may be undefined if key deleted so need explicit has
-      return internals.copies.get(key);
-    } else {
-      return (await this.#storage.get(key))?.value;
+    const buffers: (Buffer | undefined)[] = Array(keys.length);
+
+    // Keys and indices of keys to batch get from storage
+    const storageGetKeys: string[] = [];
+    const storageGetIndices: number[] = [];
+
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      internals.readSet.add(key);
+      if (internals.copies.has(key)) {
+        // Value may be undefined if key deleted so need explicit has
+        buffers[i] = internals.copies.get(key);
+      } else {
+        storageGetKeys.push(key);
+        storageGetIndices.push(i);
+      }
     }
+
+    // Batch get keys from storage, ignoring metadata
+    assert.strictEqual(storageGetKeys.length, storageGetIndices.length);
+    const res = await this.#storage.getMany(storageGetKeys, true);
+    assert.strictEqual(storageGetKeys.length, res.length);
+    for (let i = 0; i < storageGetKeys.length; i++) {
+      buffers[storageGetIndices[i]] = res[i]?.value;
+    }
+
+    return buffers;
   }
 
   get<Value = unknown>(key: string): Promise<Value | undefined>;
@@ -94,15 +114,17 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     assert(!internals.rolledback);
     if (Array.isArray(keys)) {
       // If array of keys passed, build map of results
-      const values = new Map<string, Value>();
-      for (const key of keys) {
-        const value = await this.#get(key);
-        if (value) values.set(key, TSON.parse(value.toString("utf8")));
+      const res = new Map<string, Value>();
+      const values = await this.#get(keys);
+      assert.strictEqual(values.length, keys.length);
+      for (let i = 0; i < keys.length; i++) {
+        const value = values[i];
+        if (value) res.set(keys[i], TSON.parse(value.toString("utf8")));
       }
-      return values;
+      return res;
     } else {
       // Otherwise, return a single result
-      const value = await this.#get(keys);
+      const value = (await this.#get([keys]))[0];
       return value ? TSON.parse(value.toString("utf8")) : undefined;
     }
   }
@@ -137,10 +159,9 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     // Normalise keys argument to string array
     if (!Array.isArray(keys)) keys = [keys];
     // Delete shadow copies for each entry, and record operation in write log
-    let deleted = 0;
+    const deleted = await this.#storage.hasMany(keys);
     for (const key of keys) {
       internals.readSet.add(key);
-      deleted += (await this.#storage.has(key)) ? 1 : 0;
       internals.copies.set(key, undefined);
     }
     return arrayKeys ? deleted : deleted > 0;
@@ -164,20 +185,25 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     assert(!this.#internals.rolledback);
     // Get all matching key names, sorted
     const direction = options?.reverse ? 1 : -1;
-    let keys = (await this.#storage.list())
-      .filter(({ name }) => {
-        return !(
-          (options?.prefix && !name.startsWith(options.prefix)) ||
-          (options?.start && collator.compare(name, options.start) < 0) ||
-          (options?.end && collator.compare(name, options.end) >= 0)
-        );
-      })
-      .map(({ name }) => name)
-      .sort((a, b) => direction * collator.compare(b, a));
-    // Truncate keys to the limit if one is specified
-    if (options?.limit) keys = keys.slice(0, options.limit);
+    const keys = await this.#storage.list({
+      skipMetadata: true,
+      prefix: options?.prefix,
+      keysFilter(keys) {
+        keys = keys
+          .filter(({ name }) => {
+            return !(
+              (options?.start && collator.compare(name, options.start) < 0) ||
+              (options?.end && collator.compare(name, options.end) >= 0)
+            );
+          })
+          .sort((a, b) => direction * collator.compare(b.name, a.name));
+        // Truncate keys to the limit if one is specified
+        if (options?.limit) keys = keys.slice(0, options.limit);
+        return keys;
+      },
+    });
     // Get keys' values
-    return this.get(keys);
+    return this.get(keys.map(({ name }) => name));
   }
 
   rollback(): void {
@@ -234,6 +260,8 @@ export class DurableObjectStorage implements DurableObjectOperator {
 
     // Mutex needed as write phase is asynchronous and these phases need to be
     // performed as a critical section
+    // TODO: consider moving lock to KVStorage, then using database/file locks,
+    //  would also need to move all storage state there (txnCount, txnWriteSets)
     return this.#mutex.run(async () => {
       // 2. Validate Phase
       const finishTxnCount = this.#txnCount;
@@ -245,13 +273,17 @@ export class DurableObjectStorage implements DurableObjectOperator {
       }
 
       // 3. Write Phase
+      const putEntries: [key: string, value: KVStoredValue][] = [];
+      const deleteKeys: string[] = [];
       for (const [key, value] of internals.copies.entries()) {
         if (value) {
-          await this.#storage.put(key, { value });
+          putEntries.push([key, { value }]);
         } else {
-          await this.#storage.delete(key);
+          deleteKeys.push(key);
         }
       }
+      if (putEntries.length > 0) await this.#storage.putMany(putEntries);
+      if (deleteKeys.length > 0) await this.#storage.deleteMany(deleteKeys);
 
       this.#txnCount++;
       this.#txnWriteSets.set(this.#txnCount, internals.writeSet);

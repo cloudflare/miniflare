@@ -20,9 +20,10 @@ interface Context {
 const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
-  const storage = new MemoryKVStorage();
   const clock = { timestamp: 1000000 };
-  const cache = new Cache(storage, () => clock.timestamp);
+  const kvClock = () => clock.timestamp;
+  const storage = new MemoryKVStorage(undefined, kvClock);
+  const cache = new Cache(storage, kvClock);
   t.context = { storage, clock, cache };
 });
 
@@ -153,9 +154,9 @@ test("Cache-Control's s-maxage", expireMacro, {
 });
 
 const isCachedMacro: Macro<
-  [{ headers: { [key: string]: string }; stored?: boolean; cached: boolean }],
+  [{ headers: { [key: string]: string }; cached: boolean }],
   Context
-> = async (t, { headers, stored, cached }) => {
+> = async (t, { headers, cached }) => {
   const { storage, cache } = t.context;
   await cache.put(
     new Request("http://localhost:8787/test"),
@@ -167,7 +168,7 @@ const isCachedMacro: Macro<
     })
   );
   const storedValue = await storage.get("http://localhost:8787/test.json");
-  (stored ?? cached ? t.not : t.is)(storedValue, undefined);
+  (cached ? t.not : t.is)(storedValue, undefined);
   const cachedRes = await cache.match("http://localhost:8787/test");
   (cached ? t.not : t.is)(cachedRes, undefined);
 };
@@ -182,7 +183,6 @@ test("does not cache with no-store Cache-Control", isCachedMacro, {
 });
 test("does not cache with no-cache Cache-Control", isCachedMacro, {
   headers: { "Cache-Control": "no-cache" },
-  stored: true,
   cached: false,
 });
 test("does not cache with Set-Cookie", isCachedMacro, {

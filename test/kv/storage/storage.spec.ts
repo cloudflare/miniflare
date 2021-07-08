@@ -4,12 +4,21 @@ import test, { ExecutionContext, Macro } from "ava";
 import {
   FileKVStorage,
   KVStorage,
+  KVStoredKeyOnly,
   KVStoredValue,
   MemoryKVStorage,
 } from "../../../src";
+import { KVClock } from "../../../src/kv/helpers";
 import { useTmp } from "../../helpers";
 
+// TODO: add tests for Redis storage once implemented
+
+const testClock: KVClock = () => 750000; // 750s
+
 const collator = new Intl.Collator();
+function sortKeys<T extends KVStoredKeyOnly[]>(keys: T): T {
+  return keys.sort((a, b) => collator.compare(a.name, b.name));
+}
 
 type TestStorageFactory = {
   name: string;
@@ -27,8 +36,12 @@ const memoryStorageFactory: TestStorageFactory = {
       expiration: 1000,
       metadata: { testing: true },
     });
-    map.set("dir/key3", { value: Buffer.from("value3", "utf8") });
-    return new MemoryKVStorage(map);
+    map.set("key3", {
+      value: Buffer.from("expired", "utf8"),
+      expiration: 500,
+    });
+    map.set("dir/key4", { value: Buffer.from("value3", "utf8") });
+    return new MemoryKVStorage(map, testClock);
   },
 };
 const fileStorageFactory: TestStorageFactory = {
@@ -42,13 +55,19 @@ const fileStorageFactory: TestStorageFactory = {
       JSON.stringify({ expiration: 1000, metadata: { testing: true } }),
       "utf8"
     );
-    await fs.writeFile(path.join(tmp, "dir_key3"), "value3", "utf8");
+    await fs.writeFile(path.join(tmp, "key3"), "expired", "utf8");
     await fs.writeFile(
-      path.join(tmp, "dir_key3.meta.json"),
-      JSON.stringify({ key: "dir/key3" }),
+      path.join(tmp, "key3.meta.json"),
+      JSON.stringify({ expiration: 500 }),
       "utf8"
     );
-    return new FileKVStorage(tmp);
+    await fs.writeFile(path.join(tmp, "dir_key4"), "value3", "utf8");
+    await fs.writeFile(
+      path.join(tmp, "dir_key4.meta.json"),
+      JSON.stringify({ key: "dir/key4" }),
+      "utf8"
+    );
+    return new FileKVStorage(tmp, true, testClock);
   },
 };
 const unsanitisedFileStorageFactory: TestStorageFactory = {
@@ -62,9 +81,15 @@ const unsanitisedFileStorageFactory: TestStorageFactory = {
       JSON.stringify({ expiration: 1000, metadata: { testing: true } }),
       "utf8"
     );
+    await fs.writeFile(path.join(tmp, "key3"), "expired", "utf8");
+    await fs.writeFile(
+      path.join(tmp, "key3.meta.json"),
+      JSON.stringify({ expiration: 500 }),
+      "utf8"
+    );
     await fs.mkdir(path.join(tmp, "dir"));
-    await fs.writeFile(path.join(tmp, "dir", "key3"), "value3", "utf8");
-    return new FileKVStorage(tmp, false);
+    await fs.writeFile(path.join(tmp, "dir", "key4"), "value3", "utf8");
+    return new FileKVStorage(tmp, false, testClock);
   },
 };
 
@@ -82,7 +107,7 @@ const hasMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
   const storage = await factory(t);
   t.true(await storage.has("key1"));
   t.true(await storage.has("key2"));
-  t.true(await storage.has("dir/key3"));
+  t.true(await storage.has("dir/key4"));
   t.false(await storage.has("key4"));
 };
 hasMacro.title = (providedTitle, { name }) =>
@@ -90,6 +115,26 @@ hasMacro.title = (providedTitle, { name }) =>
 test(hasMacro, memoryStorageFactory);
 test(hasMacro, fileStorageFactory);
 test(hasMacro, unsanitisedFileStorageFactory);
+
+const hasExpiredMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
+  const storage = await factory(t);
+  t.false(await storage.has("key3"));
+};
+hasExpiredMacro.title = (providedTitle, { name }) =>
+  `${name}: has: respects expiration`;
+test(hasExpiredMacro, memoryStorageFactory);
+test(hasExpiredMacro, fileStorageFactory);
+
+const hasManyMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
+  const storage = await factory(t);
+  // key3 expired, key5 nonexistent
+  t.is(await storage.hasMany(["key1", "key2", "key3", "dir/key4", "key5"]), 3);
+};
+hasManyMacro.title = (providedTitle, { name }) =>
+  `${name}: hasMany: checks if many keys exist`;
+test(hasManyMacro, memoryStorageFactory);
+test(hasManyMacro, fileStorageFactory);
+test(hasManyMacro, unsanitisedFileStorageFactory);
 
 const getExistingMacro: Macro<[TestStorageFactory]> = async (
   t,
@@ -126,13 +171,44 @@ const getNonExistentMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t);
-  const value = await storage.get("badkey");
+  const value = await storage.get("key5");
   t.is(value, undefined);
 };
 getNonExistentMacro.title = (providedTitle, { name }) =>
   `${name}: get: returns undefined for non-existent key`;
 test(getNonExistentMacro, memoryStorageFactory);
 test(getNonExistentMacro, fileStorageFactory);
+
+const getExpiredMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
+  const storage = await factory(t);
+  const value = await storage.get("key3");
+  t.is(value, undefined);
+};
+getExpiredMacro.title = (providedTitle, { name }) =>
+  `${name}: get: respects expiration`;
+test(getExpiredMacro, memoryStorageFactory);
+test(getExpiredMacro, fileStorageFactory);
+
+const getManyMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
+  const storage = await factory(t);
+  const values = await storage.getMany(["key1", "key2", "key3", "key5"]);
+  t.is(values.length, 4);
+
+  t.is(values[0]?.value.toString("utf8"), "value1");
+  t.is(values[0]?.expiration, undefined);
+  t.is(values[0]?.metadata, undefined);
+
+  t.is(values[1]?.value.toString("utf8"), "value2");
+  t.is(values[1]?.expiration, 1000);
+  t.deepEqual(values[1]?.metadata, { testing: true });
+
+  t.is(values[2], undefined); // expired
+  t.is(values[3], undefined); // nonexistent
+};
+getManyMacro.title = (providedTitle, { name }) =>
+  `${name}: get: gets many keys`;
+test(getManyMacro, memoryStorageFactory);
+test(getManyMacro, fileStorageFactory);
 
 const putNewMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
   const storage = await factory(t);
@@ -158,9 +234,9 @@ const putNewDirectoryMacro: Macro<[TestStorageFactory]> = async (
   t.is(value?.metadata, undefined);
   // Check real key was stored if path sanitised
   const keys = await storage.list();
-  const sortedKeys = keys.sort((a, b) => collator.compare(a.name, b.name));
+  const sortedKeys = sortKeys(keys);
   t.deepEqual(sortedKeys, [
-    { name: "dir/key3", expiration: undefined, metadata: undefined },
+    { name: "dir/key4", expiration: undefined, metadata: undefined },
     { name: "dir/newkey", expiration: undefined, metadata: undefined },
     { name: "key1", expiration: undefined, metadata: undefined },
     { name: "key2", expiration: 1000, metadata: { testing: true } },
@@ -208,6 +284,35 @@ putOverrideMacro.title = (providedTitle, { name }) =>
 test(putOverrideMacro, memoryStorageFactory);
 test(putOverrideMacro, fileStorageFactory);
 
+const putManyMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
+  const storage = await factory(t);
+  await storage.putMany([
+    ["key1", { value: Buffer.from("value1", "utf8") }],
+    [
+      "key2",
+      {
+        value: Buffer.from("value2", "utf8"),
+        expiration: 1000,
+        metadata: { testing: true },
+      },
+    ],
+  ]);
+  const values = await storage.getMany(["key1", "key2"]);
+  t.is(values.length, 2);
+
+  t.is(values[0]?.value.toString("utf8"), "value1");
+  t.is(values[0]?.expiration, undefined);
+  t.is(values[0]?.metadata, undefined);
+
+  t.is(values[1]?.value.toString("utf8"), "value2");
+  t.is(values[1]?.expiration, 1000);
+  t.deepEqual(values[1]?.metadata, { testing: true });
+};
+putManyMacro.title = (providedTitle, { name }) =>
+  `${name}: put: puts many keys`;
+test(putManyMacro, memoryStorageFactory);
+test(putManyMacro, fileStorageFactory);
+
 const deleteExistingMacro: Macro<[TestStorageFactory]> = async (
   t,
   { factory }
@@ -226,12 +331,40 @@ const deleteNonExistentMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t);
-  t.false(await storage.delete("badkey"));
+  t.false(await storage.delete("key5"));
 };
 deleteNonExistentMacro.title = (providedTitle, { name }) =>
   `${name}: delete: returns false for non-existent key`;
 test(deleteNonExistentMacro, memoryStorageFactory);
 test(deleteNonExistentMacro, fileStorageFactory);
+
+const deleteExpiredMacro: Macro<[TestStorageFactory]> = async (
+  t,
+  { factory }
+) => {
+  const storage = await factory(t);
+  t.false(await storage.delete("key3"));
+};
+deleteExpiredMacro.title = (providedTitle, { name }) =>
+  `${name}: delete: respects expiration`;
+test(deleteExpiredMacro, memoryStorageFactory);
+test(deleteExpiredMacro, fileStorageFactory);
+
+const deleteManyMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
+  const storage = await factory(t);
+  // key3 expired, key5 nonexistent
+  t.is(await storage.deleteMany(["key1", "key2", "key3", "key5"]), 2);
+  t.deepEqual(await storage.getMany(["key1", "key2", "key3", "key5"]), [
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+  ]);
+};
+deleteManyMacro.title = (providedTitle, { name }) =>
+  `${name}: delete: deletes many keys`;
+test(deleteManyMacro, memoryStorageFactory);
+test(deleteManyMacro, fileStorageFactory);
 
 const listExistingMacro: Macro<[TestStorageFactory]> = async (
   t,
@@ -239,9 +372,10 @@ const listExistingMacro: Macro<[TestStorageFactory]> = async (
 ) => {
   const storage = await factory(t);
   const keys = await storage.list();
-  const sortedKeys = keys.sort((a, b) => collator.compare(a.name, b.name));
+  const sortedKeys = sortKeys(keys);
+  // Note expired key key3 shouldn't be returned
   t.deepEqual(sortedKeys, [
-    { name: "dir/key3", expiration: undefined, metadata: undefined },
+    { name: "dir/key4", expiration: undefined, metadata: undefined },
     { name: "key1", expiration: undefined, metadata: undefined },
     { name: "key2", expiration: 1000, metadata: { testing: true } },
   ]);
@@ -254,9 +388,73 @@ test(listExistingMacro, unsanitisedFileStorageFactory);
 
 const listEmptyMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
   const storage = await factory(t);
-  t.deepEqual(await storage.list(), []);
+  const keys = await storage.list();
+  t.deepEqual(keys, []);
 };
 listEmptyMacro.title = (providedTitle, { name }) =>
   `${name}: list: returns empty array when no keys`;
 test(listEmptyMacro, emptyMemoryStorageFactory);
 test(listEmptyMacro, emptyFileStorageFactory);
+
+const listPrefixMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
+  const storage = await factory(t);
+  const keys = await storage.list({ prefix: "key" });
+  const sortedKeys = sortKeys(keys);
+  // Note expired key key3 shouldn't be returned
+  t.deepEqual(sortedKeys, [
+    { name: "key1", expiration: undefined, metadata: undefined },
+    { name: "key2", expiration: 1000, metadata: { testing: true } },
+  ]);
+};
+listPrefixMacro.title = (providedTitle, { name }) =>
+  `${name}: list: respects prefix filter`;
+test(listPrefixMacro, memoryStorageFactory);
+test(listPrefixMacro, fileStorageFactory);
+test(listPrefixMacro, unsanitisedFileStorageFactory);
+
+const listKeysFilterMacro: Macro<[TestStorageFactory]> = async (
+  t,
+  { factory }
+) => {
+  t.plan(2);
+  const storage = await factory(t);
+  const keys = await storage.list({
+    prefix: "key",
+    keysFilter(keys) {
+      // Check keys not matching the prefix or expired filtered out already
+      t.true(
+        keys.every((key) => key.name.startsWith("key") && key.name !== "key3")
+      );
+      return keys.filter((key) => key.name === "key1");
+    },
+  });
+  t.deepEqual(keys, [
+    { name: "key1", expiration: undefined, metadata: undefined },
+  ]);
+};
+listKeysFilterMacro.title = (providedTitle, { name }) =>
+  `${name}: list: respects keys filter`;
+test(listKeysFilterMacro, memoryStorageFactory);
+test(listKeysFilterMacro, fileStorageFactory);
+test(listKeysFilterMacro, unsanitisedFileStorageFactory);
+
+const listKeysFilterOrderMacro: Macro<[TestStorageFactory]> = async (
+  t,
+  { factory }
+) => {
+  const storage = await factory(t);
+  const keys = await storage.list({
+    keysFilter: (keys) => keys.sort((a, b) => collator.compare(b.name, a.name)),
+  });
+  // Check order preserved from filter output
+  t.deepEqual(keys, [
+    { name: "key2", expiration: 1000, metadata: { testing: true } },
+    { name: "key1", expiration: undefined, metadata: undefined },
+    { name: "dir/key4", expiration: undefined, metadata: undefined },
+  ]);
+};
+listKeysFilterOrderMacro.title = (providedTitle, { name }) =>
+  `${name}: list: preserves keys filter's returned order`;
+test(listKeysFilterOrderMacro, memoryStorageFactory);
+test(listKeysFilterOrderMacro, fileStorageFactory);
+test(listKeysFilterOrderMacro, unsanitisedFileStorageFactory);

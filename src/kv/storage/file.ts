@@ -1,7 +1,12 @@
 import { existsSync, promises as fs } from "fs";
 import path from "path";
-import { sanitise } from "../helpers";
-import { KVStorage, KVStoredKey, KVStoredValue } from "./storage";
+import { KVClock, defaultClock, millisToSeconds, sanitise } from "../helpers";
+import {
+  KVStorage,
+  KVStorageListOptions,
+  KVStoredKey,
+  KVStoredValue,
+} from "./storage";
 
 function onNotFound<T, V>(promise: Promise<T>, value: V): Promise<T | V> {
   return promise.catch((e) => {
@@ -59,43 +64,73 @@ async function walkDir(rootPath: string): Promise<string[]> {
 
 const metaSuffix = ".meta.json";
 
-export class FileKVStorage implements KVStorage {
-  private readonly _root: string;
-  // Allow sanitisation to be disable for read-only Workers Site's namespaces
-  //  so paths containing /'s resolve correctly
-  private readonly _sanitise: boolean;
+interface Meta {
+  key?: string;
+  expiration?: number;
+  metadata?: any;
+}
 
-  constructor(root: string, sanitise = true) {
-    this._root = path.resolve(root);
-    this._sanitise = sanitise;
+export class FileKVStorage extends KVStorage {
+  private readonly root: string;
+
+  constructor(
+    root: string,
+    // Allow sanitisation to be disabled for read-only Workers Site's namespaces
+    //  so paths containing /'s resolve correctly
+    private sanitise = true,
+    private clock: KVClock = defaultClock
+  ) {
+    super();
+    this.root = path.resolve(root);
   }
 
-  private _keyFilePath(key: string): [path: string, sanitised: boolean] {
-    const sanitisedKey = this._sanitise ? sanitise(key) : key;
-    return [path.join(this._root, sanitisedKey), sanitisedKey !== key];
+  // noinspection JSMethodCanBeStatic
+  private async getMeta(filePath: string): Promise<Meta> {
+    // Try to get file metadata, if it doesn't exist, assume no expiration or
+    // metadata, otherwise JSON parse it and use it
+    const metadataValue = await readFile(filePath + metaSuffix, true);
+    if (metadataValue) {
+      return JSON.parse(metadataValue);
+    } else {
+      return {};
+    }
+  }
+
+  private async expired(
+    filePath: string,
+    meta?: Meta,
+    time?: number
+  ): Promise<boolean> {
+    if (meta === undefined) meta = await this.getMeta(filePath);
+    if (time === undefined) time = millisToSeconds(this.clock());
+    if (meta.expiration !== undefined && meta.expiration <= time) {
+      await this.deleteFiles(filePath);
+      return true;
+    }
+    return false;
+  }
+
+  private keyFilePath(key: string): [path: string, sanitised: boolean] {
+    const sanitisedKey = this.sanitise ? sanitise(key) : key;
+    return [path.join(this.root, sanitisedKey), sanitisedKey !== key];
   }
 
   async has(key: string): Promise<boolean> {
     // Check if file exists
-    const [filePath] = this._keyFilePath(key);
+    const [filePath] = this.keyFilePath(key);
+    if (await this.expired(filePath)) return false;
     return existsSync(filePath);
   }
 
   async get(key: string): Promise<KVStoredValue | undefined> {
     // Try to get file data, if it doesn't exist, the key doesn't either
-    const [filePath] = this._keyFilePath(key);
+    const [filePath] = this.keyFilePath(key);
     const value = await readFile(filePath);
     if (!value) return undefined;
 
-    // Try to get file metadata, if it doesn't exist, assume no expiration or
-    // metadata, otherwise JSON parse it and use it
-    const metadataValue = await readFile(filePath + metaSuffix, true);
-    if (!metadataValue) {
-      return { value };
-    } else {
-      const { expiration, metadata } = JSON.parse(metadataValue);
-      return { value, expiration, metadata };
-    }
+    const meta = await this.getMeta(filePath);
+    if (await this.expired(filePath, meta)) return undefined;
+    return { ...meta, value };
   }
 
   async put(
@@ -103,7 +138,7 @@ export class FileKVStorage implements KVStorage {
     { value, expiration, metadata }: KVStoredValue
   ): Promise<void> {
     // Write value to file
-    const [filePath, sanitised] = this._keyFilePath(key);
+    const [filePath, sanitised] = this.keyFilePath(key);
     await writeFile(filePath, value);
 
     // Write metadata to file if there is any, otherwise delete old metadata,
@@ -112,43 +147,56 @@ export class FileKVStorage implements KVStorage {
     if (expiration !== undefined || metadata !== undefined || sanitised) {
       await writeFile(
         metaFilePath,
-        JSON.stringify({ key, expiration, metadata })
+        JSON.stringify({ key, expiration, metadata } as Meta)
       );
     } else {
       await deleteFile(metaFilePath);
     }
   }
 
-  async delete(key: string): Promise<boolean> {
-    // Delete value file and associated metadata
-    const [filePath] = this._keyFilePath(key);
+  // noinspection JSMethodCanBeStatic
+  private async deleteFiles(filePath: string): Promise<boolean> {
     const existed = await deleteFile(filePath);
     await deleteFile(filePath + metaSuffix);
     return existed;
   }
 
-  async list(): Promise<KVStoredKey[]> {
+  async delete(key: string): Promise<boolean> {
+    // Delete value file and associated metadata
+    const [filePath] = this.keyFilePath(key);
+    if (await this.expired(filePath)) return false;
+    return this.deleteFiles(filePath);
+  }
+
+  async list({ prefix, keysFilter }: KVStorageListOptions = {}): Promise<
+    KVStoredKey[]
+  > {
+    const time = millisToSeconds(this.clock());
     const keys: KVStoredKey[] = [];
-    const filePaths = await walkDir(this._root);
+    const filePaths = await walkDir(this.root);
     for (const filePath of filePaths) {
       // Get key name by removing root directory & path separator
-      // (we can do this as this._root is fully-resolved in the constructor)
-      const name = filePath.substring(this._root.length + 1);
-      // Ignore meta or excluded files
+      // (we can do this as this.root is fully-resolved in the constructor)
+      const name = filePath.substring(this.root.length + 1);
+      // Ignore meta files
       if (filePath.endsWith(metaSuffix)) continue;
-      // Try to get file metadata, if it doesn't exist, assume no expiration or
-      // metadata, otherwise JSON parse it and use it
-      const metadataValue = await readFile(
-        path.join(this._root, name + metaSuffix),
-        true
-      );
-      if (!metadataValue) {
-        keys.push({ name, expiration: undefined, metadata: undefined });
-      } else {
-        const { key, expiration, metadata } = JSON.parse(metadataValue);
-        keys.push({ name: key ?? name, expiration, metadata });
-      }
+
+      // Try to get file meta
+      const meta = await this.getMeta(filePath);
+      // Get the real unsanitised key if it exists
+      const realName = meta?.key ?? name;
+
+      // Ignore keys not matching the prefix if it's defined
+      if (prefix !== undefined && !realName.startsWith(prefix)) continue;
+      // Ignore expired keys
+      if (await this.expired(filePath, meta, time)) continue;
+
+      keys.push({
+        name: realName,
+        expiration: meta.expiration,
+        metadata: meta.metadata,
+      });
     }
-    return keys;
+    return keysFilter ? keysFilter(keys) : keys;
   }
 }

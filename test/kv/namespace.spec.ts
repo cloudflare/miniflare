@@ -14,7 +14,7 @@ import {
 import { KVClock } from "../../src/kv/helpers";
 import { getObjectProperties } from "../helpers";
 
-const testClock: KVClock = () => 1000000;
+const testClock: KVClock = () => 1000000; // 1000s
 
 interface Context {
   storage: KVStorage;
@@ -24,7 +24,7 @@ interface Context {
 const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
-  const storage = new MemoryKVStorage();
+  const storage = new MemoryKVStorage(undefined, testClock);
   const ns = new KVStorageNamespace(storage, testClock);
   t.context = { storage, ns };
 });
@@ -235,13 +235,13 @@ test("array buffers", putMacro, {
 });
 test("text with expiration", putMacro, {
   value: "value",
-  options: { expiration: 1000 },
-  expected: { value: "value", expiration: 1000 },
+  options: { expiration: 1100 },
+  expected: { value: "value", expiration: 1100 },
 });
 test("text with string expiration", putMacro, {
   value: "value",
-  options: { expiration: "1000" },
-  expected: { value: "value", expiration: 1000 },
+  options: { expiration: "1100" },
+  expected: { value: "value", expiration: 1100 },
 });
 test("text with expiration ttl", putMacro, {
   value: "value",
@@ -260,8 +260,8 @@ test("text with metadata", putMacro, {
 });
 test("text with expiration and metadata", putMacro, {
   value: "value",
-  options: { expiration: 1000, metadata: { testing: true } },
-  expected: { value: "value", expiration: 1000, metadata: { testing: true } },
+  options: { expiration: 1100, metadata: { testing: true } },
+  expected: { value: "value", expiration: 1100, metadata: { testing: true } },
 });
 test("text with expiration ttl and metadata", putMacro, {
   value: "value",
@@ -273,12 +273,12 @@ test("put: overrides existing keys", async (t) => {
   const { storage, ns } = t.context;
   await ns.put("key", "value1");
   await ns.put("key", "value2", {
-    expiration: 1000,
+    expiration: 1100,
     metadata: { testing: true },
   });
   t.deepEqual(await storage.get("key"), {
     value: Buffer.from("value2", "utf8"),
-    expiration: 1000,
+    expiration: 1100,
     metadata: { testing: true },
   });
 });

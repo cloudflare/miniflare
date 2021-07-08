@@ -14,6 +14,7 @@ export function intersects<T>(a: Set<T>, b: Set<T>): boolean {
   return false;
 }
 
+// KVClock returns the current time in milliseconds since the unix epoch
 export type KVClock = () => number;
 export const defaultClock: KVClock = () => Date.now();
 export function millisToSeconds(millis: number): number {

@@ -7,7 +7,7 @@ import {
 import { KVClock } from "../../src/kv/helpers";
 import { getObjectProperties } from "../helpers";
 
-const testClock: KVClock = () => 1000000;
+const testClock: KVClock = () => 750000; // 750s
 
 interface Context {
   storage: KVStorage;
@@ -16,7 +16,7 @@ interface Context {
 const test = anyTest as TestInterface<Context>;
 
 test.beforeEach(async (t) => {
-  const storage = new MemoryKVStorage();
+  const storage = new MemoryKVStorage(undefined, testClock);
   for (let i = 1; i <= 3; i++) {
     for (let j = 1; j <= 2; j++) {
       await storage.put(`section${i}key${j}`, {

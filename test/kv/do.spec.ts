@@ -92,6 +92,41 @@ test("get: returns map with non-existent keys omitted", async (t) => {
   ]);
   t.deepEqual(await storage.get(["key1", "key2", "key3"]), expected);
 });
+test("get: gets from shadow copies", async (t) => {
+  t.plan(5);
+  const { backing, storage } = t.context;
+  await backing.put("key1", storedValue("value1"));
+  await backing.put("key2", storedValue("value2"));
+  await storage.transaction(async (txn) => {
+    // Test overwriting existing key
+    await txn.put("key1", "new");
+    t.is(await txn.get("key1"), "new");
+    t.deepEqual(await backing.get("key1"), storedValue("value1"));
+
+    // Test deleting key
+    await txn.delete("key2");
+    t.is(await txn.get("key2"), undefined);
+
+    // Test creating new key
+    await txn.put("key3", "value3");
+    t.is(await txn.get("key3"), "value3");
+    t.is(await backing.get("key3"), undefined);
+  });
+});
+test("get: gets some keys from shadow copies and some from storage", async (t) => {
+  t.plan(3);
+  const { backing, storage } = t.context;
+  await backing.put("key1", storedValue("value1"));
+  await backing.put("key3", storedValue("value3"));
+  await storage.transaction(async (txn) => {
+    await txn.put("key2", "value2");
+    await txn.delete("key3");
+    const values = await txn.get(["key1", "key2", "key3"]);
+    t.is(values.size, 2);
+    t.is(values.get("key1"), "value1"); // from storage
+    t.is(values.get("key2"), "value2"); // from shadow copies
+  });
+});
 
 test("put: puts single key", async (t) => {
   const { backing, storage } = t.context;
