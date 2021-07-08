@@ -1,7 +1,9 @@
 import assert from "assert";
 import path from "path";
+import Redis, { Commands } from "ioredis";
 import sanitize from "sanitize-filename";
 import { FileKVStorage, KVStorage, MemoryKVStorage } from "./storage";
+import { RedisKVStorage } from "./storage/redis";
 
 export function sanitise(fileName: string): string {
   return sanitize(fileName, { replacement: "_" });
@@ -21,11 +23,15 @@ export function millisToSeconds(millis: number): number {
   return Math.floor(millis / 1000);
 }
 
+const redisConnectionStringRegexp = /^rediss?:\/\//;
+
 export class KVStorageFactory {
   constructor(
     private defaultPersistRoot: string,
     // Store memory KV storages for persistence across options reloads
-    private memoryStorages: Map<string, MemoryKVStorage> = new Map()
+    private memoryStorages: Map<string, MemoryKVStorage> = new Map(),
+    // Store Redis connections across options reloads
+    private redisConnections: Map<string, Commands> = new Map()
   ) {}
 
   getStorage(namespace: string, persist?: boolean | string): KVStorage {
@@ -33,9 +39,19 @@ export class KVStorageFactory {
     // true, or undefined if it's false
     persist = persist === true ? this.defaultPersistRoot : persist || undefined;
     if (persist) {
-      // If the persist option is set, use file-system storage
-      const root = path.join(persist, sanitise(namespace));
-      return new FileKVStorage(root);
+      if (persist.match(redisConnectionStringRegexp)) {
+        // If the persist option is a redis connection string, use Redis storage
+        let connection = this.redisConnections.get(persist);
+        if (!connection) {
+          // TODO: (low priority) maybe allow redis options to be configured?
+          this.redisConnections.set(persist, (connection = new Redis(persist)));
+        }
+        return new RedisKVStorage(namespace, connection);
+      } else {
+        // Otherwise, use file-system storage
+        const root = path.join(persist, sanitise(namespace));
+        return new FileKVStorage(root);
+      }
     } else {
       // Otherwise, use in-memory storage
       let storage = this.memoryStorages.get(namespace);

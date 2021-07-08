@@ -1,3 +1,4 @@
+import assert from "assert";
 import { promises as fs } from "fs";
 import http from "http";
 import { AddressInfo } from "net";
@@ -79,6 +80,22 @@ export function triggerPromise<T>(): [
 
 export function wait(t: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, t));
+}
+
+export function within(
+  t: ExecutionContext,
+  epsilon: number,
+  actual?: number,
+  expected?: number
+): void {
+  t.not(actual, undefined);
+  t.not(expected, undefined);
+  assert(actual !== undefined && expected !== undefined);
+  const difference = Math.abs(actual - expected);
+  t.true(
+    difference <= epsilon,
+    `${actual} is not within ${epsilon} of ${expected}, difference is ${difference}`
+  );
 }
 
 export function getObjectProperties<T>(obj: T): string[] {

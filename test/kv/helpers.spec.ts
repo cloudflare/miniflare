@@ -1,6 +1,8 @@
+import assert from "assert";
 import { existsSync, promises as fs } from "fs";
 import path from "path";
 import test from "ava";
+import { Commands } from "ioredis";
 import { MemoryKVStorage } from "../../src";
 import {
   KVStorageFactory,
@@ -8,6 +10,7 @@ import {
   intersects,
   sanitise,
 } from "../../src/kv/helpers";
+import { RedisKVStorage } from "../../src/kv/storage/redis";
 import { useTmp, wait } from "../helpers";
 
 test("sanitise: sanitises file name", (t) => {
@@ -74,6 +77,40 @@ test("getStorage: reuses existing in-memory storages", async (t) => {
   await storage1.put("key", { value: Buffer.from("value", "utf8") });
   const storage2 = factory.getStorage("ns");
   t.is((await storage2.get("key"))?.value.toString("utf8"), "value");
+});
+
+test("getStorage: reuses Redis connections for Redis storage", async (t) => {
+  // Create "connections" that we can check for reference equality later
+  // @ts-expect-error we just want to check the same object is returned
+  const insecureConnection: Commands = { secure: false };
+  // @ts-expect-error we just want to check the same object is returned
+  const secureConnection: Commands = { secure: false };
+  const redisConnections = new Map<string, Commands>();
+  redisConnections.set("redis://127.0.0.1:6379", insecureConnection);
+  redisConnections.set("rediss://127.0.0.1:6379/2", secureConnection);
+
+  const tmp = await useTmp(t);
+  const factory = new KVStorageFactory(tmp, undefined, redisConnections);
+
+  // Get storages for Redis URLs and check they're Redis storages
+  const insecureStorage = factory.getStorage(
+    "NAMESPACE1",
+    "redis://127.0.0.1:6379"
+  );
+  const secureStorage = factory.getStorage(
+    "NAMESPACE2",
+    "rediss://127.0.0.1:6379/2"
+  );
+  assert(insecureStorage instanceof RedisKVStorage);
+  assert(secureStorage instanceof RedisKVStorage);
+
+  // Check the namespace is preserved
+  t.is(insecureStorage.namespace, "NAMESPACE1");
+  t.is(secureStorage.namespace, "NAMESPACE2");
+
+  // Check the Redis instance is reused
+  t.is(insecureStorage.redis, insecureConnection);
+  t.is(secureStorage.redis, secureConnection);
 });
 
 test("Mutex: runs closures exclusively", async (t) => {
