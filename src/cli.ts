@@ -1,5 +1,10 @@
 #!/usr/bin/env -S node --experimental-vm-modules
+import { existsSync, promises as fs } from "fs";
 import { networkInterfaces } from "os";
+import path from "path";
+import fetch from "@mrbbot/node-fetch";
+import envPaths from "env-paths";
+import semverGt from "semver/functions/gt";
 import yargs from "yargs";
 import { ConsoleLog } from "./log";
 import {
@@ -161,6 +166,10 @@ export default function parseArgv(raw: string[]): Options {
         type: "array",
         description: "WASM module to bind (NAME=PATH)",
       },
+      ["disable-updater"]: {
+        type: "boolean",
+        description: "Disable update checker",
+      },
     })
     .parse(raw);
 
@@ -191,13 +200,44 @@ export default function parseArgv(raw: string[]): Options {
     envPath: argv.env,
     bindings: parseObject(asStringArray(argv.binding)),
     wasmBindings: parseObject(asStringArray(argv.wasm)),
+    disableUpdater: argv["disable-updater"],
   });
 }
 
-if (module === require.main) {
-  const options = parseArgv(process.argv.slice(2));
-  const mf = new Miniflare(options);
+async function updateCheck(): Promise<
+  [installedVersion: string, registryVersion: string] | false
+> {
+  // Get currently installed package metadata
+  const pkgFile = path.join(__dirname, "..", "..", "package.json");
+  const pkg = JSON.parse(await fs.readFile(pkgFile, "utf8"));
+  const installedVersion = pkg.version;
 
+  // If checked within the past day, don't check again
+  const cachePath = envPaths(pkg.name).cache;
+  await fs.mkdir(cachePath, { recursive: true });
+  const lastCheckFile = path.join(cachePath, "update-check");
+  const lastCheck = existsSync(lastCheckFile)
+    ? parseInt(await fs.readFile(lastCheckFile, "utf8"))
+    : 0;
+  if (Date.now() - lastCheck < 86400000) return false;
+
+  // Get latest version's package.json from npm
+  const res = await fetch(`https://registry.npmjs.org/${pkg.name}/latest`, {
+    headers: { Accept: "application/json" },
+  });
+  const registryVersion = (await res.json()).version;
+  if (!registryVersion) return false;
+
+  // Record new last check time
+  await fs.writeFile(lastCheckFile, Date.now().toString(), "utf8");
+
+  // Return versions if latest version is greater than the currently installed
+  return semverGt(registryVersion, installedVersion)
+    ? [installedVersion, registryVersion]
+    : false;
+}
+
+if (module === require.main) {
   // Suppress experimental modules warning
   const originalEmitWarning = process.emitWarning;
   process.emitWarning = (warning, name, ctor) => {
@@ -210,9 +250,12 @@ if (module === require.main) {
     return originalEmitWarning(warning, name, ctor);
   };
 
+  const options = parseArgv(process.argv.slice(2));
+  const mf = new Miniflare(options);
+
   mf.getOptions()
     .then(({ host, port = defaultPort }) => {
-      mf.createServer().listen(port, host, () => {
+      mf.createServer().listen(port, host, async () => {
         mf.log.info(`Listening on ${host ?? ""}:${port}`);
         if (host) {
           mf.log.info(`- http://${host}:${port}`);
@@ -221,6 +264,21 @@ if (module === require.main) {
             mf.log.info(`- http://${accessibleHost}:${port}`);
           }
         }
+
+        // Check for updates, ignoring errors (it's not that important)
+        if (options.disableUpdater) return;
+        try {
+          const update = await updateCheck();
+          if (!update) return;
+          const [installedVersion, registryVersion] = update;
+          mf.log.warn(
+            [
+              `Miniflare ${registryVersion} is available,`,
+              `but you're using ${installedVersion}.`,
+              "Update for improved compatibility with Cloudflare Workers.",
+            ].join(" ")
+          );
+        } catch (e) {}
       });
     })
     .catch((err) => mf.log.error(err));

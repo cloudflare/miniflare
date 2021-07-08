@@ -48,6 +48,7 @@ export interface Options {
   watch?: boolean;
   host?: string;
   port?: number;
+  disableUpdater?: boolean;
 
   // Watched Options
   scriptPath?: string;

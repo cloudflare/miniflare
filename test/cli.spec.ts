@@ -59,6 +59,7 @@ test("parseArgv: parses complete argv", (t) => {
     "MODULE1=module1.wasm",
     "--wasm",
     "MODULE2=module2.wasm",
+    "--disable-updater",
   ]);
   t.deepEqual(options, {
     sourceMap: true, // Always enabled in CLI
@@ -99,6 +100,7 @@ test("parseArgv: parses complete argv", (t) => {
       MODULE1: "module1.wasm",
       MODULE2: "module2.wasm",
     },
+    disableUpdater: true,
   });
 });
 
