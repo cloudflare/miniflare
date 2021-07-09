@@ -1,12 +1,12 @@
 #!/usr/bin/env -S node --experimental-vm-modules
-import { existsSync, promises as fs } from "fs";
+import { promises as fs } from "fs";
 import { networkInterfaces } from "os";
 import path from "path";
 import fetch from "@mrbbot/node-fetch";
 import envPaths from "env-paths";
 import semverGt from "semver/functions/gt";
 import yargs from "yargs";
-import { ConsoleLog } from "./log";
+import { ConsoleLog, Log } from "./log";
 import {
   ModuleRule,
   ModuleRuleType,
@@ -204,37 +204,48 @@ export default function parseArgv(raw: string[]): Options {
   });
 }
 
-async function updateCheck(): Promise<
-  [installedVersion: string, registryVersion: string] | false
-> {
-  // Get currently installed package metadata
-  const pkgFile = path.join(__dirname, "..", "..", "package.json");
-  const pkg = JSON.parse(await fs.readFile(pkgFile, "utf8"));
-  const installedVersion = pkg.version;
-
+export async function updateCheck({
+  pkg,
+  cachePath,
+  log,
+  now = Date.now(),
+  registry = "https://registry.npmjs.org/",
+}: {
+  pkg: { name: string; version: string };
+  cachePath: string;
+  log: Log;
+  now?: number;
+  registry?: string;
+}): Promise<void> {
   // If checked within the past day, don't check again
-  const cachePath = envPaths(pkg.name).cache;
   await fs.mkdir(cachePath, { recursive: true });
   const lastCheckFile = path.join(cachePath, "update-check");
-  const lastCheck = existsSync(lastCheckFile)
-    ? parseInt(await fs.readFile(lastCheckFile, "utf8"))
-    : 0;
-  if (Date.now() - lastCheck < 86400000) return false;
+  let lastCheck = 0;
+  try {
+    lastCheck = parseInt(await fs.readFile(lastCheckFile, "utf8"));
+  } catch {}
+  if (now - lastCheck < 86400000) return;
 
   // Get latest version's package.json from npm
-  const res = await fetch(`https://registry.npmjs.org/${pkg.name}/latest`, {
+  const res = await fetch(`${registry}${pkg.name}/latest`, {
     headers: { Accept: "application/json" },
   });
   const registryVersion = (await res.json()).version;
-  if (!registryVersion) return false;
+  if (!registryVersion) return;
 
   // Record new last check time
-  await fs.writeFile(lastCheckFile, Date.now().toString(), "utf8");
+  await fs.writeFile(lastCheckFile, now.toString(), "utf8");
 
-  // Return versions if latest version is greater than the currently installed
-  return semverGt(registryVersion, installedVersion)
-    ? [installedVersion, registryVersion]
-    : false;
+  // Log version if latest version is greater than the currently installed
+  if (semverGt(registryVersion, pkg.version)) {
+    log.warn(
+      [
+        `Miniflare ${registryVersion} is available,`,
+        `but you're using ${pkg.version}.`,
+        "Update for improved compatibility with Cloudflare Workers.",
+      ].join(" ")
+    );
+  }
 }
 
 if (module === require.main) {
@@ -268,17 +279,12 @@ if (module === require.main) {
         // Check for updates, ignoring errors (it's not that important)
         if (options.disableUpdater) return;
         try {
-          const update = await updateCheck();
-          if (!update) return;
-          const [installedVersion, registryVersion] = update;
-          mf.log.warn(
-            [
-              `Miniflare ${registryVersion} is available,`,
-              `but you're using ${installedVersion}.`,
-              "Update for improved compatibility with Cloudflare Workers.",
-            ].join(" ")
-          );
-        } catch (e) {}
+          // Get currently installed package metadata
+          const pkgFile = path.join(__dirname, "..", "..", "package.json");
+          const pkg = JSON.parse(await fs.readFile(pkgFile, "utf8"));
+          const cachePath = envPaths(pkg.name).cache;
+          await updateCheck({ pkg, cachePath, log: mf.log });
+        } catch {}
       });
     })
     .catch((err) => mf.log.error(err));

@@ -1,6 +1,9 @@
+import { promises as fs } from "fs";
+import path from "path";
 import test from "ava";
 import { ConsoleLog } from "../src";
-import parseArgv from "../src/cli";
+import parseArgv, { updateCheck } from "../src/cli";
+import { TestLog, useServer, useTmp } from "./helpers";
 
 test("parseArgv: parses complete argv", (t) => {
   const options = parseArgv([
@@ -185,4 +188,77 @@ test("parseArgv: parses persistence as boolean or string", (t) => {
   t.is(options.kvPersist, "./kv");
   t.is(options.cachePersist, "./cache");
   t.is(options.durableObjectsPersist, "./do");
+});
+
+test("updateCheck: logs if updated version available", async (t) => {
+  t.plan(4);
+  const tmp = await useTmp(t);
+  const now = 172800000; // 2 days since unix epoch (must be > 1 day)
+  const registry = await useServer(t, (req, res) => {
+    t.is(req.url, "/miniflare/latest");
+    res.end('{"version": "2.0.0"}');
+  });
+  const log = new TestLog();
+  await updateCheck({
+    pkg: { name: "miniflare", version: "1.0.0" },
+    cachePath: tmp,
+    now,
+    registry: registry.http.toString(),
+    log,
+  });
+
+  // Check update message logged
+  t.is(log.warns.length, 1);
+  t.regex(
+    log.warns[0],
+    /^Miniflare 2\.0\.0 is available, but you're using 1\.0\.0/
+  );
+  // Check last update check file written
+  const lastCheck = await fs.readFile(path.join(tmp, "update-check"), "utf8");
+  t.is(lastCheck, now.toString());
+});
+test("updateCheck: doesn't log if no updated version available", async (t) => {
+  const tmp = await useTmp(t);
+  const now = 172800000; // 2 days since unix epoch (must be > 1 day)
+  const registry = await useServer(t, (req, res) => {
+    res.end('{"version": "1.0.0"}');
+  });
+  const log = new TestLog();
+  await updateCheck({
+    pkg: { name: "miniflare", version: "1.0.0" },
+    cachePath: tmp,
+    now,
+    registry: registry.http.toString(),
+    log,
+  });
+
+  // Check no update message logged
+  t.is(log.warns.length, 0);
+  // Check last update check file still written
+  const lastCheck = await fs.readFile(path.join(tmp, "update-check"), "utf8");
+  t.is(lastCheck, now.toString());
+});
+test("updateCheck: skips if already checked in past day", async (t) => {
+  const tmp = await useTmp(t);
+
+  // Write last check time to file
+  const lastCheckTime = 129600000; // 1.5 days since unix epoch
+  const lastCheckFile = path.join(tmp, "update-check");
+  await fs.writeFile(lastCheckFile, lastCheckTime.toString(), "utf8");
+
+  const now = 172800000; // 2 days since unix epoch
+  const registry = await useServer(t, () => t.fail());
+  const log = new TestLog();
+  await updateCheck({
+    pkg: { name: "miniflare", version: "1.0.0" },
+    cachePath: tmp,
+    now,
+    registry: registry.http.toString(),
+    log,
+  });
+  // Check no update message logged
+  t.is(log.warns.length, 0);
+  // Check last update check file not updated
+  const lastCheck = await fs.readFile(lastCheckFile, "utf8");
+  t.is(lastCheck, lastCheckTime.toString());
 });
