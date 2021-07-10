@@ -133,7 +133,15 @@ export class OptionsWatcher {
     } else {
       // If the path isn't in buildWatchPath, reload options and scripts
       this.log.debug(`${path.relative("", eventPath)} changed, reloading...`);
-      void this.reloadOptions();
+
+      // Log options is this was an options file, we don't want to spam the log
+      // with script changes
+      const log =
+        eventPath === this._processor.wranglerConfigPath ||
+        eventPath === this._processor.packagePath ||
+        eventPath === this._options?.envPath;
+
+      void this.reloadOptions(log);
     }
   }
 

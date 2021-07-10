@@ -1,4 +1,3 @@
-#!/usr/bin/env -S node --experimental-vm-modules
 import { promises as fs } from "fs";
 import { networkInterfaces } from "os";
 import path from "path";
@@ -53,7 +52,7 @@ export default function parseArgv(raw: string[]): Options {
   const argv = yargs
     .strict()
     .alias({ version: "v", help: "h" })
-    .usage("Usage: $0 [script] [options]")
+    .usage("Usage: miniflare [script] [options]")
     .demandCommand(0, 1) // <script>
     .options({
       host: {

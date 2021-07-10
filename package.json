@@ -29,7 +29,7 @@
     "docs:serve": "vitepress serve docs"
   },
   "bin": {
-    "miniflare": "dist/src/cli.js"
+    "miniflare": "dist/src/bootstrap.js"
   },
   "dependencies": {
     "@mrbbot/node-fetch": "^4.2.0",

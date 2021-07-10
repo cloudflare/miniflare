@@ -94,7 +94,7 @@ export function getWranglerOptions(
         ? path.resolve(__dirname, "..", "..", "dist", "src", "options")
         : __dirname;
       const rustScript = path.join(distDir, "rust.js");
-      config.build.command = `wrangler build && node ${rustScript}`;
+      config.build.command = `wrangler build && ${process.execPath} ${rustScript}`;
       config.build.upload.main = path.join("worker", "generated", "script.js");
 
       // Add wasm binding, script.wasm will be created by rustScript

@@ -2,7 +2,7 @@ import assert from "assert";
 import { Request } from "@mrbbot/node-fetch";
 import test from "ava";
 import FormData from "formdata-node";
-import { NoOpLog } from "../../src";
+import { Miniflare, NoOpLog } from "../../src";
 import {
   StandardsModule,
   TextEncoder,
@@ -132,6 +132,51 @@ test("resetWebSockets: closes already closed web sockets", async (t) => {
   const event = await eventPromise;
   t.is(event.code, 1000);
   t.is(event.reason, "Test Closure");
+});
+
+test("HTMLRewriter: transforms responses", async (t) => {
+  // @worker-tools/parsed-html-rewriter has its own tests, this is just to
+  // make sure all the global manipulation is wired up correctly
+  const originalResponse = global.Response;
+  const originalTextEncoder = global.TextEncoder;
+  const originalTransformStream = global.TransformStream;
+
+  const script = `(${(() => {
+    const sandbox = self as any;
+    sandbox.addEventListener("fetch", (e: FetchEvent) => {
+      const elementHandler = {
+        element(element: { setInnerContent: (content: string) => void }) {
+          element.setInnerContent("new");
+        },
+      };
+      const documentHandler = {
+        end(end: {
+          append: (content: string, options?: { html?: boolean }) => void;
+        }) {
+          end.append("<!--after-->", { html: true });
+        },
+      };
+      const rewriter = new sandbox.HTMLRewriter()
+        .on("p", elementHandler)
+        .onDocument(documentHandler);
+      e.respondWith(
+        rewriter.transform(
+          new sandbox.Response('<html lang="en"><body><p>old</p></body></html>')
+        )
+      );
+    });
+  }).toString()})()`;
+  const mf = new Miniflare({ script });
+  const res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
+  t.is(
+    await res.text(),
+    '<html lang="en"><body><p>new</p></body></html><!--after-->'
+  );
+
+  // Make sure globals are restored (even if they were undefined)
+  t.is(global.Response, originalResponse);
+  t.is(global.TextEncoder, originalTextEncoder);
+  t.is(global.TransformStream, originalTransformStream);
 });
 
 test("buildSandbox: includes web standards", (t) => {

@@ -243,9 +243,9 @@ export class Miniflare {
     await this.reloadOptions();
   }
 
-  async reloadOptions(): Promise<void> {
+  async reloadOptions(log = true): Promise<void> {
     await this.#watcher.initPromise;
-    await this.#watcher.reloadOptions();
+    await this.#watcher.reloadOptions(log);
   }
 
   async dispatchFetch<WaitUntil extends any[] = any[]>(
