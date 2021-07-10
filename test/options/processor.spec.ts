@@ -150,12 +150,12 @@ test.serial(
   "getPackageScript: logs error if cannot read script from custom file only",
   async (t) => {
     const tmp = await useTmp(t);
+    const log = new TestLog();
     // Change dirs so we don't load Miniflare's own package.json file
     const cwd = process.cwd();
     process.chdir(tmp);
-    t.teardown(() => process.chdir(cwd));
-    const log = new TestLog();
     let processor = new OptionsProcessor(log, {});
+    process.chdir(cwd);
     let scriptPath = await processor.getPackageScript();
     t.is(scriptPath, undefined);
     t.deepEqual(log.errors, []);

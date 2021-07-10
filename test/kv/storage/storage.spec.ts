@@ -98,6 +98,7 @@ const fileStorageFactory: TestStorageFactory = {
   },
 };
 const unsanitisedFileStorageFactory: TestStorageFactory = {
+  // Only used for read tests, we never write to an unsanitised FileKVStorage
   name: "FileKVStorage (Unsanitised)",
   async factory(t) {
     const tmp = await useTmp(t);
@@ -116,6 +117,15 @@ const unsanitisedFileStorageFactory: TestStorageFactory = {
     );
     await fs.mkdir(path.join(tmp, "dir"));
     await fs.writeFile(path.join(tmp, "dir", "key4"), "value3", "utf8");
+    if (path.sep !== "/") {
+      // On platforms with a path separator that's not "/" (e.g. Windows), the
+      // key won't be correct so write an additional meta file containing it
+      await fs.writeFile(
+        path.join(tmp, "dir", "key4.meta.json"),
+        JSON.stringify({ key: "dir/key4" }),
+        "utf8"
+      );
+    }
     return new FileKVStorage(tmp, false, testClock);
   },
 };
@@ -219,6 +229,7 @@ getExistingMacro.title = (providedTitle, { name }) =>
   `${name}: get: gets existing key`;
 test(getExistingMacro, memoryStorageFactory);
 test(getExistingMacro, fileStorageFactory);
+test(getExistingMacro, unsanitisedFileStorageFactory);
 redisTest(getExistingMacro, redisStorageFactory);
 
 const getExistingWithMetadataMacro: Macro<[TestStorageFactory]> = async (
@@ -235,6 +246,7 @@ getExistingWithMetadataMacro.title = (providedTitle, { name }) =>
   `${name}: get: gets existing key with metadata`;
 test(getExistingWithMetadataMacro, memoryStorageFactory);
 test(getExistingWithMetadataMacro, fileStorageFactory);
+test(getExistingWithMetadataMacro, unsanitisedFileStorageFactory);
 redisTest(getExistingWithMetadataMacro, redisStorageFactory);
 
 const getNonExistentMacro: Macro<[TestStorageFactory]> = async (
@@ -249,6 +261,7 @@ getNonExistentMacro.title = (providedTitle, { name }) =>
   `${name}: get: returns undefined for non-existent key`;
 test(getNonExistentMacro, memoryStorageFactory);
 test(getNonExistentMacro, fileStorageFactory);
+test(getNonExistentMacro, unsanitisedFileStorageFactory);
 redisTest(getNonExistentMacro, redisStorageFactory);
 
 const getExpiredMacro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
@@ -260,6 +273,7 @@ getExpiredMacro.title = (providedTitle, { name }) =>
   `${name}: get: respects expiration`;
 test(getExpiredMacro, memoryStorageFactory);
 test(getExpiredMacro, fileStorageFactory);
+test(getExpiredMacro, unsanitisedFileStorageFactory);
 redisTest(getExpiredMacro, redisStorageFactory);
 
 const getSkipsMetadataMacro: Macro<[TestStorageFactory]> = async (
@@ -301,6 +315,7 @@ getManyMacro.title = (providedTitle, { name }) =>
   `${name}: get: gets many keys`;
 test(getManyMacro, memoryStorageFactory);
 test(getManyMacro, fileStorageFactory);
+test(getManyMacro, unsanitisedFileStorageFactory);
 redisTest(getManyMacro, redisStorageFactory);
 
 const getManyEmptyMacro: Macro<[TestStorageFactory]> = async (
@@ -314,6 +329,7 @@ getManyEmptyMacro.title = (providedTitle, { name }) =>
   `${name}: getMany: returns nothing for empty keys`;
 test(getManyEmptyMacro, memoryStorageFactory);
 test(getManyEmptyMacro, fileStorageFactory);
+test(getManyEmptyMacro, unsanitisedFileStorageFactory);
 redisTest(getManyEmptyMacro, redisStorageFactory);
 
 const getManySkipsMetadataMacro: Macro<[TestStorageFactory]> = async (
@@ -372,7 +388,6 @@ putNewDirectoryMacro.title = (providedTitle, { name }) =>
   `${name}: put: puts new key in new directory`;
 test(putNewDirectoryMacro, memoryStorageFactory);
 test(putNewDirectoryMacro, fileStorageFactory);
-test(putNewDirectoryMacro, unsanitisedFileStorageFactory);
 redisTest(putNewDirectoryMacro, redisStorageFactory);
 
 const putNewWithMetadataMacro: Macro<[TestStorageFactory]> = async (
