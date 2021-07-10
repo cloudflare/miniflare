@@ -1,5 +1,5 @@
 import path from "path";
-import { TextEncoder } from "util";
+import { TextDecoder } from "util";
 import test from "ava";
 import micromatch from "micromatch";
 import { MiniflareError } from "../src";
@@ -133,7 +133,7 @@ test("buildLinker: links Text modules", async (t) => {
   const { linker } = buildLinker(processedModuleRules);
   const script = await blueprint.buildModule({}, linker);
   await script.run();
-  t.is(script.exports.default, "Text test\n");
+  t.is(script.exports.default.trimEnd(), "Text test");
 });
 test("buildLinker: links Data modules", async (t) => {
   const blueprint = new ScriptBlueprint(
@@ -144,8 +144,8 @@ test("buildLinker: links Data modules", async (t) => {
   const script = await blueprint.buildModule({}, linker);
   await script.run();
   t.deepEqual(
-    script.exports.default,
-    new TextEncoder().encode("Data test\n").buffer
+    new TextDecoder().decode(script.exports.default).trimEnd(),
+    "Data test"
   );
 });
 test("buildLinker: links CompiledWasm modules", async (t) => {
