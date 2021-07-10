@@ -76,6 +76,8 @@ export interface Options {
   envPath?: string;
   bindings?: Record<string, any>;
   wasmBindings?: Record<string, string>;
+
+  htmlRewriterUnsafe?: boolean;
 }
 
 export interface ProcessedOptions extends Options {
@@ -130,6 +132,7 @@ export function logOptions(log: Log, options: ProcessedOptions): void {
     "Durable Objects": options.processedDurableObjects?.map(({ name }) => name),
     "Durable Objects Persistence": options.durableObjectsPersist,
     Bindings: options.bindings ? Object.keys(options.bindings) : undefined,
+    "Unsafe HTMLRewriter": options.htmlRewriterUnsafe,
   };
   log.debug("Options:");
   for (const [key, value] of Object.entries(entries)) {
