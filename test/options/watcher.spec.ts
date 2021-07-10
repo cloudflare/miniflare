@@ -51,7 +51,6 @@ test.skip("constructor: loads initial options", async (t) => {
 const changeMacro: Macro<
   [
     {
-      reloading: "scripts" | "options";
       fileName: string;
       originalContents?: string;
       newContents?: string;
@@ -65,7 +64,6 @@ const changeMacro: Macro<
 > = async (
   t,
   {
-    reloading,
     fileName,
     originalContents,
     newContents,
@@ -100,12 +98,11 @@ const changeMacro: Macro<
     await fs.unlink(filePath);
   }
   options = await next();
-  t.is(log.debugs[0], `${relativeFilePath} changed, reloading ${reloading}...`);
+  t.is(log.debugs[0], `${relativeFilePath} changed, reloading...`);
   t.is(extractValue(options, filePath), newValue);
 };
 
 test.skip("reloads options on wrangler configuration change", changeMacro, {
-  reloading: "options",
   fileName: "wrangler.toml",
   originalContents: "[miniflare]\nkv_persist = true",
   newContents: `[miniflare]\nkv_persist = "./data"`,
@@ -118,7 +115,6 @@ test.skip("reloads options on wrangler configuration change", changeMacro, {
   newValue: "./data",
 });
 test.skip("reloads options on wrangler configuration create", changeMacro, {
-  reloading: "options",
   fileName: "wrangler.toml",
   newContents: `[miniflare]\nkv_persist = "./data"`,
   initialOptions: (wranglerConfigPath) => ({
@@ -130,7 +126,6 @@ test.skip("reloads options on wrangler configuration create", changeMacro, {
   newValue: "./data",
 });
 test.skip("reloads options on wrangler configuration delete", changeMacro, {
-  reloading: "options",
   fileName: "wrangler.toml",
   originalContents: "[miniflare]\nkv_persist = true",
   initialOptions: (wranglerConfigPath) => ({
@@ -143,7 +138,6 @@ test.skip("reloads options on wrangler configuration delete", changeMacro, {
 });
 
 test.skip("reloads options on env change", changeMacro, {
-  reloading: "options",
   fileName: ".env",
   originalContents: "KEY=value1",
   newContents: "KEY=value2",
@@ -156,7 +150,6 @@ test.skip("reloads options on env change", changeMacro, {
   newValue: "value2",
 });
 test.skip("reloads options on env create", changeMacro, {
-  reloading: "options",
   fileName: ".env",
   newContents: "KEY=value",
   initialOptions: (envPath) => ({
@@ -168,7 +161,6 @@ test.skip("reloads options on env create", changeMacro, {
   newValue: "value",
 });
 test.skip("reloads options on env delete", changeMacro, {
-  reloading: "options",
   fileName: ".env",
   originalContents: "KEY=value",
   initialOptions: (envPath) => ({
@@ -181,7 +173,6 @@ test.skip("reloads options on env delete", changeMacro, {
 });
 
 test.skip("reloads scripts on script change", changeMacro, {
-  reloading: "scripts",
   fileName: "test.js",
   originalContents: "// test 1",
   newContents: "// test 2",
@@ -191,7 +182,6 @@ test.skip("reloads scripts on script change", changeMacro, {
   newValue: "// test 2",
 });
 test.skip("reloads scripts on script create", changeMacro, {
-  reloading: "scripts",
   // Test with Durable Object script file instead, as missing script would
   // throw exception
   fileName: "object.js",
@@ -205,7 +195,6 @@ test.skip("reloads scripts on script create", changeMacro, {
   newValue: "// object",
 });
 test.skip("reloads scripts on script delete", changeMacro, {
-  reloading: "scripts",
   // Test with Durable Object script file instead, as missing script would
   // throw exception
   fileName: "object.js",
@@ -247,7 +236,7 @@ test.skip("rebuilds if watched build path changes", async (t) => {
   await fs.writeFile(watchedPath, "2", "utf8");
   options = await next();
   t.is(log.debugs[0], `${relativeWatchedPath} changed, rebuilding...`);
-  t.is(log.debugs[1], `${relativeScriptPath} changed, reloading scripts...`);
+  t.is(log.debugs[1], `${relativeScriptPath} changed, reloading...`);
   t.is(options.scripts?.[scriptPath].code.trim(), `// build${os.EOL}// build`);
 });
 
@@ -276,7 +265,7 @@ test.skip("setExtraWatchedPaths: watches extra paths", async (t) => {
   log.debugs = [];
   await fs.writeFile(extraPath, "2", "utf8");
   await next();
-  t.is(log.debugs[0], `${relativeExtraPath} changed, reloading scripts...`);
+  t.is(log.debugs[0], `${relativeExtraPath} changed, reloading...`);
 
   // Remove watched paths
   log.debugs = [];
@@ -287,7 +276,6 @@ test.skip("setExtraWatchedPaths: watches extra paths", async (t) => {
 const switchMacro: Macro<
   [
     {
-      reloading: "scripts" | "options";
       fileNamePrefix: string;
       contents: (i: number) => string;
       wranglerConfigContents: (watchedFile: string) => string;
@@ -297,13 +285,7 @@ const switchMacro: Macro<
   Context
 > = async (
   t,
-  {
-    reloading,
-    fileNamePrefix,
-    contents,
-    wranglerConfigContents,
-    initialOptions,
-  }
+  { fileNamePrefix, contents, wranglerConfigContents, initialOptions }
 ) => {
   const { callback, next } = t.context;
   const log = new TestLog();
@@ -337,10 +319,7 @@ const switchMacro: Macro<
   // Update filePath1, should trigger watcher
   await fs.writeFile(filePath1, contents(4), "utf8");
   await next();
-  t.is(
-    log.debugs[0],
-    `${relativeFilePath1} changed, reloading ${reloading}...`
-  );
+  t.is(log.debugs[0], `${relativeFilePath1} changed, reloading...`);
 
   // Update wrangler.toml, this should switch the watched path
   log.debugs = [];
@@ -350,10 +329,7 @@ const switchMacro: Macro<
     "utf8"
   );
   await next();
-  t.is(
-    log.debugs[0],
-    `${relativeWranglerConfigPath} changed, reloading options...`
-  );
+  t.is(log.debugs[0], `${relativeWranglerConfigPath} changed, reloading...`);
   const unwatchIndex = log.debugs.findIndex((s) => s.startsWith("Unwatching"));
   t.is(log.debugs[unwatchIndex], `Unwatching ${relativeFilePath1}...`);
   t.is(log.debugs[unwatchIndex + 1], `Watching ${relativeFilePath2}...`);
@@ -364,20 +340,15 @@ const switchMacro: Macro<
   // Update filePath2, should trigger watcher now
   await fs.writeFile(filePath2, contents(6), "utf8");
   await next();
-  t.is(
-    log.debugs[0],
-    `${relativeFilePath2} changed, reloading ${reloading}...`
-  );
+  t.is(log.debugs[0], `${relativeFilePath2} changed, reloading...`);
 };
 test.skip("switches watched path for script path", switchMacro, {
-  reloading: "scripts",
   fileNamePrefix: "test.js",
   contents: (i) => `// test${i}`,
   wranglerConfigContents: (watchedFile) =>
     `[build.upload]\nmain = "${watchedFile}"`,
 });
 test.skip("switches watched path for env file", switchMacro, {
-  reloading: "options",
   fileNamePrefix: ".env",
   contents: (i) => `KEY=value${i}`,
   wranglerConfigContents: (watchedFile) =>
@@ -385,39 +356,14 @@ test.skip("switches watched path for env file", switchMacro, {
   initialOptions: { script: "// test" },
 });
 test.skip("switches watched path for durable object scripts", switchMacro, {
-  reloading: "scripts",
   fileNamePrefix: "object.js",
   contents: (i) => `// object${i}`,
   wranglerConfigContents: (watchedFile) =>
     `[durable_objects]\nbindings = [ { name = "OBJECT", class_name = "Object", script_name = "${watchedFile}" } ]`,
   initialOptions: { script: "// test" },
 });
-// TODO: (low priority) test switches watched path for build watch path & wasm bindings
+// TODO: (low priority) test switches watched path for build watch path & wasm bindings, script from package.json too
 
-test("reloadScripts: reloads scripts manually", async (t) => {
-  const { callback, next } = t.context;
-  const log = new TestLog();
-
-  const tmp = await useTmp(t);
-  const scriptPath = path.join(tmp, "test.js");
-  const relativeScriptPath = path.relative("", scriptPath);
-  await fs.writeFile(scriptPath, "// test1", "utf8");
-
-  const watcher = new OptionsWatcher(log, callback, { scriptPath });
-
-  let options = await next();
-  t.deepEqual(log.debugs, ["Options:", `- Scripts: ${relativeScriptPath}`]);
-  t.is(options.scripts?.[scriptPath].code, "// test1");
-
-  // Update script, this shouldn't reload scripts yet
-  log.debugs = [];
-  await fs.writeFile(scriptPath, "// test2", "utf8");
-  // Manually reload scripts
-  await watcher.reloadScripts();
-  options = await next();
-  t.deepEqual(log.debugs, []);
-  t.is(options.scripts?.[scriptPath].code, "// test2");
-});
 test("reloadOptions: reloads options manually", async (t) => {
   const { callback, next } = t.context;
   const log = new TestLog();

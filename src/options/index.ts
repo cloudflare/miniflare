@@ -45,6 +45,7 @@ export interface Options {
   log?: boolean | Log;
   wranglerConfigPath?: string;
   wranglerConfigEnv?: string;
+  packagePath?: string;
   watch?: boolean;
   host?: string;
   port?: number;

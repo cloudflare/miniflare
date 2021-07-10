@@ -6,7 +6,7 @@ import test, { ExecutionContext } from "ava";
 import WebSocket from "ws";
 import { Miniflare, MiniflareError, Response, ScheduledEvent } from "../src";
 import { stringScriptPath } from "../src/options";
-import { TestLog, triggerPromise, useTmp } from "./helpers";
+import { TestLog, triggerPromise, useTmp, within } from "./helpers";
 
 function interceptConsoleLogs(t: ExecutionContext): string[] {
   const logs: string[] = [];
@@ -46,25 +46,6 @@ test.serial(
   }
 );
 
-test("reloadScript: reloads script manually", async (t) => {
-  const tmp = await useTmp(t);
-  const scriptPath = path.join(tmp, "script.mjs");
-  await fs.writeFile(
-    scriptPath,
-    `export default { fetch: () => new Response("1") }`
-  );
-  const mf = new Miniflare({ modules: true, scriptPath });
-  let res = await mf.dispatchFetch("http://localhost:8787/");
-  t.is(await res.text(), "1");
-
-  await fs.writeFile(
-    scriptPath,
-    `export default { fetch: () => new Response("2") }`
-  );
-  await mf.reloadScript();
-  res = await mf.dispatchFetch("http://localhost:8787/");
-  t.is(await res.text(), "2");
-});
 test("reloadOptions: reloads options manually", async (t) => {
   const tmp = await useTmp(t);
   const scriptPath = path.join(tmp, "script.mjs");
@@ -306,12 +287,12 @@ test("createServer: handles scheduled event trigger over http", async (t) => {
     script: `addEventListener("scheduled", eventCallback)`,
   });
   const origin = await listen(t, mf.createServer());
+  // Wait for watcher initPromise before sending requests
+  await mf.getOptions();
 
   await request(`${origin}/.mf/scheduled`);
   t.is(events.length, 1);
-  const delta = Date.now() - events[0].scheduledTime;
-  t.true(0 < delta);
-  t.true(delta < 3000);
+  within(t, 3000, events[0].scheduledTime, Date.now());
   t.is(events[0].cron, "");
 
   await request(`${origin}/.mf/scheduled?time=1000`);
@@ -358,6 +339,8 @@ test("createServer: handles web socket upgrades", async (t) => {
     }`,
   });
   const origin = await listen(t, mf.createServer());
+  // Wait for watcher initPromise before sending requests
+  await mf.getOptions();
   const ws = new WebSocket(`ws://${origin}`);
   const [eventTrigger, eventPromise] = triggerPromise<string>();
   ws.addEventListener("message", (e) => {
@@ -376,6 +359,9 @@ test("createServer: expects status 101 and web socket response for upgrades", as
     log,
   });
   const origin = await listen(t, mf.createServer());
+  // Wait for watcher initPromise before sending requests
+  await mf.getOptions();
+
   const ws = new WebSocket(`ws://${origin}`);
 
   const [eventTrigger, eventPromise] = triggerPromise<{

@@ -110,6 +110,7 @@ export function getWranglerOptions(
 
   // Map wrangler keys to miniflare's
   return {
+    // Resolve script relative to configuration's path
     scriptPath: config.build?.upload?.main
       ? path.resolve(
           inputDir,

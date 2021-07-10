@@ -39,6 +39,7 @@ export class OptionsWatcher {
   private _getWatchedPaths(): Set<string> {
     const watchedPaths = new Set<string>(this._extraWatchedPaths);
     watchedPaths.add(this._processor.wranglerConfigPath);
+    watchedPaths.add(this._processor.packagePath);
     if (this._options?.envPath) watchedPaths.add(this._options.envPath);
     if (this._options?.buildWatchPath)
       watchedPaths.add(this._options.buildWatchPath);
@@ -115,16 +116,6 @@ export class OptionsWatcher {
 
   private _watchedPathCallback(eventPath: string) {
     if (
-      eventPath === this._processor.wranglerConfigPath ||
-      eventPath === this._options?.envPath
-    ) {
-      // If either the wrangler config or the env file changed, reload the
-      // options from disk, taking into account the initialOptions
-      this.log.debug(
-        `${path.relative("", eventPath)} changed, reloading options...`
-      );
-      void this.reloadOptions();
-    } else if (
       this._options?.buildWatchPath &&
       eventPath.startsWith(this._options.buildWatchPath)
     ) {
@@ -140,18 +131,10 @@ export class OptionsWatcher {
         );
       }
     } else {
-      // If the path isn't a config, or in buildWatchPath, it's a script or WASM
-      // file, so just reload all scripts
-      this.log.debug(
-        `${path.relative("", eventPath)} changed, reloading scripts...`
-      );
-      void this.reloadScripts();
+      // If the path isn't in buildWatchPath, reload options and scripts
+      this.log.debug(`${path.relative("", eventPath)} changed, reloading...`);
+      void this.reloadOptions();
     }
-  }
-
-  async reloadScripts(): Promise<void> {
-    this._processor.resetScriptBlueprints();
-    await this.reloadOptions(false);
   }
 
   async reloadOptions(log = true): Promise<void> {

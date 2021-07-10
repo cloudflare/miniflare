@@ -80,6 +80,10 @@ export default function parseArgv(raw: string[]): Options {
         type: "string",
         description: "Environment in wrangler.toml to use",
       },
+      package: {
+        type: "string",
+        description: "Path to package.json",
+      },
       modules: {
         type: "boolean",
         description: "Enable modules",
@@ -179,6 +183,7 @@ export default function parseArgv(raw: string[]): Options {
     log: new ConsoleLog(argv.debug),
     wranglerConfigPath: argv["wrangler-config"],
     wranglerConfigEnv: argv["wrangler-env"],
+    packagePath: argv.package,
     modules: argv.modules,
     modulesRules: parseModuleRules(asStringArray(argv["modules-rule"])),
     buildCommand: argv["build-command"],

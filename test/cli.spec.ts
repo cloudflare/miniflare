@@ -17,6 +17,8 @@ test("parseArgv: parses complete argv", (t) => {
     "wrangler.test.toml",
     "--wrangler-env",
     "production",
+    "--package",
+    "package.test.json",
     "--modules",
     "--modules-rule",
     "ESModule=**/*.js",
@@ -72,6 +74,7 @@ test("parseArgv: parses complete argv", (t) => {
     log: new ConsoleLog(true), // Debug enabled
     wranglerConfigPath: "wrangler.test.toml",
     wranglerConfigEnv: "production",
+    packagePath: "package.test.json",
     modules: true,
     modulesRules: [
       { type: "ESModule", include: ["**/*.js"], fallthrough: true },

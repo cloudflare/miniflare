@@ -238,9 +238,9 @@ export class Miniflare {
     this.log.info("Worker reloaded!");
   }
 
+  /** @deprecated Since 1.2.0, this is just an alias for reloadOptions() */
   async reloadScript(): Promise<void> {
-    await this.#watcher.initPromise;
-    await this.#watcher.reloadScripts();
+    await this.reloadOptions();
   }
 
   async reloadOptions(): Promise<void> {

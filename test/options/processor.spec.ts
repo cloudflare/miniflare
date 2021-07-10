@@ -42,17 +42,6 @@ test("addScriptBlueprint: logs error if script cannot be found", async (t) => {
   t.regex(log.errors[0], /Error: ENOENT/);
 });
 
-test("resetScriptBlueprints: resets script blueprints", async (t) => {
-  const processor = new OptionsProcessor(new NoOpLog(), {
-    script: "// test",
-  });
-  t.is(Object.keys(processor._scriptBlueprints).length, 0);
-  await processor.addScriptBlueprint(stringScriptPath);
-  t.is(Object.keys(processor._scriptBlueprints).length, 1);
-  processor.resetScriptBlueprints();
-  t.is(Object.keys(processor._scriptBlueprints).length, 0);
-});
-
 test("runCustomBuild: runs build successfully", async (t) => {
   const tmp = await useTmp(t);
   const log = new TestLog();
@@ -82,7 +71,7 @@ test("runCustomBuild: logs exit code if build fails", async (t) => {
   t.deepEqual(log.errors, ["Build failed with exit code 1"]);
 });
 
-test("getWranglerOptions: loads wrangler configuration from wrangler.toml by default", async (t) => {
+test("getWranglerOptions: loads wrangler configuration from wrangler.toml by default", (t) => {
   const processor = new OptionsProcessor(new NoOpLog(), {});
   t.is(processor.wranglerConfigPath, path.resolve("wrangler.toml"));
 });
@@ -138,21 +127,78 @@ test("getWranglerOptions: logs error if cannot parse configuration", async (t) =
   t.regex(log.errors[0], /^Unable to parse/);
 });
 
-test("getScriptPath: throws if no script defined", (t) => {
+test("getPackageScript: loads script from package.json by default", (t) => {
   const processor = new OptionsProcessor(new NoOpLog(), {});
-  t.throws(() => processor.getScriptPath({}), {
+  t.is(processor.packagePath, path.resolve("package.json"));
+});
+test("getPackageScript: loads script from custom file", async (t) => {
+  const tmp = await useTmp(t);
+  const packagePath = path.join(tmp, "package.json");
+  await fs.writeFile(packagePath, `{"main": "1.js", "module": "2.js"}`, "utf8");
+  const processor = new OptionsProcessor(new NoOpLog(), { packagePath });
+  t.is(processor.packagePath, packagePath);
+
+  // Check correct script loaded for each modules mode
+  let scriptPath = await processor.getPackageScript();
+  t.is(scriptPath, path.join(tmp, "1.js"));
+  scriptPath = await processor.getPackageScript(false);
+  t.is(scriptPath, path.join(tmp, "1.js"));
+  scriptPath = await processor.getPackageScript(true);
+  t.is(scriptPath, path.join(tmp, "2.js"));
+});
+test.serial(
+  "getPackageScript: logs error if cannot read script from custom file only",
+  async (t) => {
+    const tmp = await useTmp(t);
+    // Change dirs so we don't load Miniflare's own package.json file
+    const cwd = process.cwd();
+    process.chdir(tmp);
+    t.teardown(() => process.chdir(cwd));
+    const log = new TestLog();
+    let processor = new OptionsProcessor(log, {});
+    let scriptPath = await processor.getPackageScript();
+    t.is(scriptPath, undefined);
+    t.deepEqual(log.errors, []);
+
+    const packagePath = path.join(tmp, "package.json");
+    processor = new OptionsProcessor(log, { packagePath });
+    scriptPath = await processor.getPackageScript();
+    t.is(scriptPath, undefined);
+    t.is(log.errors.length, 1);
+    t.regex(log.errors[0], /Error: ENOENT/);
+  }
+);
+test("getPackageScript: logs error if cannot parse package file", async (t) => {
+  const log = new TestLog();
+  const tmp = await useTmp(t);
+  const packagePath = path.join(tmp, "package.json");
+  await fs.writeFile(packagePath, `{"main":`);
+  const processor = new OptionsProcessor(log, { packagePath });
+  const scriptPath = await processor.getPackageScript();
+  t.is(scriptPath, undefined);
+  t.is(log.errors.length, 1);
+  t.regex(log.errors[0], /^Unable to parse/);
+});
+
+test("getScriptPath: throws if no script defined", async (t) => {
+  const tmp = await useTmp(t);
+  // getScriptPath will fallback to Miniflare's own package.json if unset
+  const packagePath = path.join(tmp, "package.json");
+  await fs.writeFile(packagePath, "{}", "utf8");
+  const processor = new OptionsProcessor(new NoOpLog(), { packagePath });
+  await t.throwsAsync(processor.getScriptPath({}), {
     instanceOf: MiniflareError,
     message: /^No script defined/,
   });
 });
-test("getScriptPath: resolves non-string-script paths", (t) => {
+test("getScriptPath: resolves non-string-script paths", async (t) => {
   const processor = new OptionsProcessor(new NoOpLog(), {});
   t.is(
-    processor.getScriptPath({ scriptPath: "test.js" }),
+    await processor.getScriptPath({ scriptPath: "test.js" }),
     path.resolve("test.js")
   );
   t.is(
-    processor.getScriptPath({ scriptPath: stringScriptPath }),
+    await processor.getScriptPath({ scriptPath: stringScriptPath }),
     stringScriptPath
   );
 });
@@ -494,6 +540,75 @@ test("getProcessedOptions: modules enabled automatically if using durable object
   });
   options = await processor.getProcessedOptions();
   t.true(options.modules);
+});
+test("getProcessedOptions: falls back to package.json script automatically", async (t) => {
+  const tmp = await useTmp(t);
+  const packagePath = path.join(tmp, "package.json");
+  const mainScriptPath = path.join(tmp, "1.js");
+  const moduleScriptPath = path.join(tmp, "2.js");
+  await fs.writeFile(packagePath, `{"main": "1.js", "module": "2.js"}`, "utf8");
+  await fs.writeFile(mainScriptPath, "// test main", "utf8");
+  await fs.writeFile(moduleScriptPath, "// test module", "utf8");
+
+  // Test fallback to main
+  let processor = new OptionsProcessor(new NoOpLog(), { packagePath });
+  let options = await processor.getProcessedOptions();
+  t.is(options.scriptPath, mainScriptPath);
+
+  // Test fallback to module with explicit modules
+  processor = new OptionsProcessor(new NoOpLog(), {
+    packagePath,
+    modules: true,
+  });
+  options = await processor.getProcessedOptions();
+  t.is(options.scriptPath, moduleScriptPath);
+
+  // Test fallback to module with implicit modules via Durable Objects
+  processor = new OptionsProcessor(new NoOpLog(), {
+    packagePath,
+    durableObjects: { OBJECT: "Object" },
+  });
+  options = await processor.getProcessedOptions();
+  t.is(options.scriptPath, moduleScriptPath);
+});
+test("getProcessedOptions: returns fresh script blueprints", async (t) => {
+  const tmp = await useTmp(t);
+  const wranglerConfigPath = path.join(tmp, "wrangler.toml");
+  const packagePath = path.join(tmp, "package.json");
+  const script1Path = path.join(tmp, "1.js");
+  const script2Path = path.join(tmp, "2.js");
+  const script3Path = path.join(tmp, "3.js");
+  await fs.writeFile(wranglerConfigPath, "", "utf8");
+  await fs.writeFile(packagePath, `{"main": "1.js"}`, "utf8");
+  await fs.writeFile(script1Path, "// test 1", "utf8");
+  await fs.writeFile(script2Path, "// test 2", "utf8");
+  await fs.writeFile(script3Path, "// test 3", "utf8");
+
+  const processor = new OptionsProcessor(new NoOpLog(), {
+    wranglerConfigPath,
+    packagePath,
+  });
+  const options1 = await processor.getProcessedOptions();
+  t.deepEqual(Object.keys(options1.scripts ?? {}), [script1Path]);
+  t.is(options1.scripts?.[script1Path].code, "// test 1");
+
+  // Update package script and reload
+  await fs.writeFile(packagePath, `{"main": "2.js"}`, "utf8");
+  const options2 = await processor.getProcessedOptions();
+  t.deepEqual(Object.keys(options2.scripts ?? {}), [script2Path]);
+  t.is(options2.scripts?.[script2Path].code, "// test 2");
+  t.not(options1.scripts, options2.scripts); // should be fresh object
+
+  // Update wrangler script and reload, this should take priority
+  await fs.writeFile(
+    wranglerConfigPath,
+    `[build.upload]\nmain = "3.js"\ndir = ""`,
+    "utf8"
+  );
+  const options3 = await processor.getProcessedOptions();
+  t.deepEqual(Object.keys(options3.scripts ?? {}), [script3Path]);
+  t.is(options3.scripts?.[script3Path].code, "// test 3");
+  t.not(options1.scripts, options3.scripts); // should be fresh object
 });
 test("getProcessedOptions: prioritises initial option's bindings, then wasm, then env, then wrangler configuration's", async (t) => {
   const tmp = await useTmp(t);

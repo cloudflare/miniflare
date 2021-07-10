@@ -27,11 +27,15 @@ export class OptionsProcessor {
   _scriptBlueprints: Record<string, ScriptBlueprint> = {};
   private _buildMutex = new Mutex();
   readonly wranglerConfigPath: string;
+  readonly packagePath: string;
 
   constructor(private log: Log, private initialOptions: Options) {
     if (initialOptions.script) initialOptions.scriptPath = stringScriptPath;
     this.wranglerConfigPath = path.resolve(
       initialOptions.wranglerConfigPath ?? "wrangler.toml"
+    );
+    this.packagePath = path.resolve(
+      initialOptions.packagePath ?? "package.json"
     );
   }
 
@@ -76,10 +80,6 @@ export class OptionsProcessor {
         ? this.initialOptions.script
         : await this._readFile(scriptPath);
     this._scriptBlueprints[scriptPath] = new ScriptBlueprint(code, scriptPath);
-  }
-
-  resetScriptBlueprints(): void {
-    this._scriptBlueprints = {};
   }
 
   runCustomBuild(command: string, basePath?: string): Promise<void> {
@@ -129,17 +129,46 @@ export class OptionsProcessor {
     return wranglerOptions;
   }
 
-  getScriptPath(options: Options): string {
-    // Make sure we've got a main script
-    if (options.scriptPath === undefined) {
-      throw new MiniflareError(
-        "No script defined, either include it explicitly, or set build.upload.main in Wrangler configuration"
+  async getPackageScript(modules?: boolean): Promise<string | undefined> {
+    const packagePathSet = this.initialOptions.packagePath !== undefined;
+    const input = await this._readFile(this.packagePath, packagePathSet);
+    if (input === "") return;
+    try {
+      const pkg = JSON.parse(input);
+      const main = modules ? pkg.module : pkg.main;
+      // Resolve script path relative to package.json
+      if (main) return path.resolve(path.dirname(this.packagePath), main);
+    } catch (e) {
+      this.log.error(
+        `Unable to parse ${path.relative(
+          "",
+          this.packagePath
+        )}: ${e} (ignoring)`
       );
     }
-    // Resolve and load script
-    return options.scriptPath !== stringScriptPath
-      ? path.resolve(options.scriptPath)
-      : options.scriptPath;
+  }
+
+  async getScriptPath(options: Options): Promise<string> {
+    // Always get the package script so we log an error if the user was
+    // expecting it to be loaded
+    const pkgScript = await this.getPackageScript(options.modules);
+    // Make sure we've got a main script
+    if (options.scriptPath === undefined) {
+      if (pkgScript === undefined) {
+        throw new MiniflareError(
+          `No script defined, either include it explicitly, set build.upload.main in Wrangler configuration, or set ${
+            options.modules ? "module" : "main"
+          } in package.json`
+        );
+      }
+      // Script is already resolved in getPackageScript
+      return pkgScript;
+    } else {
+      // Resolve and load script relative to current directory
+      return options.scriptPath !== stringScriptPath
+        ? path.resolve(options.scriptPath)
+        : options.scriptPath;
+    }
   }
 
   getProcessedDurableObjects(options: Options): ProcessedDurableObject[] {
@@ -257,17 +286,19 @@ export class OptionsProcessor {
     }
 
     // Resolve and load all scripts (including Durable Objects')
+    this._scriptBlueprints = {};
     options.scripts = this._scriptBlueprints;
-    options.scriptPath = this.getScriptPath(options);
+    // Force modules mode if we're using Durable Objects: we need to be able to
+    // access named script exports (do this before getting main script so
+    // we know whether to fallback to main or module in package.json)
+    if (Object.keys(options.durableObjects ?? {}).length > 0) {
+      options.modules = true;
+    }
+    options.scriptPath = await this.getScriptPath(options);
     await this.addScriptBlueprint(options.scriptPath);
     options.processedDurableObjects = this.getProcessedDurableObjects(options);
     for (const durableObject of options.processedDurableObjects) {
       await this.addScriptBlueprint(durableObject.scriptPath);
-    }
-    // Force modules mode if we're using Durable Objects: we need to be able to
-    // access named script exports
-    if (options.processedDurableObjects.length > 0) {
-      options.modules = true;
     }
 
     options.processedModulesRules = this.getProcessedModulesRules(options);
