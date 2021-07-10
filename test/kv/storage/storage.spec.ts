@@ -26,7 +26,7 @@ const testClock: KVClock = () => 750000; // 750s
 // All fixed expirations should be 1000s, and all others should be within 60s of
 // now + 1hr
 const now = millisToSeconds(Date.now());
-const actualExpiration = now + 3600;
+const expectedExpiration = now + 3600;
 
 function assertExpiration(
   t: ExecutionContext,
@@ -34,7 +34,7 @@ function assertExpiration(
   actual?: number
 ): number | undefined {
   if (actualTime) {
-    within(t, 60, actual, actualExpiration);
+    within(t, 60, actual, expectedExpiration);
   } else {
     t.is(actual, 1000);
   }
@@ -382,7 +382,7 @@ const putNewWithMetadataMacro: Macro<[TestStorageFactory]> = async (
   const storage = await factory(t);
   await storage.put("newkey", {
     value: Buffer.from("newvalue", "utf8"),
-    expiration: actualTime ? actualExpiration : 1000,
+    expiration: actualTime ? expectedExpiration : 1000,
     metadata: { testing: true },
   });
   const value = await storage.get("newkey");
@@ -424,7 +424,7 @@ const putManyMacro: Macro<[TestStorageFactory]> = async (
       "key2",
       {
         value: Buffer.from("value2", "utf8"),
-        expiration: actualTime ? actualExpiration : 1000,
+        expiration: actualTime ? expectedExpiration : 1000,
         metadata: { testing: true },
       },
     ],

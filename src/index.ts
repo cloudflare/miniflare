@@ -306,6 +306,9 @@ export class Miniflare {
 
   async dispose(): Promise<void> {
     await this.#watcher.dispose();
+    for (const module of Object.values(this.#modules)) {
+      await module.dispose();
+    }
   }
 
   async #httpRequestListener(

@@ -37,4 +37,8 @@ export class CacheModule extends Module {
       },
     };
   }
+
+  dispose(): void {
+    this.storageFactory.dispose();
+  }
 }

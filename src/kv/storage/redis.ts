@@ -119,11 +119,11 @@ export class RedisKVStorage extends KVStorage {
       // Should have value and meta for each key, even if null
       assert.strictEqual(values.length, keys.length);
       assert.strictEqual(metas.length, keys.length);
-      // Result result
+      // Return result
       const now = Date.now();
       const result: (KVStoredValue | undefined)[] = new Array(keys.length);
       for (let i = 0; i < keys.length; i++) {
-        // Extract pipeline results (`2 +` is for ttl is for getting past
+        // Extract pipeline results (`2 +` for ttl is for getting past
         // mgetBuffer + mget)
         const value: Buffer | null = values[i];
         const meta: string | null = metas[i];
@@ -260,7 +260,7 @@ export class RedisKVStorage extends KVStorage {
     // Populate keys with metadata and expiration
     const now = Date.now();
     for (let i = 0; i < keys.length; i++) {
-      // Extract pipeline results (`1 +` is for ttl is for getting past mget)
+      // Extract pipeline results (`1 +` for ttl is for getting past mget)
       const meta: string | null = metas[i];
       const ttl: number = res[1 + i][1];
       keys[i].metadata = meta ? JSON.parse(meta) : undefined;

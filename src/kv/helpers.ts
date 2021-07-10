@@ -1,6 +1,6 @@
 import assert from "assert";
 import path from "path";
-import Redis, { Commands } from "ioredis";
+import Redis from "ioredis";
 import sanitize from "sanitize-filename";
 import { FileKVStorage, KVStorage, MemoryKVStorage } from "./storage";
 import { RedisKVStorage } from "./storage/redis";
@@ -31,7 +31,7 @@ export class KVStorageFactory {
     // Store memory KV storages for persistence across options reloads
     private memoryStorages: Map<string, MemoryKVStorage> = new Map(),
     // Store Redis connections across options reloads
-    private redisConnections: Map<string, Commands> = new Map()
+    private redisConnections: Map<string, Redis.Redis> = new Map()
   ) {}
 
   getStorage(namespace: string, persist?: boolean | string): KVStorage {
@@ -58,6 +58,12 @@ export class KVStorageFactory {
       if (storage) return storage;
       this.memoryStorages.set(namespace, (storage = new MemoryKVStorage()));
       return storage;
+    }
+  }
+
+  dispose(): void {
+    for (const connection of this.redisConnections.values()) {
+      connection.disconnect();
     }
   }
 }

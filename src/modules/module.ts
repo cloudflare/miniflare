@@ -20,4 +20,7 @@ export abstract class Module {
   buildEnvironment(options: ProcessedOptions): Context {
     return {};
   }
+
+  // Cleans up this module, disposing of any resources/connections
+  dispose(): void | Promise<void> {}
 }

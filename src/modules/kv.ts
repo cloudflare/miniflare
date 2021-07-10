@@ -31,4 +31,8 @@ export class KVModule extends Module {
     }
     return environment;
   }
+
+  dispose(): void {
+    this.storageFactory.dispose();
+  }
 }

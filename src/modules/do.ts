@@ -205,4 +205,8 @@ export class DurableObjectsModule extends Module {
     }
     return environment;
   }
+
+  dispose(): void {
+    this.storageFactory.dispose();
+  }
 }

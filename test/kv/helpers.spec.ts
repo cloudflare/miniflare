@@ -2,7 +2,7 @@ import assert from "assert";
 import { existsSync, promises as fs } from "fs";
 import path from "path";
 import test from "ava";
-import { Commands } from "ioredis";
+import Redis from "ioredis";
 import { MemoryKVStorage } from "../../src";
 import {
   KVStorageFactory,
@@ -82,10 +82,10 @@ test("getStorage: reuses existing in-memory storages", async (t) => {
 test("getStorage: reuses Redis connections for Redis storage", async (t) => {
   // Create "connections" that we can check for reference equality later
   // @ts-expect-error we just want to check the same object is returned
-  const insecureConnection: Commands = { secure: false };
+  const insecureConnection: Redis.Redis = { secure: false };
   // @ts-expect-error we just want to check the same object is returned
-  const secureConnection: Commands = { secure: false };
-  const redisConnections = new Map<string, Commands>();
+  const secureConnection: Redis.Redis = { secure: false };
+  const redisConnections = new Map<string, Redis.Redis>();
   redisConnections.set("redis://127.0.0.1:6379", insecureConnection);
   redisConnections.set("rediss://127.0.0.1:6379/2", secureConnection);
 
