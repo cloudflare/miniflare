@@ -1,5 +1,37 @@
 # 🚧 Changelog
 
+## 1.2.0
+
+### Features
+
+- Added **Redis** persistence support for
+  [📦 KV](https://miniflare.dev/kv.html#persistence),
+  [✨ Cache](https://miniflare.dev/cache.html#persistence) and
+  [📌 Durable Objects](https://miniflare.dev/durable-objects.html#persistence)
+- Added support for loading scripts from `package.json`, closes
+  [issue #7](https://github.com/mrbbot/miniflare/issues/7). See
+  [💻 Using the CLI](https://miniflare.dev/cli.html#script-requirement) and
+  [⚡️ Developing with esbuild](https://miniflare.dev/recipes/esbuild.html#dependencies)
+  for more details.
+- Added `FormData` to the sandbox, closes
+  [issue #6](https://github.com/mrbbot/miniflare/issues/6)
+- Added an automatic update checker. See
+  [💻 Using the CLI](https://miniflare.dev/cli.html#update-checker) for more
+  details.
+- [📚 Modules](https://miniflare.dev/modules.html) mode is now always enabled
+  when specifying
+  [📌 Durable Objects](https://miniflare.dev/durable-objects.html##objects)
+  bindings
+
+### Fixes
+
+- Fixed **Windows** support, closes
+  [issue #10](https://github.com/mrbbot/miniflare/issues/10)
+- Fixed issue where scripts were not reloaded correctly when editing script path
+  in `wrangler.toml`. Scripts are now always reloaded on options change.
+  `Miniflare.reloadScript()` is now deprecated. You should use
+  `Miniflare.reloadOptions()` instead.
+
 ## 1.1.0
 
 ### Features
@@ -98,7 +130,7 @@
 - Fixed handling of `ignoreMethod` option for `Cache` `match` and `delete`
 - Disabled edge caching when using Workers Sites, files are now always loaded
   from disk
-- Provide `Set` and `WeakSet` from Miniflare's realm to sandbox, removing
+- Provided `Set` and `WeakSet` from Miniflare's realm to sandbox, removing
   `Promise`, so `(async () => {})() instanceof Promise` evaluates to `true`
 
 ## 0.1.1

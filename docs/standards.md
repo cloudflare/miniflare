@@ -21,6 +21,8 @@ Miniflare supports the following Web Standards in its sandbox:
 - **Fetch:** `fetch`, `Headers`, `Request`, `Response` (powered by
   [@mrbbot/node-fetch](https://github.com/mrbbot/node-fetch/))
 - **URL:** `URL`, `URLSearchParams`
+- **Form Data:** `FormData` (powered by
+  [formdata-node](https://github.com/octet-stream/form-data))
 - **Streams:** `ByteLengthQueuingStrategy`, `CountQueuingStrategy`,
   `ReadableByteStreamController`, `ReadableStream`, `ReadableStreamBYOBReader`,
   `ReadableStreamBYOBRequest`, `ReadableStreamDefaultController`,

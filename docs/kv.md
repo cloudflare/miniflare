@@ -50,11 +50,12 @@ user's computer) so it doesn't really mean anything.
 
 By default, KV data is stored in memory. It will persist between reloads, but
 not CLI invocations or different `Miniflare` instances. To enable persistence to
-the file system, specify the KV persistence option:
+the file system or Redis, specify the KV persistence option:
 
 ```shell
 $ miniflare --kv-persist # Defaults to ./mf/kv
 $ miniflare --kv-persist ./data/  # Custom path
+$ miniflare --kv-persist redis://localhost:6379  # Redis server
 ```
 
 ```toml
@@ -62,19 +63,26 @@ $ miniflare --kv-persist ./data/  # Custom path
 [miniflare]
 kv_persist = true # Defaults to ./mf/kv
 kv_persist = "./data/" # Custom path
+kv_persist = "redis://localhost:6379" # Redis server
 ```
 
 ```js
 const mf = new Miniflare({
   kvPersist: true, // Defaults to ./mf/kv
   kvPersist: "./data", // Custom path
+  kvPersist: "redis://localhost:6379", // Redis server
 });
 ```
 
-Each namespace will get its own directory within the KV persistence directory.
-Key names are sanitised before data is read/written. Metadata is stored in files
-with a `.meta.json` suffix. These also contain original key names, so they can
-be returned when listing keys.
+When using the file system, each namespace will get its own directory within the
+KV persistence directory. Key names are sanitised before data is read/written.
+Metadata is stored in files with a `.meta.json` suffix. These also contain
+original key names, so they can be returned when listing keys.
+
+When using Redis, each key will be prefixed with the namespace and `:value:`.
+Metadata will be prefixed with the namespace and `:meta:`. If you're using this
+with the API, make sure you call `dispose` on your `Miniflare` instance to close
+database connections.
 
 ## Manipulating Outside Workers
 

@@ -51,7 +51,7 @@ $ miniflare worker.js --watch --debug
 [mf:dbg] - Scripts: worker.js
 [mf:dbg] Reloading worker.js...
 [mf:inf] Worker reloaded!
-[mf:dbg] Watching .env, worker.js, wrangler.toml...
+[mf:dbg] Watching .env, package.json, worker.js, wrangler.toml...
 [mf:inf] Listening on :8787
 [mf:inf] - http://127.0.0.1:8787
 ```
@@ -85,6 +85,7 @@ Options:
   -d, --debug             Log debug messages                           [boolean]
   -c, --wrangler-config   Path to wrangler.toml                         [string]
       --wrangler-env      Environment in wrangler.toml to use           [string]
+      --package           Path to package.json                          [string]
   -m, --modules           Enable modules                               [boolean]
       --modules-rule      Modules import rule (TYPE=GLOB)                [array]
       --build-command     Command to build project                      [string]
@@ -105,6 +106,7 @@ Options:
   -e, --env               Path to .env file                             [string]
   -b, --binding           Bind variable/secret (KEY=VALUE)               [array]
       --wasm              WASM module to bind (NAME=PATH)                [array]
+      --disable-updater   Disable update checker                       [boolean]
 ```
 
 ## Acknowledgements

@@ -27,11 +27,12 @@ await caches.open("cache_name");
 
 By default, cached data is stored in memory. It will persist between reloads,
 but not CLI invocations or different `Miniflare` instances. To enable
-persistence to the file system, specify the cache persistence option:
+persistence to the file system or Redis, specify the cache persistence option:
 
 ```shell
 $ miniflare --cache-persist # Defaults to ./mf/cache
 $ miniflare --cache-persist ./data/  # Custom path
+$ miniflare --cache-persist redis://localhost:6379  # Redis server
 ```
 
 ```toml
@@ -39,17 +40,23 @@ $ miniflare --cache-persist ./data/  # Custom path
 [miniflare]
 cache_persist = true # Defaults to ./mf/cache
 cache_persist = "./data/" # Custom path
+cache_persist = "redis://localhost:6379" # Redis server
 ```
 
 ```js
 const mf = new Miniflare({
   cachePersist: true, // Defaults to ./mf/cache
   cachePersist: "./data", // Custom path
+  cachePersist: "redis://localhost:6379", // Redis server
 });
 ```
 
-Each namespace will get its own directory within the cache persistence
-directory.
+When using the file system, each namespace will get its own directory within the
+cache persistence directory.
+
+When using Redis, each key will be prefixed with the namespace. If you're using
+this with the API, make sure you call `dispose` on your `Miniflare` instance to
+close database connections.
 
 ## Manipulating Outside Workers
 

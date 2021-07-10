@@ -81,6 +81,23 @@ console.log(waitUntil[0]); // 1
 console.log(waitUntil[1]); // "2"
 ```
 
+When using the API to dispatch events, you are responsible for adding
+[`CF-*` headers](https://support.cloudflare.com/hc/en-us/articles/200170986-How-does-Cloudflare-handle-HTTP-Request-headers-)
+and the
+[`cf` object](https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties).
+This lets you control their values for testing:
+
+```js
+const res = await mf.dispatchFetch("http://localhost:8787", {
+  headers: {
+    "CF-IPCountry": "GB",
+  },
+  cf: {
+    country: "GB",
+  },
+});
+```
+
 ## Upstream
 
 Miniflare will call each `fetch` listener until a response is returned. If no

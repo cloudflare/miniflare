@@ -45,19 +45,6 @@ See [🛠 Builds](/builds.html) for more details.
 :::
 <!--prettier-ignore-end-->
 
-<!--prettier-ignore-start-->
-::: warning
-[📚 Modules](/modules.html) support currently requires the
-`--experimental-vm-modules` flag. This is enabled by default, but requires the
-`-S` flag of `/usr/bin/env`. If your operating system doesn't support the `-S`
-flag (e.g. Ubuntu 18.04), you can run the following instead:
-
-```shell
-$ node --experimental-vm-modules ./node_modules/.bin/miniflare worker.js
-```
-:::
-<!--prettier-ignore-end-->
-
 ### Watching and Debugging
 
 Add `--watch`/`-w` and `--debug`/`-d` flags to reload the worker whenever
@@ -70,16 +57,16 @@ $ miniflare worker.js --watch --debug
 [mf:dbg] - Scripts: worker.js
 [mf:dbg] Reloading worker.js...
 [mf:inf] Worker reloaded!
-[mf:dbg] Watching .env, worker.js, wrangler.toml...
+[mf:dbg] Watching .env, package.json, worker.js, wrangler.toml...
 [mf:inf] Listening on :8787
 [mf:inf] - http://127.0.0.1:8787
 ```
 
 ### Configuration Autoloading
 
-Note that `.env` and `wrangler.toml` files are also being watched. These files
-are always loaded automatically and configure your worker's environment in
-addition to the CLI flags. See the
+Note that `.env`, `package.json` and `wrangler.toml` files are also being
+watched. These files are always loaded automatically and configure your worker's
+environment in addition to the CLI flags. See the
 [Wrangler Configuration](#wrangler-configuration) reference below for more
 details, but as an example, with the following `wrangler.toml` file and
 `worker.js` files:
@@ -106,13 +93,33 @@ $ miniflare worker.js --wrangler-config wrangler.other.toml
 ### Script Requirement
 
 The only required option is the script to run. This can either be passed as a
-command line argument as we've been doing so far, or in a `wrangler.toml` file:
+command line argument as we've been doing so far, in a `wrangler.toml` file or
+in a `package.json` file. The command line argument takes priority, then the
+script in `wrangler.toml`, then the `main` or `module` field in `package.json`
+(depending on whether `modules` support is enabled):
 
 ```toml
+# wrangler.toml
 [build.upload]
 dir = "" # Defaults to "dist"
 main = "./worker.js"
 ```
+
+```json
+// package.json
+{
+  "main": "worker.js", // "service-worker" format
+  "module": "worker.mjs" // "modules" format
+}
+```
+
+### Update Checker
+
+The CLI includes an automatic update checker that looks for new versions of
+Miniflare once a day. As Cloudflare are always improving and tweaking workers,
+you should aim to install these promptly for improved compatibility with the
+real workers environment. You can disable this with the `--disable-updater`
+flag.
 
 ## Reference
 
@@ -129,6 +136,7 @@ Options:
   -d, --debug             Log debug messages                           [boolean]
   -c, --wrangler-config   Path to wrangler.toml                         [string]
       --wrangler-env      Environment in wrangler.toml to use           [string]
+      --package           Path to package.json                          [string]
   -m, --modules           Enable modules                               [boolean]
       --modules-rule      Modules import rule (TYPE=GLOB)                [array]
       --build-command     Command to build project                      [string]
@@ -149,6 +157,7 @@ Options:
   -e, --env               Path to .env file                             [string]
   -b, --binding           Bind variable/secret (KEY=VALUE)               [array]
       --wasm              WASM module to bind (NAME=PATH)                [array]
+      --disable-updater   Disable update checker                       [boolean]
 ```
 
 ### Wrangler Configuration

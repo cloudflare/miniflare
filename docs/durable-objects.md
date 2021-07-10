@@ -48,10 +48,9 @@ const mf = new Miniflare({
 ```
 
 <!--prettier-ignore-start-->
-::: warning
-Durable Objects require the `modules` option to be enabled. This is enabled
-automatically if Durable Object bindings are specified in `wrangler.toml`.
-See [📚 Modules](/modules.html) for more details.
+::: tip
+The `modules` option is automatically enabled when specifying Durable Object
+bindings. See [📚 Modules](/modules.html) for more details.
 :::
 <!--prettier-ignore-end-->
 
@@ -59,11 +58,13 @@ See [📚 Modules](/modules.html) for more details.
 
 By default, Durable Object data is stored in memory. It will persist between
 reloads, but not CLI invocations or different `Miniflare` instances. To enable
-persistence to the file system, specify the Durable Object persistence option:
+persistence to the file system or Redis, specify the Durable Object persistence
+option:
 
 ```shell
 $ miniflare --do-persist # Defaults to ./mf/do
 $ miniflare --do-persist ./data/  # Custom path
+$ miniflare --do-persist redis://localhost:6379  # Redis server
 ```
 
 ```toml
@@ -71,17 +72,23 @@ $ miniflare --do-persist ./data/  # Custom path
 [miniflare]
 durable_objects_persist = true # Defaults to ./mf/do
 durable_objects_persist = "./data/" # Custom path
+durable_objects_persist = "redis://localhost:6379" # Redis server
 ```
 
 ```js
 const mf = new Miniflare({
   durableObjectsPersist: true, // Defaults to ./mf/do
   durableObjectsPersist: "./data", // Custom path
+  durableObjectsPersist: "redis://localhost:6379", // Redis server
 });
 ```
 
-Each object instance will get its own directory within the Durable Object
-persistence directory.
+When using the file system, each object instance will get its own directory
+within the Durable Object persistence directory.
+
+When using Redis, each key will be prefixed with the object name and instance.
+If you're using this with the API, make sure you call `dispose` on your
+`Miniflare` instance to close database connections.
 
 ## Manipulating Outside Workers
 

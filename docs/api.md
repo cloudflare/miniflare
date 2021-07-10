@@ -43,14 +43,15 @@ The [Guide](/fetch.html) goes into more detail on configuring specific features.
 
 <!--prettier-ignore-start-->
 ::: warning
-Like the CLI, the API will automatically load `.env` and `wrangler.toml` files
+Like the CLI, the API will automatically load `.env`, `package.json` and `wrangler.toml` files
 in the current working directory. This may lead to unexpected results. You can
-disable this by setting `envPath` and `wranglerConfigPath` options to paths of
+disable this by setting `envPath`, `packagePath` and `wranglerConfigPath` options to paths of
 empty files:
 
 ```js
 const mf = new Miniflare({
   envPath: ".env.empty",
+  packagePath: "package.empty.json", // Containing empty object: {}
   wranglerConfigPath: "wrangler.empty.toml"
 });
 ```
@@ -72,7 +73,7 @@ const mf = new Miniflare({
 });
 ```
 
-### Watching and Reloading
+### Watching, Reloading and Disposing
 
 You can watch scripts, `.env` files and `wrangler.toml` files with the `watch`
 option. When this is enabled, you must `dispose` of the watcher when you're done
@@ -86,13 +87,14 @@ const mf = new Miniflare({
 await mf.dispose();
 ```
 
+You must also `dispose` if you're persisting KV, cache, or Durable Object data
+in Redis to close opened connections.
+
 You can also manually reload scripts (main and Durable Object's) and options
-(`.env` and `wrangler.toml`) too with `reloadScript` and `reloadOptions`.
-Reloading scripts implicitly reloads options too:
+(`.env` and `wrangler.toml`) too with `reloadOptions`:
 
 ```js
 const mf = new Miniflare({ ... });
-await mf.reloadScript();
 await mf.reloadOptions();
 ```
 

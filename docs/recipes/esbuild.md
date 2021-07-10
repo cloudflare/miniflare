@@ -15,11 +15,12 @@ $ npm init -y
 $ npm install -D esbuild miniflare
 ```
 
-Update the `scripts` field in `package.json` to the following:
+Update the `main` and `scripts` fields in `package.json` to the following:
 
 ```json
 {
-  ...
+  ...,
+  "main": "./dist/index.js",
   "scripts": {
     "build": "esbuild --bundle --sourcemap --outdir=dist ./src/index.js",
     "dev": "miniflare --watch --debug"
@@ -47,7 +48,6 @@ kv_namespaces = [
 command = "npm run build"
 [build.upload]
 format = "service-worker"
-main = "./index.js"
 ```
 
 ## Worker Script
