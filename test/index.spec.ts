@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import http from "http";
 import { AddressInfo } from "net";
 import path from "path";
+import type { RequestInit } from "@mrbbot/node-fetch";
 import test, { ExecutionContext } from "ava";
 import WebSocket from "ws";
 import { Miniflare, MiniflareError, Response, ScheduledEvent } from "../src";
@@ -245,7 +246,7 @@ test("createServer: includes cf headers on request", async (t) => {
   const origin = await listen(t, mf.createServer());
   const body = JSON.parse((await request(origin))[0]);
   t.is(body["cf-connecting-ip"], "127.0.0.1");
-  t.is(body["cf-ipcountry"], "XX");
+  t.is(body["cf-ipcountry"].length, 2);
   t.is(body["cf-ray"], "");
   t.is(body["cf-request-id"], "");
   t.is(body["cf-visitor"], `{"scheme":"http"}`);
@@ -263,18 +264,38 @@ test("createServer: includes cf property on request", async (t) => {
     }`,
   });
   const origin = await listen(t, mf.createServer());
-  const body = JSON.parse((await request(origin))[0]);
-  t.deepEqual(body, {
-    asn: 0,
-    colo: "XXX",
-    country: "XX",
-    httpProtocol: "HTTP/1.1",
-    requestPriority: null,
-    tlsCipher: "",
-    tlsClientAuth: null,
-    tlsVersion: "",
-    timezone: "",
-  });
+  const body: NonNullable<RequestInit["cf"]> = JSON.parse(
+    (await request(origin))[0]
+  );
+
+  t.true(body.asn > 0, "ASN is a valid number");
+  t.is(body.colo.length, 3);
+  t.not(body.city?.length, 0);
+  t.not(body.region?.length, 0);
+  t.is(body.regionCode?.length, 2);
+  t.not(body.metroCode?.length, 0);
+  t.not(body.postalCode?.length, 0);
+  t.is(body.country.length, 2);
+  t.is(body.continent?.length, 2);
+  t.not(body.timezone?.length, 0);
+
+  if (body.latitude) {
+    t.regex(body.latitude, /^-?\d+\.\d+/);
+  } else {
+    t.fail();
+  }
+
+  if (body.longitude) {
+    t.regex(body.longitude, /^-?\d+\.\d+/);
+  } else {
+    t.fail();
+  }
+
+  t.is(body.clientTcpRtt, 0);
+  t.regex(body.httpProtocol, /^HTTP\//);
+  t.not(body.requestPriority.length, 0);
+  t.not(body.tlsCipher.length, 0);
+  t.not(body.tlsVersion.length, 0);
 });
 test("createServer: handles scheduled event trigger over http", async (t) => {
   const events: ScheduledEvent[] = [];

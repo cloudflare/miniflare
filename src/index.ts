@@ -343,7 +343,7 @@ export class Miniflare {
     // Remove IPv6 prefix for IPv4 addresses
     if (ip?.startsWith("::ffff:")) ip = ip?.substring("::ffff:".length);
     req.headers["cf-connecting-ip"] = ip;
-    req.headers["cf-ipcountry"] = "XX";
+    req.headers["cf-ipcountry"] = "US";
     req.headers["cf-ray"] = "";
     req.headers["cf-request-id"] = "";
     req.headers["cf-visitor"] = '{"scheme":"http"}';
@@ -355,15 +355,25 @@ export class Miniflare {
       headers: req.headers,
       body: body,
       cf: {
-        asn: 0,
-        colo: "XXX",
-        country: "XX",
+        asn: 395747,
+
+        colo: "DFW",
+        city: "Austin",
+        region: "Texas",
+        regionCode: "TX",
+        metroCode: "635",
+        postalCode: "78701",
+        country: "US",
+        continent: "NA",
+        timezone: "America/Chicago",
+        latitude: "30.27130",
+        longitude: "-97.74260",
+
+        clientTcpRtt: 0,
         httpProtocol: `HTTP/${req.httpVersion}`,
-        requestPriority: null,
-        tlsCipher: "",
-        tlsClientAuth: null,
-        tlsVersion: "",
-        timezone: "",
+        requestPriority: "weight=192;exclusive=0",
+        tlsCipher: "AEAD-AES128-GCM-SHA256",
+        tlsVersion: "TLSv1.3",
       },
     });
 
