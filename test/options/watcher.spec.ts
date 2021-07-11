@@ -11,8 +11,7 @@ import {
 import { TestLog, useTmp, wait } from "../helpers";
 
 // Use polling for watching files during tests, chokidar may miss events
-// otherwise as we're editing files too quickly. Run these tests serially to
-// make sure every change is caught too.
+// otherwise as we're editing files too quickly.
 const watchOptions: chokidar.WatchOptions = { usePolling: true, interval: 100 };
 
 interface Context {
@@ -21,6 +20,9 @@ interface Context {
 }
 
 const test = anyTest as TestInterface<Context>;
+// Even with polling these tests are still pretty flaky, especially on Windows.
+// Therefore run them in serial, and just skip them altogether in Windows.
+const watchTest = process.platform === "win32" ? test.skip : test.serial;
 
 test.beforeEach((t) => {
   const optionsQueue: ProcessedOptions[] = [];
@@ -40,7 +42,7 @@ test.beforeEach((t) => {
   t.context = { callback, next };
 });
 
-test.serial("constructor: loads initial options", async (t) => {
+watchTest("constructor: loads initial options", async (t) => {
   const { callback, next } = t.context;
   const log = new TestLog();
   new OptionsWatcher(log, callback, { script: "// test" }, watchOptions);
@@ -106,7 +108,7 @@ const changeMacro: Macro<
   t.is(extractValue(options, filePath), newValue);
 };
 
-test.serial("reloads options on wrangler configuration change", changeMacro, {
+watchTest("reloads options on wrangler configuration change", changeMacro, {
   fileName: "wrangler.toml",
   originalContents: "[miniflare]\nkv_persist = true",
   newContents: `[miniflare]\nkv_persist = "./data"`,
@@ -118,7 +120,7 @@ test.serial("reloads options on wrangler configuration change", changeMacro, {
   originalValue: true,
   newValue: "./data",
 });
-test.serial("reloads options on wrangler configuration create", changeMacro, {
+watchTest("reloads options on wrangler configuration create", changeMacro, {
   fileName: "wrangler.toml",
   newContents: `[miniflare]\nkv_persist = "./data"`,
   initialOptions: (wranglerConfigPath) => ({
@@ -129,7 +131,7 @@ test.serial("reloads options on wrangler configuration create", changeMacro, {
   originalValue: undefined,
   newValue: "./data",
 });
-test.serial("reloads options on wrangler configuration delete", changeMacro, {
+watchTest("reloads options on wrangler configuration delete", changeMacro, {
   fileName: "wrangler.toml",
   originalContents: "[miniflare]\nkv_persist = true",
   initialOptions: (wranglerConfigPath) => ({
@@ -141,7 +143,7 @@ test.serial("reloads options on wrangler configuration delete", changeMacro, {
   newValue: undefined,
 });
 
-test.serial("reloads options on env change", changeMacro, {
+watchTest("reloads options on env change", changeMacro, {
   fileName: ".env",
   originalContents: "KEY=value1",
   newContents: "KEY=value2",
@@ -153,7 +155,7 @@ test.serial("reloads options on env change", changeMacro, {
   originalValue: "value1",
   newValue: "value2",
 });
-test.serial("reloads options on env create", changeMacro, {
+watchTest("reloads options on env create", changeMacro, {
   fileName: ".env",
   newContents: "KEY=value",
   initialOptions: (envPath) => ({
@@ -164,7 +166,7 @@ test.serial("reloads options on env create", changeMacro, {
   originalValue: undefined,
   newValue: "value",
 });
-test.serial("reloads options on env delete", changeMacro, {
+watchTest("reloads options on env delete", changeMacro, {
   fileName: ".env",
   originalContents: "KEY=value",
   initialOptions: (envPath) => ({
@@ -176,7 +178,7 @@ test.serial("reloads options on env delete", changeMacro, {
   newValue: undefined,
 });
 
-test.serial("reloads scripts on script change", changeMacro, {
+watchTest("reloads scripts on script change", changeMacro, {
   fileName: "test.js",
   originalContents: "// test 1",
   newContents: "// test 2",
@@ -185,7 +187,7 @@ test.serial("reloads scripts on script change", changeMacro, {
   originalValue: "// test 1",
   newValue: "// test 2",
 });
-test.serial("reloads scripts on script create", changeMacro, {
+watchTest("reloads scripts on script create", changeMacro, {
   // Test with Durable Object script file instead, as missing script would
   // throw exception
   fileName: "object.js",
@@ -198,7 +200,7 @@ test.serial("reloads scripts on script create", changeMacro, {
   originalValue: "", // Scripts default to empty strings
   newValue: "// object",
 });
-test.serial("reloads scripts on script delete", changeMacro, {
+watchTest("reloads scripts on script delete", changeMacro, {
   // Test with Durable Object script file instead, as missing script would
   // throw exception
   fileName: "object.js",
@@ -212,7 +214,7 @@ test.serial("reloads scripts on script delete", changeMacro, {
   newValue: "", // Scripts default to empty strings
 });
 
-test.serial("rebuilds if watched build path changes", async (t) => {
+watchTest("rebuilds if watched build path changes", async (t) => {
   const { callback, next } = t.context;
   const log = new TestLog();
 
@@ -249,7 +251,7 @@ test.serial("rebuilds if watched build path changes", async (t) => {
   t.is(options.scripts?.[scriptPath].code.trim(), `// build${os.EOL}// build`);
 });
 
-test.serial("setExtraWatchedPaths: watches extra paths", async (t) => {
+watchTest("setExtraWatchedPaths: watches extra paths", async (t) => {
   const { callback, next } = t.context;
   const log = new TestLog();
 
@@ -354,20 +356,20 @@ const switchMacro: Macro<
   await next();
   t.is(log.debugs[0], `${relativeFilePath2} changed, reloading...`);
 };
-test.serial("switches watched path for script path", switchMacro, {
+watchTest("switches watched path for script path", switchMacro, {
   fileNamePrefix: "test.js",
   contents: (i) => `// test${i}`,
   wranglerConfigContents: (watchedFile) =>
     `[build.upload]\nmain = "${watchedFile}"`,
 });
-test.serial("switches watched path for env file", switchMacro, {
+watchTest("switches watched path for env file", switchMacro, {
   fileNamePrefix: ".env",
   contents: (i) => `KEY=value${i}`,
   wranglerConfigContents: (watchedFile) =>
     `[miniflare]\nenv_path = "${watchedFile}"`,
   initialOptions: { script: "// test" },
 });
-test.serial("switches watched path for durable object scripts", switchMacro, {
+watchTest("switches watched path for durable object scripts", switchMacro, {
   fileNamePrefix: "object.js",
   contents: (i) => `// object${i}`,
   wranglerConfigContents: (watchedFile) =>
@@ -376,7 +378,7 @@ test.serial("switches watched path for durable object scripts", switchMacro, {
 });
 // TODO: (low priority) test switches watched path for build watch path & wasm bindings, script from package.json too
 
-test.serial("reloadOptions: reloads options manually", async (t) => {
+watchTest("reloadOptions: reloads options manually", async (t) => {
   const { callback, next } = t.context;
   const log = new TestLog();
 
