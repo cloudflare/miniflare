@@ -317,7 +317,7 @@ test("createServer: displays pretty error page", async (t) => {
   t.is(headers["content-type"], "text/html; charset=UTF-8");
   t.regex(body, /^<!DOCTYPE html>/);
   t.regex(body, /test error text/);
-  t.regex(log.errors[0], /^Error: test error text/);
+  t.regex(log.errors[0], /^GET \/: Error: test error text/);
 });
 test("createServer: handles web socket upgrades", async (t) => {
   const mf = new Miniflare({

@@ -144,9 +144,12 @@ export class EventsModule extends Module {
     for (const listener of this._listeners.fetch ?? []) {
       try {
         listener(event);
-        const responsePromise = responseMap.get(event);
-        if (responsePromise) {
-          const response = (await responsePromise) as ResponseWaitUntil<WaitUntil>;
+        // `responseMap.get(event)` may be `undefined`, but `await undefined` is
+        // still `undefined`
+        const response = (await responseMap.get(event)) as
+          | ResponseWaitUntil<WaitUntil>
+          | undefined;
+        if (response) {
           response.waitUntil = waitUntil;
           return response;
         }
@@ -162,7 +165,8 @@ export class EventsModule extends Module {
 
     if (!upstreamUrl) {
       throw new FetchError(
-        "No fetch handler responded and unable to proxy request to upstream: no upstream specified. Have you added a fetch event listener?",
+        "No fetch handler responded and unable to proxy request to upstream: no upstream specified. " +
+          "Have you added a fetch event listener that responds with a Response?",
         "upstream"
       );
     }

@@ -246,9 +246,7 @@ test("dispatchFetch: throws error if pass through with no upstream", async (t) =
     () => module.dispatchFetch(new Request("http://localhost:8787/")),
     {
       instanceOf: FetchError,
-      message:
-        "No fetch handler responded and unable to proxy request to upstream: " +
-        "no upstream specified. Have you added a fetch event listener?",
+      message: /^No fetch handler responded and unable to proxy request to upstream/,
     }
   );
 });

@@ -405,7 +405,7 @@ export class Miniflare {
         const errorHtml = await youch.toHTML();
         res?.writeHead(500, { "Content-Type": "text/html; charset=UTF-8" });
         res?.end(errorHtml, "utf8");
-        this.log.error(e.stack);
+        this.log.error(`${req.method} ${req.url}: ${e.stack}`);
       }
     }
 
