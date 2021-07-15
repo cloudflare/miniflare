@@ -377,3 +377,4 @@ test("createServer: expects status 101 and web socket response for upgrades", as
   t.is(event.code, 1002);
   t.is(event.reason, "Protocol Error");
 });
+// TODO: HTTPS tests

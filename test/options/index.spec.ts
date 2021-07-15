@@ -62,6 +62,7 @@ test("logOptions: logs all options", (t) => {
     ],
     durableObjectsPersist: true,
     bindings: { KEY: "value" },
+    https: true,
   });
 
   t.deepEqual(log.debugs, [
@@ -81,6 +82,7 @@ test("logOptions: logs all options", (t) => {
     "- Durable Objects: OBJECT1, OBJECT2",
     "- Durable Objects Persistence: true",
     "- Bindings: KEY",
+    "- HTTPS: Self-Signed",
   ]);
 });
 
@@ -127,4 +129,31 @@ test("logOptions: only logs site exclude if no include", (t) => {
     siteIncludeRegexps: [regexp3],
   });
   t.deepEqual(log.debugs, ["Options:", "- Workers Site Include: regexp3"]);
+});
+
+test("logOptions: logs https option correctly", (t) => {
+  // Check undefined (no HTTPS)
+  const log = new TestLog();
+  logOptions(log, { https: undefined });
+  t.deepEqual(log.debugs, ["Options:"]);
+
+  // Check false (no HTTPS)
+  log.debugs = [];
+  logOptions(log, { https: false });
+  t.deepEqual(log.debugs, ["Options:"]);
+
+  // Check default self-signed configuration
+  log.debugs = [];
+  logOptions(log, { https: true });
+  t.deepEqual(log.debugs, ["Options:", "- HTTPS: Self-Signed"]);
+
+  // Check custom, but still self-signed configuration
+  log.debugs = [];
+  logOptions(log, { https: "custom" });
+  t.deepEqual(log.debugs, ["Options:", "- HTTPS: Self-Signed: custom"]);
+
+  // Check custom configuration
+  log.debugs = [];
+  logOptions(log, { https: { key: "key", cert: "cert" } });
+  t.deepEqual(log.debugs, ["Options:", "- HTTPS: Custom"]);
 });

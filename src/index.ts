@@ -1,5 +1,7 @@
 import assert from "assert";
 import http from "http";
+import https from "https";
+import net from "net";
 import path from "path";
 import {
   BodyInit,
@@ -441,17 +443,34 @@ export class Miniflare {
     await terminateWebSocket(ws, webSocket);
   }
 
-  createServer(): http.Server {
-    const server = http.createServer(this.#httpRequestListener.bind(this));
+  createServer(): http.Server;
+  createServer(secure: true): Promise<https.Server>;
+  createServer(secure?: boolean): http.Server | Promise<https.Server> {
+    const listener = this.#httpRequestListener.bind(this);
 
-    // Handle web socket upgrades
-    server.on("upgrade", (req, socket, head) => {
+    const wsUpgrade = (
+      req: http.IncomingMessage,
+      socket: net.Socket,
+      head: Buffer
+    ) => {
+      // Handle web socket upgrades
       this.#wss.handleUpgrade(req, socket, head, (ws) => {
         this.#wss.emit("connection", ws, req);
       });
-    });
+    };
 
-    return server;
+    if (secure) {
+      return this.getOptions().then(({ processedHttps }) => {
+        const server = https.createServer(processedHttps ?? {}, listener);
+        server.on("upgrade", wsUpgrade);
+        return server;
+      });
+    } else {
+      // TODO: (breaking) for v2, make this function always return a promise
+      const server = http.createServer(listener);
+      server.on("upgrade", wsUpgrade);
+      return server;
+    }
   }
 }
 

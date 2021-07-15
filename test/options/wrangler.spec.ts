@@ -102,6 +102,7 @@ test("getWranglerOptions: maps all options", (t) => {
     env_path = ".env.test"
     host = "127.0.0.1"
     port = 1337
+    https = true
     wasm_bindings = [
       { name = "MODULE", path="module.wasm" }
     ]
@@ -133,6 +134,7 @@ test("getWranglerOptions: maps all options", (t) => {
     envPath: ".env.test",
     host: "127.0.0.1",
     port: 1337,
+    https: true,
     wasmBindings: { MODULE: "module.wasm" },
   });
 });
@@ -194,3 +196,5 @@ test("getWranglerOptions: defaults build watch path to src if command specified"
   );
   t.is(options.buildWatchPath, "src");
 });
+
+// TODO: more HTTPS tests

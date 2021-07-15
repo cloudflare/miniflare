@@ -169,6 +169,30 @@ export default function parseArgv(raw: string[]): Options {
         type: "array",
         description: "WASM module to bind (NAME=PATH)",
       },
+      ["https"]: {
+        // type: "boolean" | "string",
+        description: "Enable self-signed HTTPS",
+      },
+      ["https-key"]: {
+        type: "string",
+        description: "Path to PEM SSL key",
+      },
+      ["https-cert"]: {
+        type: "string",
+        description: "Path to PEM SSL cert chain",
+      },
+      ["https-ca"]: {
+        type: "string",
+        description: "Path to SSL trusted CA certs",
+      },
+      ["https-pfx"]: {
+        type: "string",
+        description: "Path to PFX/PKCS12 SSL key/cert chain",
+      },
+      ["https-passphrase"]: {
+        type: "string",
+        description: "Passphrase to decrypt SSL files",
+      },
       ["disable-updater"]: {
         type: "boolean",
         description: "Disable update checker",
@@ -204,6 +228,20 @@ export default function parseArgv(raw: string[]): Options {
     envPath: argv.env,
     bindings: parseObject(asStringArray(argv.binding)),
     wasmBindings: parseObject(asStringArray(argv.wasm)),
+    https:
+      argv["https-key"] ||
+      argv["https-cert"] ||
+      argv["https-ca"] ||
+      argv["https-pfx"] ||
+      argv["https-passphrase"]
+        ? {
+            keyPath: argv["https-key"],
+            certPath: argv["https-cert"],
+            caPath: argv["https-ca"],
+            pfxPath: argv["https-pfx"],
+            passphrase: argv["https-passphrase"],
+          }
+        : (argv["https"] as boolean | string | undefined),
     disableUpdater: argv["disable-updater"],
   });
 }
@@ -269,14 +307,16 @@ if (module === require.main) {
   const mf = new Miniflare(options);
 
   mf.getOptions()
-    .then(({ host, port = defaultPort }) => {
-      mf.createServer().listen(port, host, async () => {
+    .then(async ({ host, port = defaultPort, processedHttps }) => {
+      const secure = processedHttps !== undefined;
+      (await mf.createServer(secure as any)).listen(port, host, async () => {
+        const protocol = secure ? "https" : "http";
         mf.log.info(`Listening on ${host ?? ""}:${port}`);
         if (host) {
-          mf.log.info(`- http://${host}:${port}`);
+          mf.log.info(`- ${protocol}://${host}:${port}`);
         } else {
           for (const accessibleHost of getAccessibleHosts()) {
-            mf.log.info(`- http://${accessibleHost}:${port}`);
+            mf.log.info(`- ${protocol}://${accessibleHost}:${port}`);
           }
         }
 

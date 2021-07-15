@@ -383,6 +383,8 @@ test("getValidatedCrons: defaults to empty array", (t) => {
   t.deepEqual(validatedCrons, []);
 });
 
+// TODO: HTTPS tests
+
 test("getProcessedOptions: includes all processed options", async (t) => {
   const tmp = await useTmp(t);
 

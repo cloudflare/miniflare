@@ -64,6 +64,7 @@ test("parseArgv: parses complete argv", (t) => {
     "MODULE1=module1.wasm",
     "--wasm",
     "MODULE2=module2.wasm",
+    "--https",
     "--disable-updater",
   ]);
   t.deepEqual(options, {
@@ -106,6 +107,7 @@ test("parseArgv: parses complete argv", (t) => {
       MODULE1: "module1.wasm",
       MODULE2: "module2.wasm",
     },
+    https: true,
     disableUpdater: true,
   });
 });
@@ -192,6 +194,8 @@ test("parseArgv: parses persistence as boolean or string", (t) => {
   t.is(options.cachePersist, "./cache");
   t.is(options.durableObjectsPersist, "./do");
 });
+
+// TODO: more HTTPS tests
 
 test("updateCheck: logs if updated version available", async (t) => {
   t.plan(4);

@@ -56,6 +56,16 @@ interface WranglerEnvironmentConfig {
     env_path?: string;
     host?: string;
     port?: number;
+    https?:
+      | boolean
+      | string
+      | {
+          key?: string;
+          cert?: string;
+          ca?: string;
+          pfx?: string;
+          passphrase?: string;
+        };
     wasm_bindings?: { name: string; path: string }[];
   };
 }
@@ -151,6 +161,16 @@ export function getWranglerOptions(
     envPath: config.miniflare?.env_path,
     host: config.miniflare?.host,
     port: config.miniflare?.port,
+    https:
+      typeof config.miniflare?.https === "object"
+        ? {
+            keyPath: config.miniflare.https.key,
+            certPath: config.miniflare.https.cert,
+            caPath: config.miniflare.https.ca,
+            pfxPath: config.miniflare.https.pfx,
+            passphrase: config.miniflare.https.passphrase,
+          }
+        : config.miniflare?.https,
     wasmBindings: config.miniflare?.wasm_bindings?.reduce(
       (bindings, { name, path }) => {
         bindings[name] = path;
