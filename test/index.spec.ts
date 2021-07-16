@@ -69,7 +69,11 @@ test.serial(
     } catch (e) {
       // Check error location was source mapped to start of `new Error("test");`
       // in original source file
-      t.regex(e.stack, new RegExp(`${inputScriptPath}:4:13`));
+      t.regex(
+        e.stack,
+        // Escape \ for Windows paths
+        new RegExp(`${inputScriptPath.replace(/\\/g, "\\\\")}:4:13`)
+      );
     }
   }
 );
@@ -106,7 +110,11 @@ test.serial(
     } catch (e) {
       // Check error location was source mapped to start of `new Error("test");`
       // in module file
-      t.regex(e.stack, new RegExp(`${moduleScriptPath}:2:39`));
+      t.regex(
+        e.stack,
+        // Escape \ for Windows paths
+        new RegExp(`${moduleScriptPath.replace(/\\/g, "\\\\")}:2:39`)
+      );
     }
   }
 );

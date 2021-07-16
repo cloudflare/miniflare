@@ -138,7 +138,6 @@ export class ScriptLinker {
         });
         // Store ESModule -> CommonJS source map
         assert(transpiled.sourceMapText);
-        console.log(transpiled);
         this.extraSourceMaps.set(modulePath, transpiled.sourceMapText);
         return new vm.SourceTextModule(transpiled.outputText, moduleOptions);
       case "Text":
