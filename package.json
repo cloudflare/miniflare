@@ -32,6 +32,7 @@
     "miniflare": "dist/src/bootstrap.js"
   },
   "dependencies": {
+    "@iarna/toml": "^2.2.5",
     "@mrbbot/node-fetch": "^4.2.0",
     "@mrbbot/parsed-html-rewriter": "^0.1.8",
     "@peculiar/webcrypto": "^1.1.4",
@@ -49,7 +50,6 @@
     "selfsigned": "^1.10.11",
     "semver": "^7.3.5",
     "source-map-support": "^0.5.19",
-    "toml": "^3.0.0",
     "tslib": "^2.3.0",
     "typescript": "^4.3.4",
     "typeson": "^6.1.0",
