@@ -10,7 +10,7 @@ import {
   RequestInit,
 } from "@mrbbot/node-fetch";
 import cron from "node-cron";
-import sourceMap from "source-map-support";
+import sourceMap, { UrlAndMap } from "source-map-support";
 import WebSocket from "ws";
 import Youch from "youch";
 import { MiniflareError } from "./error";
@@ -26,8 +26,8 @@ import { Options, ProcessedOptions } from "./options";
 import { OptionsWatcher } from "./options/watcher";
 import {
   ModuleScriptInstance,
+  ScriptLinker,
   ScriptScriptInstance,
-  buildLinker,
 } from "./scripts";
 
 type ModuleName = keyof typeof modules;
@@ -53,12 +53,16 @@ export class Miniflare {
   #sandbox: Context;
   #environment: Context;
   #scheduledTasks?: cron.ScheduledTask[];
+  #extraSourceMaps?: Map<string, string>;
 
   readonly #wss: WebSocket.Server;
 
   constructor(options: Options = {}) {
     if (options.sourceMap) {
-      sourceMap.install({ emptyCacheBetweenOperations: true });
+      sourceMap.install({
+        emptyCacheBetweenOperations: true,
+        retrieveSourceMap: this.#retrieveSourceMap.bind(this),
+      });
     }
     this.log = !options.log
       ? new NoOpLog()
@@ -89,6 +93,11 @@ export class Miniflare {
       this.#watchCallback.bind(this),
       options
     );
+  }
+
+  #retrieveSourceMap(url: string): UrlAndMap | null {
+    const map = this.#extraSourceMaps?.get(url);
+    return map ? { url, map } : null;
   }
 
   async #watchCallback(options: ProcessedOptions): Promise<void> {
@@ -134,9 +143,8 @@ export class Miniflare {
     assert(this.#options?.scripts && this.#options.processedModulesRules);
 
     // Build modules linker maintaining set of referenced paths for watching
-    const { linker, referencedPaths } = buildLinker(
-      this.#options.processedModulesRules
-    );
+    const linker = new ScriptLinker(this.#options.processedModulesRules);
+    this.#extraSourceMaps = linker.extraSourceMaps;
 
     // Reset state
     this.#modules.EventsModule.resetEventListeners();
@@ -161,7 +169,7 @@ export class Miniflare {
       let instance: ScriptScriptInstance | ModuleScriptInstance<ModuleExports>;
       try {
         instance = this.#options.modules
-          ? await script.buildModule(sandbox, linker)
+          ? await script.buildModule(sandbox, linker.linker)
           : await script.buildScript(sandbox);
       } catch (e) {
         // If this is because --experimental-vm-modules disabled, rethrow
@@ -230,7 +238,7 @@ export class Miniflare {
 
     // Watch module referenced paths
     assert(this.#watcher !== undefined);
-    this.#watcher.setExtraWatchedPaths(referencedPaths);
+    this.#watcher.setExtraWatchedPaths(linker.referencedPaths);
 
     // Close all existing web sockets
     for (const ws of this.#wss.clients) {

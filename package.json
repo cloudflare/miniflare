@@ -20,7 +20,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc -w",
-    "test": "esbuild --bundle --outdir=test/fixtures/dist test/fixtures/sites.js && ava",
+    "test": "npm run build:fixtures && ava",
+    "build:fixtures": "node test/fixtures/build.js",
     "lint": "eslint '{src,test}/**/*.ts'",
     "prepublishOnly": "npm run lint && npm run build && npm run test",
     "docs:changelog": "node docs/.vitepress/changelog.js",

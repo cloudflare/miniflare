@@ -8,7 +8,7 @@ import {
   ProcessedModuleRule,
   stringScriptPath,
 } from "../src/options";
-import { ScriptBlueprint, buildLinker } from "../src/scripts";
+import { ScriptBlueprint, ScriptLinker } from "../src/scripts";
 
 const micromatchOptions: micromatch.Options = { contains: true };
 const moduleRules: ModuleRule[] = [
@@ -56,7 +56,7 @@ test("buildScript: includes file name in stack traces", async (t) => {
 test("buildModule: runs code in sandbox", async (t) => {
   t.plan(1);
   const blueprint = new ScriptBlueprint(`callback("test")`, "test.mjs");
-  const { linker } = buildLinker(processedModuleRules);
+  const { linker } = new ScriptLinker(processedModuleRules);
   const script = await blueprint.buildModule(
     { callback: (result: string) => t.is(result, "test") },
     linker
@@ -65,7 +65,7 @@ test("buildModule: runs code in sandbox", async (t) => {
 });
 test("buildModule: disallows code generation", async (t) => {
   const blueprint = new ScriptBlueprint(`eval('callback()')`, "test.mjs");
-  const { linker } = buildLinker(processedModuleRules);
+  const { linker } = new ScriptLinker(processedModuleRules);
   const script = await blueprint.buildModule(
     { callback: () => t.fail() },
     linker
@@ -76,7 +76,7 @@ test("buildModule: disallows code generation", async (t) => {
 });
 test("buildModule: includes file name in stack traces", async (t) => {
   const blueprint = new ScriptBlueprint(`throw new Error("test")`, "test.mjs");
-  const { linker } = buildLinker(processedModuleRules);
+  const { linker } = new ScriptLinker(processedModuleRules);
   const script = await blueprint.buildModule({}, linker);
   try {
     await script.run();
@@ -90,7 +90,7 @@ test("buildModule: exposes exports", async (t) => {
     `export const a = "a"; export default "b";`,
     "test.mjs"
   );
-  const { linker } = buildLinker(processedModuleRules);
+  const { linker } = new ScriptLinker(processedModuleRules);
   const script = await blueprint.buildModule({}, linker);
   await script.run();
   t.is(script.exports.a, "a");
@@ -110,7 +110,7 @@ test("buildLinker: links ESModule modules", async (t) => {
     `import value from "./esmodule.mjs"; export default value;`,
     linkerScriptPath
   );
-  const { linker } = buildLinker(processedModuleRules);
+  const { linker } = new ScriptLinker(processedModuleRules);
   const script = await blueprint.buildModule({}, linker);
   await script.run();
   t.is(script.exports.default, "ESModule test");
@@ -120,7 +120,7 @@ test("buildLinker: links CommonJS modules", async (t) => {
     `import value from "./commonjs.cjs"; export default value;`,
     linkerScriptPath
   );
-  const { linker } = buildLinker(processedModuleRules);
+  const { linker } = new ScriptLinker(processedModuleRules);
   const script = await blueprint.buildModule({}, linker);
   await script.run();
   t.is(script.exports.default, "CommonJS test");
@@ -130,7 +130,7 @@ test("buildLinker: links Text modules", async (t) => {
     `import value from "./text.txt"; export default value;`,
     linkerScriptPath
   );
-  const { linker } = buildLinker(processedModuleRules);
+  const { linker } = new ScriptLinker(processedModuleRules);
   const script = await blueprint.buildModule({}, linker);
   await script.run();
   t.is(script.exports.default.trimEnd(), "Text test");
@@ -140,7 +140,7 @@ test("buildLinker: links Data modules", async (t) => {
     `import value from "./data.bin"; export default value;`,
     linkerScriptPath
   );
-  const { linker } = buildLinker(processedModuleRules);
+  const { linker } = new ScriptLinker(processedModuleRules);
   const script = await blueprint.buildModule({}, linker);
   await script.run();
   t.deepEqual(
@@ -160,7 +160,7 @@ test("buildLinker: links CompiledWasm modules", async (t) => {
     `,
     linkerScriptPath
   );
-  const { linker } = buildLinker(processedModuleRules);
+  const { linker } = new ScriptLinker(processedModuleRules);
   const script = await blueprint.buildModule({}, linker);
   await script.run();
   t.is(script.exports.default, 3);
@@ -170,7 +170,7 @@ test("buildLinker: builds set of linked module paths", async (t) => {
     `import value from "./recursive.mjs"`,
     linkerScriptPath
   );
-  const { linker, referencedPaths } = buildLinker(processedModuleRules);
+  const { linker, referencedPaths } = new ScriptLinker(processedModuleRules);
   await blueprint.buildModule({}, linker);
   const dir = path.dirname(linkerScriptPath);
   t.deepEqual(
@@ -183,7 +183,7 @@ test("buildLinker: throws error if trying to import from string script", async (
     `import value from "./esmodule.mjs"`,
     stringScriptPath
   );
-  const { linker } = buildLinker(processedModuleRules);
+  const { linker } = new ScriptLinker(processedModuleRules);
   await t.throwsAsync(blueprint.buildModule({}, linker), {
     instanceOf: MiniflareError,
     message: /imports unsupported with string script$/,
@@ -194,7 +194,7 @@ test("buildLinker: throws error if no matching module rule", async (t) => {
     `import image from "./image.jpg"`,
     linkerScriptPath
   );
-  const { linker } = buildLinker(processedModuleRules);
+  const { linker } = new ScriptLinker(processedModuleRules);
   await t.throwsAsync(blueprint.buildModule({}, linker), {
     instanceOf: MiniflareError,
     message: /no matching module rules$/,
@@ -205,7 +205,7 @@ test("buildLinker: throws error for unsupported module type", async (t) => {
     `import image from "./image.png"`,
     linkerScriptPath
   );
-  const { linker } = buildLinker(processedModuleRules);
+  const { linker } = new ScriptLinker(processedModuleRules);
   await t.throwsAsync(blueprint.buildModule({}, linker), {
     instanceOf: MiniflareError,
     message: /PNG modules are unsupported$/,

@@ -8,6 +8,8 @@ import { Miniflare, MiniflareError, Response, ScheduledEvent } from "../src";
 import { stringScriptPath } from "../src/options";
 import { TestLog, triggerPromise, useTmp, within } from "./helpers";
 
+const fixturesPath = path.resolve(__dirname, "fixtures");
+
 function interceptConsoleLogs(t: ExecutionContext): string[] {
   const logs: string[] = [];
   const originalLog = console.log;
@@ -43,6 +45,69 @@ test.serial(
     const mf = new Miniflare({ log: true, script: "// test" });
     await mf.getOptions(); // Wait for worker to load
     t.deepEqual(logs, ["[mf:inf] Worker reloaded!"]);
+  }
+);
+
+// Source map support manipulates globals so run these tests in serial. This
+// probably isn't needed, but it can't hurt.
+test.serial(
+  "retrieveSourceMap: uses source maps for stack traces",
+  async (t) => {
+    t.plan(1);
+    // Path to worker script that throws an error on every fetch event, but has
+    // been passed through esbuild
+    const scriptPath = path.join(fixturesPath, "dist", "sourcemap.js");
+    // Path to the original source file that was passed to esbuild
+    const inputScriptPath = path.join(fixturesPath, "sourcemap.js");
+
+    const mf = new Miniflare({
+      scriptPath,
+      sourceMap: true,
+    });
+    try {
+      await mf.dispatchFetch("http://localhost:8787/");
+    } catch (e) {
+      // Check error location was source mapped to start of `new Error("test");`
+      // in original source file
+      t.regex(e.stack, new RegExp(`${inputScriptPath}:4:13`));
+    }
+  }
+);
+test.serial(
+  "retrieveSourceMap: uses source maps for CommonJS module stack traces",
+  async (t) => {
+    t.plan(1);
+    // Path to worker script that called a function from an imported CommonJS
+    // module that throws an error whenever it's called. This will be
+    // transformed to an ESModule that looks something like:
+    // ```js
+    // const export$0 = () => { throw new Error("test"); };
+    // export { export$0 as export };
+    // ```
+    const scriptPath = path.join(
+      fixturesPath,
+      "modules",
+      "commonjssourcemap.js"
+    );
+    // Path to imported module source file with throwing function
+    const moduleScriptPath = path.join(
+      fixturesPath,
+      "modules",
+      "commonjserror.cjs"
+    );
+
+    const mf = new Miniflare({
+      scriptPath,
+      modules: true,
+      sourceMap: true,
+    });
+    try {
+      await mf.dispatchFetch("http://localhost:8787/");
+    } catch (e) {
+      // Check error location was source mapped to start of `new Error("test");`
+      // in module file
+      t.regex(e.stack, new RegExp(`${moduleScriptPath}:2:39`));
+    }
   }
 );
 
