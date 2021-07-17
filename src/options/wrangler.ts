@@ -1,6 +1,6 @@
 import assert from "assert";
 import path from "path";
-import toml from "toml";
+import toml from "@iarna/toml";
 import { DurableObjectOptions, ModuleRuleType, Options } from "./index";
 
 interface WranglerEnvironmentConfig {
@@ -82,7 +82,7 @@ export function getWranglerOptions(
   env?: string
 ): Options {
   // Parse wrangler config and select correct environment
-  const config: WranglerConfig = toml.parse(input);
+  const config = (toml.parse(input) as unknown) as WranglerConfig;
   if (env && config.env && env in config.env) {
     Object.assign(config, config.env[env]);
   }
