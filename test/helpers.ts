@@ -98,6 +98,11 @@ export function within(
   );
 }
 
+export function includesPathRegexp(path: string): RegExp {
+  // Escape \ for Windows paths
+  return new RegExp(path.replace(/\\/g, "\\\\"));
+}
+
 export function getObjectProperties<T>(obj: T): string[] {
   return [
     ...Object.getOwnPropertyNames(obj),

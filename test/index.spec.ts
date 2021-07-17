@@ -1,12 +1,19 @@
 import { promises as fs } from "fs";
 import http from "http";
+import https from "https";
 import { AddressInfo } from "net";
 import path from "path";
 import test, { ExecutionContext } from "ava";
 import WebSocket from "ws";
 import { Miniflare, MiniflareError, Response, ScheduledEvent } from "../src";
 import { stringScriptPath } from "../src/options";
-import { TestLog, triggerPromise, useTmp, within } from "./helpers";
+import {
+  TestLog,
+  includesPathRegexp,
+  triggerPromise,
+  useTmp,
+  within,
+} from "./helpers";
 
 const fixturesPath = path.resolve(__dirname, "fixtures");
 
@@ -69,11 +76,7 @@ test.serial(
     } catch (e) {
       // Check error location was source mapped to start of `new Error("test");`
       // in original source file
-      t.regex(
-        e.stack,
-        // Escape \ for Windows paths
-        new RegExp(`${inputScriptPath.replace(/\\/g, "\\\\")}:4:13`)
-      );
+      t.regex(e.stack, includesPathRegexp(`${inputScriptPath}:4:13`));
     }
   }
 );
@@ -110,11 +113,7 @@ test.serial(
     } catch (e) {
       // Check error location was source mapped to start of `new Error("test");`
       // in module file
-      t.regex(
-        e.stack,
-        // Escape \ for Windows paths
-        new RegExp(`${moduleScriptPath.replace(/\\/g, "\\\\")}:2:39`)
-      );
+      t.regex(e.stack, includesPathRegexp(`${moduleScriptPath}:2:39`));
     }
   }
 );
@@ -242,23 +241,39 @@ test("getDurableObjectNamespace: gets Durable Object namespace for manipulation"
   t.is(await res.text(), "2");
 });
 
-function listen(t: ExecutionContext, server: http.Server): Promise<string> {
+function listen(
+  t: ExecutionContext,
+  server: http.Server | https.Server
+): Promise<number> {
   return new Promise((resolve) => {
     server.listen(0, () => {
       t.teardown(() => server.close());
       const port = (server.address() as AddressInfo).port;
-      resolve(`localhost:${port}`);
+      resolve(port);
     });
   });
 }
 
-function request(path: string): Promise<[string, http.IncomingHttpHeaders]> {
+function request(
+  port: number,
+  path?: string,
+  secure?: boolean
+): Promise<[string, http.IncomingHttpHeaders]> {
   return new Promise((resolve) => {
-    http.get(`http://${path}`, (res) => {
-      let body = "";
-      res.on("data", (chunk) => (body += chunk));
-      res.on("end", () => resolve([body, res.headers]));
-    });
+    (secure ? https : http).get(
+      {
+        protocol: secure ? "https:" : "http:",
+        host: "localhost",
+        port,
+        path,
+        rejectUnauthorized: false,
+      },
+      (res) => {
+        let body = "";
+        res.on("data", (chunk) => (body += chunk));
+        res.on("end", () => resolve([body, res.headers]));
+      }
+    );
   });
 }
 
@@ -267,8 +282,8 @@ test("createServer: handles string http worker response", async (t) => {
     modules: true,
     script: `export default { fetch: () => new Response("string") }`,
   });
-  const origin = await listen(t, mf.createServer());
-  const [body] = await request(origin);
+  const port = await listen(t, mf.createServer());
+  const [body] = await request(port);
   t.is(body, "string");
 });
 test("createServer: handles buffer http worker response", async (t) => {
@@ -278,8 +293,8 @@ test("createServer: handles buffer http worker response", async (t) => {
       fetch: () => new Response(new TextEncoder().encode("buffer").buffer)
     }`,
   });
-  const origin = await listen(t, mf.createServer());
-  const [body] = await request(origin);
+  const port = await listen(t, mf.createServer());
+  const [body] = await request(port);
   t.is(body, "buffer");
 });
 test("createServer: handles stream http worker response", async (t) => {
@@ -295,8 +310,8 @@ test("createServer: handles stream http worker response", async (t) => {
       }))
     }`,
   });
-  const origin = await listen(t, mf.createServer());
-  const [body] = await request(origin);
+  const port = await listen(t, mf.createServer());
+  const [body] = await request(port);
   t.is(body, "stream");
 });
 test("createServer: includes cf headers on request", async (t) => {
@@ -315,8 +330,8 @@ test("createServer: includes cf headers on request", async (t) => {
       }
     }`,
   });
-  const origin = await listen(t, mf.createServer());
-  const body = JSON.parse((await request(origin))[0]);
+  const port = await listen(t, mf.createServer());
+  const body = JSON.parse((await request(port))[0]);
   t.is(body["cf-connecting-ip"], "127.0.0.1");
   t.is(body["cf-ipcountry"], "XX");
   t.is(body["cf-ray"], "");
@@ -335,8 +350,8 @@ test("createServer: includes cf property on request", async (t) => {
       }
     }`,
   });
-  const origin = await listen(t, mf.createServer());
-  const body = JSON.parse((await request(origin))[0]);
+  const port = await listen(t, mf.createServer());
+  const body = JSON.parse((await request(port))[0]);
   t.deepEqual(body, {
     asn: 0,
     colo: "XXX",
@@ -359,21 +374,21 @@ test("createServer: handles scheduled event trigger over http", async (t) => {
     },
     script: `addEventListener("scheduled", eventCallback)`,
   });
-  const origin = await listen(t, mf.createServer());
+  const port = await listen(t, mf.createServer());
   // Wait for watcher initPromise before sending requests
   await mf.getOptions();
 
-  await request(`${origin}/.mf/scheduled`);
+  await request(port, "/.mf/scheduled");
   t.is(events.length, 1);
   within(t, 3000, events[0].scheduledTime, Date.now());
   t.is(events[0].cron, "");
 
-  await request(`${origin}/.mf/scheduled?time=1000`);
+  await request(port, "/.mf/scheduled?time=1000");
   t.is(events.length, 2);
   t.is(events[1].scheduledTime, 1000);
   t.is(events[1].cron, "");
 
-  await request(`${origin}/.mf/scheduled?time=1000&cron=* * * * *`);
+  await request(port, "/.mf/scheduled?time=1000&cron=*+*+*+*+*");
   t.is(events.length, 3);
   t.is(events[2].scheduledTime, 1000);
   t.is(events[2].cron, "* * * * *");
@@ -385,8 +400,8 @@ test("createServer: displays pretty error page", async (t) => {
     script: `export default { fetch: () => { throw new Error("test error text"); } }`,
     log,
   });
-  const origin = await listen(t, mf.createServer());
-  const [body, headers] = await request(origin);
+  const port = await listen(t, mf.createServer());
+  const [body, headers] = await request(port);
   t.is(headers["content-type"], "text/html; charset=UTF-8");
   t.regex(body, /^<!DOCTYPE html>/);
   t.regex(body, /test error text/);
@@ -411,10 +426,10 @@ test("createServer: handles web socket upgrades", async (t) => {
       }
     }`,
   });
-  const origin = await listen(t, mf.createServer());
+  const port = await listen(t, mf.createServer());
   // Wait for watcher initPromise before sending requests
   await mf.getOptions();
-  const ws = new WebSocket(`ws://${origin}`);
+  const ws = new WebSocket(`ws://localhost:${port}`);
   const [eventTrigger, eventPromise] = triggerPromise<string>();
   ws.addEventListener("message", (e) => {
     eventTrigger(e.data);
@@ -431,11 +446,11 @@ test("createServer: expects status 101 and web socket response for upgrades", as
     script: `export default { fetch: () => new Response("test") }`,
     log,
   });
-  const origin = await listen(t, mf.createServer());
+  const port = await listen(t, mf.createServer());
   // Wait for watcher initPromise before sending requests
   await mf.getOptions();
 
-  const ws = new WebSocket(`ws://${origin}`);
+  const ws = new WebSocket(`ws://localhost:${port}`);
 
   const [eventTrigger, eventPromise] = triggerPromise<{
     code: number;
@@ -450,4 +465,14 @@ test("createServer: expects status 101 and web socket response for upgrades", as
   t.is(event.code, 1002);
   t.is(event.reason, "Protocol Error");
 });
-// TODO: HTTPS tests
+test("createServer: handles https request", async (t) => {
+  const tmp = await useTmp(t);
+  const mf = new Miniflare({
+    modules: true,
+    script: `export default { fetch: () => new Response("test") }`,
+    https: tmp,
+  });
+  const port = await listen(t, await mf.createServer(true));
+  const [body] = await request(port, "", true);
+  t.is(body, "test");
+});

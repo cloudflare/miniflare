@@ -4,9 +4,10 @@ import path from "path";
 import { URL } from "url";
 import test from "ava";
 import { MiniflareError, NoOpLog, Options } from "../../src";
+import { KVClock } from "../../src/kv/helpers";
 import { stringScriptPath } from "../../src/options";
 import { OptionsProcessor } from "../../src/options/processor";
-import { TestLog, useTmp } from "../helpers";
+import { TestLog, includesPathRegexp, useTmp } from "../helpers";
 
 const fixturesPath = path.resolve(__dirname, "..", "fixtures");
 const durableObjectScriptPath = path.join(fixturesPath, "do.js");
@@ -383,7 +384,163 @@ test("getValidatedCrons: defaults to empty array", (t) => {
   t.deepEqual(validatedCrons, []);
 });
 
-// TODO: HTTPS tests
+test("getHttpsOptions: returns undefined if https disabled", async (t) => {
+  const processor = new OptionsProcessor(new NoOpLog(), {});
+  let https = await processor.getHttpsOptions({});
+  t.is(https, undefined);
+  https = await processor.getHttpsOptions({ https: false });
+  t.is(https, undefined);
+});
+test("getHttpsOptions: prefers raw strings over paths", async (t) => {
+  const tmp = await useTmp(t);
+  const nonExistentPath = path.join(tmp, "bad.txt");
+  const processor = new OptionsProcessor(new NoOpLog(), {});
+  const https = await processor.getHttpsOptions({
+    https: {
+      key: "test_key",
+      keyPath: nonExistentPath,
+      cert: "test_cert",
+      certPath: nonExistentPath,
+      ca: "test_ca",
+      caPath: nonExistentPath,
+      pfx: "test_pfx",
+      pfxPath: nonExistentPath,
+      passphrase: "test_passphrase",
+    },
+  });
+  t.deepEqual(https, {
+    key: "test_key",
+    cert: "test_cert",
+    ca: "test_ca",
+    pfx: "test_pfx",
+    passphrase: "test_passphrase",
+  });
+});
+test("getHttpsOptions: reads all option file paths", async (t) => {
+  const tmp = await useTmp(t);
+  const keyPath = path.join(tmp, "key");
+  const certPath = path.join(tmp, "cert");
+  const caPath = path.join(tmp, "ca");
+  const pfxPath = path.join(tmp, "pfx");
+  await fs.writeFile(keyPath, "test_key", "utf8");
+  await fs.writeFile(certPath, "test_cert", "utf8");
+  await fs.writeFile(caPath, "test_ca", "utf8");
+  await fs.writeFile(pfxPath, "test_pfx", "utf8");
+  const processor = new OptionsProcessor(new NoOpLog(), {});
+  const https = await processor.getHttpsOptions({
+    https: { keyPath, certPath, caPath, pfxPath },
+  });
+  t.deepEqual(https, {
+    key: "test_key",
+    cert: "test_cert",
+    ca: "test_ca",
+    pfx: "test_pfx",
+    passphrase: undefined,
+  });
+});
+test("getHttpsOptions: logs errors if cannot load option files path", async (t) => {
+  const log = new TestLog();
+  const tmp = await useTmp(t);
+  const keyPath = path.join(tmp, "key");
+  const certPath = path.join(tmp, "cert");
+  const caPath = path.join(tmp, "ca");
+  const pfxPath = path.join(tmp, "pfx");
+  const processor = new OptionsProcessor(log, {});
+  const https = await processor.getHttpsOptions({
+    https: { keyPath, certPath, caPath, pfxPath },
+  });
+  // Check defaults to empty strings
+  t.deepEqual(https, {
+    key: "",
+    cert: "",
+    ca: "",
+    pfx: "",
+    passphrase: undefined,
+  });
+  // Check logs error
+  t.is(log.errors.length, 4);
+  t.regex(log.errors[0], /Error: ENOENT/);
+  t.regex(log.errors[0], includesPathRegexp(keyPath));
+  t.regex(log.errors[1], /Error: ENOENT/);
+  t.regex(log.errors[1], includesPathRegexp(certPath));
+  t.regex(log.errors[2], /Error: ENOENT/);
+  t.regex(log.errors[2], includesPathRegexp(caPath));
+  t.regex(log.errors[3], /Error: ENOENT/);
+  t.regex(log.errors[3], includesPathRegexp(pfxPath));
+});
+test("getHttpsOptions: generates self-signed certificate at default location", async (t) => {
+  const log = new TestLog();
+  const tmp = await useTmp(t);
+  const processor = new OptionsProcessor(log, {}, tmp);
+  const https = await processor.getHttpsOptions({ https: true });
+  t.deepEqual(log.infos, ["Generating new self-signed certificate..."]);
+  t.not(https, undefined);
+  t.not(https?.key, undefined);
+  t.not(https?.cert, undefined);
+  assert(https?.key && https?.cert);
+  t.regex(https.key, /^-----BEGIN RSA PRIVATE KEY-----/);
+  t.regex(https.cert, /^-----BEGIN CERTIFICATE-----/);
+  const key = await fs.readFile(path.join(tmp, "key.pem"), "utf8");
+  const cert = await fs.readFile(path.join(tmp, "cert.pem"), "utf8");
+  t.is(https.key, key);
+  t.is(https.cert, cert);
+});
+test("getHttpsOptions: generates self-signed certificate at custom location", async (t) => {
+  const log = new TestLog();
+  const tmpDefault = await useTmp(t);
+  const tmpCustom = await useTmp(t);
+  const processor = new OptionsProcessor(log, {}, tmpDefault);
+  const https = await processor.getHttpsOptions({ https: tmpCustom });
+  t.deepEqual(log.infos, ["Generating new self-signed certificate..."]);
+  t.not(https, undefined);
+  t.not(https?.key, undefined);
+  t.not(https?.cert, undefined);
+  assert(https?.key && https?.cert);
+  t.regex(https.key, /^-----BEGIN RSA PRIVATE KEY-----/);
+  t.regex(https.cert, /^-----BEGIN CERTIFICATE-----/);
+  t.false(existsSync(path.join(tmpDefault, "key.pem")));
+  t.false(existsSync(path.join(tmpDefault, "cert.pem")));
+  const key = await fs.readFile(path.join(tmpCustom, "key.pem"), "utf8");
+  const cert = await fs.readFile(path.join(tmpCustom, "cert.pem"), "utf8");
+  t.is(https.key, key);
+  t.is(https.cert, cert);
+});
+test("getHttpsOptions: reuses existing non-expired certificates", async (t) => {
+  const log = new TestLog();
+  const tmp = await useTmp(t);
+  await fs.writeFile(path.join(tmp, "key.pem"), "existing_key", "utf8");
+  await fs.writeFile(path.join(tmp, "cert.pem"), "existing_cert", "utf8");
+  const processor = new OptionsProcessor(log, {}, tmp);
+  const https = await processor.getHttpsOptions({ https: tmp });
+  t.deepEqual(log.infos, []); // Doesn't generate new certificate
+  t.deepEqual(https, {
+    key: "existing_key",
+    cert: "existing_cert",
+    ca: undefined,
+    pfx: undefined,
+    passphrase: undefined,
+  });
+});
+test("getHttpsOptions: regenerates self-signed certificate if expired", async (t) => {
+  const log = new TestLog();
+  const tmp = await useTmp(t);
+  await fs.writeFile(path.join(tmp, "key.pem"), "expired_key", "utf8");
+  await fs.writeFile(path.join(tmp, "cert.pem"), "expired_cert", "utf8");
+  const clock: KVClock = () => Date.now() + 86400000 * 30; // now + 30 days
+  const processor = new OptionsProcessor(log, {}, tmp, clock);
+  const https = await processor.getHttpsOptions({ https: tmp });
+  t.deepEqual(log.infos, ["Generating new self-signed certificate..."]);
+  t.not(https, undefined);
+  t.not(https?.key, undefined);
+  t.not(https?.cert, undefined);
+  assert(https?.key && https?.cert);
+  t.regex(https.key, /^-----BEGIN RSA PRIVATE KEY-----/);
+  t.regex(https.cert, /^-----BEGIN CERTIFICATE-----/);
+  const key = await fs.readFile(path.join(tmp, "key.pem"), "utf8");
+  const cert = await fs.readFile(path.join(tmp, "cert.pem"), "utf8");
+  t.is(https.key, key);
+  t.is(https.cert, cert);
+});
 
 test("getProcessedOptions: includes all processed options", async (t) => {
   const tmp = await useTmp(t);
@@ -413,6 +570,10 @@ test("getProcessedOptions: includes all processed options", async (t) => {
     envPath,
     bindings: { OPTIONS_KEY: "options_value" },
     wasmBindings: { ADD_MODULE: wasmModulePath },
+    https: {
+      key: "test_key",
+      cert: "test_cert",
+    },
   };
   const processor = new OptionsProcessor(new NoOpLog(), options);
   const processedOptions = await processor.getProcessedOptions();
@@ -468,6 +629,15 @@ test("getProcessedOptions: includes all processed options", async (t) => {
   // Check site include/exclude regexps
   t.true(processedOptions.siteIncludeRegexps?.some((r) => r.test("test.html")));
   t.true(processedOptions.siteExcludeRegexps?.some((r) => r.test("test.png")));
+
+  // Check processed https
+  t.deepEqual(processedOptions.processedHttps, {
+    key: "test_key",
+    cert: "test_cert",
+    ca: undefined,
+    pfx: undefined,
+    passphrase: undefined,
+  });
 });
 test("getProcessedOptions: overrides wrangler configuration with initial options", async (t) => {
   const tmp = await useTmp(t);
@@ -534,7 +704,7 @@ test("getProcessedOptions: modules enabled automatically if using durable object
     script: "// test",
   });
   let options = await processor.getProcessedOptions();
-  t.false(options.modules);
+  t.is(options.modules, undefined);
 
   processor = new OptionsProcessor(new NoOpLog(), {
     script: "// test",

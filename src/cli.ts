@@ -1,5 +1,4 @@
 import { promises as fs } from "fs";
-import { networkInterfaces } from "os";
 import path from "path";
 import fetch from "@mrbbot/node-fetch";
 import envPaths from "env-paths";
@@ -10,6 +9,7 @@ import {
   ModuleRule,
   ModuleRuleType,
   Options,
+  getAccessibleHosts,
   stripUndefinedOptions,
 } from "./options";
 import { Miniflare } from "./index";
@@ -36,16 +36,6 @@ function parseModuleRules(arr?: string[]): ModuleRule[] | undefined {
     include: [glob],
     fallthrough: true,
   }));
-}
-
-function getAccessibleHosts(): string[] {
-  const hosts: string[] = [];
-  Object.values(networkInterfaces()).forEach((net) =>
-    net?.forEach(({ family, address }) => {
-      if (family === "IPv4") hosts.push(address);
-    })
-  );
-  return hosts;
 }
 
 export default function parseArgv(raw: string[]): Options {
@@ -315,7 +305,7 @@ if (module === require.main) {
         if (host) {
           mf.log.info(`- ${protocol}://${host}:${port}`);
         } else {
-          for (const accessibleHost of getAccessibleHosts()) {
+          for (const accessibleHost of getAccessibleHosts(true)) {
             mf.log.info(`- ${protocol}://${accessibleHost}:${port}`);
           }
         }

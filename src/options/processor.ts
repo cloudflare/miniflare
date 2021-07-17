@@ -8,18 +8,19 @@ import micromatch from "micromatch";
 import cron from "node-cron";
 import selfSigned from "selfsigned";
 import { MiniflareError } from "../error";
-import { Mutex } from "../kv/helpers";
+import { Mutex, defaultClock } from "../kv/helpers";
 import { Log } from "../log";
 import { ScriptBlueprint } from "../scripts";
 import { getWranglerOptions } from "./wrangler";
 import {
-  HTTPSOptions,
   ModuleRuleType,
   Options,
   ProcessedDurableObject,
+  ProcessedHTTPSOptions,
   ProcessedModuleRule,
   ProcessedOptions,
   defaultModuleRules,
+  getAccessibleHosts,
   stringScriptPath,
 } from "./index";
 
@@ -27,7 +28,7 @@ const noop = () => {};
 const micromatchOptions: micromatch.Options = { contains: true };
 
 const certGenerate = promisify(selfSigned.generate);
-const defaultCertRoot = path.resolve(".mf", "cert");
+const certDefaultRoot = path.resolve(".mf", "cert");
 const certAttrs: selfSigned.Attributes = [
   { name: "commonName", value: "localhost" },
 ];
@@ -57,9 +58,7 @@ const certOptions: selfSigned.Options = {
       name: "subjectAltName",
       altNames: [
         { type: 2, value: "localhost" },
-        { type: 7, ip: "127.0.0.1" },
-        { type: 7, ip: "::1" },
-        { type: 7, ip: "fe80::1" },
+        ...getAccessibleHosts().map((ip) => ({ type: 7, ip })),
       ],
     },
   ],
@@ -71,7 +70,12 @@ export class OptionsProcessor {
   readonly wranglerConfigPath: string;
   readonly packagePath: string;
 
-  constructor(private log: Log, private initialOptions: Options) {
+  constructor(
+    private log: Log,
+    private initialOptions: Options,
+    private defaultCertRoot = certDefaultRoot,
+    private clock = defaultClock
+  ) {
     if (initialOptions.script) initialOptions.scriptPath = stringScriptPath;
     this.wranglerConfigPath = path.resolve(
       initialOptions.wranglerConfigPath ?? "wrangler.toml"
@@ -310,11 +314,13 @@ export class OptionsProcessor {
     return validatedCrons;
   }
 
-  async getHttpsOptions({ https }: Options): Promise<HTTPSOptions | undefined> {
+  async getHttpsOptions({
+    https,
+  }: Options): Promise<ProcessedHTTPSOptions | undefined> {
     // If options are falsy, don't use HTTPS
     if (!https) return;
     // If options are true, use a self-signed certificate at default location
-    if (https === true) https = defaultCertRoot;
+    if (https === true) https = this.defaultCertRoot;
     // If options are now a string, use a self-signed certificate
     if (typeof https === "string") {
       const keyPath = path.join(https, "key.pem");
@@ -327,7 +333,7 @@ export class OptionsProcessor {
         const keyStat = await fs.stat(keyPath);
         const certStat = await fs.stat(certPath);
         const created = Math.max(keyStat.ctimeMs, certStat.ctimeMs);
-        regenerate = Date.now() - created > (certDays - 2) * 86400000;
+        regenerate = this.clock() - created > (certDays - 2) * 86400000;
       } catch {}
 
       // Generate self signed certificate if needed

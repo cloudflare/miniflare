@@ -128,7 +128,8 @@ export function getWranglerOptions(
           config.build.upload.main
         )
       : undefined,
-    modules: config.build?.upload?.format === "modules",
+    modules:
+      config.build?.upload?.format && config.build.upload.format === "modules",
     modulesRules: config.build?.upload?.rules?.map(
       ({ type, globs, fallthrough }) => ({
         type,

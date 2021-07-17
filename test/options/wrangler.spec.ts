@@ -140,7 +140,7 @@ test("getWranglerOptions: maps all options", (t) => {
 });
 test("getWranglerOptions: returns empty default options with empty file", (t) => {
   const options = getWranglerOptions("", process.cwd());
-  t.deepEqual(stripUndefinedOptions(options), { modules: false });
+  t.deepEqual(stripUndefinedOptions(options), {});
 });
 
 test("getWranglerOptions: resolves script path relative to input, default and custom upload directories", async (t) => {
@@ -197,4 +197,42 @@ test("getWranglerOptions: defaults build watch path to src if command specified"
   t.is(options.buildWatchPath, "src");
 });
 
-// TODO: more HTTPS tests
+test("getWranglerOptions: maps https options correctly", (t) => {
+  // Check boolean value mapped correctly
+  let options = getWranglerOptions(
+    `
+    [miniflare]
+    https = false
+    `,
+    process.cwd()
+  );
+  t.is(options.https, false);
+  options = getWranglerOptions(
+    `
+    [miniflare]
+    https = true
+    `,
+    process.cwd()
+  );
+  t.is(options.https, true);
+
+  // Check object value mapped correctly
+  options = getWranglerOptions(
+    `
+    [miniflare.https]
+    key = "test_key"
+    cert = "test_cert"
+    ca = "test_ca"
+    pfx = "test_pfx"
+    passphrase = "test_passphrase"
+    `,
+    process.cwd()
+  );
+  t.deepEqual(options.https, {
+    keyPath: "test_key",
+    certPath: "test_cert",
+    caPath: "test_ca",
+    pfxPath: "test_pfx",
+    passphrase: "test_passphrase",
+  });
+});

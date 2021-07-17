@@ -1,3 +1,4 @@
+import { networkInterfaces } from "os";
 import path from "path";
 import { URL } from "url";
 import { Log } from "../log";
@@ -162,4 +163,14 @@ export function logOptions(log: Log, options: ProcessedOptions): void {
       log.debug(`- ${key}: ${Array.isArray(value) ? value.join(", ") : value}`);
     }
   }
+}
+
+export function getAccessibleHosts(ipv4 = false): string[] {
+  const hosts: string[] = [];
+  Object.values(networkInterfaces()).forEach((net) =>
+    net?.forEach(({ family, address }) => {
+      if (!ipv4 || family === "IPv4") hosts.push(address);
+    })
+  );
+  return hosts;
 }
