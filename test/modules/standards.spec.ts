@@ -1,5 +1,4 @@
 import assert from "assert";
-import { Request } from "@mrbbot/node-fetch";
 import test from "ava";
 import FormData from "formdata-node";
 import { Miniflare, NoOpLog } from "../../src";
@@ -204,8 +203,6 @@ test("buildSandbox: includes web standards", (t) => {
   t.true(typeof sandbox.FormData === "function");
   t.true(typeof sandbox.URL === "function");
   t.true(typeof sandbox.URLSearchParams === "function");
-
-  t.true(typeof sandbox.HTMLRewriter === "function");
 
   t.true(typeof sandbox.ByteLengthQueuingStrategy === "function");
   t.true(typeof sandbox.CountQueuingStrategy === "function");

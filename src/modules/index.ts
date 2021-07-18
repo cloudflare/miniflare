@@ -1,5 +1,6 @@
 export { DurableObject } from "./do";
 export { FetchEvent, ScheduledEvent, ResponseWaitUntil } from "./events";
+export { HTMLRewriter, UnsafeHTMLRewriter } from "./rewriter";
 export {
   URL,
   URLSearchParams,
@@ -9,7 +10,6 @@ export {
   FormData,
   Request,
   Response,
-  HTMLRewriter,
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
   ReadableByteStreamController,

@@ -100,8 +100,9 @@ export function getWranglerOptions(
     } else if (config.type === "rust") {
       // In tests, __dirname will refer to src folder containing .ts files
       // so make sure we're referring to the dist folder containing .js files
+      // NOTE: this requires building the code before running tests
       const distDir = __filename.endsWith(".ts")
-        ? path.resolve(__dirname, "..", "..", "dist", "src", "options")
+        ? path.resolve(__dirname, "..", "..", "dist", "options")
         : __dirname;
       const rustScript = path.join(distDir, "rust.js");
       config.build.command = `wrangler build && ${process.execPath} ${rustScript}`;

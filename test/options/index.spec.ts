@@ -63,6 +63,7 @@ test("logOptions: logs all options", (t) => {
     durableObjectsPersist: true,
     bindings: { KEY: "value" },
     https: true,
+    htmlRewriterUnsafe: true,
   });
 
   t.deepEqual(log.debugs, [
@@ -83,6 +84,7 @@ test("logOptions: logs all options", (t) => {
     "- Durable Objects Persistence: true",
     "- Bindings: KEY",
     "- HTTPS: Self-Signed",
+    "- Unsafe HTMLRewriter: true",
   ]);
 });
 

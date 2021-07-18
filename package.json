@@ -10,12 +10,13 @@
     "cloudworker"
   ],
   "author": "MrBBot",
-  "license": "MIT",
+  "license": "(MIT AND BSD-3-Clause)",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "files": [
-    "dist/src",
-    "src"
+    "dist",
+    "src",
+    "vendor"
   ],
   "scripts": {
     "build": "tsc",
@@ -30,12 +31,13 @@
     "docs:serve": "vitepress serve docs"
   },
   "bin": {
-    "miniflare": "dist/src/bootstrap.js"
+    "miniflare": "dist/bootstrap.js",
   },
   "dependencies": {
+    "@cloudflare/workers-types": "^2.2.2",
     "@iarna/toml": "^2.2.5",
-    "@mrbbot/node-fetch": "^4.2.0",
-    "@mrbbot/parsed-html-rewriter": "^0.1.8",
+    "@mrbbot/asyncify-wasm": "^1.3.1",
+    "@mrbbot/node-fetch": "^4.3.0",
     "@peculiar/webcrypto": "^1.1.4",
     "chalk": "^4.1.0",
     "chokidar": "^3.5.1",
