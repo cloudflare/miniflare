@@ -1,4 +1,5 @@
 import assert from "assert";
+import { Request } from "@mrbbot/node-fetch";
 import test from "ava";
 import FormData from "formdata-node";
 import { Miniflare, NoOpLog } from "../../src";

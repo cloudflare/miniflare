@@ -11,8 +11,8 @@
   ],
   "author": "MrBBot",
   "license": "(MIT AND BSD-3-Clause)",
-  "main": "dist/src/index.js",
-  "types": "dist/src/index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": [
     "dist",
     "src",
@@ -31,7 +31,7 @@
     "docs:serve": "vitepress serve docs"
   },
   "bin": {
-    "miniflare": "dist/bootstrap.js",
+    "miniflare": "dist/bootstrap.js"
   },
   "dependencies": {
     "@cloudflare/workers-types": "^2.2.2",
