@@ -3,6 +3,7 @@ import path from "path";
 import test from "ava";
 import { ConsoleLog } from "../src";
 import parseArgv, { updateCheck } from "../src/cli";
+import { HTTPSOptions } from "../src/options";
 import { TestLog, useServer, useTmp } from "./helpers";
 
 test("parseArgv: parses complete argv", (t) => {
@@ -64,6 +65,7 @@ test("parseArgv: parses complete argv", (t) => {
     "MODULE1=module1.wasm",
     "--wasm",
     "MODULE2=module2.wasm",
+    "--https",
     "--disable-updater",
   ]);
   t.deepEqual(options, {
@@ -106,6 +108,7 @@ test("parseArgv: parses complete argv", (t) => {
       MODULE1: "module1.wasm",
       MODULE2: "module2.wasm",
     },
+    https: true,
     disableUpdater: true,
   });
 });
@@ -191,6 +194,56 @@ test("parseArgv: parses persistence as boolean or string", (t) => {
   t.is(options.kvPersist, "./kv");
   t.is(options.cachePersist, "./cache");
   t.is(options.durableObjectsPersist, "./do");
+});
+
+test("parseArgv: parses https option as boolean or object", (t) => {
+  // Check parses as boolean
+  let options = parseArgv(["--https"]);
+  t.true(options.https);
+
+  // Check parses as object with all --https-* flags set
+  options = parseArgv([
+    "--https-key",
+    "test_key",
+    "--https-cert",
+    "test_cert",
+    "--https-ca",
+    "test_ca",
+    "--https-pfx",
+    "test_pfx",
+    "--https-passphrase",
+    "test_passphrase",
+  ]);
+  t.deepEqual(options.https, {
+    keyPath: "test_key",
+    certPath: "test_cert",
+    caPath: "test_ca",
+    pfxPath: "test_pfx",
+    passphrase: "test_passphrase",
+  });
+
+  // Check parses as object when any --https-* flag set
+  const base: HTTPSOptions = {
+    keyPath: undefined,
+    certPath: undefined,
+    caPath: undefined,
+    pfxPath: undefined,
+    passphrase: undefined,
+  };
+  options = parseArgv(["--https-key", "test_key"]);
+  t.deepEqual(options.https, { ...base, keyPath: "test_key" });
+  options = parseArgv(["--https-cert", "test_cert"]);
+  t.deepEqual(options.https, { ...base, certPath: "test_cert" });
+  options = parseArgv(["--https-ca", "test_ca"]);
+  t.deepEqual(options.https, { ...base, caPath: "test_ca" });
+  options = parseArgv(["--https-pfx", "test_pfx"]);
+  t.deepEqual(options.https, { ...base, pfxPath: "test_pfx" });
+  options = parseArgv(["--https-passphrase", "test_passphrase"]);
+  t.deepEqual(options.https, { ...base, passphrase: "test_passphrase" });
+
+  // Check parses as object when both --https and --https-* flags set
+  options = parseArgv(["--https", "--https-key", "test_key"]);
+  t.deepEqual(options.https, { ...base, keyPath: "test_key" });
 });
 
 test("updateCheck: logs if updated version available", async (t) => {

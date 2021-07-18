@@ -1,6 +1,6 @@
 import assert from "assert";
 import path from "path";
-import toml from "toml";
+import toml from "@iarna/toml";
 import { DurableObjectOptions, ModuleRuleType, Options } from "./index";
 
 interface WranglerEnvironmentConfig {
@@ -56,6 +56,16 @@ interface WranglerEnvironmentConfig {
     env_path?: string;
     host?: string;
     port?: number;
+    https?:
+      | boolean
+      | string
+      | {
+          key?: string;
+          cert?: string;
+          ca?: string;
+          pfx?: string;
+          passphrase?: string;
+        };
     wasm_bindings?: { name: string; path: string }[];
   };
 }
@@ -72,7 +82,7 @@ export function getWranglerOptions(
   env?: string
 ): Options {
   // Parse wrangler config and select correct environment
-  const config: WranglerConfig = toml.parse(input);
+  const config = (toml.parse(input) as unknown) as WranglerConfig;
   if (env && config.env && env in config.env) {
     Object.assign(config, config.env[env]);
   }
@@ -118,7 +128,8 @@ export function getWranglerOptions(
           config.build.upload.main
         )
       : undefined,
-    modules: config.build?.upload?.format === "modules",
+    modules:
+      config.build?.upload?.format && config.build.upload.format === "modules",
     modulesRules: config.build?.upload?.rules?.map(
       ({ type, globs, fallthrough }) => ({
         type,
@@ -151,6 +162,16 @@ export function getWranglerOptions(
     envPath: config.miniflare?.env_path,
     host: config.miniflare?.host,
     port: config.miniflare?.port,
+    https:
+      typeof config.miniflare?.https === "object"
+        ? {
+            keyPath: config.miniflare.https.key,
+            certPath: config.miniflare.https.cert,
+            caPath: config.miniflare.https.ca,
+            pfxPath: config.miniflare.https.pfx,
+            passphrase: config.miniflare.https.passphrase,
+          }
+        : config.miniflare?.https,
     wasmBindings: config.miniflare?.wasm_bindings?.reduce(
       (bindings, { name, path }) => {
         bindings[name] = path;

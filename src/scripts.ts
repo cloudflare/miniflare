@@ -1,8 +1,14 @@
+import assert from "assert";
 import { promises as fs } from "fs";
 import path from "path";
 import vm, { ModuleLinker } from "vm";
 import { cjsToEsm } from "cjstoesm";
-import { ModuleKind, TranspileOptions, transpileModule } from "typescript";
+import {
+  CompilerOptions,
+  ModuleKind,
+  ScriptTarget,
+  transpileModule,
+} from "typescript";
 import { MiniflareError } from "./error";
 import { Context } from "./modules/module";
 import { ProcessedModuleRule, stringScriptPath } from "./options";
@@ -65,19 +71,27 @@ export class ModuleScriptInstance<Exports = any> implements ScriptInstance {
   }
 }
 
-const commonJsTranspileOptions: TranspileOptions = {
-  transformers: cjsToEsm(),
-  compilerOptions: {
-    allowJs: true,
-    module: ModuleKind.ESNext,
-  },
+const commonJsTransformer = cjsToEsm();
+const commonJsCompilerOptions: CompilerOptions = {
+  allowJs: true,
+  module: ModuleKind.ESNext,
+  sourceMap: true,
+  target: ScriptTarget.ES2018,
 };
 
-export function buildLinker(
-  moduleRules: ProcessedModuleRule[]
-): { linker: vm.ModuleLinker; referencedPaths: Set<string> } {
-  const referencedPaths = new Set<string>();
-  const linker: ModuleLinker = async (specifier, referencingModule) => {
+export class ScriptLinker {
+  readonly referencedPaths = new Set<string>();
+  readonly extraSourceMaps = new Map<string, string>();
+  readonly linker: ModuleLinker;
+
+  constructor(private moduleRules: ProcessedModuleRule[]) {
+    this.linker = this._linker.bind(this);
+  }
+
+  private async _linker(
+    specifier: string,
+    referencingModule: vm.Module
+  ): Promise<vm.Module> {
     const errorBase = `Unable to resolve "${path.relative(
       "",
       referencingModule.identifier
@@ -97,7 +111,7 @@ export function buildLinker(
     );
 
     // Find first matching module rule
-    const rule = moduleRules.find((rule) =>
+    const rule = this.moduleRules.find((rule) =>
       rule.include.some((regexp) => modulePath.match(regexp))
     );
     if (rule === undefined) {
@@ -105,7 +119,7 @@ export function buildLinker(
     }
 
     // Load module based on rule type
-    referencedPaths.add(modulePath);
+    this.referencedPaths.add(modulePath);
     const data = await fs.readFile(modulePath);
     const moduleOptions = {
       identifier: modulePath,
@@ -116,10 +130,15 @@ export function buildLinker(
         return new vm.SourceTextModule(data.toString("utf8"), moduleOptions);
       case "CommonJS":
         // TODO: (low priority) try do this without TypeScript
-        const transpiled = transpileModule(
-          data.toString("utf8"),
-          commonJsTranspileOptions
-        );
+        // Convert CommonJS module to an ESModule one
+        const transpiled = transpileModule(data.toString("utf8"), {
+          transformers: commonJsTransformer,
+          compilerOptions: commonJsCompilerOptions,
+          fileName: modulePath,
+        });
+        // Store ESModule -> CommonJS source map
+        assert(transpiled.sourceMapText);
+        this.extraSourceMaps.set(modulePath, transpiled.sourceMapText);
         return new vm.SourceTextModule(transpiled.outputText, moduleOptions);
       case "Text":
         return new vm.SyntheticModule<{ default: string }>(
@@ -156,6 +175,5 @@ export function buildLinker(
           `${errorBase}: ${rule.type} modules are unsupported`
         );
     }
-  };
-  return { linker, referencedPaths };
+  }
 }

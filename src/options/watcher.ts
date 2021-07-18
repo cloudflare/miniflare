@@ -28,7 +28,8 @@ export class OptionsWatcher {
   constructor(
     private log: Log,
     private callback: OptionsWatchCallback,
-    private initialOptions: Options
+    private initialOptions: Options,
+    private watchOptions?: chokidar.WatchOptions
   ) {
     this._processor = new OptionsProcessor(log, initialOptions);
 
@@ -108,7 +109,10 @@ export class OptionsWatcher {
     // Create watcher
     const boundCallback = this._watchedPathCallback.bind(this);
     this._watcher = chokidar
-      .watch([...this._watchedPaths], { ignoreInitial: true })
+      .watch([...this._watchedPaths], {
+        ...this.watchOptions,
+        ignoreInitial: true,
+      })
       .on("add", boundCallback)
       .on("change", boundCallback)
       .on("unlink", boundCallback);

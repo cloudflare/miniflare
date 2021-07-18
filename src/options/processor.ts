@@ -2,11 +2,13 @@ import childProcess from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
 import { URL } from "url";
+import { promisify } from "util";
 import dotenv from "dotenv";
 import micromatch from "micromatch";
 import cron from "node-cron";
+import selfSigned from "selfsigned";
 import { MiniflareError } from "../error";
-import { Mutex } from "../kv/helpers";
+import { Mutex, defaultClock } from "../kv/helpers";
 import { Log } from "../log";
 import { ScriptBlueprint } from "../scripts";
 import { getWranglerOptions } from "./wrangler";
@@ -14,14 +16,53 @@ import {
   ModuleRuleType,
   Options,
   ProcessedDurableObject,
+  ProcessedHTTPSOptions,
   ProcessedModuleRule,
   ProcessedOptions,
   defaultModuleRules,
+  getAccessibleHosts,
   stringScriptPath,
 } from "./index";
 
 const noop = () => {};
 const micromatchOptions: micromatch.Options = { contains: true };
+
+const certGenerate = promisify(selfSigned.generate);
+const certDefaultRoot = path.resolve(".mf", "cert");
+const certAttrs: selfSigned.Attributes = [
+  { name: "commonName", value: "localhost" },
+];
+const certDays = 30;
+const certOptions: selfSigned.Options = {
+  algorithm: "sha256",
+  days: certDays,
+  keySize: 2048,
+  extensions: [
+    { name: "basicConstraints", cA: true },
+    {
+      name: "keyUsage",
+      keyCertSign: true,
+      digitalSignature: true,
+      nonRepudiation: true,
+      keyEncipherment: true,
+      dataEncipherment: true,
+    },
+    {
+      name: "extKeyUsage",
+      serverAuth: true,
+      clientAuth: true,
+      codeSigning: true,
+      timeStamping: true,
+    },
+    {
+      name: "subjectAltName",
+      altNames: [
+        { type: 2, value: "localhost" },
+        ...getAccessibleHosts().map((ip) => ({ type: 7, ip })),
+      ],
+    },
+  ],
+};
 
 export class OptionsProcessor {
   _scriptBlueprints: Record<string, ScriptBlueprint> = {};
@@ -29,7 +70,12 @@ export class OptionsProcessor {
   readonly wranglerConfigPath: string;
   readonly packagePath: string;
 
-  constructor(private log: Log, private initialOptions: Options) {
+  constructor(
+    private log: Log,
+    private initialOptions: Options,
+    private defaultCertRoot = certDefaultRoot,
+    private clock = defaultClock
+  ) {
     if (initialOptions.script) initialOptions.scriptPath = stringScriptPath;
     this.wranglerConfigPath = path.resolve(
       initialOptions.wranglerConfigPath ?? "wrangler.toml"
@@ -268,6 +314,52 @@ export class OptionsProcessor {
     return validatedCrons;
   }
 
+  async getHttpsOptions({
+    https,
+  }: Options): Promise<ProcessedHTTPSOptions | undefined> {
+    // If options are falsy, don't use HTTPS
+    if (!https) return;
+    // If options are true, use a self-signed certificate at default location
+    if (https === true) https = this.defaultCertRoot;
+    // If options are now a string, use a self-signed certificate
+    if (typeof https === "string") {
+      const keyPath = path.join(https, "key.pem");
+      const certPath = path.join(https, "cert.pem");
+
+      // Determine whether to regenerate self-signed certificate, should do this
+      // if doesn't exist or about to expire
+      let regenerate = true;
+      try {
+        const keyStat = await fs.stat(keyPath);
+        const certStat = await fs.stat(certPath);
+        const created = Math.max(keyStat.ctimeMs, certStat.ctimeMs);
+        regenerate = this.clock() - created > (certDays - 2) * 86400000;
+      } catch {}
+
+      // Generate self signed certificate if needed
+      if (regenerate) {
+        this.log.info("Generating new self-signed certificate...");
+        const cert = await certGenerate(certAttrs, certOptions);
+        // Write cert so we can reuse it later
+        await fs.mkdir(https, { recursive: true });
+        await fs.writeFile(keyPath, cert.private, "utf8");
+        await fs.writeFile(certPath, cert.cert, "utf8");
+      }
+
+      https = { keyPath, certPath };
+    }
+
+    // Alias so each option fits onto one line
+    const h = https;
+    return {
+      key: h.key ?? (h.keyPath && (await this._readFile(h.keyPath))),
+      cert: h.cert ?? (h.certPath && (await this._readFile(h.certPath))),
+      ca: h.ca ?? (h.caPath && (await this._readFile(h.caPath))),
+      pfx: h.pfx ?? (h.pfxPath && (await this._readFile(h.pfxPath))),
+      passphrase: h.passphrase,
+    };
+  }
+
   async getProcessedOptions(initial?: boolean): Promise<ProcessedOptions> {
     // Get wrangler options first (if set) since initialOptions override these
     const wranglerOptions = await this.getWranglerOptions();
@@ -322,6 +414,8 @@ export class OptionsProcessor {
     options.validatedCrons = this.getValidatedCrons(options);
     options.siteIncludeRegexps = this._globsToRegexps(options.siteInclude);
     options.siteExcludeRegexps = this._globsToRegexps(options.siteExclude);
+
+    options.processedHttps = await this.getHttpsOptions(options);
 
     return options;
   }

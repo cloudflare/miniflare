@@ -102,6 +102,7 @@ test("getWranglerOptions: maps all options", (t) => {
     env_path = ".env.test"
     host = "127.0.0.1"
     port = 1337
+    https = true
     wasm_bindings = [
       { name = "MODULE", path="module.wasm" }
     ]
@@ -133,12 +134,13 @@ test("getWranglerOptions: maps all options", (t) => {
     envPath: ".env.test",
     host: "127.0.0.1",
     port: 1337,
+    https: true,
     wasmBindings: { MODULE: "module.wasm" },
   });
 });
 test("getWranglerOptions: returns empty default options with empty file", (t) => {
   const options = getWranglerOptions("", process.cwd());
-  t.deepEqual(stripUndefinedOptions(options), { modules: false });
+  t.deepEqual(stripUndefinedOptions(options), {});
 });
 
 test("getWranglerOptions: resolves script path relative to input, default and custom upload directories", async (t) => {
@@ -193,4 +195,44 @@ test("getWranglerOptions: defaults build watch path to src if command specified"
     process.cwd()
   );
   t.is(options.buildWatchPath, "src");
+});
+
+test("getWranglerOptions: maps https options correctly", (t) => {
+  // Check boolean value mapped correctly
+  let options = getWranglerOptions(
+    `
+    [miniflare]
+    https = false
+    `,
+    process.cwd()
+  );
+  t.is(options.https, false);
+  options = getWranglerOptions(
+    `
+    [miniflare]
+    https = true
+    `,
+    process.cwd()
+  );
+  t.is(options.https, true);
+
+  // Check object value mapped correctly
+  options = getWranglerOptions(
+    `
+    [miniflare.https]
+    key = "test_key"
+    cert = "test_cert"
+    ca = "test_ca"
+    pfx = "test_pfx"
+    passphrase = "test_passphrase"
+    `,
+    process.cwd()
+  );
+  t.deepEqual(options.https, {
+    keyPath: "test_key",
+    certPath: "test_cert",
+    caPath: "test_ca",
+    pfxPath: "test_pfx",
+    passphrase: "test_passphrase",
+  });
 });

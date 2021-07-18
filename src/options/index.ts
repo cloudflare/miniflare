@@ -1,3 +1,4 @@
+import { networkInterfaces } from "os";
 import path from "path";
 import { URL } from "url";
 import { Log } from "../log";
@@ -38,6 +39,21 @@ export interface ProcessedDurableObject {
   scriptPath: string;
 }
 
+export interface ProcessedHTTPSOptions {
+  key?: string;
+  cert?: string;
+  ca?: string;
+  pfx?: string;
+  passphrase?: string;
+}
+
+export interface HTTPSOptions extends ProcessedHTTPSOptions {
+  keyPath?: string;
+  certPath?: string;
+  caPath?: string;
+  pfxPath?: string;
+}
+
 export interface Options {
   // Unwatched Options
   script?: string;
@@ -49,6 +65,7 @@ export interface Options {
   watch?: boolean;
   host?: string;
   port?: number;
+  https?: boolean | string | HTTPSOptions;
   disableUpdater?: boolean;
 
   // Watched Options
@@ -87,6 +104,7 @@ export interface ProcessedOptions extends Options {
   siteIncludeRegexps?: RegExp[];
   siteExcludeRegexps?: RegExp[];
   processedDurableObjects?: ProcessedDurableObject[];
+  processedHttps?: ProcessedHTTPSOptions;
 }
 
 export function stripUndefinedOptions(options: Options): Options {
@@ -131,6 +149,13 @@ export function logOptions(log: Log, options: ProcessedOptions): void {
     "Durable Objects": options.processedDurableObjects?.map(({ name }) => name),
     "Durable Objects Persistence": options.durableObjectsPersist,
     Bindings: options.bindings ? Object.keys(options.bindings) : undefined,
+    HTTPS: !options.https
+      ? undefined
+      : typeof options.https === "object"
+      ? "Custom"
+      : options.https === true
+      ? "Self-Signed"
+      : `Self-Signed: ${options.https}`,
   };
   log.debug("Options:");
   for (const [key, value] of Object.entries(entries)) {
@@ -138,4 +163,14 @@ export function logOptions(log: Log, options: ProcessedOptions): void {
       log.debug(`- ${key}: ${Array.isArray(value) ? value.join(", ") : value}`);
     }
   }
+}
+
+export function getAccessibleHosts(ipv4 = false): string[] {
+  const hosts: string[] = [];
+  Object.values(networkInterfaces()).forEach((net) =>
+    net?.forEach(({ family, address }) => {
+      if (!ipv4 || family === "IPv4") hosts.push(address);
+    })
+  );
+  return hosts;
 }

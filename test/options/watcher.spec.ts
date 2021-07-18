@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import anyTest, { Macro, TestInterface } from "ava";
+import chokidar from "chokidar";
 import { Options, ProcessedOptions, stringScriptPath } from "../../src/options";
 import {
   OptionsWatchCallback,
@@ -9,9 +10,9 @@ import {
 } from "../../src/options/watcher";
 import { TestLog, useTmp, wait } from "../helpers";
 
-// TODO: (low priority) investigate why watcher tests are failing,
-//  they only pass if they're executed on their own,
-//  running in serial doesn't help
+// Use polling for watching files during tests, chokidar may miss events
+// otherwise as we're editing files too quickly.
+const watchOptions: chokidar.WatchOptions = { usePolling: true, interval: 100 };
 
 interface Context {
   callback: OptionsWatchCallback;
@@ -19,6 +20,9 @@ interface Context {
 }
 
 const test = anyTest as TestInterface<Context>;
+// Even with polling these tests are still pretty flaky, especially on Windows.
+// Therefore run them in serial, and just skip them altogether in Windows.
+const watchTest = process.platform === "win32" ? test.skip : test.serial;
 
 test.beforeEach((t) => {
   const optionsQueue: ProcessedOptions[] = [];
@@ -38,10 +42,10 @@ test.beforeEach((t) => {
   t.context = { callback, next };
 });
 
-test.skip("constructor: loads initial options", async (t) => {
+watchTest("constructor: loads initial options", async (t) => {
   const { callback, next } = t.context;
   const log = new TestLog();
-  new OptionsWatcher(log, callback, { script: "// test" });
+  new OptionsWatcher(log, callback, { script: "// test" }, watchOptions);
 
   const options = await next();
   t.deepEqual(log.debugs, ["Options:", "- Scripts: <script>"]);
@@ -82,10 +86,12 @@ const changeMacro: Macro<
 
   if (originalContents) await fs.writeFile(filePath, originalContents, "utf8");
 
-  const watcher = new OptionsWatcher(log, callback, {
-    watch: true,
-    ...initialOptions(filePath),
-  });
+  const watcher = new OptionsWatcher(
+    log,
+    callback,
+    { watch: true, ...initialOptions(filePath) },
+    watchOptions
+  );
   t.teardown(() => watcher.dispose());
 
   let options = await next();
@@ -102,7 +108,7 @@ const changeMacro: Macro<
   t.is(extractValue(options, filePath), newValue);
 };
 
-test.skip("reloads options on wrangler configuration change", changeMacro, {
+watchTest("reloads options on wrangler configuration change", changeMacro, {
   fileName: "wrangler.toml",
   originalContents: "[miniflare]\nkv_persist = true",
   newContents: `[miniflare]\nkv_persist = "./data"`,
@@ -114,7 +120,7 @@ test.skip("reloads options on wrangler configuration change", changeMacro, {
   originalValue: true,
   newValue: "./data",
 });
-test.skip("reloads options on wrangler configuration create", changeMacro, {
+watchTest("reloads options on wrangler configuration create", changeMacro, {
   fileName: "wrangler.toml",
   newContents: `[miniflare]\nkv_persist = "./data"`,
   initialOptions: (wranglerConfigPath) => ({
@@ -125,7 +131,7 @@ test.skip("reloads options on wrangler configuration create", changeMacro, {
   originalValue: undefined,
   newValue: "./data",
 });
-test.skip("reloads options on wrangler configuration delete", changeMacro, {
+watchTest("reloads options on wrangler configuration delete", changeMacro, {
   fileName: "wrangler.toml",
   originalContents: "[miniflare]\nkv_persist = true",
   initialOptions: (wranglerConfigPath) => ({
@@ -137,7 +143,7 @@ test.skip("reloads options on wrangler configuration delete", changeMacro, {
   newValue: undefined,
 });
 
-test.skip("reloads options on env change", changeMacro, {
+watchTest("reloads options on env change", changeMacro, {
   fileName: ".env",
   originalContents: "KEY=value1",
   newContents: "KEY=value2",
@@ -149,7 +155,7 @@ test.skip("reloads options on env change", changeMacro, {
   originalValue: "value1",
   newValue: "value2",
 });
-test.skip("reloads options on env create", changeMacro, {
+watchTest("reloads options on env create", changeMacro, {
   fileName: ".env",
   newContents: "KEY=value",
   initialOptions: (envPath) => ({
@@ -160,7 +166,7 @@ test.skip("reloads options on env create", changeMacro, {
   originalValue: undefined,
   newValue: "value",
 });
-test.skip("reloads options on env delete", changeMacro, {
+watchTest("reloads options on env delete", changeMacro, {
   fileName: ".env",
   originalContents: "KEY=value",
   initialOptions: (envPath) => ({
@@ -172,7 +178,7 @@ test.skip("reloads options on env delete", changeMacro, {
   newValue: undefined,
 });
 
-test.skip("reloads scripts on script change", changeMacro, {
+watchTest("reloads scripts on script change", changeMacro, {
   fileName: "test.js",
   originalContents: "// test 1",
   newContents: "// test 2",
@@ -181,7 +187,7 @@ test.skip("reloads scripts on script change", changeMacro, {
   originalValue: "// test 1",
   newValue: "// test 2",
 });
-test.skip("reloads scripts on script create", changeMacro, {
+watchTest("reloads scripts on script create", changeMacro, {
   // Test with Durable Object script file instead, as missing script would
   // throw exception
   fileName: "object.js",
@@ -194,7 +200,7 @@ test.skip("reloads scripts on script create", changeMacro, {
   originalValue: "", // Scripts default to empty strings
   newValue: "// object",
 });
-test.skip("reloads scripts on script delete", changeMacro, {
+watchTest("reloads scripts on script delete", changeMacro, {
   // Test with Durable Object script file instead, as missing script would
   // throw exception
   fileName: "object.js",
@@ -208,7 +214,7 @@ test.skip("reloads scripts on script delete", changeMacro, {
   newValue: "", // Scripts default to empty strings
 });
 
-test.skip("rebuilds if watched build path changes", async (t) => {
+watchTest("rebuilds if watched build path changes", async (t) => {
   const { callback, next } = t.context;
   const log = new TestLog();
 
@@ -219,13 +225,18 @@ test.skip("rebuilds if watched build path changes", async (t) => {
   const relativeScriptPath = path.relative("", scriptPath);
   await fs.writeFile(watchedPath, "1", "utf8");
 
-  const watcher = new OptionsWatcher(log, callback, {
-    watch: true,
-    scriptPath: scriptPath,
-    buildCommand: `echo "// build" >> script.js`, // Append "build" to builds.txt
-    buildBasePath: tmp,
-    buildWatchPath: watchedPath,
-  });
+  const watcher = new OptionsWatcher(
+    log,
+    callback,
+    {
+      watch: true,
+      scriptPath: scriptPath,
+      buildCommand: `echo "// build" >> script.js`, // Append "build" to builds.txt
+      buildBasePath: tmp,
+      buildWatchPath: watchedPath,
+    },
+    watchOptions
+  );
   t.teardown(() => watcher.dispose());
 
   let options = await next();
@@ -240,7 +251,7 @@ test.skip("rebuilds if watched build path changes", async (t) => {
   t.is(options.scripts?.[scriptPath].code.trim(), `// build${os.EOL}// build`);
 });
 
-test.skip("setExtraWatchedPaths: watches extra paths", async (t) => {
+watchTest("setExtraWatchedPaths: watches extra paths", async (t) => {
   const { callback, next } = t.context;
   const log = new TestLog();
 
@@ -249,10 +260,12 @@ test.skip("setExtraWatchedPaths: watches extra paths", async (t) => {
   const relativeExtraPath = path.relative("", extraPath);
   await fs.writeFile(relativeExtraPath, "1", "utf8");
 
-  const watcher = new OptionsWatcher(log, callback, {
-    watch: true,
-    script: "// test",
-  });
+  const watcher = new OptionsWatcher(
+    log,
+    callback,
+    { watch: true, script: "// test" },
+    watchOptions
+  );
   t.teardown(() => watcher.dispose());
   await next();
 
@@ -305,11 +318,12 @@ const switchMacro: Macro<
     "utf8"
   );
 
-  const watcher = new OptionsWatcher(log, callback, {
-    watch: true,
-    ...initialOptions,
-    wranglerConfigPath,
-  });
+  const watcher = new OptionsWatcher(
+    log,
+    callback,
+    { watch: true, ...initialOptions, wranglerConfigPath },
+    watchOptions
+  );
   t.teardown(() => watcher.dispose());
   await next();
 
@@ -342,20 +356,20 @@ const switchMacro: Macro<
   await next();
   t.is(log.debugs[0], `${relativeFilePath2} changed, reloading...`);
 };
-test.skip("switches watched path for script path", switchMacro, {
+watchTest("switches watched path for script path", switchMacro, {
   fileNamePrefix: "test.js",
   contents: (i) => `// test${i}`,
   wranglerConfigContents: (watchedFile) =>
     `[build.upload]\nmain = "${watchedFile}"`,
 });
-test.skip("switches watched path for env file", switchMacro, {
+watchTest("switches watched path for env file", switchMacro, {
   fileNamePrefix: ".env",
   contents: (i) => `KEY=value${i}`,
   wranglerConfigContents: (watchedFile) =>
     `[miniflare]\nenv_path = "${watchedFile}"`,
   initialOptions: { script: "// test" },
 });
-test.skip("switches watched path for durable object scripts", switchMacro, {
+watchTest("switches watched path for durable object scripts", switchMacro, {
   fileNamePrefix: "object.js",
   contents: (i) => `// object${i}`,
   wranglerConfigContents: (watchedFile) =>
@@ -364,7 +378,7 @@ test.skip("switches watched path for durable object scripts", switchMacro, {
 });
 // TODO: (low priority) test switches watched path for build watch path & wasm bindings, script from package.json too
 
-test("reloadOptions: reloads options manually", async (t) => {
+watchTest("reloadOptions: reloads options manually", async (t) => {
   const { callback, next } = t.context;
   const log = new TestLog();
 
@@ -372,10 +386,12 @@ test("reloadOptions: reloads options manually", async (t) => {
   const envPath = path.join(tmp, ".env");
   await fs.writeFile(envPath, "KEY=value1", "utf8");
 
-  const watcher = new OptionsWatcher(log, callback, {
-    script: "// test",
-    envPath,
-  });
+  const watcher = new OptionsWatcher(
+    log,
+    callback,
+    { script: "// test", envPath },
+    watchOptions
+  );
 
   let options = await next();
   t.deepEqual(log.debugs, [
