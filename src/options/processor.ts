@@ -376,6 +376,11 @@ export class OptionsProcessor {
     if (initial && options.buildCommand) {
       await this.runCustomBuild(options.buildCommand, options.buildBasePath);
     }
+    // If a build watch path was set, but watch wasn't, the user probably wanted
+    // to watch files so set it for them
+    if (options.watch === undefined && options.buildWatchPath !== undefined) {
+      options.watch = true;
+    }
 
     // Resolve and load all scripts (including Durable Objects')
     this._scriptBlueprints = {};
@@ -412,6 +417,7 @@ export class OptionsProcessor {
 
     options.upstreamUrl = this.getUpstreamUrl(options);
     options.validatedCrons = this.getValidatedCrons(options);
+
     options.siteIncludeRegexps = this._globsToRegexps(options.siteInclude);
     options.siteExcludeRegexps = this._globsToRegexps(options.siteExclude);
 

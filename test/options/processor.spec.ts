@@ -675,6 +675,21 @@ test("getProcessedOptions: runs build on initial options get only", async (t) =>
   const test = await fs.readFile(path.join(tmp, "test.txt"), "utf8");
   t.is(test.trim(), "test");
 });
+test("getProcessedOptions: assumes watch when build watch patch set", async (t) => {
+  let processor = new OptionsProcessor(new NoOpLog(), {
+    buildWatchPath: "src",
+  });
+  let options = await processor.getProcessedOptions();
+  t.true(options.watch);
+
+  // Check doesn't set watch is explicitly disabled
+  processor = new OptionsProcessor(new NoOpLog(), {
+    watch: false,
+    buildWatchPath: "src",
+  });
+  options = await processor.getProcessedOptions();
+  t.false(options.watch);
+});
 test("getProcessedOptions: loads scripts for entrypoint and durable objects", async (t) => {
   const processor = new OptionsProcessor(new NoOpLog(), {
     scriptPath: durableObjectScriptPath,
