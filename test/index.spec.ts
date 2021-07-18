@@ -356,7 +356,8 @@ test("createServer: includes cf property on request", async (t) => {
     (await request(origin))[0]
   );
 
-  t.true(body.asn > 0, "ASN is a valid number");
+  t.true(Number.isInteger(body.asn));
+  t.true(body.asn > 0);
   t.is(body.colo.length, 3);
   t.not(body.city?.length, 0);
   t.not(body.region?.length, 0);
@@ -366,19 +367,8 @@ test("createServer: includes cf property on request", async (t) => {
   t.is(body.country.length, 2);
   t.is(body.continent?.length, 2);
   t.not(body.timezone?.length, 0);
-
-  if (body.latitude) {
-    t.regex(body.latitude, /^-?\d+\.\d+/);
-  } else {
-    t.fail();
-  }
-
-  if (body.longitude) {
-    t.regex(body.longitude, /^-?\d+\.\d+/);
-  } else {
-    t.fail();
-  }
-
+  t.regex(body.latitude ?? "", /^-?\d+\.\d+/);
+  t.regex(body.longitude ?? "", /^-?\d+\.\d+/);
   t.is(body.clientTcpRtt, 0);
   t.regex(body.httpProtocol, /^HTTP\//);
   t.not(body.requestPriority.length, 0);
