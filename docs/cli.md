@@ -40,7 +40,7 @@ $ miniflare worker.js
 
 <!--prettier-ignore-start-->
 ::: tip
-If you're building your worker beforehand, make sure you pass the path of your built output to Miniflare, not your input source code.
+If you're building your worker beforehand (with esbuild, Webpack, etc), make sure you pass the path of your built output to Miniflare, not your input source code.
 See [🛠 Builds](/builds.html) for more details.
 :::
 <!--prettier-ignore-end-->
