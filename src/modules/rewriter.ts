@@ -1,8 +1,12 @@
 /// <reference types="@cloudflare/workers-types" />
 import { TextEncoder } from "util";
 import { Response } from "@mrbbot/node-fetch";
-import { HTMLRewriter as LOLHTMLRewriter, registerPromise } from "lol-html";
 import { ReadableStream } from "web-streams-polyfill/ponyfill/es6";
+// This import relies on dist having the same structure as src
+import {
+  HTMLRewriter as LOLHTMLRewriter,
+  registerPromise,
+} from "../../vendor/lol-html";
 import { Mutex } from "../kv/helpers";
 import { ProcessedOptions } from "../options";
 import { Context, Module } from "./module";
@@ -71,13 +75,7 @@ const wasmModuleMutex = new Mutex();
 // Symbol gives us "protected" method only accessible/overridable by subclass
 const runCriticalSectionSymbol = Symbol("HTMLRewriter runCriticalSection");
 
-export interface HTMLRewriter {
-  on(selector: string, handlers: Partial<ElementHandler>): this;
-  onDocument(handlers: Partial<DocumentHandler>): this;
-  transform(response: Response): Response;
-}
-
-export class UnsafeHTMLRewriter implements HTMLRewriter {
+export class UnsafeHTMLRewriter {
   #elementHandlers: [selector: string, handlers: any][] = [];
   #documentHandlers: any[] = [];
 
@@ -150,7 +148,7 @@ export class UnsafeHTMLRewriter implements HTMLRewriter {
 
 // See big comment above for what this does and why it's needed. It's possible
 // we'll remove this distinction in the future.
-export class SafeHTMLRewriter extends UnsafeHTMLRewriter {
+export class HTMLRewriter extends UnsafeHTMLRewriter {
   [runCriticalSectionSymbol](closure: () => Promise<void>): Promise<void> {
     return wasmModuleMutex.run(closure);
   }
@@ -161,7 +159,7 @@ export class HTMLRewriterModule extends Module {
     return {
       HTMLRewriter: options.htmlRewriterUnsafe
         ? UnsafeHTMLRewriter
-        : SafeHTMLRewriter,
+        : HTMLRewriter,
     };
   }
 }

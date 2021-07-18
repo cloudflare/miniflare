@@ -2,12 +2,14 @@ import { URLSearchParams } from "url";
 import { TextDecoder, TextEncoder } from "util";
 import test, { Macro, ThrowsExpectation } from "ava";
 import { ReadableStream } from "web-streams-polyfill/ponyfill/es6";
+// Import UnsafeHTMLRewriter as HTMLRewriter since we're using it much more
+// (we want to be able to run tests in parallel) and typing "Unsafe" each time
+// is annoying.
 import {
-  HTMLRewriter,
+  UnsafeHTMLRewriter as HTMLRewriter,
   NoOpLog,
   Response,
-  SafeHTMLRewriter,
-  UnsafeHTMLRewriter,
+  HTMLRewriter as SafeHTMLRewriter,
 } from "../../src";
 import {
   HTMLRewriterModule,
@@ -77,7 +79,7 @@ const mutationsMacro: Macro<
   // text nodes once.
 
   // before/after
-  let res = func(new UnsafeHTMLRewriter(), (token) => {
+  let res = func(new HTMLRewriter(), (token) => {
     if ("text" in token && !token.text) return;
     token.before("<span>before</span>");
     token.before("<span>before html</span>", { html: true });
@@ -87,19 +89,19 @@ const mutationsMacro: Macro<
   t.is(await res.text(), expected.beforeAfter);
 
   // replace
-  res = func(new UnsafeHTMLRewriter(), (token) => {
+  res = func(new HTMLRewriter(), (token) => {
     if ("text" in token && !token.text) return;
     token.replace("<span>replace</span>");
   }).transform(new Response(input));
   t.is(await res.text(), expected.replace);
-  res = func(new UnsafeHTMLRewriter(), (token) => {
+  res = func(new HTMLRewriter(), (token) => {
     if ("text" in token && !token.text) return;
     token.replace("<span>replace</span>", { html: true });
   }).transform(new Response(input));
   t.is(await res.text(), expected.replaceHtml);
 
   // remove
-  res = func(new UnsafeHTMLRewriter(), (token) => {
+  res = func(new HTMLRewriter(), (token) => {
     if ("text" in token && !token.text) return;
     t.false(token.removed);
     token.remove();
@@ -127,7 +129,7 @@ const elementMutationsExpected = {
 
 test("HTMLRewriter: handles element properties", async (t) => {
   t.plan(5);
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .on("p", {
       element(element) {
         t.is(element.tagName, "p");
@@ -142,7 +144,7 @@ test("HTMLRewriter: handles element properties", async (t) => {
 });
 test("HTMLRewriter: handles element attribute methods", async (t) => {
   t.plan(5);
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .on("p", {
       element(element) {
         t.is(element.getAttribute("class"), "red");
@@ -165,7 +167,7 @@ test(
 );
 test("HTMLRewriter: handles element specific mutations", async (t) => {
   // prepend/append
-  let res = new UnsafeHTMLRewriter()
+  let res = new HTMLRewriter()
     .on("p", {
       element(element) {
         element.prepend("<span>prepend</span>");
@@ -189,7 +191,7 @@ test("HTMLRewriter: handles element specific mutations", async (t) => {
   );
 
   // setInnerContent
-  res = new UnsafeHTMLRewriter()
+  res = new HTMLRewriter()
     .on("p", {
       element(element) {
         element.setInnerContent("<span>replace</span>");
@@ -197,7 +199,7 @@ test("HTMLRewriter: handles element specific mutations", async (t) => {
     })
     .transform(new Response("<p>test</p>"));
   t.is(await res.text(), "<p>&lt;span&gt;replace&lt;/span&gt;</p>");
-  res = new UnsafeHTMLRewriter()
+  res = new HTMLRewriter()
     .on("p", {
       element(element) {
         element.setInnerContent("<span>replace</span>", { html: true });
@@ -207,7 +209,7 @@ test("HTMLRewriter: handles element specific mutations", async (t) => {
   t.is(await res.text(), "<p><span>replace</span></p>");
 
   // removeAndKeepContent
-  res = new UnsafeHTMLRewriter()
+  res = new HTMLRewriter()
     .on("p", {
       element(element) {
         element.removeAndKeepContent();
@@ -217,7 +219,7 @@ test("HTMLRewriter: handles element specific mutations", async (t) => {
   t.is(await res.text(), "test");
 });
 test.serial("HTMLRewriter: handles element async handler", async (t) => {
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .on("p", {
       async element(element) {
         await wait(50);
@@ -235,7 +237,7 @@ test("HTMLRewriter: handles element class handler", async (t) => {
       element.setInnerContent(this.content);
     }
   }
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .on("p", new Handler("new"))
     .transform(new Response("<p>test</p>"));
   t.is(await res.text(), "<p>new</p>");
@@ -263,7 +265,7 @@ const commentPropertiesMacro: Macro<
   [(rw: HTMLRewriter, comments: (comment: Comment) => void) => HTMLRewriter]
 > = async (t, func) => {
   t.plan(3);
-  const res = func(new UnsafeHTMLRewriter(), (comment) => {
+  const res = func(new HTMLRewriter(), (comment) => {
     t.false(comment.removed);
     t.is(comment.text, "test");
     comment.text = "new";
@@ -285,7 +287,7 @@ test(
 const commentAsyncHandlerMacro: Macro<
   [(rw: HTMLRewriter, comments: (c: Comment) => Promise<void>) => HTMLRewriter]
 > = async (t, func) => {
-  const res = func(new UnsafeHTMLRewriter(), async (comment) => {
+  const res = func(new HTMLRewriter(), async (comment) => {
     await wait(50);
     comment.text = "new";
   }).transform(new Response("<p><!--test--></p>"));
@@ -306,7 +308,7 @@ const commentClassHandlerMacro: Macro<
       comment.text = this.content;
     }
   }
-  const res = func(new UnsafeHTMLRewriter(), new Handler("new")).transform(
+  const res = func(new HTMLRewriter(), new Handler("new")).transform(
     new Response("<p><!--test--></p>")
   );
   t.is(await res.text(), "<p><!--new--></p>");
@@ -339,7 +341,7 @@ const textPropertiesMacro: Macro<
   [(rw: HTMLRewriter, text: (text: Text) => void) => HTMLRewriter]
 > = async (t, func) => {
   t.plan(6);
-  const res = func(new UnsafeHTMLRewriter(), (text) => {
+  const res = func(new HTMLRewriter(), (text) => {
     // This handler should get called twice, once with lastInTextNode true
     t.false(text.removed);
     if (text.lastInTextNode) {
@@ -364,7 +366,7 @@ test(
 const textAsyncHandlerMacro: Macro<
   [(rw: HTMLRewriter, text: (t: Text) => Promise<void>) => HTMLRewriter]
 > = async (t, func) => {
-  const res = func(new UnsafeHTMLRewriter(), async (text) => {
+  const res = func(new HTMLRewriter(), async (text) => {
     if (text.text === "t") {
       await wait(50);
       text.after(" new");
@@ -386,7 +388,7 @@ const textClassHandlerMacro: Macro<
       if (text.text === "t") text.after(this.content);
     }
   }
-  const res = func(new UnsafeHTMLRewriter(), new Handler(" new")).transform(
+  const res = func(new HTMLRewriter(), new Handler(" new")).transform(
     new Response("<p>t</p>")
   );
   t.is(await res.text(), "<p>t new</p>");
@@ -399,7 +401,7 @@ test(
 // endregion: text
 
 test("HTMLRewriter: handles multiple element handlers", async (t) => {
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .on("h1", {
       element(element) {
         element.setInnerContent("new h1");
@@ -428,7 +430,7 @@ const doctypeInput =
   '<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd"><html lang="en"></html>';
 test("HTMLRewriter: handles document doctype properties", async (t) => {
   t.plan(4);
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .onDocument({
       doctype(doctype) {
         t.is(doctype.name, "html");
@@ -442,7 +444,7 @@ test("HTMLRewriter: handles document doctype properties", async (t) => {
 test.serial(
   "HTMLRewriter: handles document doctype async handler",
   async (t) => {
-    const res = new UnsafeHTMLRewriter()
+    const res = new HTMLRewriter()
       .onDocument({
         async doctype(doctype) {
           await wait(50);
@@ -462,7 +464,7 @@ test("HTMLRewriter: handles document doctype class handler", async (t) => {
       t.is(this.content, "new");
     }
   }
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .onDocument(new Handler("new"))
     .transform(new Response(doctypeInput));
   t.is(await res.text(), doctypeInput);
@@ -522,7 +524,7 @@ test(
 // region: end
 test("HTMLRewriter: handles document end specific mutations", async (t) => {
   // append
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .onDocument({
       end(end) {
         end.append("<span>append</span>");
@@ -542,7 +544,7 @@ test("HTMLRewriter: handles document end specific mutations", async (t) => {
   );
 });
 test.serial("HTMLRewriter: handles document end async handler", async (t) => {
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .onDocument({
       async end(end) {
         await wait(50);
@@ -560,7 +562,7 @@ test("HTMLRewriter: handles document end class handler", async (t) => {
       end.append(this.content, { html: true });
     }
   }
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .onDocument(new Handler("<span>append html</span>"))
     .transform(new Response("<p>test</p>"));
   t.is(await res.text(), "<p>test</p><span>append html</span>");
@@ -595,7 +597,7 @@ test("HTMLRewriter: handles streaming responses", async (t) => {
 
   t.plan(8); // 6 for text handler + 2 at the end
   const expectedTextChunks = ["te", "st", ""];
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .on("p", {
       text(text) {
         t.is(text.text, expectedTextChunks.shift());
@@ -614,15 +616,15 @@ test("HTMLRewriter: handles streaming responses", async (t) => {
 });
 test("HTMLRewriter: handles empty response", async (t) => {
   // Shouldn't call LOLHTMLRewriter.write, just LOLHTMLRewriter.end
-  const res = new UnsafeHTMLRewriter().transform(new Response());
+  const res = new HTMLRewriter().transform(new Response());
   t.is(await res.text(), "");
 });
 test("HTMLRewriter: handles empty string response", async (t) => {
-  const res = new UnsafeHTMLRewriter().transform(new Response(""));
+  const res = new HTMLRewriter().transform(new Response(""));
   t.is(await res.text(), "");
 });
 test("HTMLRewriter: copies response headers", async (t) => {
-  const res = new UnsafeHTMLRewriter().transform(
+  const res = new HTMLRewriter().transform(
     new Response("<p>test</p>", {
       headers: { "X-Message": "test" },
     })
@@ -633,7 +635,7 @@ test("HTMLRewriter: copies response headers", async (t) => {
 // endregion: responses
 
 test("HTMLRewriter: rethrows error thrown in handler", async (t) => {
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .on("p", {
       element() {
         throw new Error("Whoops!");
@@ -644,7 +646,7 @@ test("HTMLRewriter: rethrows error thrown in handler", async (t) => {
 });
 
 test("HTMLRewriter: can use same rewriter multiple times", async (t) => {
-  const rw = new UnsafeHTMLRewriter().on("p", {
+  const rw = new HTMLRewriter().on("p", {
     element(element) {
       element.setInnerContent("new");
     },
@@ -683,7 +685,7 @@ test.serial(
 );
 
 test("HTMLRewriter: hides implementation details", (t) => {
-  const rewriter = new UnsafeHTMLRewriter();
+  const rewriter = new HTMLRewriter();
   t.deepEqual(getObjectProperties(rewriter), ["on", "onDocument", "transform"]);
 });
 
@@ -694,7 +696,7 @@ test("HTMLRewriter: hides implementation details", (t) => {
 const selectorMacro: Macro<
   [selector: string, input: string, expected: string]
 > = async (t, selector, input, expected) => {
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .on(selector, {
       element(element) {
         element.setInnerContent("new");
@@ -837,7 +839,7 @@ test(
 
 test("HTMLRewriter: throws error on unsupported selector", async (t) => {
   t.plan(1);
-  const res = new UnsafeHTMLRewriter()
+  const res = new HTMLRewriter()
     .on("p:last-child", {
       element(element) {
         element.setInnerContent("new");
@@ -866,7 +868,8 @@ test("HTMLRewriter: allows unsafe implementation", async (t) => {
   const { HTMLRewriter: SandboxHTMLRewriter } = module.buildSandbox({
     htmlRewriterUnsafe: true,
   });
-  t.is(SandboxHTMLRewriter, UnsafeHTMLRewriter);
+  // UnsafeHTMLRewriter has been imported as HTMLRewriter
+  t.is(SandboxHTMLRewriter, HTMLRewriter);
 });
 
 // endregion: MODULE

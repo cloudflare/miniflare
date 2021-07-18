@@ -13,7 +13,7 @@
     "removeComments": true,
     "sourceMap": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "types"],
+  "include": ["src/**/*.ts", "types"],
   "exclude": ["node_modules"],
   "ts-node": {
     "files": true

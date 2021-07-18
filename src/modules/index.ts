@@ -1,6 +1,6 @@
 export { DurableObject } from "./do";
 export { FetchEvent, ScheduledEvent, ResponseWaitUntil } from "./events";
-export { HTMLRewriter, SafeHTMLRewriter, UnsafeHTMLRewriter } from "./rewriter";
+export { HTMLRewriter, UnsafeHTMLRewriter } from "./rewriter";
 export {
   URL,
   URLSearchParams,
