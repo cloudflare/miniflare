@@ -202,7 +202,9 @@ export default function parseArgv(raw: string[]): Options {
     buildCommand: argv["build-command"],
     buildBasePath: argv["build-base-path"],
     buildWatchPath: argv["build-watch-path"],
-    watch: argv.watch ||!!argv["build-watch-path"],
+    watch:
+      // Assume --watch if --build-watch-path set
+      argv.watch ?? (argv["build-watch-path"] !== undefined ? true : undefined),
     host: argv.host,
     port: argv.port,
     upstream: argv.upstream,

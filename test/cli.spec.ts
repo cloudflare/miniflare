@@ -177,6 +177,15 @@ test("parseArgv: parses empty argv", (t) => {
   });
 });
 
+test("parseArgv: assumes watch if build watch path set", (t) => {
+  let options = parseArgv(["--build-watch-path", "src"]);
+  t.true(options.watch);
+
+  // Check doesn't override if watch explicitly disabled
+  options = parseArgv(["--no-watch", "--build-watch-path", "src"]);
+  t.false(options.watch);
+});
+
 test("parseArgv: parses persistence as boolean or string", (t) => {
   let options = parseArgv(["--kv-persist", "--cache-persist", "--do-persist"]);
   t.true(options.kvPersist);
