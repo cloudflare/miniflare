@@ -1,5 +1,32 @@
 # 🚧 Changelog
 
+## 1.3.0
+
+### Features
+
+- Switched to a [`lol-html`](https://github.com/cloudflare/lol-html)-based
+  WebAssembly implementation of `HTMLRewriter` for a more accurate simulation of
+  the real Workers environment. See
+  [📄 HTMLRewriter](https://miniflare.dev/html-rewriter.html) for more details.
+- Added HTTPS support for local development, thanks
+  [@RichiCoder1](https://github.com/RichiCoder1) for the
+  [suggestion (#12)](https://github.com/mrbbot/miniflare/issues/12). See
+  [💻 Using the CLI](https://miniflare.dev/cli.html#https-server) and
+  [🧰 Using the API](https://miniflare.dev/api.html#https-server) for more
+  details.
+- When using the CLI, the `--watch` flag is now assumed if `--build-watch-path`
+  is set, thanks [@evanderkoogh](https://github.com/evanderkoogh) for the
+  [PR (#8)](https://github.com/mrbbot/miniflare/pull/8)
+
+### Fixes
+
+- Switched to real values for the `cf` property, thanks
+  [@chase](https://github.com/chase) for the
+  [PR (#11)](https://github.com/mrbbot/miniflare/pull/11)
+- Upgraded the TOML parser to support dotted keys, thanks
+  [@leader22](https://github.com/leader22) for the
+  [PR (#13)](https://github.com/mrbbot/miniflare/pull/13)
+
 ## 1.2.0
 
 ### Features
