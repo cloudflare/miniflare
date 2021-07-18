@@ -196,10 +196,14 @@ test("parseArgv: parses persistence as boolean or string", (t) => {
   t.is(options.durableObjectsPersist, "./do");
 });
 
-test("parseArgv: parses https option as boolean or object", (t) => {
+test("parseArgv: parses https option as boolean, string or object", (t) => {
   // Check parses as boolean
   let options = parseArgv(["--https"]);
   t.true(options.https);
+
+  // Check parses as string
+  options = parseArgv(["--https", "cert_cache"]);
+  t.is(options.https, "cert_cache");
 
   // Check parses as object with all --https-* flags set
   options = parseArgv([

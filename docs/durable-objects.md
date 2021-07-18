@@ -62,7 +62,7 @@ persistence to the file system or Redis, specify the Durable Object persistence
 option:
 
 ```shell
-$ miniflare --do-persist # Defaults to ./mf/do
+$ miniflare --do-persist # Defaults to ./.mf/do
 $ miniflare --do-persist ./data/  # Custom path
 $ miniflare --do-persist redis://localhost:6379  # Redis server
 ```
@@ -70,14 +70,14 @@ $ miniflare --do-persist redis://localhost:6379  # Redis server
 ```toml
 # wrangler.toml
 [miniflare]
-durable_objects_persist = true # Defaults to ./mf/do
+durable_objects_persist = true # Defaults to ./.mf/do
 durable_objects_persist = "./data/" # Custom path
 durable_objects_persist = "redis://localhost:6379" # Redis server
 ```
 
 ```js
 const mf = new Miniflare({
-  durableObjectsPersist: true, // Defaults to ./mf/do
+  durableObjectsPersist: true, // Defaults to ./.mf/do
   durableObjectsPersist: "./data", // Custom path
   durableObjectsPersist: "redis://localhost:6379", // Redis server
 });

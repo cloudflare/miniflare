@@ -13,12 +13,14 @@
 It's an alternative to `wrangler dev`, written in TypeScript, that runs your
 workers in a sandbox implementing Workers' runtime APIs.
 
+Note that Miniflare is not an official Cloudflare product.
+
 **See <https://miniflare.dev> for more detailed documentation.**
 
 ## Features
 
-- 📨 Fetch Events (with HTTP server and manual triggering)
-- ⏰ Scheduled Events (with manual and cron triggering)
+- 📨 Fetch Events (with HTTP(S) server and manual dispatch)
+- ⏰ Scheduled Events (with cron triggering and manual dispatch)
 - 🔑 Variables and Secrets with `.env` Files
 - 📚 Modules Support
 - 📦 KV (with optional persistence)
@@ -106,6 +108,12 @@ Options:
   -e, --env               Path to .env file                             [string]
   -b, --binding           Bind variable/secret (KEY=VALUE)               [array]
       --wasm              WASM module to bind (NAME=PATH)                [array]
+      --https             Enable self-signed HTTPS
+      --https-key         Path to PEM SSL key                           [string]
+      --https-cert        Path to PEM SSL cert chain                    [string]
+      --https-ca          Path to SSL trusted CA certs                  [string]
+      --https-pfx         Path to PFX/PKCS12 SSL key/cert chain         [string]
+      --https-passphrase  Passphrase to decrypt SSL files               [string]
       --disable-updater   Disable update checker                       [boolean]
 ```
 
