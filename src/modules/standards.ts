@@ -8,7 +8,7 @@ import originalFetch, {
   RequestInit,
   Response,
 } from "@mrbbot/node-fetch";
-import { Crypto } from "@peculiar/webcrypto";
+import { Crypto, CryptoKey } from "@peculiar/webcrypto";
 import FormData from "formdata-node";
 import {
   ByteLengthQueuingStrategy,
@@ -102,6 +102,7 @@ export class StandardsModule extends Module {
       btoa,
 
       crypto,
+      CryptoKey,
       TextDecoder,
       TextEncoder,
 
