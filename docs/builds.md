@@ -42,6 +42,13 @@ dir = "" # Defaults to "dist"
 main = "./output.js"
 ```
 
+<!--prettier-ignore-start-->
+::: tip
+When using the CLI, if `--build-watch-path` is set, `--watch` is automatically
+assumed.
+:::
+<!--prettier-ignore-end-->
+
 ## Wrangler Builds
 
 Miniflare supports building `webpack` and `rust` type Wrangler projects too.

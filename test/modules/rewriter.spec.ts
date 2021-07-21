@@ -665,6 +665,26 @@ test("HTMLRewriter: can use same rewriter multiple times", async (t) => {
   }
 });
 
+test("HTMLRewriter: handles concurrent rewriters with sync handlers", async (t) => {
+  const rewriter = (i: number) =>
+    new HTMLRewriter()
+      .on("p", {
+        element(element) {
+          element.setInnerContent(`new ${i}`);
+        },
+      })
+      .transform(new Response(`<p>old ${i}</p>`));
+
+  const res1 = rewriter(1);
+  const res2 = rewriter(2);
+  t.is(await res1.text(), "<p>new 1</p>");
+  t.is(await res2.text(), "<p>new 2</p>");
+
+  const res3 = rewriter(3);
+  const res4 = rewriter(4);
+  const texts = await Promise.all([res3.text(), res4.text()]);
+  t.deepEqual(texts, ["<p>new 3</p>", "<p>new 4</p>"]);
+});
 test.serial(
   "HTMLRewriter: handles concurrent rewriters with async handlers",
   async (t) => {

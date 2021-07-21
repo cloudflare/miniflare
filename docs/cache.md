@@ -30,7 +30,7 @@ but not CLI invocations or different `Miniflare` instances. To enable
 persistence to the file system or Redis, specify the cache persistence option:
 
 ```shell
-$ miniflare --cache-persist # Defaults to ./mf/cache
+$ miniflare --cache-persist # Defaults to ./.mf/cache
 $ miniflare --cache-persist ./data/  # Custom path
 $ miniflare --cache-persist redis://localhost:6379  # Redis server
 ```
@@ -38,14 +38,14 @@ $ miniflare --cache-persist redis://localhost:6379  # Redis server
 ```toml
 # wrangler.toml
 [miniflare]
-cache_persist = true # Defaults to ./mf/cache
+cache_persist = true # Defaults to ./.mf/cache
 cache_persist = "./data/" # Custom path
 cache_persist = "redis://localhost:6379" # Redis server
 ```
 
 ```js
 const mf = new Miniflare({
-  cachePersist: true, // Defaults to ./mf/cache
+  cachePersist: true, // Defaults to ./.mf/cache
   cachePersist: "./data", // Custom path
   cachePersist: "redis://localhost:6379", // Redis server
 });

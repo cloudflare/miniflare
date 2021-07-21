@@ -53,7 +53,7 @@ not CLI invocations or different `Miniflare` instances. To enable persistence to
 the file system or Redis, specify the KV persistence option:
 
 ```shell
-$ miniflare --kv-persist # Defaults to ./mf/kv
+$ miniflare --kv-persist # Defaults to ./.mf/kv
 $ miniflare --kv-persist ./data/  # Custom path
 $ miniflare --kv-persist redis://localhost:6379  # Redis server
 ```
@@ -61,14 +61,14 @@ $ miniflare --kv-persist redis://localhost:6379  # Redis server
 ```toml
 # wrangler.toml
 [miniflare]
-kv_persist = true # Defaults to ./mf/kv
+kv_persist = true # Defaults to ./.mf/kv
 kv_persist = "./data/" # Custom path
 kv_persist = "redis://localhost:6379" # Redis server
 ```
 
 ```js
 const mf = new Miniflare({
-  kvPersist: true, // Defaults to ./mf/kv
+  kvPersist: true, // Defaults to ./.mf/kv
   kvPersist: "./data", // Custom path
   kvPersist: "redis://localhost:6379", // Redis server
 });

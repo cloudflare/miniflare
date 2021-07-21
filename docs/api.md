@@ -44,7 +44,7 @@ The [Guide](/fetch.html) goes into more detail on configuring specific features.
 <!--prettier-ignore-start-->
 ::: warning
 Like the CLI, the API will automatically load `.env`, `package.json` and `wrangler.toml` files
-in the current working directory. This may lead to unexpected results. You can
+in the current working directory. This may lead to unexpected behaviour. You can
 disable this by setting `envPath`, `packagePath` and `wranglerConfigPath` options to paths of
 empty files:
 
@@ -75,9 +75,9 @@ const mf = new Miniflare({
 
 ### Watching, Reloading and Disposing
 
-You can watch scripts, `.env` files and `wrangler.toml` files with the `watch`
-option. When this is enabled, you must `dispose` of the watcher when you're done
-with the `Miniflare` instance:
+You can watch scripts, `.env`, `package.json` and `wrangler.toml` files with the
+`watch` option. When this is enabled, you must `dispose` of the watcher when
+you're done with the `Miniflare` instance:
 
 ```js
 const mf = new Miniflare({
@@ -90,8 +90,8 @@ await mf.dispose();
 You must also `dispose` if you're persisting KV, cache, or Durable Object data
 in Redis to close opened connections.
 
-You can also manually reload scripts (main and Durable Object's) and options
-(`.env` and `wrangler.toml`) too with `reloadOptions`:
+You can also manually reload scripts (main and Durable Objects') and options
+(`.env`, `package.json` and `wrangler.toml`) too with `reloadOptions`:
 
 ```js
 const mf = new Miniflare({ ... });
@@ -101,8 +101,8 @@ await mf.reloadOptions();
 ### Getting Processed Options
 
 You can get an object containing processed options with `getOptions`. These
-contain options resolved from the constructor, `.env` files and `wrangler.toml`
-files.
+contain options resolved from the constructor, `.env`, `package.json` and
+`wrangler.toml` files:
 
 ```js
 const mf = new Miniflare({ ... });
@@ -172,6 +172,69 @@ const options = await mf.getOptions();
 const port = options.port ?? 5000; // Use port 5000 by default
 mf.createServer().listen(port, () => { ... });
 ```
+
+### HTTPS Server
+
+To start an HTTPS server instead, set the `https` option as described below and
+pass `true` as the secure argument of `createServer`. Note that you must now
+`await` the call to `createServer`:
+
+```js
+import { Miniflare } from "miniflare";
+
+const mf = new Miniflare({
+  ...,
+  https: ...
+});
+(await mf.createServer(true)).listen(5000, () => {
+  console.log("Listening on :5000");
+});
+```
+
+To use an automatically generated self-signed certificate, set `https` to
+`true`. This certificate will be valid for 30 days and be cached in `./.mf/cert`
+by default. You can customise this directory by setting `https` to a string path
+instead. The certificate will be renewed if it expires in less than 2 days:
+
+```js
+const mf = new Miniflare({
+  https: true, // Cache certificate in ./.mf/cert
+  https: "./cert_cache", // Cache in ./cert_cache instead
+});
+```
+
+To load an existing certificate from the file system:
+
+```js
+const mf = new Miniflare({
+  https: {
+    // These are all optional, you don't need to include them all
+    keyPath: "./key.pem",
+    certPath: "./cert.pem",
+    caPath: "./ca.pem",
+    pfxPath: "./pfx.pfx",
+    passphrase: "pfx passphrase",
+  },
+});
+```
+
+To load an existing certificate from strings instead:
+
+```js
+const mf = new Miniflare({
+  https: {
+    // These are all optional, you don't need to include them all
+    key: "-----BEGIN RSA PRIVATE KEY-----...",
+    cert: "-----BEGIN CERTIFICATE-----...",
+    ca: "...",
+    pfx: "...",
+    passphrase: "pfx passphrase",
+  },
+});
+```
+
+If both a string and path are specified for an option (e.g. `key` and
+`keyPath`), the string will be preferred.
 
 ### Logging
 

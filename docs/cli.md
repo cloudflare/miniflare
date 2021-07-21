@@ -40,8 +40,13 @@ $ miniflare worker.js
 
 <!--prettier-ignore-start-->
 ::: tip
-If you're building your worker beforehand, make sure you pass the path of your built output to Miniflare, not your input source code.
-See [🛠 Builds](/builds.html) for more details.
+If you're building your worker beforehand (with esbuild, Webpack, etc), make
+sure you pass the path of your built output to Miniflare, not your input source
+code. See [🛠 Builds](/builds.html) for more details.
+
+If your script is defined in a `wrangler.toml` or `package.json` file, or you're
+using Wrangler's `"webpack"` or `"rust"` worker `type`s, you don't need to pass
+a script as a command line argument: Miniflare will infer it automatically.
 :::
 <!--prettier-ignore-end-->
 
@@ -113,6 +118,27 @@ main = "./worker.js"
 }
 ```
 
+### HTTPS Server
+
+By default, Miniflare starts an HTTP server. To start an HTTPS server instead,
+set the `https` option. To use an automatically generated self-signed
+certificate, use the `--https` flag. This certificate is cached and will be
+valid for 30 days. The certificate will be renewed if it expires in less than 2
+days:
+
+```shell
+$ miniflare worker.js --https # Cache certificate in ./.mf/cert
+$ miniflare worker.js --https ./cert_cache # Cache in ./cert_cache instead
+```
+
+To use an existing certificate instead, use the `--https-key`, `--https-cert`,
+`--https-ca` and `--https-pfx` to set the paths to it. If these are encrypted,
+use the `--https-passphrase` flag to set the passphrase:
+
+```shell
+$ miniflare worker.js --https-key ./key.pem --https-cert ./cert.pem
+```
+
 ### Update Checker
 
 The CLI includes an automatic update checker that looks for new versions of
@@ -157,6 +183,12 @@ Options:
   -e, --env               Path to .env file                             [string]
   -b, --binding           Bind variable/secret (KEY=VALUE)               [array]
       --wasm              WASM module to bind (NAME=PATH)                [array]
+      --https             Enable self-signed HTTPS
+      --https-key         Path to PEM SSL key                           [string]
+      --https-cert        Path to PEM SSL cert chain                    [string]
+      --https-ca          Path to SSL trusted CA certs                  [string]
+      --https-pfx         Path to PFX/PKCS12 SSL key/cert chain         [string]
+      --https-passphrase  Passphrase to decrypt SSL files               [string]
       --disable-updater   Disable update checker                       [boolean]
 ```
 
@@ -210,4 +242,12 @@ port = 1337                        ## --port
 wasm_bindings = [                  ## --wasm
   { name = "MODULE", path="module.wasm" }
 ]
+https = true                       ## --https
+https = "./cert_cache"             ## --https ./cert_cache
+[miniflare.https]
+key = "./key.pem"                  ## --https-key
+cert = "./cert.pem"                ## --https-cert
+ca = "./ca.pem"                    ## --https-ca
+pfx = "./pfx.pfx"                  ## --https-pfx
+passphrase = "pfx passphrase"      ## --https-passphrase
 ```
