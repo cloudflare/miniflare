@@ -40,8 +40,13 @@ $ miniflare worker.js
 
 <!--prettier-ignore-start-->
 ::: tip
-If you're building your worker beforehand (with esbuild, Webpack, etc), make sure you pass the path of your built output to Miniflare, not your input source code.
-See [🛠 Builds](/builds.html) for more details.
+If you're building your worker beforehand (with esbuild, Webpack, etc), make
+sure you pass the path of your built output to Miniflare, not your input source
+code. See [🛠 Builds](/builds.html) for more details.
+
+If your script is defined in a `wrangler.toml` or `package.json` file, or you're
+using Wrangler's `"webpack"` or `"rust"` worker `type`s, you don't need to pass
+a script as a command line argument: Miniflare will infer it automatically.
 :::
 <!--prettier-ignore-end-->
 
