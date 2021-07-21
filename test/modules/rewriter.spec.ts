@@ -2,20 +2,23 @@ import { URLSearchParams } from "url";
 import { TextDecoder, TextEncoder } from "util";
 import test, { Macro, ThrowsExpectation } from "ava";
 import { ReadableStream } from "web-streams-polyfill/ponyfill/es6";
-// Import UnsafeHTMLRewriter as HTMLRewriter since we're using it much more
-// (we want to be able to run tests in parallel) and typing "Unsafe" each time
-// is annoying.
 import {
-  UnsafeHTMLRewriter as HTMLRewriter,
+  Comment,
+  Doctype,
+  DocumentEnd,
+  Element,
+  HTMLRewriter,
   NoOpLog,
   Response,
-  HTMLRewriter as SafeHTMLRewriter,
+  TextChunk,
 } from "../../src";
 import {
   HTMLRewriterModule,
   transformToArray,
 } from "../../src/modules/rewriter";
 import { getObjectProperties, wait } from "../helpers";
+
+// TODO: remove most of these tests, they're now in html-rewriter-wasm
 
 // region: Uint8ArrayTransformStream
 const encoder = new TextEncoder();
@@ -63,7 +66,7 @@ const mutationsMacro: Macro<
   [
     (
       rw: HTMLRewriter,
-      handler: (token: Element | Text | Comment) => void
+      handler: (token: Element | TextChunk | Comment) => void
     ) => HTMLRewriter,
     string,
     {
@@ -338,7 +341,7 @@ const textMutationsExpected = {
 };
 
 const textPropertiesMacro: Macro<
-  [(rw: HTMLRewriter, text: (text: Text) => void) => HTMLRewriter]
+  [(rw: HTMLRewriter, text: (text: TextChunk) => void) => HTMLRewriter]
 > = async (t, func) => {
   t.plan(6);
   const res = func(new HTMLRewriter(), (text) => {
@@ -364,7 +367,7 @@ test(
   textMutationsExpected
 );
 const textAsyncHandlerMacro: Macro<
-  [(rw: HTMLRewriter, text: (t: Text) => Promise<void>) => HTMLRewriter]
+  [(rw: HTMLRewriter, text: (t: TextChunk) => Promise<void>) => HTMLRewriter]
 > = async (t, func) => {
   const res = func(new HTMLRewriter(), async (text) => {
     if (text.text === "t") {
@@ -380,11 +383,16 @@ test.serial(
   (rw, text) => rw.on("p", { text })
 );
 const textClassHandlerMacro: Macro<
-  [(rw: HTMLRewriter, handler: { text: (text: Text) => void }) => HTMLRewriter]
+  [
+    (
+      rw: HTMLRewriter,
+      handler: { text: (text: TextChunk) => void }
+    ) => HTMLRewriter
+  ]
 > = async (t, func) => {
   class Handler {
     constructor(private content: string) {}
-    text(text: Text) {
+    text(text: TextChunk) {
       if (text.text === "t") text.after(this.content);
     }
   }
@@ -615,7 +623,7 @@ test("HTMLRewriter: handles streaming responses", async (t) => {
   t.is(chunks.join(""), '<html lang="en"><body><p>test</p></body></html>');
 });
 test("HTMLRewriter: handles empty response", async (t) => {
-  // Shouldn't call LOLHTMLRewriter.write, just LOLHTMLRewriter.end
+  // Shouldn't call BaseHTMLRewriter.write, just BaseHTMLRewriter.end
   const res = new HTMLRewriter().transform(new Response());
   t.is(await res.text(), "");
 });
@@ -663,7 +671,7 @@ test.serial(
     // Note this test requires the "safe" HTMLRewriter, see comments in
     // src/modules/rewriter.ts for more details
     const rewriter = (i: number) =>
-      new SafeHTMLRewriter()
+      new HTMLRewriter()
         .on("p", {
           async element(element) {
             await wait(50);
@@ -858,17 +866,9 @@ test("HTMLRewriter: throws error on unsupported selector", async (t) => {
 
 // region: MODULE
 
-test("HTMLRewriter: defaults to safe implementation", async (t) => {
+test("HTMLRewriter: included in sandbox", async (t) => {
   const module = new HTMLRewriterModule(new NoOpLog());
-  const { HTMLRewriter: SandboxHTMLRewriter } = module.buildSandbox({});
-  t.is(SandboxHTMLRewriter, SafeHTMLRewriter);
-});
-test("HTMLRewriter: allows unsafe implementation", async (t) => {
-  const module = new HTMLRewriterModule(new NoOpLog());
-  const { HTMLRewriter: SandboxHTMLRewriter } = module.buildSandbox({
-    htmlRewriterUnsafe: true,
-  });
-  // UnsafeHTMLRewriter has been imported as HTMLRewriter
+  const { HTMLRewriter: SandboxHTMLRewriter } = module.buildSandbox();
   t.is(SandboxHTMLRewriter, HTMLRewriter);
 });
 

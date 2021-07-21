@@ -94,8 +94,6 @@ export interface Options {
   envPath?: string;
   bindings?: Record<string, any>;
   wasmBindings?: Record<string, string>;
-
-  htmlRewriterUnsafe?: boolean;
 }
 
 export interface ProcessedOptions extends Options {
@@ -158,7 +156,6 @@ export function logOptions(log: Log, options: ProcessedOptions): void {
       : options.https === true
       ? "Self-Signed"
       : `Self-Signed: ${options.https}`,
-    "Unsafe HTMLRewriter": options.htmlRewriterUnsafe,
   };
   log.debug("Options:");
   for (const [key, value] of Object.entries(entries)) {
