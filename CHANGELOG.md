@@ -17,6 +17,7 @@
 - When using the CLI, the `--watch` flag is now assumed if `--build-watch-path`
   is set, thanks [@evanderkoogh](https://github.com/evanderkoogh) for the
   [PR (#8)](https://github.com/mrbbot/miniflare/pull/8)
+- Added source maps to `CommonJS` module transformation
 
 ### Fixes
 
@@ -26,6 +27,8 @@
 - Upgraded the TOML parser to support dotted keys, thanks
   [@leader22](https://github.com/leader22) for the
   [PR (#13)](https://github.com/mrbbot/miniflare/pull/13)
+- Added `CryptoKey` to the sandbox, thanks [@mosch](https://github.com/mosch)
+  for the [PR (#14)](https://github.com/mrbbot/miniflare/pull/14)
 
 ## 1.2.0
 
