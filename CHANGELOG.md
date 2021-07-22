@@ -1,5 +1,12 @@
 # 🚧 Changelog
 
+## 1.3.1
+
+### Fixes
+
+- Upgraded [`html-rewriter-wasm`](https://github.com/mrbbot/html-rewriter-wasm)
+  to version `0.3.1`, fixing the return type of `Element.attributes`
+
 ## 1.3.0
 
 ### Features

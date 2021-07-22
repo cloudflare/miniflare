@@ -39,29 +39,16 @@ export function transformToArray(chunk: any): Uint8Array {
 }
 
 export class HTMLRewriter {
-  #elementHandlers: [selector: string, handlers: any][] = [];
-  #documentHandlers: any[] = [];
+  #elementHandlers: [selector: string, handlers: ElementHandlers][] = [];
+  #documentHandlers: DocumentHandlers[] = [];
 
   on(selector: string, handlers: ElementHandlers): this {
-    // Ensure handlers register returned promises, and `this` is bound correctly
-    const wrappedHandlers = {
-      element: handlers.element?.bind(handlers),
-      comments: handlers.comments?.bind(handlers),
-      text: handlers.text?.bind(handlers),
-    };
-    this.#elementHandlers.push([selector, wrappedHandlers]);
+    this.#elementHandlers.push([selector, handlers]);
     return this;
   }
 
   onDocument(handlers: DocumentHandlers): this {
-    // Ensure handlers register returned promises, and `this` is bound correctly
-    const wrappedHandlers = {
-      doctype: handlers.doctype?.bind(handlers),
-      comments: handlers.comments?.bind(handlers),
-      text: handlers.text?.bind(handlers),
-      end: handlers.end?.bind(handlers),
-    };
-    this.#documentHandlers.push(wrappedHandlers);
+    this.#documentHandlers.push(handlers);
     return this;
   }
 
@@ -72,13 +59,8 @@ export class HTMLRewriter {
         // Create a rewriter instance for this transformation that writes its
         // output to the transformed response's stream
         const rewriter = new BaseHTMLRewriter((output: Uint8Array) => {
-          if (output.length === 0) {
-            // Free the rewriter once it's finished doing its thing
-            queueMicrotask(() => rewriter.free());
-            controller.close();
-          } else {
-            controller.enqueue(output);
-          }
+          // enqueue will throw on empty chunks
+          if (output.length !== 0) controller.enqueue(output);
         });
         // Add all registered handlers
         for (const [selector, handlers] of this.#elementHandlers) {
@@ -88,13 +70,21 @@ export class HTMLRewriter {
           rewriter.onDocument(handlers);
         }
 
-        // Transform the response body (may be null if empty)
-        if (response.body) {
-          for await (const chunk of response.body) {
-            await rewriter.write(transformToArray(chunk));
+        try {
+          // Transform the response body (may be null if empty)
+          if (response.body) {
+            for await (const chunk of response.body) {
+              await rewriter.write(transformToArray(chunk));
+            }
           }
+          await rewriter.end();
+        } catch (e) {
+          controller.error(e);
+        } finally {
+          // Make sure the rewriter/controller are always freed/closed
+          rewriter.free();
+          controller.close();
         }
-        await rewriter.end();
       },
     });
 

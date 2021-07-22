@@ -1,6 +1,6 @@
 {
   "name": "miniflare",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -36,7 +36,6 @@
   "dependencies": {
     "@cloudflare/workers-types": "^2.2.2",
     "@iarna/toml": "^2.2.5",
-    "@mrbbot/asyncify-wasm": "^1.3.1",
     "@mrbbot/node-fetch": "^4.4.0",
     "@peculiar/webcrypto": "^1.1.4",
     "chalk": "^4.1.0",
@@ -45,7 +44,7 @@
     "dotenv": "^8.2.0",
     "env-paths": "^2.2.1",
     "formdata-node": "^2.4.0",
-    "html-rewriter-wasm": "^0.3.0",
+    "html-rewriter-wasm": "^0.3.1",
     "http-cache-semantics": "^4.1.0",
     "ioredis": "^4.27.6",
     "micromatch": "^4.0.4",

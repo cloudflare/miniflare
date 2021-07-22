@@ -18,7 +18,8 @@ import {
 } from "../../src/modules/rewriter";
 import { getObjectProperties, wait } from "../helpers";
 
-// TODO: remove most of these tests, they're now in html-rewriter-wasm
+// TODO: (low priority) remove most of these tests, they're now in html-rewriter-wasm
+// TODO: (low priority) debug why removing .serial breaks some of these tests
 
 // region: Uint8ArrayTransformStream
 const encoder = new TextEncoder();
