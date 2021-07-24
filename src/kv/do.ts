@@ -341,9 +341,9 @@ export class DurableObjectStorage implements DurableObjectOperator {
     return this.#transaction((txn) => txn.list(options));
   }
 
-  async transaction(
-    closure: (txn: DurableObjectTransaction) => Promise<void>
-  ): Promise<void> {
-    await this.#transaction(closure);
+  async transaction<T>(
+    closure: (txn: DurableObjectTransaction) => Promise<T>
+  ): Promise<T> {
+    return this.#transaction(closure);
   }
 }

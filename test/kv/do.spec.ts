@@ -372,6 +372,15 @@ test("transaction: cannot perform more operations after rollback", async (t) => 
     await t.throws(() => txn.rollback(), { instanceOf: AssertionError });
   });
 });
+test("transaction: propagates return value", async (t) => {
+  const { backing, storage } = t.context;
+  await backing.put("a", storedValue(1));
+  const res = await storage.transaction(async (txn) => {
+    const value = (await txn.get<number>("a")) ?? 0;
+    return value + 2;
+  });
+  t.is(res, 3);
+});
 test("transaction: aborts all in-progress transactions", async (t) => {
   const { backing, storage } = t.context;
   await backing.put("key", storedValue("old"));
