@@ -1,5 +1,19 @@
 # 🚧 Changelog
 
+## 1.3.2
+
+### Features
+
+- Responses are now streamed when using the built-in HTTP(S) server
+- Return values of Durable Object transaction closures are now propagated as the
+  return value of the `transaction` call
+
+### Fixes
+
+- Upgraded [`html-rewriter-wasm`](https://github.com/mrbbot/html-rewriter-wasm)
+  to version `0.3.2`, fixing `async` handler support, closes
+  [`html-rewriter-wasm` issue #1](https://github.com/mrbbot/html-rewriter-wasm/issues/1)
+
 ## 1.3.1
 
 ### Fixes
