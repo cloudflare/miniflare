@@ -412,7 +412,13 @@ export class Miniflare {
         response.headers.delete("content-length");
         response.headers.delete("content-encoding");
         res?.writeHead(response.status, response.headers.raw());
-        res?.end(await response.buffer());
+        // Response body may be null if empty
+        if (response.body) {
+          for await (const chunk of response.body) {
+            res?.write(chunk);
+          }
+        }
+        res?.end();
       } catch (e) {
         const youch = new Youch(e, req);
         youch.addLink(() => {

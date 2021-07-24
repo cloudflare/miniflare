@@ -315,6 +315,36 @@ test("createServer: handles stream http worker response", async (t) => {
   const [body] = await request(port);
   t.is(body, "stream");
 });
+test("createServer: handles empty response", async (t) => {
+  const mf = new Miniflare({
+    modules: true,
+    script: `export default { fetch: () => new Response() }`,
+  });
+  const port = await listen(t, mf.createServer());
+  const [body] = await request(port);
+  t.is(body, "");
+});
+test("createServer: handles http headers in response", async (t) => {
+  const mf = new Miniflare({
+    modules: true,
+    script: `export default {
+      fetch: () => {
+        const headers = new Headers();
+        headers.append("X-Message", "test");
+        headers.append("Set-Cookie", "test1=value1");
+        headers.append("Set-Cookie", "test2=value2");
+        return new Response("string", { headers });
+      }
+    }`,
+  });
+  const port = await listen(t, mf.createServer());
+  const [body, headers] = await request(port);
+  t.is(body, "string");
+  t.like(headers, {
+    "x-message": "test",
+    "set-cookie": ["test1=value1", "test2=value2"],
+  });
+});
 test("createServer: includes cf headers on request", async (t) => {
   const mf = new Miniflare({
     modules: true,
