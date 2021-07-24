@@ -44,7 +44,7 @@
     "dotenv": "^8.2.0",
     "env-paths": "^2.2.1",
     "formdata-node": "^2.4.0",
-    "html-rewriter-wasm": "^0.3.1",
+    "html-rewriter-wasm": "^0.3.2",
     "http-cache-semantics": "^4.1.0",
     "ioredis": "^4.27.6",
     "micromatch": "^4.0.4",

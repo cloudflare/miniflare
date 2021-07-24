@@ -16,7 +16,7 @@ import {
   HTMLRewriterModule,
   transformToArray,
 } from "../../src/modules/rewriter";
-import { getObjectProperties, wait } from "../helpers";
+import { getObjectProperties, runInWorker, wait } from "../helpers";
 
 // TODO: (low priority) remove most of these tests, they're now in html-rewriter-wasm
 // TODO: (low priority) debug why removing .serial breaks some of these tests
@@ -712,6 +712,33 @@ test.serial(
     t.deepEqual(texts, ["<p>new 3</p>", "<p>new 4</p>"]);
   }
 );
+test("HTMLRewriter: handles async handlers in worker sandbox", async (t) => {
+  const res = await runInWorker<string>({}, async () => {
+    const sandbox = self as any;
+    const res = new sandbox.HTMLRewriter()
+      .on("h1", {
+        // Test async functions
+        async element(element: Element) {
+          await new Promise((resolve) => setTimeout(resolve));
+          element.after("after h1");
+        },
+      })
+      .on("p", {
+        // Test returning promise
+        element(element: Element) {
+          return new Promise<void>((resolve) =>
+            setTimeout(() => {
+              element.before("before p");
+              resolve();
+            })
+          );
+        },
+      })
+      .transform(new sandbox.Response("<h1>title</h1><p>body</p>"));
+    return await res.text();
+  });
+  t.is(res, ["<h1>title</h1>", "after h1", "before p", "<p>body</p>"].join(""));
+});
 
 test("HTMLRewriter: hides implementation details", (t) => {
   const rewriter = new HTMLRewriter();
