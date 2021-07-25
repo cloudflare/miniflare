@@ -122,6 +122,10 @@ export default function parseArgv(raw: string[]): Options {
         // type: "boolean" | "string",
         description: "Path to persist cached data to (omit path for default)",
       },
+      "disable-cache": {
+        type: "boolean",
+        description: "Disable caching with default/named caches",
+      },
       site: {
         type: "string",
         description: "Path to serve Workers Site files from",
@@ -212,6 +216,7 @@ export default function parseArgv(raw: string[]): Options {
     kvNamespaces: asStringArray(argv.kv),
     kvPersist: argv["kv-persist"] as boolean | string | undefined,
     cachePersist: argv["cache-persist"] as boolean | string | undefined,
+    disableCache: argv["disable-cache"],
     sitePath: argv.site,
     siteInclude: asStringArray(argv["site-include"]),
     siteExclude: asStringArray(argv["site-exclude"]),

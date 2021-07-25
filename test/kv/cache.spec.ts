@@ -6,6 +6,7 @@ import {
   CachedResponse,
   KVStorage,
   MemoryKVStorage,
+  NoOpCache,
   Request,
   Response,
 } from "../../src";
@@ -204,4 +205,13 @@ test(
 test("Cache: hides implementation details", (t) => {
   const { cache } = t.context;
   t.deepEqual(getObjectProperties(cache), ["delete", "match", "put"]);
+});
+
+test("NoOpCache: doesn't cache", async (t) => {
+  const req = "http://localhost:8787/test";
+  const cache = new NoOpCache();
+  t.is(await cache.put(req, testResponse.clone()), undefined);
+  t.is(await cache.match(req), undefined);
+  t.is(await cache.put(req, testResponse.clone()), undefined);
+  t.false(await cache.delete(req));
 });

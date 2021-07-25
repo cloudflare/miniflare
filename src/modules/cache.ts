@@ -1,6 +1,6 @@
 import path from "path";
 import { MiniflareError } from "../error";
-import { Cache } from "../kv";
+import { Cache, NoOpCache } from "../kv";
 import { KVStorageFactory } from "../kv/helpers";
 import { Log } from "../log";
 import { ProcessedOptions } from "../options";
@@ -8,6 +8,8 @@ import { Context, Module } from "./module";
 
 const defaultPersistRoot = path.resolve(".mf", "cache");
 const defaultCacheName = "default";
+
+const noopCache = new NoOpCache();
 
 export class CacheModule extends Module {
   constructor(
@@ -22,7 +24,9 @@ export class CacheModule extends Module {
   }
 
   buildSandbox(options: ProcessedOptions): Context {
-    const defaultCache = this.getCache(undefined, options.cachePersist);
+    const defaultCache = options.disableCache
+      ? noopCache
+      : this.getCache(undefined, options.cachePersist);
     return {
       caches: {
         default: defaultCache,
@@ -32,7 +36,9 @@ export class CacheModule extends Module {
               `\"${defaultCacheName}\" is a reserved cache name`
             );
           }
-          return this.getCache(name, options.cachePersist);
+          return options.disableCache
+            ? noopCache
+            : this.getCache(name, options.cachePersist);
         },
       },
     };
@@ -42,3 +48,5 @@ export class CacheModule extends Module {
     this.storageFactory.dispose();
   }
 }
+
+export { Cache, NoOpCache };

@@ -3,6 +3,7 @@ import path from "path";
 import test from "ava";
 import {
   Cache,
+  CacheInterface,
   CachedResponse,
   MiniflareError,
   NoOpLog,
@@ -261,5 +262,36 @@ test("buildSandbox: trying to open default cache throws", async (t) => {
   await t.throwsAsync(caches.open("default"), {
     instanceOf: MiniflareError,
     message: '"default" is a reserved cache name',
+  });
+});
+
+test("buildSandbox: disabling cache disables caches", async (t) => {
+  const res = await runInWorker({ disableCache: true }, async () => {
+    const sandbox = self as any;
+    const cache = sandbox.caches.default as CacheInterface;
+    const otherCache = (await sandbox.caches.open("other")) as CacheInterface;
+
+    const req = "http://localhost:8787/test";
+    const res = new sandbox.Response("value", {
+      headers: { "Cache-Control": "max-age=3600" },
+    });
+
+    await cache.put(req, res.clone());
+    const matched = (await cache.match(req)) !== undefined;
+    await cache.put(req, res.clone());
+    const deleted = await cache.delete(req);
+
+    await otherCache.put(req, res.clone());
+    const matchedOther = (await otherCache.match(req)) !== undefined;
+    await otherCache.put(req, res.clone());
+    const deletedOther = await otherCache.delete(req);
+
+    return { matched, deleted, matchedOther, deletedOther };
+  });
+  t.deepEqual(res, {
+    matched: false,
+    deleted: false,
+    matchedOther: false,
+    deletedOther: false,
   });
 });

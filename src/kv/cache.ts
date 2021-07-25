@@ -35,7 +35,16 @@ function getKey(req: Request): string {
   return `${req.url}.json`;
 }
 
-export class Cache {
+export interface CacheInterface {
+  put(req: string | Request, res: Response): Promise<undefined>;
+  match(
+    req: string | Request,
+    options?: CacheMatchOptions
+  ): Promise<Response | undefined>;
+  delete(req: string | Request, options?: CacheMatchOptions): Promise<boolean>;
+}
+
+export class Cache implements CacheInterface {
   readonly #storage: KVStorage;
   readonly #clock: KVClock;
   readonly #namespace: KVStorageNamespace;
@@ -147,5 +156,25 @@ export class Cache {
     // this.namespace since we need to know whether we deleted something)
     const key = getKey(req);
     return this.#storage.delete(key);
+  }
+}
+
+export class NoOpCache implements CacheInterface {
+  async put(_req: string | Request, _res: Response): Promise<undefined> {
+    return;
+  }
+
+  async match(
+    _req: string | Request,
+    _options?: CacheMatchOptions
+  ): Promise<Response | undefined> {
+    return;
+  }
+
+  async delete(
+    _req: string | Request,
+    _options?: CacheMatchOptions
+  ): Promise<boolean> {
+    return false;
   }
 }
