@@ -19,7 +19,7 @@ bindings = [
   # Object1 class must be exported from the main script
   { name = "OBJECT1", class_name = "Object1" },
   # Object2 class must be exported from ./object2.mjs
-  { name = "OBJECT2", class_name = "Object2", script_path = "./object2.mjs" },
+  { name = "OBJECT2", class_name = "Object2", script_name = "./object2.mjs" },
 ]
 ```
 
