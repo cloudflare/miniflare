@@ -141,7 +141,7 @@ export function logOptions(log: Log, options: ProcessedOptions): void {
     "KV Namespaces": options.kvNamespaces,
     "KV Persistence": options.kvPersist,
     "Cache Persistence": options.cachePersist,
-    "Disable Cache": options.disableCache,
+    "Cache Disabled": options.disableCache,
     "Workers Site Path": options.sitePath,
     "Workers Site Include": options.siteIncludeRegexps,
     // Only include excludeRegexps if there are no includeRegexps

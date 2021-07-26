@@ -52,6 +52,7 @@ interface WranglerEnvironmentConfig {
     upstream?: string;
     kv_persist?: boolean | string;
     cache_persist?: boolean | string;
+    disable_cache?: boolean;
     durable_objects_persist?: boolean | string;
     env_path?: string;
     host?: string;
@@ -67,6 +68,7 @@ interface WranglerEnvironmentConfig {
           passphrase?: string;
         };
     wasm_bindings?: { name: string; path: string }[];
+    disable_updater?: boolean;
   };
 }
 
@@ -159,6 +161,7 @@ export function getWranglerOptions(
     upstream: config.miniflare?.upstream,
     kvPersist: config.miniflare?.kv_persist,
     cachePersist: config.miniflare?.cache_persist,
+    disableCache: config.miniflare?.disable_cache,
     durableObjectsPersist: config.miniflare?.durable_objects_persist,
     envPath: config.miniflare?.env_path,
     host: config.miniflare?.host,
@@ -180,5 +183,6 @@ export function getWranglerOptions(
       },
       {} as Record<string, string>
     ),
+    disableUpdater: config.miniflare?.disable_updater,
   };
 }

@@ -100,3 +100,25 @@ await cache.put(
 res = await mf.dispatchFetch("http://localhost:8787");
 console.log(await res.text()); // 2
 ```
+
+## Disabling
+
+Both default and named caches can be disabled with the `disableCache` option.
+When disabled, the caches will still be available in the sandbox, they just
+won't cache anything. This may be useful during development:
+
+```shell
+$ miniflare --disable-cache
+```
+
+```toml
+# wrangler.toml
+[miniflare]
+disable_cache = true
+```
+
+```js
+const mf = new Miniflare({
+  disableCache: true,
+});
+```

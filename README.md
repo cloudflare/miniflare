@@ -99,6 +99,7 @@ Options:
   -k, --kv                KV namespace to bind                           [array]
       --kv-persist        Path to persist KV data to (omit path for default)
       --cache-persist     Path to persist cached data to (omit path for default)
+      --disable-cache     Disable caching with default/named caches    [boolean]
   -s, --site              Path to serve Workers Site files from         [string]
       --site-include      Glob pattern of site files to serve            [array]
       --site-exclude      Glob pattern of site files not to serve        [array]

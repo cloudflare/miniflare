@@ -174,6 +174,7 @@ Options:
   -k, --kv                KV namespace to bind                           [array]
       --kv-persist        Path to persist KV data to (omit path for default)
       --cache-persist     Path to persist cached data to (omit path for default)
+      --disable-cache     Disable caching with default/named caches    [boolean]
   -s, --site              Path to serve Workers Site files from         [string]
       --site-include      Glob pattern of site files to serve            [array]
       --site-exclude      Glob pattern of site files not to serve        [array]
@@ -235,6 +236,7 @@ globs = ["**/*.js"]
 upstream = "https://miniflare.dev" ## --upstream
 kv_persist = true                  ## --kv-persist
 cache_persist = "./cache"          ## --cache-persist
+disable_cache = true               ## --disable-cache
 durable_objects_persist = true     ## --do-persist
 env_path = ".env.test"             ## --env
 host = "127.0.0.1"                 ## --host
@@ -242,6 +244,7 @@ port = 1337                        ## --port
 wasm_bindings = [                  ## --wasm
   { name = "MODULE", path="module.wasm" }
 ]
+disable_updater = true             ## --disable-updater
 https = true                       ## --https
 https = "./cert_cache"             ## --https ./cert_cache
 [miniflare.https]

@@ -78,7 +78,7 @@ test("logOptions: logs all options", (t) => {
     "- KV Namespaces: NAMESPACE1, NAMESPACE2",
     "- KV Persistence: kv-data",
     "- Cache Persistence: false",
-    "- Disable Cache: true",
+    "- Cache Disabled: true",
     "- Workers Site Path: public",
     "- Workers Site Include: regexp1, regexp2",
     "- Durable Objects: OBJECT1, OBJECT2",

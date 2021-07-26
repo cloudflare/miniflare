@@ -1,5 +1,20 @@
 # 🚧 Changelog
 
+## 1.3.3
+
+### Features
+
+- Added an option to disable default and named caches. When disabled, the caches
+  will still be available in the sandbox, they just won't cache anything. Thanks
+  [@frandiox](https://github.com/frandiox) for the suggestion. See
+  [✨ Cache](https://miniflare.dev/cache.html#disabling) for more details.
+- Added the corresponding `wrangler.toml` key for the `--disable-updater` flag:
+  `miniflare.disable_updater`
+
+### Fixes
+
+- Fixed the `package.json` file path the update checker checked against
+
 ## 1.3.2
 
 ### Features

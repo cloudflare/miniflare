@@ -304,29 +304,31 @@ if (module === require.main) {
   const mf = new Miniflare(options);
 
   mf.getOptions()
-    .then(async ({ host, port = defaultPort, processedHttps }) => {
-      const secure = processedHttps !== undefined;
-      (await mf.createServer(secure as any)).listen(port, host, async () => {
-        const protocol = secure ? "https" : "http";
-        mf.log.info(`Listening on ${host ?? ""}:${port}`);
-        if (host) {
-          mf.log.info(`- ${protocol}://${host}:${port}`);
-        } else {
-          for (const accessibleHost of getAccessibleHosts(true)) {
-            mf.log.info(`- ${protocol}://${accessibleHost}:${port}`);
+    .then(
+      async ({ host, port = defaultPort, processedHttps, disableUpdater }) => {
+        const secure = processedHttps !== undefined;
+        (await mf.createServer(secure as any)).listen(port, host, async () => {
+          const protocol = secure ? "https" : "http";
+          mf.log.info(`Listening on ${host ?? ""}:${port}`);
+          if (host) {
+            mf.log.info(`- ${protocol}://${host}:${port}`);
+          } else {
+            for (const accessibleHost of getAccessibleHosts(true)) {
+              mf.log.info(`- ${protocol}://${accessibleHost}:${port}`);
+            }
           }
-        }
 
-        // Check for updates, ignoring errors (it's not that important)
-        if (options.disableUpdater) return;
-        try {
-          // Get currently installed package metadata
-          const pkgFile = path.join(__dirname, "..", "..", "package.json");
-          const pkg = JSON.parse(await fs.readFile(pkgFile, "utf8"));
-          const cachePath = envPaths(pkg.name).cache;
-          await updateCheck({ pkg, cachePath, log: mf.log });
-        } catch {}
-      });
-    })
+          // Check for updates, ignoring errors (it's not that important)
+          if (disableUpdater) return;
+          try {
+            // Get currently installed package metadata
+            const pkgFile = path.join(__dirname, "..", "package.json");
+            const pkg = JSON.parse(await fs.readFile(pkgFile, "utf8"));
+            const cachePath = envPaths(pkg.name).cache;
+            await updateCheck({ pkg, cachePath, log: mf.log });
+          } catch (e) {}
+        });
+      }
+    )
     .catch((err) => mf.log.error(err));
 }

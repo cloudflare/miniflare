@@ -98,6 +98,7 @@ test("getWranglerOptions: maps all options", (t) => {
     upstream = "https://miniflare.dev"
     kv_persist = true
     cache_persist = "./cache"
+    disable_cache = true
     durable_objects_persist = true
     env_path = ".env.test"
     host = "127.0.0.1"
@@ -106,6 +107,7 @@ test("getWranglerOptions: maps all options", (t) => {
     wasm_bindings = [
       { name = "MODULE", path="module.wasm" }
     ]
+    disable_updater = true
     `,
     cwd
   );
@@ -130,12 +132,14 @@ test("getWranglerOptions: maps all options", (t) => {
     upstream: "https://miniflare.dev",
     kvPersist: true,
     cachePersist: "./cache",
+    disableCache: true,
     durableObjectsPersist: true,
     envPath: ".env.test",
     host: "127.0.0.1",
     port: 1337,
     https: true,
     wasmBindings: { MODULE: "module.wasm" },
+    disableUpdater: true,
   });
 });
 test("getWranglerOptions: returns empty default options with empty file", (t) => {
