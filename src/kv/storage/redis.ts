@@ -35,7 +35,7 @@ export class RedisKVStorage extends KVStorage {
   // Throws any errors from the result of a pipeline
   // noinspection JSMethodCanBeStatic
   private throwPipelineErrors(res: [Error | null, unknown][]): void {
-    for (const [error] of res) if (error) throw res;
+    for (const [error] of res) if (error) throw error;
   }
 
   async has(key: string): Promise<boolean> {
