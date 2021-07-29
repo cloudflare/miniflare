@@ -8,6 +8,10 @@ module.exports = {
     repo: "mrbbot/miniflare",
     docsDir: "docs",
     editLinks: true,
+    algolia: {
+      apiKey: "f0ffcd9dba78827de321d7fce21a8181",
+      indexName: "miniflare",
+    },
     sidebar: [
       {
         text: "Getting Started",
