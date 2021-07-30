@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import fetch from "@mrbbot/node-fetch";
 import envPaths from "env-paths";
-import semverGt from "semver/functions/gt";
+import semiver from "semiver";
 import yargs from "yargs";
 import { ConsoleLog, Log } from "./log";
 import {
@@ -276,7 +276,7 @@ export async function updateCheck({
   await fs.writeFile(lastCheckFile, now.toString(), "utf8");
 
   // Log version if latest version is greater than the currently installed
-  if (semverGt(registryVersion, pkg.version)) {
+  if (semiver(registryVersion, pkg.version) > 0) {
     log.warn(
       [
         `Miniflare ${registryVersion} is available,`,
