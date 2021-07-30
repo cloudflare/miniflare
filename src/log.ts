@@ -1,5 +1,5 @@
 import http from "http";
-import chalk from "chalk";
+import * as colors from "kleur/colors";
 import { MiniflareError } from "./error";
 
 export interface Log {
@@ -32,19 +32,19 @@ export class ConsoleLog implements Log {
   }
 
   debug(data: string): void {
-    if (this.logDebug) console.log(chalk.grey(`[mf:dbg] ${data}`));
+    if (this.logDebug) console.log(colors.grey(`[mf:dbg] ${data}`));
   }
 
   info(data: string): void {
-    console.log(chalk.green(`[mf:inf] ${data}`));
+    console.log(colors.green(`[mf:inf] ${data}`));
   }
 
   warn(data: string): void {
-    console.log(chalk.yellow(`[mf:wrn] ${data}`));
+    console.log(colors.yellow(`[mf:wrn] ${data}`));
   }
 
   error(data: string): void {
-    console.log(chalk.red(`[mf:err] ${data}`));
+    console.log(colors.red(`[mf:err] ${data}`));
   }
 }
 
@@ -54,11 +54,11 @@ function _millisFromHRTime([seconds, nanoseconds]: HRTime): string {
   return `${((seconds * 1e9 + nanoseconds) / 1e6).toFixed(2)}ms`;
 }
 
-function _colourFromHTTPStatus(status: number): chalk.ChalkFunction {
-  if (200 <= status && status < 300) return chalk.green;
-  if (400 <= status && status < 500) return chalk.yellow;
-  if (500 <= status) return chalk.red;
-  return chalk.blue;
+function _colourFromHTTPStatus(status: number): colors.Colorize {
+  if (200 <= status && status < 300) return colors.green;
+  if (400 <= status && status < 500) return colors.yellow;
+  if (500 <= status) return colors.red;
+  return colors.blue;
 }
 
 export async function logResponse(
@@ -90,18 +90,18 @@ export async function logResponse(
 
   log.log(
     [
-      `${chalk.bold(method)} ${url} `,
+      `${colors.bold(method as string)} ${url} `,
       status
         ? _colourFromHTTPStatus(status)(
-            `${chalk.bold(status)} ${http.STATUS_CODES[status]} `
+            `${colors.bold(status)} ${http.STATUS_CODES[status]} `
           )
         : "",
-      chalk.grey(`(${responseTime}`),
+      colors.grey(`(${responseTime}`),
       // Only include waitUntilTime if there were waitUntil promises
       waitUntilResponse?.length
-        ? chalk.grey(`, waitUntil: ${waitUntilTime}`)
+        ? colors.grey(`, waitUntil: ${waitUntilTime}`)
         : "",
-      chalk.grey(")"),
+      colors.grey(")"),
     ].join("")
   );
 }
