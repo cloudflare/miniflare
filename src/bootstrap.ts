@@ -2,7 +2,7 @@
 import childProcess from "child_process";
 import path from "path";
 
-/* Spawn a new process using the same NodeJS executable and passing the same
+/* Spawn a new process using the same Node.js executable and passing the same
  * command line arguments, but with the "--experimental-vm-modules" flag which
  * is required for modules support.
  *

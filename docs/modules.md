@@ -24,7 +24,7 @@ const mf = new Miniflare({
 ```
 
 When using the API you must also pass the **`--experimental-vm-modules`** flag
-to NodeJS. This is added automatically when using the CLI.
+to Node.js. This is added automatically when using the CLI.
 
 You can now use `modules` worker scripts like the following:
 

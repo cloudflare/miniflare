@@ -14,7 +14,7 @@ $ npm install -D miniflare
 
 ## Usage
 
-In all future examples, we'll assume NodeJS is running in ES module mode. You
+In all future examples, we'll assume Node.js is running in ES module mode. You
 can do this by setting the `type` field in your `package.json`:
 
 ```json
@@ -146,7 +146,7 @@ for more details.
 
 To start an HTTP server like the CLI's, use the `createServer` method. This
 returns a
-[NodeJS `http.Server`](https://nodejs.org/api/http.html#http_class_http_server)
+[Node.js `http.Server`](https://nodejs.org/api/http.html#http_class_http_server)
 instance:
 
 ```js{10}
