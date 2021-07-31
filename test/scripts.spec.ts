@@ -1,7 +1,7 @@
 import path from "path";
 import { TextDecoder } from "util";
 import test from "ava";
-import micromatch from "micromatch";
+import picomatch from "picomatch";
 import { MiniflareError } from "../src";
 import {
   ModuleRule,
@@ -10,7 +10,7 @@ import {
 } from "../src/options";
 import { ScriptBlueprint, ScriptLinker } from "../src/scripts";
 
-const micromatchOptions: micromatch.Options = { contains: true };
+const matchOptions: picomatch.PicomatchOptions = { contains: true };
 const moduleRules: ModuleRule[] = [
   { type: "ESModule", include: ["**/*.mjs"] },
   { type: "CommonJS", include: ["**/*.js", "**/*.cjs"] },
@@ -22,9 +22,7 @@ const moduleRules: ModuleRule[] = [
 ];
 const processedModuleRules = moduleRules.map<ProcessedModuleRule>((rule) => ({
   type: rule.type,
-  include: rule.include.map((glob) =>
-    micromatch.makeRe(glob, micromatchOptions)
-  ),
+  include: rule.include.map((glob) => picomatch.makeRe(glob, matchOptions)),
 }));
 
 test("buildScript: runs code in sandbox", async (t) => {

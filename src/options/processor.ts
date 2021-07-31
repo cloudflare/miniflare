@@ -4,8 +4,8 @@ import path from "path";
 import { URL } from "url";
 import { promisify } from "util";
 import dotenv from "dotenv";
-import micromatch from "micromatch";
 import cron from "node-cron";
+import picomatch from "picomatch";
 import selfSigned from "selfsigned";
 import { MiniflareError } from "../error";
 import { Mutex, defaultClock } from "../kv/helpers";
@@ -25,7 +25,7 @@ import {
 } from "./index";
 
 const noop = () => {};
-const micromatchOptions: micromatch.Options = { contains: true };
+const matchOptions: picomatch.PicomatchOptions = { contains: true };
 
 const certGenerate = promisify(selfSigned.generate);
 const certDefaultRoot = path.resolve(".mf", "cert");
@@ -88,16 +88,10 @@ export class OptionsProcessor {
   private _globsToRegexps(globs?: string[]): RegExp[] {
     const regexps: RegExp[] = [];
     for (const glob of globs ?? []) {
-      const regexp = micromatch.makeRe(glob, micromatchOptions) as
-        | RegExp
-        | false;
-      if (regexp === false) {
-        this.log.error(`Unable to parse glob "${glob}" (ignoring)`);
-      } else {
-        // Override toString so we log the glob not the regexp
-        regexp.toString = () => glob;
-        regexps.push(regexp);
-      }
+      const regexp = picomatch.makeRe(glob, matchOptions);
+      // Override toString so we log the glob not the regexp
+      regexp.toString = () => glob;
+      regexps.push(regexp);
     }
     return regexps;
   }
