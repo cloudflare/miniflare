@@ -1,9 +1,8 @@
 import assert from "assert";
 import path from "path";
-import Redis from "ioredis";
+import type Redis from "ioredis";
 import sanitize from "sanitize-filename";
 import { FileKVStorage, KVStorage, MemoryKVStorage } from "./storage";
-import { RedisKVStorage } from "./storage/redis";
 
 export function sanitise(fileName: string): string {
   return sanitize(fileName, { replacement: "_" });
@@ -44,8 +43,12 @@ export class KVStorageFactory {
         let connection = this.redisConnections.get(persist);
         if (!connection) {
           // TODO: (low priority) maybe allow redis options to be configured?
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const Redis = require("ioredis");
           this.redisConnections.set(persist, (connection = new Redis(persist)));
         }
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { RedisKVStorage } = require("./storage/redis");
         return new RedisKVStorage(namespace, connection);
       } else {
         // Otherwise, use file-system storage
