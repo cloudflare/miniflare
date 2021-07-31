@@ -4,17 +4,26 @@ import fetch from "@mrbbot/node-fetch";
 import envPaths from "env-paths";
 import semiver from "semiver";
 import yargs from "yargs";
-import { ConsoleLog, Log } from "./log";
 import {
+  ConsoleLog,
+  Log,
+  Miniflare,
   ModuleRule,
   ModuleRuleType,
   Options,
   getAccessibleHosts,
-  stripUndefinedOptions,
-} from "./options";
-import { Miniflare } from "./index";
+} from "./index";
 
 const defaultPort = 8787;
+
+function stripUndefinedOptions(options: Options): Options {
+  return Object.entries(options)
+    .filter(([, value]) => value !== undefined)
+    .reduce((options, [key, value]) => {
+      options[key as keyof Options] = value;
+      return options;
+    }, {} as Options);
+}
 
 function asStringArray(arr?: (string | number)[]): string[] | undefined {
   return arr?.map((value) => value.toString());

@@ -1,9 +1,8 @@
 import { promises as fs } from "fs";
 import path from "path";
 import test from "ava";
-import { ConsoleLog } from "../src";
+import { ConsoleLog, HTTPSOptions } from "../src";
 import parseArgv, { updateCheck } from "../src/cli";
-import { HTTPSOptions } from "../src/options";
 import { TestLog, useServer, useTmp } from "./helpers";
 
 test("parseArgv: parses complete argv", (t) => {

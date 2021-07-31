@@ -1,23 +1,9 @@
 import path from "path";
 import { URL } from "url";
 import test from "ava";
-import {
-  logOptions,
-  stringScriptPath,
-  stripUndefinedOptions,
-} from "../../src/options";
+import { logOptions, stringScriptPath } from "../../src/options";
 import { ScriptBlueprint } from "../../src/scripts";
 import { TestLog } from "../helpers";
-
-test("stripUndefinedOptions: removes undefined values", (t) => {
-  t.deepEqual(
-    stripUndefinedOptions({
-      host: undefined,
-      port: 8787,
-    }),
-    { port: 8787 }
-  );
-});
 
 const regexp1 = /1/;
 const regexp2 = /2/;

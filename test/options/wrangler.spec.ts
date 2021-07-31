@@ -5,7 +5,6 @@ import test from "ava";
 import rimraf from "rimraf";
 import { sync as which } from "which";
 import { Miniflare } from "../../src";
-import { stripUndefinedOptions } from "../../src/options";
 import { getWranglerOptions } from "../../src/options/wrangler";
 import { useTmp } from "../helpers";
 
@@ -144,7 +143,10 @@ test("getWranglerOptions: maps all options", (t) => {
 });
 test("getWranglerOptions: returns empty default options with empty file", (t) => {
   const options = getWranglerOptions("", process.cwd());
-  t.deepEqual(stripUndefinedOptions(options), {});
+  t.deepEqual(
+    Object.entries(options).filter(([_, value]) => value !== undefined),
+    []
+  );
 });
 
 test("getWranglerOptions: resolves script path relative to input, default and custom upload directories", async (t) => {

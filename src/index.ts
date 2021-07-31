@@ -502,4 +502,14 @@ export class Miniflare {
 export * from "./kv";
 export * from "./modules";
 export { Log, NoOpLog, ConsoleLog } from "./log";
-export { Options, MiniflareError };
+export {
+  ModuleRuleType,
+  ModuleRule,
+  ProcessedModuleRule,
+  DurableObjectOptions,
+  ProcessedDurableObject,
+  ProcessedHTTPSOptions,
+  HTTPSOptions,
+  getAccessibleHosts,
+} from "./options";
+export { Options, ProcessedOptions, MiniflareError };

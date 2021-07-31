@@ -25,7 +25,7 @@
     "build:fixtures": "node test/fixtures/build.js",
     "lint": "eslint '{src,test}/**/*.ts'",
     "prepublishOnly": "npm run lint && npm run build && npm run test",
-    "docs:changelog": "node docs/.vitepress/changelog.js",
+    "docs:changelog": "node docs/.vitepress/changelog.mjs",
     "docs:dev": "npm run docs:changelog && vitepress dev docs",
     "docs:build": "npm run docs:changelog && vitepress build docs",
     "docs:serve": "vitepress serve docs"
@@ -34,7 +34,6 @@
     "miniflare": "dist/bootstrap.js"
   },
   "dependencies": {
-    "@cloudflare/workers-types": "^2.2.2",
     "@iarna/toml": "^2.2.5",
     "@mrbbot/node-fetch": "^4.4.0",
     "@peculiar/webcrypto": "^1.1.4",

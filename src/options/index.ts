@@ -108,15 +108,6 @@ export interface ProcessedOptions extends Options {
   processedHttps?: ProcessedHTTPSOptions;
 }
 
-export function stripUndefinedOptions(options: Options): Options {
-  return Object.entries(options)
-    .filter(([, value]) => value !== undefined)
-    .reduce((options, [key, value]) => {
-      options[key as keyof Options] = value;
-      return options;
-    }, {} as Options);
-}
-
 export function logOptions(log: Log, options: ProcessedOptions): void {
   // Log final parsed options
   const entries = {
