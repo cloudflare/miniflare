@@ -1,4 +1,3 @@
-import assert from "assert";
 import { FetchError } from "@mrbbot/node-fetch";
 import anyTest, { TestInterface } from "ava";
 import {
@@ -10,9 +9,9 @@ import {
 } from "../../src";
 import {
   EventsModule,
-  passThroughMap,
-  responseMap,
-  waitUntilMap,
+  passThroughSymbol,
+  responseSymbol,
+  waitUntilSymbol,
 } from "../../src/modules/events";
 import {
   TestLog,
@@ -90,12 +89,9 @@ test("addModuleFunctionListener: adds event listener", async (t) => {
   );
   const event = new FetchEvent(new Request("http://localhost:8787/"));
   module._listeners.fetch[0](event);
-  t.true(passThroughMap.get(event));
-  const waitUntilPromises = waitUntilMap.get(event);
-  t.not(waitUntilPromises, undefined);
-  assert(waitUntilPromises);
-  t.deepEqual(await Promise.all(waitUntilPromises), ["value"]);
-  t.is(await (await responseMap.get(event))?.text(), "http://localhost:8787/");
+  t.true(event[passThroughSymbol]);
+  t.deepEqual(await Promise.all(event[waitUntilSymbol]), ["value"]);
+  t.is(await (await event[responseSymbol])?.text(), "http://localhost:8787/");
 });
 
 test("addModuleScheduledListener: adds event listener", async (t) => {
@@ -110,10 +106,7 @@ test("addModuleScheduledListener: adds event listener", async (t) => {
   );
   const event = new ScheduledEvent(1000, "30 * * * *");
   module._listeners.scheduled[0](event);
-  const waitUntilPromises = waitUntilMap.get(event);
-  t.not(waitUntilPromises, undefined);
-  assert(waitUntilPromises);
-  t.deepEqual(await Promise.all(waitUntilPromises), [
+  t.deepEqual(await Promise.all(event[waitUntilSymbol]), [
     "value",
     1000,
     "30 * * * *",

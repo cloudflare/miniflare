@@ -1,54 +1,45 @@
-import assert from "assert";
 import { URL } from "url";
 import fetch, { FetchError, Request, Response } from "@mrbbot/node-fetch";
 import { Context, EventListener, Module } from "./module";
 
 // Event properties that need to be accessible in the events module but not
 // to user code, exported for testing
-export const responseMap = new WeakMap<FetchEvent, Promise<Response>>();
-export const passThroughMap = new WeakMap<FetchEvent, boolean>();
-export const waitUntilMap = new WeakMap<
-  FetchEvent | ScheduledEvent,
-  Promise<any>[]
->();
+export const responseSymbol = Symbol("response");
+export const passThroughSymbol = Symbol("passThrough");
+export const waitUntilSymbol = Symbol("waitUntil");
 
 export class FetchEvent {
-  readonly type: "fetch";
-  readonly request: Request;
+  readonly type: "fetch" = "fetch";
+  [responseSymbol]?: Promise<Response>;
+  [passThroughSymbol] = false;
+  readonly [waitUntilSymbol]: Promise<any>[] = [];
 
-  constructor(request: Request) {
-    this.type = "fetch";
-    this.request = request;
-    waitUntilMap.set(this, []);
-  }
+  constructor(public readonly request: Request) {}
 
   respondWith(response: Response | Promise<Response>): void {
-    responseMap.set(this, Promise.resolve(response));
+    this[responseSymbol] = Promise.resolve(response);
   }
 
   passThroughOnException(): void {
-    passThroughMap.set(this, true);
+    this[passThroughSymbol] = true;
   }
 
   waitUntil(promise: Promise<any>): void {
-    waitUntilMap.get(this)?.push(promise);
+    this[waitUntilSymbol].push(promise);
   }
 }
 
 export class ScheduledEvent {
-  readonly type: "scheduled";
-  readonly scheduledTime: number;
-  readonly cron: string;
+  readonly type: "scheduled" = "scheduled";
+  readonly [waitUntilSymbol]: Promise<any>[] = [];
 
-  constructor(scheduledTime: number, cron: string) {
-    this.type = "scheduled";
-    this.scheduledTime = scheduledTime;
-    this.cron = cron;
-    waitUntilMap.set(this, []);
-  }
+  constructor(
+    public readonly scheduledTime: number,
+    public readonly cron: string
+  ) {}
 
   waitUntil(promise: Promise<any>): void {
-    waitUntilMap.get(this)?.push(promise);
+    this[waitUntilSymbol].push(promise);
   }
 }
 
@@ -137,16 +128,14 @@ export class EventsModule extends Module {
 
     const event = new FetchEvent(request.clone());
     const waitUntil = async () => {
-      const waitUntilPromises = waitUntilMap.get(event);
-      assert(waitUntilPromises);
-      return (await Promise.all(waitUntilPromises)) as WaitUntil;
+      return (await Promise.all(event[waitUntilSymbol])) as WaitUntil;
     };
     for (const listener of this._listeners.fetch ?? []) {
       try {
         listener(event);
-        // `responseMap.get(event)` may be `undefined`, but `await undefined` is
+        // `event[responseSymbol]` may be `undefined`, but `await undefined` is
         // still `undefined`
-        const response = (await responseMap.get(event)) as
+        const response = (await event[responseSymbol]) as
           | ResponseWaitUntil<WaitUntil>
           | undefined;
         if (response) {
@@ -154,7 +143,7 @@ export class EventsModule extends Module {
           return response;
         }
       } catch (e) {
-        if (passThroughMap.get(event)) {
+        if (event[passThroughSymbol]) {
           // warn instead of error so we don't throw an exception when not logging
           this.log.warn(e.stack);
           break;
@@ -185,8 +174,6 @@ export class EventsModule extends Module {
     for (const listener of this._listeners.scheduled ?? []) {
       listener(event);
     }
-    const waitUntilPromises = waitUntilMap.get(event);
-    assert(waitUntilPromises);
-    return (await Promise.all(waitUntilPromises)) as WaitUntil;
+    return (await Promise.all(event[waitUntilSymbol])) as WaitUntil;
   }
 }

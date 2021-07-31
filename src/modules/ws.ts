@@ -22,7 +22,7 @@ type WebSocketEventListener =
 // Maps web sockets to the other side of their connections, we don't want to
 // expose this to the user, but this cannot be a private field as we need to
 // construct both sockets before setting the circular references
-const pairMap = new WeakMap<WebSocket, WebSocket>();
+const pairSymbol = Symbol("pair");
 
 export class WebSocket implements WebSocketInterface {
   public static CONNECTING = 0;
@@ -33,6 +33,7 @@ export class WebSocket implements WebSocketInterface {
   #listeners: Record<string, WebSocketEventListener[]> = {};
   #readyState = WebSocket.CONNECTING;
   #sendQueue?: WebSocketMessageEvent[] = [];
+  [pairSymbol]?: WebSocket;
 
   get readyState(): number {
     return this.#readyState;
@@ -82,7 +83,7 @@ export class WebSocket implements WebSocketInterface {
   }
 
   send(message: string): void {
-    const pair = pairMap.get(this);
+    const pair = this[pairSymbol];
     assert(pair !== undefined);
     if (this.#readyState >= WebSocket.CLOSING) {
       throw new Error(
@@ -108,7 +109,7 @@ export class WebSocket implements WebSocketInterface {
   }
 
   close(code?: number, reason?: string): void {
-    const pair = pairMap.get(this);
+    const pair = this[pairSymbol];
     assert(pair !== undefined);
 
     if (
@@ -145,8 +146,8 @@ export class WebSocketPair {
   constructor() {
     this[0] = new WebSocket();
     this[1] = new WebSocket();
-    pairMap.set(this[0], this[1]);
-    pairMap.set(this[1], this[0]);
+    this[0][pairSymbol] = this[1];
+    this[1][pairSymbol] = this[0];
   }
 }
 

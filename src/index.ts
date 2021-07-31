@@ -435,6 +435,7 @@ export class Miniflare {
       }
     }
 
+    assert(req.method && req.url);
     await logResponse(this.log, {
       start,
       method: req.method,

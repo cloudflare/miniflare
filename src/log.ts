@@ -71,8 +71,8 @@ export async function logResponse(
     waitUntil,
   }: {
     start: HRTime;
-    method?: string;
-    url?: string;
+    method: string;
+    url: string;
     status?: number;
     waitUntil?: Promise<any[]>;
   }
@@ -90,7 +90,7 @@ export async function logResponse(
 
   log.log(
     [
-      `${colors.bold(method as string)} ${url} `,
+      `${colors.bold(method)} ${url} `,
       status
         ? _colourFromHTTPStatus(status)(
             `${colors.bold(status)} ${http.STATUS_CODES[status]} `
