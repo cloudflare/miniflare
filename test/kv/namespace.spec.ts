@@ -1,5 +1,5 @@
+import { ReadableStream } from "stream/web";
 import anyTest, { Macro, TestInterface } from "ava";
-import { ReadableStream } from "web-streams-polyfill/ponyfill/es6";
 import {
   KVGetValueType,
   KVListOptions,

@@ -304,16 +304,21 @@ export async function updateCheck({
 }
 
 if (module === require.main) {
-  // Suppress experimental modules warning
+  // Suppress experimental warnings
   const originalEmitWarning = process.emitWarning;
-  process.emitWarning = (warning, name, ctor) => {
-    if (
-      name === "ExperimentalWarning" &&
-      warning.toString().startsWith("VM Modules")
-    ) {
-      return;
+  // @ts-expect-error this works, but overloads are funky in typescript
+  process.emitWarning = (warning, ctorTypeOptions, ctorCode, ctor) => {
+    if (ctorTypeOptions === "ExperimentalWarning") {
+      const warningString = warning.toString();
+      if (
+        warningString.startsWith("VM Modules") ||
+        warningString.startsWith("stream/web") ||
+        warningString.startsWith("buffer.Blob")
+      ) {
+        return;
+      }
     }
-    return originalEmitWarning(warning, name, ctor);
+    originalEmitWarning(warning, ctorTypeOptions, ctorCode, ctor);
   };
 
   const options = parseArgv(process.argv.slice(2));

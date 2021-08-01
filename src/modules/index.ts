@@ -44,6 +44,7 @@ export {
   atob,
   btoa,
   crypto,
+  CryptoKey,
 } from "./standards";
 export {
   MessageEvent,

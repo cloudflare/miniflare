@@ -1,4 +1,4 @@
-import { ReadableStream } from "web-streams-polyfill/ponyfill/es6";
+import { ReadableStream } from "stream/web";
 import { KVClock, defaultClock, millisToSeconds } from "./helpers";
 import { KVStorage } from "./storage";
 

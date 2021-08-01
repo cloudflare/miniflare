@@ -1,7 +1,7 @@
+import { ReadableStream } from "stream/web";
 import { URLSearchParams } from "url";
 import { TextDecoder, TextEncoder } from "util";
 import test, { Macro, ThrowsExpectation } from "ava";
-import { ReadableStream } from "web-streams-polyfill/ponyfill/es6";
 import {
   Comment,
   Doctype,
