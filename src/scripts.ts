@@ -65,8 +65,8 @@ export class ModuleScriptInstance<Exports = any> implements ScriptInstance {
   }
 }
 
-let commonJsTransformer: CustomTransformers | undefined = undefined;
-let commonJsCompilerOptions: CompilerOptions | undefined = undefined;
+let cjsTransformer: CustomTransformers | undefined = undefined;
+let cjsCompilerOptions: CompilerOptions | undefined = undefined;
 
 export class ScriptLinker {
   readonly referencedPaths = new Set<string>();
@@ -127,23 +127,19 @@ export class ScriptLinker {
           ScriptTarget,
           // eslint-disable-next-line @typescript-eslint/no-var-requires
         } = require("typescript");
-        if (commonJsTransformer === undefined) {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          commonJsTransformer = require("cjstoesm").cjsToEsm();
-        }
-        if (commonJsCompilerOptions === undefined) {
-          commonJsCompilerOptions = {
-            allowJs: true,
-            sourceMap: true,
-            module: ModuleKind.ESNext,
-            target: ScriptTarget.ES2018,
-          };
-        }
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        cjsTransformer = cjsTransformer ?? require("cjstoesm").cjsToEsm();
+        cjsCompilerOptions = cjsCompilerOptions ?? {
+          allowJs: true,
+          sourceMap: true,
+          module: ModuleKind.ESNext,
+          target: ScriptTarget.ES2018,
+        };
 
         // Convert CommonJS module to an ESModule one
         const transpiled = transpileModule(data.toString("utf8"), {
-          transformers: commonJsTransformer,
-          compilerOptions: commonJsCompilerOptions,
+          transformers: cjsTransformer,
+          compilerOptions: cjsCompilerOptions,
           fileName: modulePath,
         });
         // Store ESModule -> CommonJS source map
