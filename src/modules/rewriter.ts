@@ -1,3 +1,4 @@
+import { ReadableStream } from "stream/web";
 import { TextEncoder } from "util";
 import {
   HTMLRewriter as BaseHTMLRewriter,
@@ -10,7 +11,6 @@ import {
   ElementHandlers,
   TextChunk,
 } from "html-rewriter-wasm";
-import { ReadableStream } from "web-streams-polyfill/ponyfill/es6";
 import { Context, Module } from "./module";
 import { Response } from "./standards";
 

@@ -1,16 +1,4 @@
-import { BinaryLike, createHash } from "crypto";
-import { URL, URLSearchParams } from "url";
-import { TextDecoder, TextEncoder } from "util";
-import originalFetch, {
-  FetchError,
-  Headers,
-  Response as RawResponse,
-  Request,
-  RequestInfo,
-  RequestInit,
-} from "@mrbbot/node-fetch";
-import { Crypto, CryptoKey } from "@peculiar/webcrypto";
-import FormData from "formdata-node";
+import { BinaryLike, createHash, webcrypto as crypto } from "crypto";
 import {
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
@@ -25,25 +13,31 @@ import {
   WritableStream,
   WritableStreamDefaultController,
   WritableStreamDefaultWriter,
-} from "web-streams-polyfill/ponyfill/es6";
-import StandardWebSocket from "ws";
+} from "stream/web";
+import { URL, URLSearchParams } from "url";
+import { TextDecoder, TextEncoder } from "util";
+import originalFetch, {
+  Headers,
+  Request,
+  RequestInfo,
+  RequestInit,
+  Response,
+} from "@mrbbot/node-fetch";
+import FormData from "formdata-node";
+import WebSocket from "ws";
 import { Log } from "../log";
 import { Context, Module } from "./module";
-import { WebSocket, WebSocketPair, terminateWebSocket } from "./ws";
-
-// Parameterise Response with correct WebSocket type
-export type Response = RawResponse<WebSocket>;
-export const Response = RawResponse;
+import { WebSocketPair, terminateWebSocket } from "./ws";
 
 export {
   URL,
   URLSearchParams,
   TextDecoder,
   TextEncoder,
-  FetchError,
   Headers,
   FormData,
   Request,
+  Response,
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
   ReadableByteStreamController,
@@ -57,7 +51,7 @@ export {
   WritableStream,
   WritableStreamDefaultController,
   WritableStreamDefaultWriter,
-  CryptoKey,
+  crypto,
 };
 
 export function atob(s: string): string {
@@ -68,7 +62,7 @@ export function btoa(s: string): string {
   return Buffer.from(s, "binary").toString("base64");
 }
 
-export const crypto = new Crypto();
+export const CryptoKey = crypto.CryptoKey;
 // Override the digest function to add support for MD5 digests which aren't
 // part of the WebCrypto standard, but are supported in Workers
 const originalDigest = crypto.subtle.digest.bind(crypto.subtle);
@@ -89,7 +83,7 @@ crypto.subtle.digest = function (algorithm, data) {
 };
 
 export class StandardsModule extends Module {
-  private webSockets: StandardWebSocket[];
+  private webSockets: WebSocket[];
   private readonly sandbox: Context;
 
   constructor(log: Log) {
@@ -199,16 +193,13 @@ export class StandardsModule extends Module {
     request.headers.delete("host");
 
     // Handle web socket upgrades
-    if (
-      request.method === "GET" &&
-      request.headers.get("upgrade") === "websocket"
-    ) {
+    if (request.headers.get("upgrade") === "websocket") {
       // Establish web socket connection
       const headers: Record<string, string> = {};
       for (const [key, value] of request.headers.entries()) {
         headers[key] = value;
       }
-      const ws = new StandardWebSocket(request.url, {
+      const ws = new WebSocket(request.url, {
         followRedirects: request.redirect === "follow",
         maxRedirects: request.follow,
         headers,

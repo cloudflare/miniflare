@@ -213,6 +213,7 @@ test("buildSandbox: includes web standards", (t) => {
   t.true(typeof sandbox.btoa === "function");
 
   t.true(typeof sandbox.crypto === "object");
+  t.true(typeof sandbox.CryptoKey === "function");
   t.true(typeof sandbox.TextDecoder === "function");
   t.true(typeof sandbox.TextEncoder === "function");
 
