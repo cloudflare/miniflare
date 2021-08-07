@@ -19,8 +19,8 @@
     "vendor"
   ],
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc -w",
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json -w",
     "test": "npm run build:fixtures && ava",
     "build:fixtures": "node test/fixtures/build.js",
     "lint": "eslint '{src,test}/**/*.ts'",
@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
-    "@mrbbot/node-fetch": "^5.0.2",
+    "@mrbbot/node-fetch": "^5.0.3",
     "chokidar": "^3.5.1",
     "dotenv": "^8.2.0",
     "env-paths": "^2.2.1",

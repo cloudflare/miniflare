@@ -1,32 +1,29 @@
 import assert from "assert";
 import { promises as fs } from "fs";
 import path from "path";
-import vm, { ModuleLinker } from "vm";
+import vm from "vm";
 import type { CompilerOptions, CustomTransformers } from "typescript";
-import { MiniflareError } from "./error";
-import { Context } from "./modules/module";
+import { MiniflareError } from "./helpers";
 import { ProcessedModuleRule, stringScriptPath } from "./options";
+
+export function createScriptContext(sandbox: vm.Context): vm.Context {
+  return vm.createContext(sandbox, {
+    codeGeneration: { strings: false },
+  });
+}
 
 export class ScriptBlueprint {
   constructor(public readonly code: string, public readonly fileName: string) {}
 
-  private static _createContext(context: Context): vm.Context {
-    return vm.createContext(context, {
-      codeGeneration: { strings: false },
-    });
-  }
-
-  async buildScript(context: Context): Promise<ScriptScriptInstance> {
-    const vmContext = ScriptBlueprint._createContext(context);
+  async buildScript(context: vm.Context): Promise<ScriptScriptInstance> {
     const script = new vm.Script(this.code, { filename: this.fileName });
-    return new ScriptScriptInstance(vmContext, script);
+    return new ScriptScriptInstance(context, script);
   }
 
   async buildModule<Exports = any>(
-    context: Context,
+    context: vm.Context,
     linker: vm.ModuleLinker
   ): Promise<ModuleScriptInstance<Exports>> {
-    const vmContext = ScriptBlueprint._createContext(context);
     if (!("SourceTextModule" in vm)) {
       throw new MiniflareError(
         "Modules support requires the --experimental-vm-modules flag"
@@ -34,7 +31,7 @@ export class ScriptBlueprint {
     }
     const module = new vm.SourceTextModule<Exports>(this.code, {
       identifier: this.fileName,
-      context: vmContext,
+      context,
     });
     await module.link(linker);
     return new ModuleScriptInstance(module);
@@ -71,7 +68,7 @@ let cjsCompilerOptions: CompilerOptions | undefined = undefined;
 export class ScriptLinker {
   readonly referencedPaths = new Set<string>();
   readonly extraSourceMaps = new Map<string, string>();
-  readonly linker: ModuleLinker;
+  readonly linker: vm.ModuleLinker;
 
   constructor(private moduleRules: ProcessedModuleRule[]) {
     this.linker = this._linker.bind(this);
@@ -114,6 +111,7 @@ export class ScriptLinker {
       identifier: modulePath,
       context: referencingModule.context,
     };
+    console.log(modulePath);
     switch (rule.type) {
       case "ESModule":
         return new vm.SourceTextModule(data.toString("utf8"), moduleOptions);

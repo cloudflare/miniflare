@@ -1,19 +1,12 @@
-import { promises as fs, readFileSync } from "fs";
+import { promises as fs } from "fs";
 import http from "http";
 import https from "https";
 import { AddressInfo } from "net";
 import path from "path";
 import type { RequestInit } from "@mrbbot/node-fetch";
-import test, { ExecutionContext, Macro } from "ava";
+import test, { ExecutionContext } from "ava";
 import StandardWebSocket from "ws";
-import {
-  Miniflare,
-  MiniflareError,
-  Options,
-  Response,
-  ScheduledEvent,
-} from "../src";
-import { formatSize } from "../src/helpers";
+import { Miniflare, MiniflareError, Response, ScheduledEvent } from "../src";
 import { stringScriptPath } from "../src/options";
 import {
   TestLog,
@@ -59,7 +52,7 @@ test.serial(
     const logs = interceptConsoleLogs(t);
     const mf = new Miniflare({ log: true, script: "// test" });
     await mf.getOptions(); // Wait for worker to load
-    t.deepEqual(logs, ["[mf:inf] Worker reloaded! (7B)"]);
+    t.deepEqual(logs, ["[mf:inf] Worker reloaded!"]);
   }
 );
 
@@ -125,93 +118,6 @@ test.serial(
     }
   }
 );
-
-const limitsPath = path.join(fixturesPath, "limits");
-
-const limitsEntryPath = path.join(limitsPath, "entry.mjs");
-const limitsDurableObjectPath = path.join(limitsPath, "object.mjs");
-const limitsEntryReferencedPath = path.join(limitsPath, "entryreferenced.mjs");
-const limitsSharedPath = path.join(limitsPath, "shared.mjs");
-const limitsEntryDiamondPath = path.join(limitsPath, "entrydiamond.mjs");
-const limitsAPath = path.join(limitsPath, "a.mjs");
-const limitsBPath = path.join(limitsPath, "b.mjs");
-
-const fileSize = (p: string) => readFileSync(p).byteLength;
-const limitsEntrySize = fileSize(limitsEntryPath);
-const limitsDurableObjectSize = fileSize(limitsDurableObjectPath);
-const limitsEntryReferencedSize = fileSize(limitsEntryReferencedPath);
-const limitsSharedSize = fileSize(limitsSharedPath);
-const limitsEntryDiamondSize = fileSize(limitsEntryDiamondPath);
-const limitsASize = fileSize(limitsAPath);
-const limitsBSize = fileSize(limitsBPath);
-
-const limitsMacro: Macro<[Options, number]> = async (
-  t,
-  options,
-  expectedSize
-) => {
-  const log = new TestLog();
-  const mf = new Miniflare({ log, modules: true, ...options });
-  await mf.getOptions();
-  t.is(log.infos[0], `Worker reloaded! (${formatSize(expectedSize)})`);
-};
-limitsMacro.title = (providedTitle) => `reloadWorker: ${providedTitle}`;
-test(
-  "logs script size",
-  limitsMacro,
-  { scriptPath: limitsEntryPath },
-  limitsEntrySize
-);
-test(
-  "script size includes referenced modules",
-  limitsMacro,
-  { scriptPath: limitsEntryReferencedPath },
-  limitsEntryReferencedSize + limitsSharedSize
-);
-test(
-  "script size includes multiple scripts",
-  limitsMacro,
-  {
-    scriptPath: limitsEntryPath,
-    durableObjects: {
-      TEST_OBJECT: {
-        className: "TestObject",
-        scriptPath: limitsDurableObjectPath,
-      },
-    },
-  },
-  limitsEntrySize + limitsDurableObjectSize
-);
-test(
-  "script size includes module in total at most once",
-  limitsMacro,
-  { scriptPath: limitsEntryDiamondPath },
-  limitsEntryDiamondSize + limitsASize + limitsBSize + limitsSharedSize
-);
-test("reloadWorker: logs warning if script size exceeds limit", async (t) => {
-  const tmp = await useTmp(t);
-  const bigBuffer = Buffer.alloc(1_100_000, 1); // Over 1MiB
-  await fs.writeFile(path.join(tmp, "big.bin"), bigBuffer);
-
-  const scriptPath = path.join(tmp, "entry.mjs");
-  const scriptBuffer = Buffer.from(
-    `import big from "./big.bin"; export default { fetch() { return new Response(); } };`,
-    "utf8"
-  );
-  await fs.writeFile(scriptPath, scriptBuffer);
-
-  const log = new TestLog();
-  const mf = new Miniflare({
-    log,
-    scriptPath,
-    modules: true,
-    modulesRules: [{ type: "Data", include: ["*.bin"] }],
-  });
-  await mf.getOptions();
-  const expectedSize = bigBuffer.byteLength + scriptBuffer.byteLength;
-  t.is(log.infos[0], `Worker reloaded! (${formatSize(expectedSize)})`);
-  t.regex(log.warns[0], /^Worker's uncompressed size exceeds 1MiB!/);
-});
 
 test("reloadOptions: reloads options manually", async (t) => {
   const tmp = await useTmp(t);
