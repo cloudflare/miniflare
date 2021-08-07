@@ -1,3 +1,4 @@
+import "./suppress";
 import { promises as fs } from "fs";
 import path from "path";
 import fetch from "@mrbbot/node-fetch";
@@ -304,23 +305,6 @@ export async function updateCheck({
 }
 
 if (module === require.main) {
-  // Suppress experimental warnings
-  const originalEmitWarning = process.emitWarning;
-  // @ts-expect-error this works, but overloads are funky in typescript
-  process.emitWarning = (warning, ctorTypeOptions, ctorCode, ctor) => {
-    if (ctorTypeOptions === "ExperimentalWarning") {
-      const warningString = warning.toString();
-      if (
-        warningString.startsWith("VM Modules") ||
-        warningString.startsWith("stream/web") ||
-        warningString.startsWith("buffer.Blob")
-      ) {
-        return;
-      }
-    }
-    originalEmitWarning(warning, ctorTypeOptions, ctorCode, ctor);
-  };
-
   const options = parseArgv(process.argv.slice(2));
   const mf = new Miniflare(options);
 

@@ -1,22 +1,21 @@
 import assert from "assert";
-import { Event, EventTarget } from "event-target-shim";
 import StandardWebSocket from "ws";
-import { MiniflareError } from "../helpers";
+import { MiniflareError, typedEventTarget } from "../helpers";
 import { Context, Module } from "./module";
 
-export class MessageEvent extends Event<"message"> {
+export class MessageEvent extends Event {
   constructor(public readonly data: string) {
     super("message");
   }
 }
 
-export class CloseEvent extends Event<"close"> {
+export class CloseEvent extends Event {
   constructor(public readonly code?: number, public readonly reason?: string) {
     super("close");
   }
 }
 
-export class ErrorEvent extends Event<"error"> {
+export class ErrorEvent extends Event {
   constructor(public readonly error?: Error) {
     super("error");
   }
@@ -32,7 +31,7 @@ type EventMap = {
   close: CloseEvent;
   error: ErrorEvent;
 };
-export class WebSocket extends EventTarget<EventMap> {
+export class WebSocket extends typedEventTarget<EventMap>() {
   public static CONNECTING = 0;
   public static OPEN = 1;
   public static CLOSING = 2;
@@ -103,6 +102,7 @@ export class WebSocket extends EventTarget<EventMap> {
     this.#readyState = WebSocket.CLOSING;
     pair.#readyState = WebSocket.CLOSING;
 
+    // TODO: PR Node.js lib/internal/event_target.js
     this.dispatchEvent(new CloseEvent(code, reason));
     pair.dispatchEvent(new CloseEvent(code, reason));
 
@@ -183,7 +183,6 @@ export class WebSocketsModule extends Module {
       MessageEvent,
       CloseEvent,
       ErrorEvent,
-      WebSocket,
       WebSocketPair,
     };
   }
