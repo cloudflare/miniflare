@@ -10,29 +10,26 @@ import {
   transpileModule,
 } from "typescript";
 import { MiniflareError } from "./error";
-import { Context } from "./modules/module";
 import { ProcessedModuleRule, stringScriptPath } from "./options";
+
+export function createScriptContext(sandbox: vm.Context): vm.Context {
+  return vm.createContext(sandbox, {
+    codeGeneration: { strings: false },
+  });
+}
 
 export class ScriptBlueprint {
   constructor(public readonly code: string, public readonly fileName: string) {}
 
-  private static _createContext(context: Context): vm.Context {
-    return vm.createContext(context, {
-      codeGeneration: { strings: false },
-    });
-  }
-
-  async buildScript(context: Context): Promise<ScriptScriptInstance> {
-    const vmContext = ScriptBlueprint._createContext(context);
+  async buildScript(context: vm.Context): Promise<ScriptScriptInstance> {
     const script = new vm.Script(this.code, { filename: this.fileName });
-    return new ScriptScriptInstance(vmContext, script);
+    return new ScriptScriptInstance(context, script);
   }
 
   async buildModule<Exports = any>(
-    context: Context,
+    context: vm.Context,
     linker: vm.ModuleLinker
   ): Promise<ModuleScriptInstance<Exports>> {
-    const vmContext = ScriptBlueprint._createContext(context);
     if (!("SourceTextModule" in vm)) {
       throw new MiniflareError(
         "Modules support requires the --experimental-vm-modules flag"
@@ -40,7 +37,7 @@ export class ScriptBlueprint {
     }
     const module = new vm.SourceTextModule<Exports>(this.code, {
       identifier: this.fileName,
-      context: vmContext,
+      context,
     });
     await module.link(linker);
     return new ModuleScriptInstance(module);

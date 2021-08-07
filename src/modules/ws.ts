@@ -1,38 +1,44 @@
 import assert from "assert";
-import {
-  WebSocketCloseEvent,
-  WebSocketErrorEvent,
-  WebSocket as WebSocketInterface,
-  WebSocketMessageEvent,
-} from "@mrbbot/node-fetch";
-import ws from "ws";
-import { MiniflareError } from "../error";
-import { Context, EventListener, Module } from "./module";
+import StandardWebSocket from "ws";
+import { MiniflareError, typedEventTarget } from "../helpers";
+import { Context, Module } from "./module";
 
-export type WebSocketEvent =
-  | WebSocketMessageEvent
-  | WebSocketCloseEvent
-  | WebSocketErrorEvent;
+export class MessageEvent extends Event {
+  constructor(public readonly data: string) {
+    super("message");
+  }
+}
 
-type WebSocketEventListener =
-  | EventListener<WebSocketMessageEvent>
-  | EventListener<WebSocketCloseEvent>
-  | EventListener<WebSocketErrorEvent>;
+export class CloseEvent extends Event {
+  constructor(public readonly code?: number, public readonly reason?: string) {
+    super("close");
+  }
+}
+
+export class ErrorEvent extends Event {
+  constructor(public readonly error?: Error) {
+    super("error");
+  }
+}
 
 // Maps web sockets to the other side of their connections, we don't want to
 // expose this to the user, but this cannot be a private field as we need to
 // construct both sockets before setting the circular references
 const pairSymbol = Symbol("pair");
 
-export class WebSocket implements WebSocketInterface {
+type EventMap = {
+  message: MessageEvent;
+  close: CloseEvent;
+  error: ErrorEvent;
+};
+export class WebSocket extends typedEventTarget<EventMap>() {
   public static CONNECTING = 0;
   public static OPEN = 1;
   public static CLOSING = 2;
   public static CLOSED = 3;
 
-  #listeners: Record<string, WebSocketEventListener[]> = {};
   #readyState = WebSocket.CONNECTING;
-  #sendQueue?: WebSocketMessageEvent[] = [];
+  #sendQueue?: MessageEvent[] = [];
   [pairSymbol]?: WebSocket;
 
   get readyState(): number {
@@ -50,35 +56,9 @@ export class WebSocket implements WebSocketInterface {
     this.#readyState = WebSocket.OPEN;
     if (this.#sendQueue) {
       for (const event of this.#sendQueue) {
-        this.dispatchEvent("message", event);
+        this.dispatchEvent(event);
       }
       this.#sendQueue = undefined;
-    }
-  }
-
-  addEventListener(
-    type: "message",
-    listener: EventListener<WebSocketMessageEvent>
-  ): void;
-  addEventListener(
-    type: "close",
-    listener: EventListener<WebSocketCloseEvent>
-  ): void;
-  addEventListener(
-    type: "error",
-    listener: EventListener<WebSocketErrorEvent>
-  ): void;
-  addEventListener(type: string, listener: WebSocketEventListener): void {
-    if (!(type in this.#listeners)) this.#listeners[type] = [];
-    this.#listeners[type].push(listener);
-  }
-
-  dispatchEvent(type: "message", event: WebSocketMessageEvent): void;
-  dispatchEvent(type: "close", event: WebSocketCloseEvent): void;
-  dispatchEvent(type: "error", event: WebSocketErrorEvent): void;
-  dispatchEvent(type: string, event: WebSocketEvent): void {
-    for (const listener of this.#listeners[type] ?? []) {
-      listener(event as any);
     }
   }
 
@@ -92,9 +72,9 @@ export class WebSocket implements WebSocketInterface {
         })`
       );
     }
-    const event: WebSocketMessageEvent = { type: "message", data: message };
+    const event = new MessageEvent(message);
     if (pair.#readyState === WebSocket.OPEN) {
-      pair.dispatchEvent("message", event);
+      pair.dispatchEvent(event);
     } else {
       if (pair.#readyState !== WebSocket.CONNECTING) {
         throw new Error(
@@ -113,8 +93,8 @@ export class WebSocket implements WebSocketInterface {
     assert(pair !== undefined);
 
     if (
-      this.#readyState === WebSocket.CLOSED ||
-      pair.#readyState === WebSocket.CLOSED
+      this.#readyState >= WebSocket.CLOSING ||
+      pair.#readyState >= WebSocket.CLOSING
     ) {
       return;
     }
@@ -122,9 +102,9 @@ export class WebSocket implements WebSocketInterface {
     this.#readyState = WebSocket.CLOSING;
     pair.#readyState = WebSocket.CLOSING;
 
-    const event: WebSocketCloseEvent = { type: "close", code, reason };
-    this.dispatchEvent("close", event);
-    pair.dispatchEvent("close", event);
+    // TODO: PR Node.js lib/internal/event_target.js
+    this.dispatchEvent(new CloseEvent(code, reason));
+    pair.dispatchEvent(new CloseEvent(code, reason));
 
     this.#readyState = WebSocket.CLOSED;
     pair.#readyState = WebSocket.CLOSED;
@@ -152,8 +132,8 @@ export class WebSocketPair {
 }
 
 export async function terminateWebSocket(
-  ws: ws,
-  pair: WebSocketInterface
+  ws: StandardWebSocket,
+  pair: WebSocket
 ): Promise<void> {
   // Forward events from client to worker
   ws.on("message", (message) => {
@@ -167,15 +147,15 @@ export async function terminateWebSocket(
     pair.close(code, reason);
   });
   ws.on("error", (error) => {
-    pair.dispatchEvent("error", { type: "error", error });
+    pair.dispatchEvent(new ErrorEvent(error));
   });
 
   // Forward events from worker to client
-  pair.addEventListener("message", ({ data }) => {
-    ws.send(data);
+  pair.addEventListener("message", (e) => {
+    ws.send(e.data);
   });
-  pair.addEventListener("close", ({ code, reason }) => {
-    ws.close(code, reason);
+  pair.addEventListener("close", (e) => {
+    ws.close(e.code, e.reason);
   });
 
   // Our constants are the same as ws's
@@ -199,6 +179,11 @@ export async function terminateWebSocket(
 
 export class WebSocketsModule extends Module {
   buildSandbox(): Context {
-    return { WebSocketPair };
+    return {
+      MessageEvent,
+      CloseEvent,
+      ErrorEvent,
+      WebSocketPair,
+    };
   }
 }

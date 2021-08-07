@@ -1,111 +1,114 @@
-import { FetchError } from "@mrbbot/node-fetch";
 import anyTest, { TestInterface } from "ava";
 import {
+  FetchError,
   FetchEvent,
   Miniflare,
+  NoOpLog,
   Request,
   Response,
   ScheduledEvent,
 } from "../../src";
 import {
   EventsModule,
+  ServiceWorkerGlobalScope,
+  addModuleFetchListenerSymbol,
+  addModuleScheduledListenerSymbol,
+  dispatchFetchSymbol,
+  dispatchScheduledSymbol,
   passThroughSymbol,
   responseSymbol,
   waitUntilSymbol,
 } from "../../src/modules/events";
-import {
-  TestLog,
-  getObjectProperties,
-  noop,
-  runInWorker,
-  useServer,
-} from "../helpers";
+import { TestLog, getObjectProperties, useServer } from "../helpers";
 
 interface Context {
   log: TestLog;
-  module: EventsModule;
+  globalScope: ServiceWorkerGlobalScope;
 }
 
 const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
   const log = new TestLog();
-  const module = new EventsModule(log);
-  t.context = { log, module };
+  const globalScope = new ServiceWorkerGlobalScope(
+    log,
+    {},
+    { KEY: "value" },
+    true // modules mode, so environment only included in env not global
+  );
+  t.context = { log, globalScope };
 });
 
-test("addEventListener: adds event listeners", (t) => {
-  const { log, module } = t.context;
-  const calls: string[] = [];
-  module.addEventListener("fetch", (e) =>
-    calls.push(`fetch1:${e.request.url}`)
+test("ServiceWorkerGlobalScope: includes sandbox in globals", async (t) => {
+  const globalScope = new ServiceWorkerGlobalScope(
+    new NoOpLog(),
+    { sand: "box" },
+    {},
+    false
   );
-  module.addEventListener("fetch", (e) =>
-    calls.push(`fetch2:${e.request.url}`)
+  t.is((globalScope as any).sand, "box");
+});
+test("ServiceWorkerGlobalScope: includes environment in globals if modules disabled", async (t) => {
+  let globalScope = new ServiceWorkerGlobalScope(
+    new NoOpLog(),
+    {},
+    { env: "ironment" },
+    false
   );
-  module.addEventListener("scheduled", (e) =>
-    calls.push(`scheduled1:${e.scheduledTime}:${e.cron}`)
+  t.is((globalScope as any).env, "ironment");
+  globalScope = new ServiceWorkerGlobalScope(
+    new NoOpLog(),
+    {},
+    { env: "ironment" },
+    true
   );
-  module.addEventListener("scheduled", (e) =>
-    calls.push(`scheduled2:${e.scheduledTime}:${e.cron}`)
-  );
-  t.is(log.warns.length, 0);
-  module._listeners.fetch.forEach((listener) =>
-    listener(new FetchEvent(new Request("http://localhost:8787/")))
-  );
-  module._listeners.scheduled.forEach((listener) =>
-    listener(new ScheduledEvent(1000, "30 * * * *"))
-  );
-  t.deepEqual(calls, [
-    "fetch1:http://localhost:8787/",
-    "fetch2:http://localhost:8787/",
-    "scheduled1:1000:30 * * * *",
-    "scheduled2:1000:30 * * * *",
+  t.is((globalScope as any).env, undefined);
+});
+test("ServiceWorkerGlobalScope: includes global self-references", async (t) => {
+  const { globalScope } = t.context;
+  t.is(globalScope.global, globalScope);
+  t.is(globalScope.globalThis, globalScope);
+  t.is(globalScope.self, globalScope);
+});
+test("ServiceWorkerGlobalScope: hides implementation details", async (t) => {
+  const { globalScope } = t.context;
+  t.deepEqual(getObjectProperties(globalScope), [
+    // EventTarget methods included twice for superclass
+    "addEventListener",
+    "addEventListener",
+    "dispatchEvent",
+    "dispatchEvent",
+    "global",
+    "globalThis",
+    "removeEventListener",
+    "removeEventListener",
+    "self",
   ]);
 });
 
-test("addEventListener: warns on invalid event type", (t) => {
-  const { log, module } = t.context;
-  const calls: string[] = [];
-  // @ts-expect-error event type "random" shouldn't be allowed
-  module.addEventListener("random", () => calls.push("random"));
-  t.is(
-    log.warns[0],
-    'Invalid event type: expected "fetch" | "scheduled", got "random"'
-  );
-  module._listeners.random.forEach((listener) => listener(null));
-  t.deepEqual(calls, ["random"]);
-});
-
 test("addModuleFunctionListener: adds event listener", async (t) => {
-  const { module } = t.context;
-  module.addModuleFetchListener(
-    (request, env, ctx) => {
-      ctx.passThroughOnException();
-      ctx.waitUntil(Promise.resolve(env.KEY));
-      return new Response(request.url);
-    },
-    { KEY: "value" }
-  );
+  const { globalScope } = t.context;
+  globalScope[addModuleFetchListenerSymbol]((request, env, ctx) => {
+    ctx.passThroughOnException();
+    ctx.waitUntil(Promise.resolve(env.KEY));
+    return new Response(request.url);
+  });
   const event = new FetchEvent(new Request("http://localhost:8787/"));
-  module._listeners.fetch[0](event);
+  globalScope.dispatchEvent(event);
   t.true(event[passThroughSymbol]);
   t.deepEqual(await Promise.all(event[waitUntilSymbol]), ["value"]);
   t.is(await (await event[responseSymbol])?.text(), "http://localhost:8787/");
 });
 
 test("addModuleScheduledListener: adds event listener", async (t) => {
-  const { module } = t.context;
-  module.addModuleScheduledListener(
-    (controller, env, ctx) => {
-      ctx.waitUntil(Promise.resolve(env.KEY));
-      ctx.waitUntil(Promise.resolve(controller.scheduledTime));
-      return controller.cron;
-    },
-    { KEY: "value" }
-  );
+  const { globalScope } = t.context;
+  globalScope[addModuleScheduledListenerSymbol]((controller, env, ctx) => {
+    ctx.waitUntil(Promise.resolve(env.KEY));
+    ctx.waitUntil(Promise.resolve(controller.scheduledTime));
+    return controller.cron;
+  });
   const event = new ScheduledEvent(1000, "30 * * * *");
-  module._listeners.scheduled[0](event);
+  globalScope.dispatchEvent(event);
   t.deepEqual(await Promise.all(event[waitUntilSymbol]), [
     "value",
     1000,
@@ -113,22 +116,15 @@ test("addModuleScheduledListener: adds event listener", async (t) => {
   ]);
 });
 
-test("resetEventListeners: resets events listeners", (t) => {
-  const { module } = t.context;
-  module.addEventListener("fetch", noop);
-  t.deepEqual(module._listeners, { fetch: [noop] });
-  module.resetEventListeners();
-  t.deepEqual(module._listeners, {});
-});
-
 test("buildSandbox: includes event classes", async (t) => {
-  const includes = await runInWorker({}, async () => {
-    const sandbox = self as any;
-    return "FetchEvent" in sandbox && "ScheduledEvent" in sandbox;
-  });
-  t.true(includes);
-});
+  const module = new EventsModule(new NoOpLog());
+  const sandbox = module.buildSandbox();
 
+  t.true(typeof sandbox.Event === "function");
+  t.true(typeof sandbox.EventTarget === "function");
+  t.true(typeof sandbox.FetchEvent === "function");
+  t.true(typeof sandbox.ScheduledEvent === "function");
+});
 test("buildSandbox: adds fetch event listener", async (t) => {
   const script = `(${(() => {
     const sandbox = self as any;
@@ -140,7 +136,6 @@ test("buildSandbox: adds fetch event listener", async (t) => {
   const res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
   t.is(await res.text(), "http://localhost:8787/");
 });
-
 test("buildSandbox: adds scheduled event listener", async (t) => {
   const script = `(${(() => {
     const sandbox = self as any;
@@ -154,89 +149,165 @@ test("buildSandbox: adds scheduled event listener", async (t) => {
   t.is(res[0], 1000);
   t.is(res[1], "30 * * * *");
 });
+test("buildSandbox: adds module fetch event listener", async (t) => {
+  const script = `export default {
+    fetch(request, env, ctx) {
+      ctx.waitUntil(Promise.resolve(env.KEY));
+      return new Response(request.url);
+    }
+  }`;
+  const mf = new Miniflare({
+    modules: true,
+    script,
+    bindings: { KEY: "value" },
+  });
+  const res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
+  t.is(await res.text(), "http://localhost:8787/");
+  t.deepEqual(await res.waitUntil(), ["value"]);
+});
+test("buildSandbox: adds module scheduled event listener", async (t) => {
+  const script = `export default {
+    scheduled(controller, env, ctx) {
+      ctx.waitUntil(Promise.resolve(controller.scheduledTime));
+      ctx.waitUntil(Promise.resolve(controller.cron));
+      ctx.waitUntil(Promise.resolve(env.KEY));
+    }
+  }`;
+  const mf = new Miniflare({
+    modules: true,
+    script,
+    bindings: { KEY: "value" },
+  });
+  const res = await mf.dispatchScheduled(1000, "30 * * * *");
+  t.is(res[0], 1000);
+  t.is(res[1], "30 * * * *");
+  t.is(res[2], "value");
+});
 
 test("dispatchFetch: dispatches event", async (t) => {
-  const { module } = t.context;
-  module.addEventListener("fetch", (e) => {
+  const { globalScope } = t.context;
+  globalScope.addEventListener("fetch", (e) => {
     e.respondWith(new Response(e.request.url));
   });
-  const res = await module.dispatchFetch(new Request("http://localhost:8787/"));
+  const res = await globalScope[dispatchFetchSymbol](
+    new Request("http://localhost:8787/")
+  );
   t.is(await res.text(), "http://localhost:8787/");
 });
-
 test("dispatchFetch: dispatches event with promise response", async (t) => {
-  const { module } = t.context;
-  module.addEventListener("fetch", (e) => {
+  const { globalScope } = t.context;
+  globalScope.addEventListener("fetch", (e) => {
     e.respondWith(Promise.resolve(new Response(e.request.url)));
   });
-  const res = await module.dispatchFetch(new Request("http://localhost:8787/"));
+  const res = await globalScope[dispatchFetchSymbol](
+    new Request("http://localhost:8787/")
+  );
   t.is(await res.text(), "http://localhost:8787/");
 });
-
 test("dispatchFetch: stops calling listeners after first response", async (t) => {
-  const { module } = t.context;
-  module.addEventListener("fetch", (e) => {
+  const { globalScope } = t.context;
+  globalScope.addEventListener("fetch", (e) => {
     e.waitUntil(Promise.resolve(1));
     e.waitUntil(Promise.resolve(2));
   });
-  module.addEventListener("fetch", (e) => {
+  globalScope.addEventListener("fetch", (e) => {
     e.waitUntil(Promise.resolve(3));
     e.respondWith(new Response(e.request.url));
   });
-  module.addEventListener("fetch", (e) => {
+  globalScope.addEventListener("fetch", (e) => {
     e.waitUntil(Promise.resolve(4));
   });
-  const res = await module.dispatchFetch(new Request("http://localhost:8787/"));
+  const res = await globalScope[dispatchFetchSymbol](
+    new Request("http://localhost:8787/")
+  );
   t.is(await res.text(), "http://localhost:8787/");
   t.deepEqual(await res.waitUntil(), [1, 2, 3]);
 });
-
-test("dispatchFetch: passes through to upstream on no response", async (t) => {
-  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
-  const { module } = t.context;
-  module.addEventListener("fetch", (e) => {
-    e.waitUntil(Promise.resolve(1));
+test("dispatchFetch: stops calling listeners after first error", async (t) => {
+  t.plan(3);
+  const { globalScope } = t.context;
+  globalScope.addEventListener("fetch", () => {
+    t.pass();
   });
-  const res = await module.dispatchFetch(new Request(upstream), upstream);
-  t.is(await res.text(), "upstream");
-  t.deepEqual(await res.waitUntil(), [1]);
-});
-
-test("dispatchFetch: passes through to upstream on error", async (t) => {
-  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
-  const { module } = t.context;
-  module.addEventListener("fetch", (e) => {
-    e.waitUntil(Promise.resolve(1));
-    e.passThroughOnException();
+  globalScope.addEventListener("fetch", () => {
+    t.pass();
     if (1 === 1) throw new Error("test");
-    e.respondWith(new Response(e.request.url));
   });
-  const res = await module.dispatchFetch(new Request(upstream), upstream);
-  t.is(await res.text(), "upstream");
-  t.deepEqual(await res.waitUntil(), [1]);
-});
-
-test("dispatchFetch: throws error if no pass through on listener error", async (t) => {
-  const { module } = t.context;
-  module.addEventListener("fetch", (e) => {
-    if (1 === 1) throw new Error("test");
-    e.respondWith(new Response(e.request.url));
+  globalScope.addEventListener("fetch", () => {
+    t.fail();
   });
   await t.throwsAsync(
-    () => module.dispatchFetch(new Request("http://localhost:8787/")),
+    () =>
+      globalScope[dispatchFetchSymbol](new Request("http://localhost:8787/")),
     { instanceOf: Error, message: "test" }
   );
 });
-
+test("dispatchFetch: passes through to upstream on no response", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  const { globalScope } = t.context;
+  globalScope.addEventListener("fetch", (e) => {
+    e.waitUntil(Promise.resolve(1));
+  });
+  const res = await globalScope[dispatchFetchSymbol](
+    new Request(upstream),
+    upstream
+  );
+  t.is(await res.text(), "upstream");
+  t.deepEqual(await res.waitUntil(), [1]);
+});
+test("dispatchFetch: passes through to upstream on error", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  const { globalScope } = t.context;
+  globalScope.addEventListener("fetch", (e) => {
+    e.waitUntil(Promise.resolve(1));
+    e.passThroughOnException();
+    if (1 === 1) throw new Error("test");
+    e.respondWith(new Response(e.request.url));
+  });
+  const res = await globalScope[dispatchFetchSymbol](
+    new Request(upstream),
+    upstream
+  );
+  t.is(await res.text(), "upstream");
+  t.deepEqual(await res.waitUntil(), [1]);
+});
+test("dispatchFetch: passes through to upstream on async error", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  const { globalScope } = t.context;
+  globalScope.addEventListener("fetch", (e) => {
+    e.waitUntil(Promise.resolve(1));
+    e.passThroughOnException();
+    e.respondWith(Promise.reject(new Error("test")));
+  });
+  const res = await globalScope[dispatchFetchSymbol](
+    new Request(upstream),
+    upstream
+  );
+  t.is(await res.text(), "upstream");
+  t.deepEqual(await res.waitUntil(), [1]);
+});
+test("dispatchFetch: throws error if no pass through on listener error", async (t) => {
+  const { globalScope } = t.context;
+  globalScope.addEventListener("fetch", (e) => {
+    if (1 === 1) throw new Error("test");
+    e.respondWith(new Response(e.request.url));
+  });
+  await t.throwsAsync(
+    () =>
+      globalScope[dispatchFetchSymbol](new Request("http://localhost:8787/")),
+    { instanceOf: Error, message: "test" }
+  );
+});
 test("dispatchFetch: throws error if pass through with no upstream", async (t) => {
-  const { module } = t.context;
-  module.addEventListener("fetch", (e) => {
+  const { globalScope } = t.context;
+  globalScope.addEventListener("fetch", (e) => {
     e.passThroughOnException();
     if (1 === 1) throw new Error("test");
     e.respondWith(new Response(e.request.url));
   });
   await t.throwsAsync(
-    () => module.dispatchFetch(new Request("http://localhost:8787/")),
+    () =>
+      globalScope[dispatchFetchSymbol](new Request("http://localhost:8787/")),
     {
       instanceOf: FetchError,
       message: /^No fetch handler responded and unable to proxy request to upstream/,
@@ -245,27 +316,45 @@ test("dispatchFetch: throws error if pass through with no upstream", async (t) =
 });
 
 test("dispatchScheduled: dispatches event", async (t) => {
-  const { module } = t.context;
-  module.addEventListener("scheduled", (e) => {
+  const { globalScope } = t.context;
+  globalScope.addEventListener("scheduled", (e) => {
     e.waitUntil(Promise.resolve(1));
     e.waitUntil(Promise.resolve(2));
   });
-  module.addEventListener("scheduled", (e) => {
+  globalScope.addEventListener("scheduled", (e) => {
     e.waitUntil(Promise.resolve(3));
     e.waitUntil(Promise.resolve(e.scheduledTime));
     e.waitUntil(Promise.resolve(e.cron));
   });
-  const res = await module.dispatchScheduled(1000, "30 * * * *");
+  const res = await globalScope[dispatchScheduledSymbol](1000, "30 * * * *");
   t.deepEqual(res, [1, 2, 3, 1000, "30 * * * *"]);
+});
+test("dispatchScheduled: stops calling listeners after first error", async (t) => {
+  t.plan(3);
+  const { globalScope } = t.context;
+  globalScope.addEventListener("scheduled", () => {
+    t.pass();
+  });
+  globalScope.addEventListener("scheduled", () => {
+    t.pass();
+    if (1 === 1) throw new Error("test");
+  });
+  globalScope.addEventListener("scheduled", () => {
+    t.fail();
+  });
+  await t.throwsAsync(() => globalScope[dispatchScheduledSymbol](), {
+    instanceOf: Error,
+    message: "test",
+  });
 });
 
 test("FetchEvent: hides implementation details", (t) => {
   const event = new FetchEvent(new Request("http://localhost:8787"));
   t.deepEqual(getObjectProperties(event), [
+    "isTrusted",
     "passThroughOnException",
     "request",
     "respondWith",
-    "type",
     "waitUntil",
   ]);
 });
@@ -273,8 +362,8 @@ test("ScheduledEvent: hides implementation details", (t) => {
   const event = new ScheduledEvent(1000, "30 * * * *");
   t.deepEqual(getObjectProperties(event), [
     "cron",
+    "isTrusted",
     "scheduledTime",
-    "type",
     "waitUntil",
   ]);
 });

@@ -11,14 +11,22 @@ import {
 } from "@mrbbot/node-fetch";
 import cron from "node-cron";
 import sourceMap, { UrlAndMap } from "source-map-support";
-import WebSocket from "ws";
+import StandardWebSocket from "ws";
 import Youch from "youch";
-import { MiniflareError } from "./error";
+import { MiniflareError } from "./helpers";
 import { Cache, KVStorageNamespace } from "./kv";
 import { ConsoleLog, Log, NoOpLog, logResponse } from "./log";
 import { ResponseWaitUntil } from "./modules";
 import { DurableObjectConstructor, DurableObjectNamespace } from "./modules/do";
-import { ModuleFetchListener, ModuleScheduledListener } from "./modules/events";
+import {
+  ModuleFetchListener,
+  ModuleScheduledListener,
+  addModuleFetchListenerSymbol,
+  addModuleScheduledListenerSymbol,
+  dispatchFetchSymbol,
+  dispatchScheduledSymbol,
+} from "./modules/events";
+import { ServiceWorkerGlobalScope } from "./modules/events";
 import { Context } from "./modules/module";
 import * as modules from "./modules/modules";
 import { terminateWebSocket } from "./modules/ws";
@@ -28,6 +36,7 @@ import {
   ModuleScriptInstance,
   ScriptLinker,
   ScriptScriptInstance,
+  createScriptContext,
 } from "./scripts";
 
 type ModuleName = keyof typeof modules;
@@ -50,12 +59,11 @@ export class Miniflare {
   readonly #watcher: OptionsWatcher;
   #options?: ProcessedOptions;
 
-  #sandbox: Context;
-  #environment: Context;
+  #globalScope?: ServiceWorkerGlobalScope;
   #scheduledTasks?: cron.ScheduledTask[];
   #extraSourceMaps?: Map<string, string>;
 
-  readonly #wss: WebSocket.Server;
+  readonly #wss: StandardWebSocket.Server;
 
   constructor(options: Options = {}) {
     if (options.sourceMap) {
@@ -77,12 +85,8 @@ export class Miniflare {
       {} as Modules
     );
 
-    // Defaults never used, will be overridden in #watchCallback
-    this.#sandbox = {};
-    this.#environment = {};
-
     // Initialise web socket server
-    this.#wss = new WebSocket.Server({ noServer: true });
+    this.#wss = new StandardWebSocket.Server({ noServer: true });
     this.#wss.addListener(
       "connection",
       this.#webSocketConnectionListener.bind(this)
@@ -104,20 +108,20 @@ export class Miniflare {
     this.#options = options;
     // Build sandbox and environment
     const modules = Object.values(this.#modules);
-    this.#sandbox = modules.reduce(
+    const sandbox = modules.reduce(
       (sandbox, module) => Object.assign(sandbox, module.buildSandbox(options)),
       {} as Context
     );
-    this.#environment = modules.reduce(
+    const environment = modules.reduce(
       (environment, module) =>
         Object.assign(environment, module.buildEnvironment(options)),
       {} as Context
     );
     // Assign bindings last so they can override modules if required
-    Object.assign(this.#environment, options.bindings);
+    Object.assign(environment, options.bindings);
 
     this.#reloadScheduled();
-    await this.#reloadWorker();
+    await this.#reloadWorker(sandbox, environment);
   }
 
   #reloadScheduled(): void {
@@ -137,7 +141,7 @@ export class Miniflare {
     );
   }
 
-  async #reloadWorker(): Promise<void> {
+  async #reloadWorker(sandbox: Context, environment: Context): Promise<void> {
     // Only called in #watchCallback() after #options set and scripts and
     // processedModulesRules are always set in this
     assert(this.#options?.scripts && this.#options.processedModulesRules);
@@ -146,19 +150,19 @@ export class Miniflare {
     const linker = new ScriptLinker(this.#options.processedModulesRules);
     this.#extraSourceMaps = linker.extraSourceMaps;
 
+    // Build new global scope (sandbox), this inherits from EventTarget
+    const globalScope = new ServiceWorkerGlobalScope(
+      this.log,
+      sandbox,
+      environment,
+      this.#options.modules
+    );
+    this.#globalScope = globalScope;
+    const context = createScriptContext(globalScope);
+
     // Reset state
-    this.#modules.EventsModule.resetEventListeners();
     this.#modules.DurableObjectsModule.resetInstances();
     this.#modules.StandardsModule.resetWebSockets();
-
-    // Build sandbox with global self-references, only including environment
-    // in global scope if not using modules
-    const sandbox = this.#options.modules
-      ? { ...this.#sandbox }
-      : { ...this.#sandbox, ...this.#environment };
-    sandbox.global = sandbox;
-    sandbox.globalThis = sandbox;
-    sandbox.self = sandbox;
 
     // Parse and run all scripts
     const moduleExports: Record<string, ModuleExports> = {};
@@ -169,8 +173,8 @@ export class Miniflare {
       let instance: ScriptScriptInstance | ModuleScriptInstance<ModuleExports>;
       try {
         instance = this.#options.modules
-          ? await script.buildModule(sandbox, linker.linker)
-          : await script.buildScript(sandbox);
+          ? await script.buildModule(context, linker.linker)
+          : await script.buildScript(context);
       } catch (e) {
         // If this is because --experimental-vm-modules disabled, rethrow
         if (e instanceof MiniflareError) throw e;
@@ -202,18 +206,12 @@ export class Miniflare {
       if (script.fileName === this.#options.scriptPath) {
         const fetchListener = instance.exports?.default?.fetch;
         if (fetchListener) {
-          this.#modules.EventsModule.addModuleFetchListener(
-            fetchListener,
-            this.#environment
-          );
+          globalScope[addModuleFetchListenerSymbol](fetchListener);
         }
 
         const scheduledListener = instance.exports?.default?.scheduled;
         if (scheduledListener) {
-          this.#modules.EventsModule.addModuleScheduledListener(
-            scheduledListener,
-            this.#environment
-          );
+          globalScope[addModuleScheduledListenerSymbol](scheduledListener);
         }
       }
     }
@@ -231,10 +229,7 @@ export class Miniflare {
         );
       }
     }
-    this.#modules.DurableObjectsModule.setContext(
-      constructors,
-      this.#environment
-    );
+    this.#modules.DurableObjectsModule.setContext(constructors, environment);
 
     // Watch module referenced paths
     assert(this.#watcher !== undefined);
@@ -263,7 +258,9 @@ export class Miniflare {
     init?: RequestInit
   ): Promise<ResponseWaitUntil<WaitUntil>> {
     await this.#watcher.initPromise;
-    return this.#modules.EventsModule.dispatchFetch<WaitUntil>(
+    const globalScope = this.#globalScope;
+    assert(globalScope);
+    return globalScope[dispatchFetchSymbol]<WaitUntil>(
       new Request(input, init),
       this.#options?.upstreamUrl
     );
@@ -274,10 +271,9 @@ export class Miniflare {
     cron?: string
   ): Promise<WaitUntil> {
     await this.#watcher.initPromise;
-    return this.#modules.EventsModule.dispatchScheduled<WaitUntil>(
-      scheduledTime,
-      cron
-    );
+    const globalScope = this.#globalScope;
+    assert(globalScope);
+    return globalScope[dispatchScheduledSymbol]<WaitUntil>(scheduledTime, cron);
   }
 
   async getOptions(): Promise<ProcessedOptions> {
@@ -448,7 +444,7 @@ export class Miniflare {
   }
 
   async #webSocketConnectionListener(
-    ws: WebSocket,
+    ws: StandardWebSocket,
     req: http.IncomingMessage
   ): Promise<void> {
     // Handle request in worker

@@ -1,19 +1,17 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "target": "es2018",
-    "lib": ["es2018", "webworker"],
+    "target": "esnext",
+    "lib": ["esnext"],
     "strict": true,
     "moduleResolution": "node",
     "esModuleInterop": true,
     "types": ["node"],
     "outDir": "dist",
     "declaration": true,
-    "importHelpers": true,
-    "removeComments": true,
     "sourceMap": true
   },
-  "include": ["src/**/*.ts", "types"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "types"],
   "exclude": ["node_modules"],
   "ts-node": {
     "files": true

@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import cron from "node-cron";
 import picomatch from "picomatch";
 import selfSigned from "selfsigned";
-import { MiniflareError } from "../error";
+import { MiniflareError } from "../helpers";
 import { Mutex, defaultClock } from "../kv/helpers";
 import { Log } from "../log";
 import { ScriptBlueprint } from "../scripts";

@@ -1,6 +1,5 @@
 import { existsSync, promises as fs } from "fs";
 import path from "path";
-import { Request, Response } from "@mrbbot/node-fetch";
 import test from "ava";
 import {
   DurableObject,
@@ -8,6 +7,8 @@ import {
   Miniflare,
   MiniflareError,
   NoOpLog,
+  Request,
+  Response,
 } from "../../src";
 import { KVStorageFactory } from "../../src/kv/helpers";
 import {

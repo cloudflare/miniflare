@@ -1,19 +1,15 @@
 import assert from "assert";
 import crypto from "crypto";
 import path from "path";
-import {
-  Request,
-  RequestInfo,
-  RequestInit,
-  Response,
-} from "@mrbbot/node-fetch";
-import { MiniflareError } from "../error";
+import { RequestInfo, RequestInit } from "@mrbbot/node-fetch";
+import { MiniflareError } from "../helpers";
 import { DurableObjectStorage } from "../kv";
 import { abortAllSymbol } from "../kv/do";
 import { KVStorageFactory } from "../kv/helpers";
 import { Log } from "../log";
 import { ProcessedOptions } from "../options";
 import { Context, Module } from "./module";
+import { Request, Response } from "./standards";
 
 // Ideally we would store the storage on the DurableObject instance itself,
 // but we don't know what the user's Durable Object code does, so we store it

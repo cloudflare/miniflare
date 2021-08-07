@@ -8,7 +8,11 @@ import {
   ProcessedModuleRule,
   stringScriptPath,
 } from "../src/options";
-import { ScriptBlueprint, ScriptLinker } from "../src/scripts";
+import {
+  ScriptBlueprint,
+  ScriptLinker,
+  createScriptContext,
+} from "../src/scripts";
 
 const matchOptions: picomatch.PicomatchOptions = { contains: true };
 const moduleRules: ModuleRule[] = [
@@ -28,21 +32,23 @@ const processedModuleRules = moduleRules.map<ProcessedModuleRule>((rule) => ({
 test("buildScript: runs code in sandbox", async (t) => {
   t.plan(1);
   const blueprint = new ScriptBlueprint(`callback("test")`, "test.js");
-  const script = await blueprint.buildScript({
+  const context = createScriptContext({
     callback: (result: string) => t.is(result, "test"),
   });
+  const script = await blueprint.buildScript(context);
   await script.run();
 });
 test("buildScript: disallows code generation", async (t) => {
   const blueprint = new ScriptBlueprint(`eval('callback()')`, "test.js");
-  const script = await blueprint.buildScript({ callback: () => t.fail() });
+  const context = createScriptContext({ callback: () => t.fail() });
+  const script = await blueprint.buildScript(context);
   await t.throwsAsync(script.run(), {
     message: "Code generation from strings disallowed for this context",
   });
 });
 test("buildScript: includes file name in stack traces", async (t) => {
   const blueprint = new ScriptBlueprint(`throw new Error("test")`, "test.js");
-  const script = await blueprint.buildScript({});
+  const script = await blueprint.buildScript(createScriptContext({}));
   try {
     await script.run();
     t.fail();
@@ -55,19 +61,17 @@ test("buildModule: runs code in sandbox", async (t) => {
   t.plan(1);
   const blueprint = new ScriptBlueprint(`callback("test")`, "test.mjs");
   const { linker } = new ScriptLinker(processedModuleRules);
-  const script = await blueprint.buildModule(
-    { callback: (result: string) => t.is(result, "test") },
-    linker
-  );
+  const context = createScriptContext({
+    callback: (result: string) => t.is(result, "test"),
+  });
+  const script = await blueprint.buildModule(context, linker);
   await script.run();
 });
 test("buildModule: disallows code generation", async (t) => {
   const blueprint = new ScriptBlueprint(`eval('callback()')`, "test.mjs");
   const { linker } = new ScriptLinker(processedModuleRules);
-  const script = await blueprint.buildModule(
-    { callback: () => t.fail() },
-    linker
-  );
+  const context = createScriptContext({ callback: () => t.fail() });
+  const script = await blueprint.buildModule(context, linker);
   await t.throwsAsync(script.run(), {
     message: "Code generation from strings disallowed for this context",
   });
@@ -75,7 +79,7 @@ test("buildModule: disallows code generation", async (t) => {
 test("buildModule: includes file name in stack traces", async (t) => {
   const blueprint = new ScriptBlueprint(`throw new Error("test")`, "test.mjs");
   const { linker } = new ScriptLinker(processedModuleRules);
-  const script = await blueprint.buildModule({}, linker);
+  const script = await blueprint.buildModule(createScriptContext({}), linker);
   try {
     await script.run();
     t.fail();
@@ -89,7 +93,7 @@ test("buildModule: exposes exports", async (t) => {
     "test.mjs"
   );
   const { linker } = new ScriptLinker(processedModuleRules);
-  const script = await blueprint.buildModule({}, linker);
+  const script = await blueprint.buildModule(createScriptContext({}), linker);
   await script.run();
   t.is(script.exports.a, "a");
   t.is(script.exports.default, "b");
@@ -109,7 +113,7 @@ test("buildLinker: links ESModule modules", async (t) => {
     linkerScriptPath
   );
   const { linker } = new ScriptLinker(processedModuleRules);
-  const script = await blueprint.buildModule({}, linker);
+  const script = await blueprint.buildModule(createScriptContext({}), linker);
   await script.run();
   t.is(script.exports.default, "ESModule test");
 });
@@ -119,7 +123,7 @@ test("buildLinker: links CommonJS modules", async (t) => {
     linkerScriptPath
   );
   const { linker } = new ScriptLinker(processedModuleRules);
-  const script = await blueprint.buildModule({}, linker);
+  const script = await blueprint.buildModule(createScriptContext({}), linker);
   await script.run();
   t.is(script.exports.default, "CommonJS test");
 });
@@ -129,7 +133,7 @@ test("buildLinker: links Text modules", async (t) => {
     linkerScriptPath
   );
   const { linker } = new ScriptLinker(processedModuleRules);
-  const script = await blueprint.buildModule({}, linker);
+  const script = await blueprint.buildModule(createScriptContext({}), linker);
   await script.run();
   t.is(script.exports.default.trimEnd(), "Text test");
 });
@@ -139,7 +143,7 @@ test("buildLinker: links Data modules", async (t) => {
     linkerScriptPath
   );
   const { linker } = new ScriptLinker(processedModuleRules);
-  const script = await blueprint.buildModule({}, linker);
+  const script = await blueprint.buildModule(createScriptContext({}), linker);
   await script.run();
   t.deepEqual(
     new TextDecoder().decode(script.exports.default).trimEnd(),
@@ -159,7 +163,7 @@ test("buildLinker: links CompiledWasm modules", async (t) => {
     linkerScriptPath
   );
   const { linker } = new ScriptLinker(processedModuleRules);
-  const script = await blueprint.buildModule({}, linker);
+  const script = await blueprint.buildModule(createScriptContext({}), linker);
   await script.run();
   t.is(script.exports.default, 3);
 });
@@ -169,7 +173,7 @@ test("buildLinker: builds set of linked module paths", async (t) => {
     linkerScriptPath
   );
   const { linker, referencedPaths } = new ScriptLinker(processedModuleRules);
-  await blueprint.buildModule({}, linker);
+  await blueprint.buildModule(createScriptContext({}), linker);
   const dir = path.dirname(linkerScriptPath);
   t.deepEqual(
     referencedPaths,
@@ -182,7 +186,7 @@ test("buildLinker: throws error if trying to import from string script", async (
     stringScriptPath
   );
   const { linker } = new ScriptLinker(processedModuleRules);
-  await t.throwsAsync(blueprint.buildModule({}, linker), {
+  await t.throwsAsync(blueprint.buildModule(createScriptContext({}), linker), {
     instanceOf: MiniflareError,
     message: /imports unsupported with string script$/,
   });
@@ -193,7 +197,7 @@ test("buildLinker: throws error if no matching module rule", async (t) => {
     linkerScriptPath
   );
   const { linker } = new ScriptLinker(processedModuleRules);
-  await t.throwsAsync(blueprint.buildModule({}, linker), {
+  await t.throwsAsync(blueprint.buildModule(createScriptContext({}), linker), {
     instanceOf: MiniflareError,
     message: /no matching module rules$/,
   });
@@ -204,7 +208,7 @@ test("buildLinker: throws error for unsupported module type", async (t) => {
     linkerScriptPath
   );
   const { linker } = new ScriptLinker(processedModuleRules);
-  await t.throwsAsync(blueprint.buildModule({}, linker), {
+  await t.throwsAsync(blueprint.buildModule(createScriptContext({}), linker), {
     instanceOf: MiniflareError,
     message: /PNG modules are unsupported$/,
   });

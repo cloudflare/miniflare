@@ -1,5 +1,5 @@
 import path from "path";
-import { MiniflareError } from "../error";
+import { MiniflareError } from "../helpers";
 import { Cache, NoOpCache } from "../kv";
 import { KVStorageFactory } from "../kv/helpers";
 import { Log } from "../log";

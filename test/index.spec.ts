@@ -5,7 +5,7 @@ import { AddressInfo } from "net";
 import path from "path";
 import type { RequestInit } from "@mrbbot/node-fetch";
 import test, { ExecutionContext } from "ava";
-import WebSocket from "ws";
+import StandardWebSocket from "ws";
 import { Miniflare, MiniflareError, Response, ScheduledEvent } from "../src";
 import { stringScriptPath } from "../src/options";
 import {
@@ -470,7 +470,7 @@ test("createServer: handles web socket upgrades", async (t) => {
   const port = await listen(t, mf.createServer());
   // Wait for watcher initPromise before sending requests
   await mf.getOptions();
-  const ws = new WebSocket(`ws://localhost:${port}`);
+  const ws = new StandardWebSocket(`ws://localhost:${port}`);
   const [eventTrigger, eventPromise] = triggerPromise<string>();
   ws.addEventListener("message", (e) => {
     eventTrigger(e.data);
@@ -491,7 +491,7 @@ test("createServer: expects status 101 and web socket response for upgrades", as
   // Wait for watcher initPromise before sending requests
   await mf.getOptions();
 
-  const ws = new WebSocket(`ws://localhost:${port}`);
+  const ws = new StandardWebSocket(`ws://localhost:${port}`);
 
   const [eventTrigger, eventPromise] = triggerPromise<{
     code: number;

@@ -15,6 +15,7 @@ export {
   URLSearchParams,
   TextDecoder,
   TextEncoder,
+  FetchError,
   Headers,
   FormData,
   Request,
@@ -36,4 +37,10 @@ export {
   btoa,
   crypto,
 } from "./standards";
-export { WebSocket, WebSocketPair } from "./ws";
+export {
+  MessageEvent,
+  CloseEvent,
+  ErrorEvent,
+  WebSocket,
+  WebSocketPair,
+} from "./ws";

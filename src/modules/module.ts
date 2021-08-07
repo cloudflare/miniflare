@@ -3,8 +3,6 @@ import { ProcessedOptions } from "../options";
 
 export type Context = Record<string, any>;
 
-export type EventListener<Event> = (event: Event) => void;
-
 export abstract class Module {
   constructor(protected log: Log) {}
 

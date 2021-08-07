@@ -1,24 +1,17 @@
 import assert from "assert";
-import {
-  Request,
-  WebSocketCloseEvent,
-  WebSocketErrorEvent,
-  WebSocketMessageEvent,
-} from "@mrbbot/node-fetch";
 import test from "ava";
-import WebSocketClient from "ws";
+import StandardWebSocket from "ws";
 import {
+  CloseEvent,
+  MessageEvent,
   Miniflare,
   MiniflareError,
   NoOpLog,
+  Request,
   WebSocket,
   WebSocketPair,
 } from "../../src";
-import {
-  WebSocketEvent,
-  WebSocketsModule,
-  terminateWebSocket,
-} from "../../src/modules/ws";
+import { WebSocketsModule, terminateWebSocket } from "../../src/modules/ws";
 import { noop, triggerPromise, useServer } from "../helpers";
 
 test("WebSocket: accepts only in connecting state", (t) => {
@@ -30,38 +23,6 @@ test("WebSocket: accepts only in connecting state", (t) => {
     instanceOf: Error,
     message: "WebSocket is not connecting: readyState 1 (OPEN)",
   });
-});
-test("WebSocket: handles events", (t) => {
-  const webSocket = new WebSocket();
-
-  const events1: WebSocketEvent[] = [];
-  const events2: WebSocketEvent[] = [];
-  webSocket.addEventListener("message", (e) => events1.push(e));
-  webSocket.addEventListener("message", (e) => events2.push(e));
-  webSocket.addEventListener("close", (e) => events1.push(e));
-  webSocket.addEventListener("close", (e) => events2.push(e));
-  webSocket.addEventListener("error", (e) => events1.push(e));
-  webSocket.addEventListener("error", (e) => events2.push(e));
-
-  const messageEvent: WebSocketMessageEvent = {
-    type: "message",
-    data: "test",
-  };
-  const closeEvent: WebSocketCloseEvent = {
-    type: "close",
-    code: 1000,
-    reason: "Normal Closure",
-  };
-  const errorEvent: WebSocketErrorEvent = {
-    type: "error",
-    error: new Error("Test error"),
-  };
-  webSocket.dispatchEvent("message", messageEvent);
-  webSocket.dispatchEvent("close", closeEvent);
-  webSocket.dispatchEvent("error", errorEvent);
-
-  t.deepEqual(events1, [messageEvent, closeEvent, errorEvent]);
-  t.deepEqual(events2, [messageEvent, closeEvent, errorEvent]);
 });
 test("WebSocket: sends message to pair", (t) => {
   const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
@@ -137,12 +98,12 @@ test("WebSocket: closes both sides of pair", (t) => {
 
 test("terminateWebSocket: forwards messages from client to worker before termination", async (t) => {
   const server = await useServer(t, noop, (ws) => ws.send("test"));
-  const ws = new WebSocketClient(server.ws);
+  const ws = new StandardWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   // Accept before termination, simulates accepting in worker code before returning response
   worker.accept();
-  const eventPromise = new Promise<WebSocketMessageEvent>((resolve) => {
+  const eventPromise = new Promise<MessageEvent>((resolve) => {
     worker.addEventListener("message", resolve);
   });
   await terminateWebSocket(ws, client);
@@ -152,12 +113,12 @@ test("terminateWebSocket: forwards messages from client to worker before termina
 });
 test("terminateWebSocket: forwards messages from client to worker after termination", async (t) => {
   const server = await useServer(t, noop, (ws) => ws.send("test"));
-  const ws = new WebSocketClient(server.ws);
+  const ws = new StandardWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   await terminateWebSocket(ws, client);
   // Accept after termination, simulates accepting in worker code after returning response
-  const eventPromise = new Promise<WebSocketMessageEvent>((resolve) => {
+  const eventPromise = new Promise<MessageEvent>((resolve) => {
     worker.addEventListener("message", resolve);
   });
   // accept() after addEventListener() as it dispatches queued messages
@@ -170,10 +131,10 @@ test("terminateWebSocket: closes socket on receiving binary data", async (t) => 
   const server = await useServer(t, noop, (ws) => {
     ws.send(Buffer.from("test", "utf8"));
   });
-  const ws = new WebSocketClient(server.ws);
+  const ws = new StandardWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
   worker.accept();
-  const eventPromise = new Promise<WebSocketCloseEvent>((resolve) => {
+  const eventPromise = new Promise<CloseEvent>((resolve) => {
     worker.addEventListener("close", resolve);
   });
   await terminateWebSocket(ws, client);
@@ -186,10 +147,10 @@ test("terminateWebSocket: closes worker socket on client close", async (t) => {
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("message", () => ws.close(1000, "Test Closure"));
   });
-  const ws = new WebSocketClient(server.ws);
+  const ws = new StandardWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
   worker.accept();
-  const eventPromise = new Promise<WebSocketCloseEvent>((resolve) => {
+  const eventPromise = new Promise<CloseEvent>((resolve) => {
     worker.addEventListener("close", resolve);
   });
 
@@ -205,7 +166,7 @@ test("terminateWebSocket: forwards messages from worker to client before termina
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("message", eventTrigger);
   });
-  const ws = new WebSocketClient(server.ws);
+  const ws = new StandardWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   worker.accept();
@@ -221,7 +182,7 @@ test("terminateWebSocket: forwards messages from worker to client after terminat
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("message", eventTrigger);
   });
-  const ws = new WebSocketClient(server.ws);
+  const ws = new StandardWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   worker.accept();
@@ -240,7 +201,7 @@ test("terminateWebSocket: closes client socket on worker close", async (t) => {
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("close", eventTrigger);
   });
-  const ws = new WebSocketClient(server.ws);
+  const ws = new StandardWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
   worker.accept();
   await terminateWebSocket(ws, client);
@@ -255,7 +216,7 @@ test("terminateWebSocket: accepts worker socket immediately if already open", as
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("message", eventTrigger);
   });
-  const ws = new WebSocketClient(server.ws);
+  const ws = new StandardWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   worker.accept();
@@ -272,7 +233,7 @@ test("terminateWebSocket: accepts worker socket immediately if already open", as
 });
 test("terminateWebSocket: throws if web socket already closed", async (t) => {
   const server = await useServer(t, noop, noop);
-  const ws = new WebSocketClient(server.ws);
+  const ws = new StandardWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   worker.accept();
@@ -300,7 +261,7 @@ test("buildSandbox: sends and responds to web socket messages", async (t) => {
       const [client, worker] = Object.values(new sandbox.WebSocketPair());
       worker.accept();
       // Echo received messages
-      worker.addEventListener("message", (e: WebSocketMessageEvent) => {
+      worker.addEventListener("message", (e: MessageEvent) => {
         worker.send(e.data);
       });
       // Send message to test queuing

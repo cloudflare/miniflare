@@ -2,11 +2,12 @@ import { BinaryLike, createHash } from "crypto";
 import { URL, URLSearchParams } from "url";
 import { TextDecoder, TextEncoder } from "util";
 import originalFetch, {
+  FetchError,
   Headers,
+  Response as RawResponse,
   Request,
   RequestInfo,
   RequestInit,
-  Response,
 } from "@mrbbot/node-fetch";
 import { Crypto, CryptoKey } from "@peculiar/webcrypto";
 import FormData from "formdata-node";
@@ -25,20 +26,24 @@ import {
   WritableStreamDefaultController,
   WritableStreamDefaultWriter,
 } from "web-streams-polyfill/ponyfill/es6";
-import WebSocket from "ws";
+import StandardWebSocket from "ws";
 import { Log } from "../log";
 import { Context, Module } from "./module";
-import { WebSocketPair, terminateWebSocket } from "./ws";
+import { WebSocket, WebSocketPair, terminateWebSocket } from "./ws";
+
+// Parameterise Response with correct WebSocket type
+export type Response = RawResponse<WebSocket>;
+export const Response = RawResponse;
 
 export {
   URL,
   URLSearchParams,
   TextDecoder,
   TextEncoder,
+  FetchError,
   Headers,
   FormData,
   Request,
-  Response,
   ByteLengthQueuingStrategy,
   CountQueuingStrategy,
   ReadableByteStreamController,
@@ -52,6 +57,7 @@ export {
   WritableStream,
   WritableStreamDefaultController,
   WritableStreamDefaultWriter,
+  CryptoKey,
 };
 
 export function atob(s: string): string {
@@ -83,7 +89,7 @@ crypto.subtle.digest = function (algorithm, data) {
 };
 
 export class StandardsModule extends Module {
-  private webSockets: WebSocket[];
+  private webSockets: StandardWebSocket[];
   private readonly sandbox: Context;
 
   constructor(log: Log) {
@@ -199,7 +205,7 @@ export class StandardsModule extends Module {
       for (const [key, value] of request.headers.entries()) {
         headers[key] = value;
       }
-      const ws = new WebSocket(request.url, {
+      const ws = new StandardWebSocket(request.url, {
         followRedirects: request.redirect === "follow",
         maxRedirects: request.follow,
         headers,

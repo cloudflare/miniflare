@@ -1,6 +1,6 @@
 import http from "http";
 import * as colors from "kleur/colors";
-import { MiniflareError } from "./error";
+import { MiniflareError } from "./helpers";
 
 export interface Log {
   log(data: string): void;
