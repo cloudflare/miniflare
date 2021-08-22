@@ -7,3 +7,9 @@ export class MiniflareError extends Error {
     this.name = new.target.name;
   }
 }
+
+export function formatSize(bytes: number): string {
+  if (bytes >= 524_288) return `${(bytes / 1_048_576).toFixed(2)}MiB`;
+  if (bytes >= 512) return `${(bytes / 1_024).toFixed(2)}KiB`;
+  return `${bytes}B`;
+}

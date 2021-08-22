@@ -13,7 +13,7 @@ import cron from "node-cron";
 import sourceMap, { UrlAndMap } from "source-map-support";
 import StandardWebSocket from "ws";
 import Youch from "youch";
-import { MiniflareError } from "./helpers";
+import { MiniflareError, formatSize } from "./helpers";
 import { Cache, KVStorageNamespace } from "./kv";
 import { ConsoleLog, Log, NoOpLog, logResponse } from "./log";
 import { ResponseWaitUntil } from "./modules";
@@ -146,6 +146,9 @@ export class Miniflare {
     // processedModulesRules are always set in this
     assert(this.#options?.scripts && this.#options.processedModulesRules);
 
+    // Keep track of the size in bytes of all scripts
+    let size = 0;
+
     // Build modules linker maintaining set of referenced paths for watching
     const linker = new ScriptLinker(this.#options.processedModulesRules);
     this.#extraSourceMaps = linker.extraSourceMaps;
@@ -170,6 +173,7 @@ export class Miniflare {
       this.log.debug(`Reloading ${path.relative("", script.fileName)}...`);
 
       // Parse script and build instance
+      size += Buffer.byteLength(script.code, "utf8");
       let instance: ScriptScriptInstance | ModuleScriptInstance<ModuleExports>;
       try {
         instance = this.#options.modules
@@ -240,7 +244,15 @@ export class Miniflare {
       ws.close(1012, "Service Restart");
     }
 
-    this.log.info("Worker reloaded!");
+    // Log total size of worker with warning if required
+    size += linker.referencedPathsTotalSize;
+    this.log.info(`Worker reloaded! (${formatSize(size)})`);
+    if (size > 1_048_576)
+      this.log.warn(
+        "Worker's uncompressed size exceeds 1MiB!" +
+          "Note that your worker will be compressed during upload " +
+          "so you may still be able to deploy it."
+      );
   }
 
   /** @deprecated Since 1.2.0, this is just an alias for reloadOptions() */

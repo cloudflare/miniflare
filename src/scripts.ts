@@ -78,11 +78,19 @@ const commonJsCompilerOptions: CompilerOptions = {
 
 export class ScriptLinker {
   readonly referencedPaths = new Set<string>();
+  private _referencedPathsSizes = new Map<string, number>();
   readonly extraSourceMaps = new Map<string, string>();
   readonly linker: ModuleLinker;
 
   constructor(private moduleRules: ProcessedModuleRule[]) {
     this.linker = this._linker.bind(this);
+  }
+
+  get referencedPathsTotalSize(): number {
+    // Make sure we only include each module once, even if it's referenced
+    // from multiple scripts
+    const sizes = Array.from(this._referencedPathsSizes.values());
+    return sizes.reduce((total, size) => total + size, 0);
   }
 
   private async _linker(
@@ -118,6 +126,7 @@ export class ScriptLinker {
     // Load module based on rule type
     this.referencedPaths.add(modulePath);
     const data = await fs.readFile(modulePath);
+    this._referencedPathsSizes.set(modulePath, data.byteLength);
     const moduleOptions = {
       identifier: modulePath,
       context: referencingModule.context,
