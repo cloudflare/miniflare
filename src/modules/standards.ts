@@ -199,7 +199,10 @@ export class StandardsModule extends Module {
     request.headers.delete("host");
 
     // Handle web socket upgrades
-    if (request.headers.get("upgrade") === "websocket") {
+    if (
+      request.method === "GET" &&
+      request.headers.get("upgrade") === "websocket"
+    ) {
       // Establish web socket connection
       const headers: Record<string, string> = {};
       for (const [key, value] of request.headers.entries()) {

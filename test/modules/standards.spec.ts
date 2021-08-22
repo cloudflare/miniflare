@@ -87,6 +87,26 @@ test("fetch: performs web socket upgrade", async (t) => {
   await eventPromise;
   t.deepEqual(messages, ["hello client", "Test", "hello server"]);
 });
+test("fetch: requires GET for web socket upgrade", async (t) => {
+  const module = new StandardsModule(new NoOpLog());
+  const server = await useServer(
+    t,
+    (req, res) => {
+      t.is(req.method, "POST");
+      res.end("http response");
+    },
+    () => {
+      t.fail();
+    }
+  );
+  const res = await module.fetch(server.http, {
+    method: "POST",
+    headers: { upgrade: "websocket" },
+  });
+  const webSocket = res.webSocket;
+  t.is(webSocket, undefined);
+  t.is(await res.text(), "http response");
+});
 test("resetWebSockets: closes all web sockets", async (t) => {
   const module = new StandardsModule(new NoOpLog());
   const [eventTrigger, eventPromise] = triggerPromise<{
