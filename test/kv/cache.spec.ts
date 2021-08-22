@@ -1,5 +1,5 @@
 import assert from "assert";
-import { HeadersInit } from "@mrbbot/node-fetch";
+import { HeadersInit, RequestInfo } from "@mrbbot/node-fetch";
 import anyTest, { Macro, TestInterface } from "ava";
 import {
   Cache,
@@ -34,7 +34,7 @@ const testResponse = new Response("value", {
 
 // Cache:* tests adapted from Cloudworker:
 // https://github.com/dollarshaveclub/cloudworker/blob/master/lib/runtime/cache/__tests__/cache.test.js
-const putMacro: Macro<[string | Request], Context> = async (t, req) => {
+const putMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   const { storage, cache } = t.context;
   await cache.put(req, testResponse.clone());
 
@@ -54,6 +54,7 @@ const putMacro: Macro<[string | Request], Context> = async (t, req) => {
 putMacro.title = (providedTitle) => `Cache: puts ${providedTitle}`;
 test("request", putMacro, new Request("http://localhost:8787/test"));
 test("string request", putMacro, "http://localhost:8787/test");
+test("url request", putMacro, new URL("http://localhost:8787/test"));
 
 test("Cache: only puts GET requests", async (t) => {
   const { storage, cache } = t.context;
@@ -69,7 +70,7 @@ test("Cache: only puts GET requests", async (t) => {
   );
 });
 
-const matchMacro: Macro<[string | Request], Context> = async (t, req) => {
+const matchMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   const { cache } = t.context;
   await cache.put(
     new Request("http://localhost:8787/test"),
@@ -87,6 +88,7 @@ const matchMacro: Macro<[string | Request], Context> = async (t, req) => {
 matchMacro.title = (providedTitle) => `Cache: matches ${providedTitle}`;
 test("request", matchMacro, new Request("http://localhost:8787/test"));
 test("string request", matchMacro, "http://localhost:8787/test");
+test("url request", matchMacro, new URL("http://localhost:8787/test"));
 
 test("Cache: only matches non-GET requests when ignoring method", async (t) => {
   const { cache } = t.context;
@@ -99,7 +101,7 @@ test("Cache: only matches non-GET requests when ignoring method", async (t) => {
   t.not(await cache.match(req, { ignoreMethod: true }), undefined);
 });
 
-const deleteMacro: Macro<[string | Request], Context> = async (t, req) => {
+const deleteMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   const { storage, cache } = t.context;
   await cache.put(
     new Request("http://localhost:8787/test"),
@@ -113,6 +115,7 @@ const deleteMacro: Macro<[string | Request], Context> = async (t, req) => {
 deleteMacro.title = (providedTitle) => `Cache: deletes ${providedTitle}`;
 test("request", deleteMacro, new Request("http://localhost:8787/test"));
 test("string request", deleteMacro, "http://localhost:8787/test");
+test("url request", deleteMacro, new URL("http://localhost:8787/test"));
 
 test("Cache: only deletes non-GET requests when ignoring method", async (t) => {
   const { cache } = t.context;

@@ -1,4 +1,4 @@
-import { Headers, Request, Response } from "@mrbbot/node-fetch";
+import { Headers, Request, RequestInfo, Response } from "@mrbbot/node-fetch";
 import CachePolicy from "http-cache-semantics";
 import { KVClock, defaultClock } from "./helpers";
 import { KVStorageNamespace } from "./namespace";
@@ -15,8 +15,8 @@ export interface CachedResponse {
   body: string;
 }
 
-function normaliseRequest(req: string | Request): Request {
-  return typeof req === "string" ? new Request(req) : req;
+function normaliseRequest(req: RequestInfo): Request {
+  return req instanceof Request ? req : new Request(req);
 }
 
 // Normalises headers to object mapping lower-case names to single values.
@@ -55,7 +55,7 @@ export class Cache implements CacheInterface {
     this.#namespace = new KVStorageNamespace(storage, clock);
   }
 
-  async put(req: string | Request, res: Response): Promise<undefined> {
+  async put(req: RequestInfo, res: Response): Promise<undefined> {
     req = normaliseRequest(req);
 
     // Cloudflare ignores request Cache-Control
@@ -124,7 +124,7 @@ export class Cache implements CacheInterface {
   }
 
   async match(
-    req: string | Request,
+    req: RequestInfo,
     options?: CacheMatchOptions
   ): Promise<Response | undefined> {
     req = normaliseRequest(req);
@@ -145,7 +145,7 @@ export class Cache implements CacheInterface {
   }
 
   async delete(
-    req: string | Request,
+    req: RequestInfo,
     options?: CacheMatchOptions
   ): Promise<boolean> {
     req = normaliseRequest(req);
