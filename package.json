@@ -61,22 +61,6 @@
     "yargs": "^16.2.0",
     "youch": "^2.2.2"
   },
-  "peerDependencies": {
-    "cjstoesm": "1",
-    "ioredis": "4",
-    "typescript": "4"
-  },
-  "peerDependenciesMeta": {
-    "ioredis": {
-      "optional": true
-    },
-    "typescript": {
-      "optional": true
-    },
-    "cjstoesm": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@cloudflare/kv-asset-handler": "^0.1.3",
     "@types/http-cache-semantics": "^4.0.0",
