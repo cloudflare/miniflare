@@ -249,9 +249,10 @@ test("terminateWebSocket: throws if web socket already closed", async (t) => {
   });
 });
 
-test("buildSandbox: includes WebSocketPair", (t) => {
+test("buildSandbox: includes WebSocket and WebSocketPair", (t) => {
   const module = new WebSocketsModule(new NoOpLog());
   const sandbox = module.buildSandbox();
+  t.true(typeof sandbox.WebSocket === "function");
   t.true(typeof sandbox.WebSocketPair === "function");
 });
 test("buildSandbox: sends and responds to web socket messages", async (t) => {

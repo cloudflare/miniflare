@@ -183,6 +183,7 @@ export class WebSocketsModule extends Module {
       MessageEvent,
       CloseEvent,
       ErrorEvent,
+      WebSocket,
       WebSocketPair,
     };
   }
