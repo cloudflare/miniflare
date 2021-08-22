@@ -122,7 +122,7 @@ export class OptionsProcessor {
     this._scriptBlueprints[scriptPath] = new ScriptBlueprint(code, scriptPath);
   }
 
-  runCustomBuild(command: string, basePath?: string): Promise<void> {
+  runCustomBuild(command: string, basePath?: string): Promise<boolean> {
     return this._buildMutex.run(
       () =>
         new Promise((resolve) => {
@@ -132,12 +132,13 @@ export class OptionsProcessor {
             stdio: "inherit",
           });
           build.on("exit", (code) => {
-            if (code === 0) {
+            const succeeded = code === 0;
+            if (succeeded) {
               this.log.info("Build succeeded");
             } else {
               this.log.error(`Build failed with exit code ${code}`);
             }
-            resolve();
+            resolve(succeeded);
           });
         })
     );

@@ -15,8 +15,7 @@
   "types": "dist/index.d.ts",
   "files": [
     "dist",
-    "src",
-    "vendor"
+    "src"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

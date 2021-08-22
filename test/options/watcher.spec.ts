@@ -222,7 +222,6 @@ watchTest("rebuilds if watched build path changes", async (t) => {
   const watchedPath = path.join(tmp, "watch.txt");
   const scriptPath = path.join(tmp, "script.js");
   const relativeWatchedPath = path.relative("", watchedPath);
-  const relativeScriptPath = path.relative("", scriptPath);
   await fs.writeFile(watchedPath, "1", "utf8");
 
   const watcher = new OptionsWatcher(
@@ -247,7 +246,6 @@ watchTest("rebuilds if watched build path changes", async (t) => {
   await fs.writeFile(watchedPath, "2", "utf8");
   options = await next();
   t.is(log.debugs[0], `${relativeWatchedPath} changed, rebuilding...`);
-  t.is(log.debugs[1], `${relativeScriptPath} changed, reloading...`);
   t.is(options.scripts?.[scriptPath].code.trim(), `// build${os.EOL}// build`);
 });
 

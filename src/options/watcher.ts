@@ -22,6 +22,7 @@ export class OptionsWatcher {
   private _watcher?: chokidar.FSWatcher;
   private _watchedPaths?: Set<string>;
   private _extraWatchedPaths?: Set<string>;
+  private _building = false;
 
   readonly initPromise: Promise<void>;
 
@@ -118,7 +119,7 @@ export class OptionsWatcher {
       .on("unlink", boundCallback);
   }
 
-  private _watchedPathCallback(eventPath: string) {
+  private async _watchedPathCallback(eventPath: string) {
     if (
       this._options?.buildWatchPath &&
       eventPath.startsWith(this._options.buildWatchPath)
@@ -129,13 +130,22 @@ export class OptionsWatcher {
         );
         // Re-run build, this should change a script triggering the watcher
         // again
-        void this._processor.runCustomBuild(
-          this._options.buildCommand,
-          this._options.buildBasePath
-        );
+        this._building = true;
+        try {
+          const succeeded = await this._processor.runCustomBuild(
+            this._options.buildCommand,
+            this._options.buildBasePath
+          );
+          if (succeeded) await this.reloadOptions(false);
+        } finally {
+          // Wait a little bit before starting to process watch events again
+          // to allow built file changes to come through
+          setTimeout(() => (this._building = false), 50);
+        }
       }
-    } else {
-      // If the path isn't in buildWatchPath, reload options and scripts
+    } else if (!this._building) {
+      // If the path isn't in buildWatchPath, reload options and scripts,
+      // provided we're not currently building
       this.log.debug(`${path.relative("", eventPath)} changed, reloading...`);
 
       // Log options is this was an options file, we don't want to spam the log
@@ -145,7 +155,7 @@ export class OptionsWatcher {
         eventPath === this._processor.packagePath ||
         eventPath === this._options?.envPath;
 
-      void this.reloadOptions(log);
+      await this.reloadOptions(log);
     }
   }
 
