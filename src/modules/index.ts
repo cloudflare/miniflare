@@ -1,5 +1,13 @@
 export { Cache, NoOpCache } from "./cache";
-export { DurableObject } from "./do";
+export {
+  DurableObject,
+  DurableObjectState,
+  DurableObjectConstructor,
+  DurableObjectId,
+  DurableObjectStub,
+  DurableObjectNamespace,
+  DurableObjectFactory,
+} from "./do";
 export { FetchEvent, ScheduledEvent, ResponseWaitUntil } from "./events";
 export {
   HTMLRewriter,
