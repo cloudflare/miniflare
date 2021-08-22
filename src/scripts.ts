@@ -9,7 +9,7 @@ import {
   ScriptTarget,
   transpileModule,
 } from "typescript";
-import { MiniflareError } from "./error";
+import { MiniflareError } from "./helpers";
 import { ProcessedModuleRule, stringScriptPath } from "./options";
 
 export function createScriptContext(sandbox: vm.Context): vm.Context {

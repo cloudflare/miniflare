@@ -1,6 +1,6 @@
 import { URL } from "url";
 import fetch from "@mrbbot/node-fetch";
-import { TypedEventListener, typedEventTarget } from "../helpers";
+import { Event, EventTarget } from "event-target-shim";
 import { Log } from "../log";
 import { Context, Module } from "./module";
 import { FetchError, Request, Response } from "./standards";
@@ -11,7 +11,7 @@ export const responseSymbol = Symbol("response");
 export const passThroughSymbol = Symbol("passThrough");
 export const waitUntilSymbol = Symbol("waitUntil");
 
-export class FetchEvent extends Event {
+export class FetchEvent extends Event<"fetch"> {
   [responseSymbol]?: Promise<Response>;
   [passThroughSymbol] = false;
   readonly [waitUntilSymbol]: Promise<any>[] = [];
@@ -34,7 +34,7 @@ export class FetchEvent extends Event {
   }
 }
 
-export class ScheduledEvent extends Event {
+export class ScheduledEvent extends Event<"scheduled"> {
   readonly [waitUntilSymbol]: Promise<any>[] = [];
 
   constructor(
@@ -79,11 +79,11 @@ type EventMap = {
   fetch: FetchEvent;
   scheduled: ScheduledEvent;
 };
-export class ServiceWorkerGlobalScope extends typedEventTarget<EventMap>() {
+export class ServiceWorkerGlobalScope extends EventTarget<EventMap> {
   readonly #log: Log;
   readonly #environment: Context;
   readonly #wrappedListeners = new WeakMap<
-    EventListenerOrEventListenerObject,
+    EventTarget.EventListener<this, any>,
     EventListener
   >();
   #wrappedError?: Error;
@@ -116,34 +116,12 @@ export class ServiceWorkerGlobalScope extends typedEventTarget<EventMap>() {
     this.dispatchEvent = this.dispatchEvent.bind(this);
   }
 
-  #wrap(listener: TypedEventListener<Event> | null): EventListener | null {
+  #wrap<T extends keyof EventMap>(
+    listener?: EventTarget.EventListener<this, EventMap[T]> | null
+  ): EventTarget.CallbackFunction<this, EventMap[T]> | null | undefined {
     // When an event listener throws, we want dispatching to stop and the
     // error to be thrown so we can catch it and display a nice error page.
-    // Unfortunately, Node's event target emits uncaught exceptions when a
-    // listener throws, which are tricky to catch without breaking tests (AVA
-    // also registers an uncaught exception handler).
-    //
-    // Node 16.6.0's internal implementation contains this line to throw
-    // uncaught exceptions: `process.nextTick(() => { throw err; });`.
-    // A potential solution would be to monkey-patch `process.nextTick` and call
-    // the callback immediately:
-    //
-    // ```js
-    // const originalNextTick = process.nextTick;
-    // process.nextTick = (callback) => callback();
-    // try {
-    //   this.dispatchEvent(event);
-    // } finally {
-    //   process.nextTick = originalNextTick;
-    // }
-    // ```
-    //
-    // However, this relies on internal behaviour that may change at any point
-    // and may prevent the EventTarget from doing required clean up. Hence,
-    // we wrap event listeners instead, storing the wrapped versions in a
-    // WeakMap so they can be removed when the original listener is passed to
-    // removeEventListener.
-
+    if (listener === undefined) return undefined;
     if (listener === null) return null;
     const wrappedListeners = this.#wrappedListeners;
     let wrappedListener = wrappedListeners.get(listener);
@@ -151,9 +129,10 @@ export class ServiceWorkerGlobalScope extends typedEventTarget<EventMap>() {
     wrappedListener = (event) => {
       try {
         if ("handleEvent" in listener) {
-          listener.handleEvent(event);
+          listener.handleEvent(event as EventMap[T]);
         } else {
-          listener(event);
+          // @ts-expect-error "this" type is definitely correct
+          listener(event as EventMap[T]);
         }
       } catch (error) {
         event.stopImmediatePropagation();
@@ -164,20 +143,20 @@ export class ServiceWorkerGlobalScope extends typedEventTarget<EventMap>() {
     return wrappedListener;
   }
 
-  addEventListener<EventType extends keyof EventMap>(
-    type: EventType,
-    listener: TypedEventListener<EventMap[EventType]> | null,
-    options?: AddEventListenerOptions | boolean
+  addEventListener<T extends keyof EventMap>(
+    type: T,
+    listener?: EventTarget.EventListener<this, EventMap[T]> | null,
+    options?: EventTarget.AddOptions | boolean
   ): void {
-    super.addEventListener(type, this.#wrap(listener as any), options);
+    super.addEventListener(type, this.#wrap(listener), options as any);
   }
 
-  removeEventListener<EventType extends keyof EventMap>(
-    type: EventType,
-    listener: TypedEventListener<EventMap[EventType]> | null,
-    options?: EventListenerOptions | boolean
+  removeEventListener<T extends string & keyof EventMap>(
+    type: T,
+    listener?: EventTarget.EventListener<this, EventMap[T]> | null,
+    options?: EventTarget.Options | boolean
   ): void {
-    super.removeEventListener(type, this.#wrap(listener as any), options);
+    super.removeEventListener(type, this.#wrap(listener), options as any);
   }
 
   dispatchEvent(event: Event): boolean {

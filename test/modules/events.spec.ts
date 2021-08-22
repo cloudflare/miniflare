@@ -183,6 +183,24 @@ test("buildSandbox: adds module scheduled event listener", async (t) => {
   t.is(res[1], "30 * * * *");
   t.is(res[2], "value");
 });
+test("buildSandbox: removes event listeners", async (t) => {
+  const script = `(${(() => {
+    const sandbox = self as any;
+    const waitUntilOne = (e: FetchEvent) => {
+      e.waitUntil(Promise.resolve(1));
+    };
+    sandbox.addEventListener("fetch", waitUntilOne);
+    sandbox.addEventListener("fetch", (e: FetchEvent) => {
+      sandbox.removeEventListener("fetch", waitUntilOne);
+      e.respondWith(new sandbox.Response(e.request.url));
+    });
+  }).toString()})()`;
+  const mf = new Miniflare({ script });
+  let res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
+  t.deepEqual(await res.waitUntil(), [1]);
+  res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
+  t.deepEqual(await res.waitUntil(), []);
+});
 
 test("dispatchFetch: dispatches event", async (t) => {
   const { globalScope } = t.context;
