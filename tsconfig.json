@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "target": "esnext",
-    "lib": ["esnext", "webworker"],
+    "target": "es2018",
+    "lib": ["es2018", "webworker"],
     "strict": true,
     "moduleResolution": "node",
     "esModuleInterop": true,
