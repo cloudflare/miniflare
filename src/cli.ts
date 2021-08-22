@@ -15,6 +15,7 @@ import {
 } from "./index";
 
 const defaultPort = 8787;
+const numericCompare = new Intl.Collator(undefined, { numeric: true }).compare;
 
 function stripUndefinedOptions(options: Options): Options {
   return Object.entries(options)
@@ -278,7 +279,7 @@ export async function updateCheck({
   const res = await fetch(`${registry}${pkg.name}/latest`, {
     headers: { Accept: "application/json" },
   });
-  const registryVersion = (await res.json()).version;
+  const registryVersion: string = (await res.json()).version;
   if (!registryVersion) return;
 
   // Record new last check time
@@ -287,12 +288,18 @@ export async function updateCheck({
   // Log version if latest version is greater than the currently installed
   if (semiver(registryVersion, pkg.version) > 0) {
     log.warn(
-      [
-        `Miniflare ${registryVersion} is available,`,
-        `but you're using ${pkg.version}.`,
-        "Update for improved compatibility with Cloudflare Workers.",
-      ].join(" ")
+      `Miniflare ${registryVersion} is available, ` +
+        `but you're using ${pkg.version}. ` +
+        "Update for improved compatibility with Cloudflare Workers."
     );
+    const registryMajor = registryVersion.split(".")[0];
+    const pkgMajor = pkg.version.split(".")[0];
+    if (numericCompare(registryMajor, pkgMajor) > 0) {
+      log.warn(
+        `${registryVersion} includes breaking changes.` +
+          "Make sure you check the changelog before upgrading."
+      );
+    }
   }
 }
 
