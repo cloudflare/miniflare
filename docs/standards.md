@@ -30,3 +30,5 @@ Miniflare supports the following Web Standards in its sandbox:
   `TransformStreamDefaultController`, `WritableStream`,
   `WritableStreamDefaultController`, `WritableStreamDefaultWriter` (powered by
   [web-streams-polyfill](https://github.com/MattiasBuelens/web-streams-polyfill))
+- **Events:** `Event`, `EventTarget` (powered by
+  [event-target-shim](https://github.com/mysticatea/event-target-shim))

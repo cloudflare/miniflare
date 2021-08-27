@@ -52,7 +52,7 @@ $ miniflare worker.js --watch --debug
 [mf:dbg] Options:
 [mf:dbg] - Scripts: worker.js
 [mf:dbg] Reloading worker.js...
-[mf:inf] Worker reloaded!
+[mf:inf] Worker reloaded! (97B)
 [mf:dbg] Watching .env, package.json, worker.js, wrangler.toml...
 [mf:inf] Listening on :8787
 [mf:inf] - http://127.0.0.1:8787

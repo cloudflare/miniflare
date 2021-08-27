@@ -33,10 +33,14 @@ port `8787` that responds with `Hello Miniflare!` to all requests:
 
 ```shell{1}
 $ miniflare worker.js
-[mf:inf] Worker reloaded!
+[mf:inf] Worker reloaded! (97B)
 [mf:inf] Listening on :8787
 [mf:inf] - http://127.0.0.1:8787
 ```
+
+Note that the uncompressed size of the worker, `97B`, is logged. Cloudflare
+requires all workers are under `1MiB` once compressed. Miniflare will warn you
+when your uncompressed size exceeds `1MiB`.
 
 <!--prettier-ignore-start-->
 ::: tip
@@ -61,7 +65,7 @@ $ miniflare worker.js --watch --debug
 [mf:dbg] Options:
 [mf:dbg] - Scripts: worker.js
 [mf:dbg] Reloading worker.js...
-[mf:inf] Worker reloaded!
+[mf:inf] Worker reloaded! (97B)
 [mf:dbg] Watching .env, package.json, worker.js, wrangler.toml...
 [mf:inf] Listening on :8787
 [mf:inf] - http://127.0.0.1:8787

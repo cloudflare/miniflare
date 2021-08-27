@@ -1,5 +1,36 @@
 # 🚧 Changelog
 
+## 1.4.0
+
+### Features
+
+- Added `Event` and `EventTarget` to the sandbox. The global scope and
+  `WebSocket` now inherit from `EventTarget` so `removeEventListener` is now
+  supported. Closes [issue #18](https://github.com/mrbbot/miniflare/issues/18),
+  thanks [@jayphelps](https://github.com/jayphelps).
+- Added workers' uncompressed size to logs, closes
+  [issue #23](https://github.com/mrbbot/miniflare/issues/23), thanks
+  [@ItsWendell](https://github.com/ItsWendell)
+- Switch to lighter dependencies, thanks [@lukeed](https://github.com/lukeed).
+  There's still lots of work to do here for the next major release.
+
+### Fixes
+
+- Require the `GET` method for WebSocket upgrades, closes
+  [issue #25](https://github.com/mrbbot/miniflare/issues/25), thanks
+  [@ItsWendell](https://github.com/ItsWendell)
+- Added `WebSocket` to the sandbox, closes
+  [issue #30](https://github.com/mrbbot/miniflare/issues/30), thanks
+  [@ItsWendell](https://github.com/ItsWendell). Note you still need to use
+  `WebSocketPair` and `fetch` to set up WebSocket connections. See
+  [✉️ WebSockets](https://miniflare.dev/web-sockets.html) for more details.
+- Fixed caching with `URL` request keys, closes
+  [issue #33](https://github.com/mrbbot/miniflare/issues/33), thanks
+  [@TimTinkers](https://github.com/TimTinkers)
+- Disable the watcher whilst rebuilding, closes
+  [issue #34](https://github.com/mrbbot/miniflare/issues/34), thanks
+  [@TimTinkers](https://github.com/TimTinkers)
+
 ## 1.3.3
 
 ### Features

@@ -1,6 +1,6 @@
 # ✅ Testing with AVA
 
-We'll now add unit tests with [AVA](https://github.com/avajs/ava) to our
+We'll now add tests with [AVA](https://github.com/avajs/ava) to our
 [previous esbuild example](./esbuild.html).
 
 ## Dependencies
