@@ -79,6 +79,7 @@ const commonJsCompilerOptions: CompilerOptions = {
 export class ScriptLinker {
   readonly referencedPaths = new Set<string>();
   private _referencedPathsSizes = new Map<string, number>();
+  private _moduleCache = new Map<string, vm.Module>();
   readonly extraSourceMaps = new Map<string, string>();
   readonly linker: ModuleLinker;
 
@@ -114,6 +115,8 @@ export class ScriptLinker {
       path.dirname(referencingModule.identifier),
       specifier
     );
+    const cached = this._moduleCache.get(modulePath);
+    if (cached) return cached;
 
     // Find first matching module rule
     const rule = this.moduleRules.find((rule) =>
@@ -131,9 +134,11 @@ export class ScriptLinker {
       identifier: modulePath,
       context: referencingModule.context,
     };
+    let result: vm.Module;
     switch (rule.type) {
       case "ESModule":
-        return new vm.SourceTextModule(data.toString("utf8"), moduleOptions);
+        result = new vm.SourceTextModule(data.toString("utf8"), moduleOptions);
+        break;
       case "CommonJS":
         // TODO: (low priority) try do this without TypeScript
         // Convert CommonJS module to an ESModule one
@@ -145,17 +150,19 @@ export class ScriptLinker {
         // Store ESModule -> CommonJS source map
         assert(transpiled.sourceMapText);
         this.extraSourceMaps.set(modulePath, transpiled.sourceMapText);
-        return new vm.SourceTextModule(transpiled.outputText, moduleOptions);
+        result = new vm.SourceTextModule(transpiled.outputText, moduleOptions);
+        break;
       case "Text":
-        return new vm.SyntheticModule<{ default: string }>(
+        result = new vm.SyntheticModule<{ default: string }>(
           ["default"],
           function () {
             this.setExport("default", data.toString("utf8"));
           },
           moduleOptions
         );
+        break;
       case "Data":
-        return new vm.SyntheticModule<{ default: ArrayBuffer }>(
+        result = new vm.SyntheticModule<{ default: ArrayBuffer }>(
           ["default"],
           function () {
             this.setExport(
@@ -168,18 +175,22 @@ export class ScriptLinker {
           },
           moduleOptions
         );
+        break;
       case "CompiledWasm":
-        return new vm.SyntheticModule<{ default: WebAssembly.Module }>(
+        result = new vm.SyntheticModule<{ default: WebAssembly.Module }>(
           ["default"],
           function () {
             this.setExport("default", new WebAssembly.Module(data));
           },
           moduleOptions
         );
+        break;
       default:
         throw new MiniflareError(
           `${errorBase}: ${rule.type} modules are unsupported`
         );
     }
+    this._moduleCache.set(modulePath, result);
+    return result;
   }
 }

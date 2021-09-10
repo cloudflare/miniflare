@@ -167,6 +167,16 @@ test("buildLinker: links CompiledWasm modules", async (t) => {
   await script.run();
   t.is(script.exports.default, 3);
 });
+test("buildLinker: links cyclic modules", async (t) => {
+  const blueprint = new ScriptBlueprint(
+    `import { ping } from "./cyclic1.mjs"; export default ping;`,
+    linkerScriptPath
+  );
+  const { linker } = new ScriptLinker(processedModuleRules);
+  const script = await blueprint.buildModule(createScriptContext({}), linker);
+  await script.run();
+  t.is(script.exports.default(), "pong");
+});
 test("buildLinker: builds set of linked module paths", async (t) => {
   const blueprint = new ScriptBlueprint(
     `import value from "./recursive.mjs"`,

@@ -1,5 +1,16 @@
 # 🚧 Changelog
 
+## 1.4.1
+
+### Fixes
+
+- Fixed linking of modules with cyclic imports, allowing
+  [new Rust workers](https://blog.cloudflare.com/workers-rust-sdk/) to be run
+  with Miniflare. Closes
+  [issue #41](https://github.com/mrbbot/miniflare/issues/41), thanks
+  [@nuvanti](https://github.com/nuvanti).
+- Fixed handling of `ArrayBufferView`s as `Response` bodies
+
 ## 1.4.0
 
 ### Features
