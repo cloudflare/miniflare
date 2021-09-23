@@ -13,8 +13,6 @@
 It's an alternative to `wrangler dev`, written in TypeScript, that runs your
 workers in a sandbox implementing Workers' runtime APIs.
 
-Note that Miniflare is not an official Cloudflare product.
-
 **See <https://miniflare.dev> for more detailed documentation.**
 
 ## Features

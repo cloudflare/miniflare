@@ -25,5 +25,3 @@ If you find something that doesn't behave as it does in the real Workers
 environment (and this difference isn't documented), or something's wrong in
 these docs, please
 [open a GitHub issue](https://github.com/mrbbot/miniflare/issues/new/choose).
-
-Note that Miniflare is not an official Cloudflare product.
