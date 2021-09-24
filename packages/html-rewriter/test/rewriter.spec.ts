@@ -1,65 +1,22 @@
+import assert from "assert";
 import { ReadableStream } from "stream/web";
+import { setTimeout } from "timers/promises";
 import { URLSearchParams } from "url";
 import { TextDecoder, TextEncoder } from "util";
-import test, { Macro, ThrowsExpectation } from "ava";
+import { HTMLRewriter } from "@miniflare/html-rewriter";
+import test, { Macro } from "ava";
 import {
   Comment,
   Doctype,
   DocumentEnd,
   Element,
-  HTMLRewriter,
-  NoOpLog,
-  Response,
   TextChunk,
-} from "../../src";
-import {
-  HTMLRewriterModule,
-  transformToArray,
-} from "../../src/modules/rewriter";
-import { getObjectProperties, runInWorker, wait } from "../helpers";
+} from "html-rewriter-wasm";
+import { getObjectProperties } from "test:@miniflare/shared";
+import { Response } from "undici";
 
 // TODO: (low priority) remove most of these tests, they're now in html-rewriter-wasm
-// TODO: (low priority) debug why removing .serial breaks some of these tests
-
-// region: Uint8ArrayTransformStream
-const encoder = new TextEncoder();
-test("transformToArray: passes through Uint8Array", (t) => {
-  const array = new Uint8Array([1, 2, 3]);
-  t.is(transformToArray(array), array);
-});
-test("transformToArray: transforms ArrayBufferView", (t) => {
-  const array = new Int8Array([1, 2, 3]);
-  t.deepEqual(transformToArray(array), new Uint8Array([1, 2, 3]));
-});
-test("transformToArray: transforms ArrayBuffer", (t) => {
-  const buffer = encoder.encode("test").buffer;
-  t.deepEqual(transformToArray(buffer), encoder.encode("test"));
-});
-test("transformToArray: transforms numeric Array", (t) => {
-  t.deepEqual(transformToArray([1, 2, 3]), new Uint8Array([1, 2, 3]));
-});
-test("transformToArray: transforms number", (t) => {
-  t.deepEqual(transformToArray(1), new Uint8Array([1]));
-});
-test("transformToArray: transforms string", (t) => {
-  t.deepEqual(transformToArray("test"), encoder.encode("test"));
-});
-test("transformToArray: throws on null or undefined", (t) => {
-  const expectations: ThrowsExpectation = {
-    instanceOf: TypeError,
-    message: "chunk must be defined",
-  };
-  t.throws(() => transformToArray(null), expectations);
-  t.throws(() => transformToArray(undefined), expectations);
-});
-test("transformToArray: transforms URLSearchParams", (t) => {
-  const params = new URLSearchParams({ a: "1", b: "2", c: "3" });
-  t.deepEqual(transformToArray(params), encoder.encode("a=1&b=2&c=3"));
-});
-test("transformToArray: transforms arbitrary objects into strings", (t) => {
-  t.deepEqual(transformToArray({}), encoder.encode("[object Object]"));
-});
-// endregion: Uint8ArrayTransformStream
+// TODO: (low priority) debug why removing .serial breaks some of these async tests
 
 // region: ELEMENT HANDLERS
 
@@ -226,7 +183,7 @@ test.serial("HTMLRewriter: handles element async handler", async (t) => {
   const res = new HTMLRewriter()
     .on("p", {
       async element(element) {
-        await wait(50);
+        await setTimeout(50);
         element.setInnerContent("new");
       },
     })
@@ -292,7 +249,7 @@ const commentAsyncHandlerMacro: Macro<
   [(rw: HTMLRewriter, comments: (c: Comment) => Promise<void>) => HTMLRewriter]
 > = async (t, func) => {
   const res = func(new HTMLRewriter(), async (comment) => {
-    await wait(50);
+    await setTimeout(50);
     comment.text = "new";
   }).transform(new Response("<p><!--test--></p>"));
   t.is(await res.text(), "<p><!--new--></p>");
@@ -372,7 +329,7 @@ const textAsyncHandlerMacro: Macro<
 > = async (t, func) => {
   const res = func(new HTMLRewriter(), async (text) => {
     if (text.text === "t") {
-      await wait(50);
+      await setTimeout(50);
       text.after(" new");
     }
   }).transform(new Response("<p>t</p>"));
@@ -456,7 +413,7 @@ test.serial(
     const res = new HTMLRewriter()
       .onDocument({
         async doctype(doctype) {
-          await wait(50);
+          await setTimeout(50);
           t.is(doctype.name, "html");
         },
       })
@@ -556,7 +513,7 @@ test.serial("HTMLRewriter: handles document end async handler", async (t) => {
   const res = new HTMLRewriter()
     .onDocument({
       async end(end) {
-        await wait(50);
+        await setTimeout(50);
         end.append("<span>append html</span>", { html: true });
       },
     })
@@ -586,6 +543,7 @@ test("HTMLRewriter: handles document end class handler", async (t) => {
 test("HTMLRewriter: handles streaming responses", async (t) => {
   const inputStream = new ReadableStream({
     async start(controller) {
+      // TODO: test this and next test on cf workers
       const chunks = [
         '<html lang="en">',
         "<bo",
@@ -598,7 +556,7 @@ test("HTMLRewriter: handles streaming responses", async (t) => {
       ];
       for (const chunk of chunks) {
         controller.enqueue(chunk);
-        await wait(50);
+        await setTimeout(50);
       }
       controller.close();
     },
@@ -617,11 +575,41 @@ test("HTMLRewriter: handles streaming responses", async (t) => {
 
   const decoder = new TextDecoder();
   const chunks: string[] = [];
+  assert(res.body);
   for await (const chunk of res.body) {
     chunks.push(decoder.decode(chunk));
   }
   t.true(chunks.length >= 2);
   t.is(chunks.join(""), '<html lang="en"><body><p>test</p></body></html>');
+});
+test("HTMLRewriter: handles streaming response with various chunk types", async (t) => {
+  const encoder = new TextEncoder();
+  const chunks: [input: any, output: Uint8Array][] = [
+    [new Uint8Array([1, 2, 3]), new Uint8Array([1, 2, 3])],
+    [new Int8Array([1, 2, 3]), new Uint8Array([1, 2, 3])],
+    [encoder.encode("test").buffer, encoder.encode("test")],
+    [[1, 2, 3], new Uint8Array([1, 2, 3])],
+    [1, new Uint8Array([1])],
+    ["test", encoder.encode("test")],
+    [
+      new URLSearchParams({ a: "1", b: "2", c: "3" }),
+      encoder.encode("a=1&b=2&c=3"),
+    ],
+    [{}, encoder.encode("[object Object]")],
+  ];
+
+  const inputStream = new ReadableStream({
+    async start(controller) {
+      for (const [input] of chunks) controller.enqueue(input);
+      controller.close();
+    },
+  });
+  const res = new HTMLRewriter().transform(new Response(inputStream));
+  assert(res.body);
+  for await (const chunk of res.body) {
+    const expected = chunks.shift();
+    t.deepEqual(chunk, expected?.[1]);
+  }
 });
 test("HTMLRewriter: handles empty response", async (t) => {
   // Shouldn't call BaseHTMLRewriter.write, just BaseHTMLRewriter.end
@@ -695,7 +683,7 @@ test.serial(
       new HTMLRewriter()
         .on("p", {
           async element(element) {
-            await wait(50);
+            await setTimeout(50);
             element.setInnerContent(`new ${i}`);
           },
         })
@@ -712,34 +700,7 @@ test.serial(
     t.deepEqual(texts, ["<p>new 3</p>", "<p>new 4</p>"]);
   }
 );
-test("HTMLRewriter: handles async handlers in worker sandbox", async (t) => {
-  const res = await runInWorker<string>({}, async () => {
-    const sandbox = self as any;
-    const res = new sandbox.HTMLRewriter()
-      .on("h1", {
-        // Test async functions
-        async element(element: Element) {
-          await new Promise((resolve) => setTimeout(resolve));
-          element.after("after h1");
-        },
-      })
-      .on("p", {
-        // Test returning promise
-        element(element: Element) {
-          return new Promise<void>((resolve) =>
-            setTimeout(() => {
-              element.before("before p");
-              resolve();
-            })
-          );
-        },
-      })
-      .transform(new sandbox.Response("<h1>title</h1><p>body</p>"));
-    return await res.text();
-  });
-  t.is(res, ["<h1>title</h1>", "after h1", "before p", "<p>body</p>"].join(""));
-});
-
+// TODO: test rewriter in workers sansdbox
 test("HTMLRewriter: hides implementation details", (t) => {
   const rewriter = new HTMLRewriter();
   t.deepEqual(getObjectProperties(rewriter), ["on", "onDocument", "transform"]);
@@ -911,13 +872,3 @@ test("HTMLRewriter: throws error on unsupported selector", async (t) => {
 });
 
 // endregion: SELECTORS
-
-// region: MODULE
-
-test("HTMLRewriter: included in sandbox", async (t) => {
-  const module = new HTMLRewriterModule(new NoOpLog());
-  const { HTMLRewriter: SandboxHTMLRewriter } = module.buildSandbox();
-  t.is(SandboxHTMLRewriter, HTMLRewriter);
-});
-
-// endregion: MODULE
