@@ -1,0 +1,1 @@
+# `@miniflare/storage-file`
