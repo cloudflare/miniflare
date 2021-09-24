@@ -1,0 +1,68 @@
+{
+  "name": "miniflare",
+  "version": "2.0.0",
+  "description": "Fun, full-featured, fully-local simulator for Cloudflare Workers",
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "worker",
+    "local",
+    "cloudworker"
+  ],
+  "author": "MrBBot <me@mrbbot.dev>",
+  "license": "MIT",
+  "type": "module",
+  "exports": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "files": [
+    "./dist/src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrbbot/miniflare.git",
+    "directory": "packages/miniflare"
+  },
+  "bugs": {
+    "url": "https://github.com/mrbbot/miniflare/issues"
+  },
+  "homepage": "https://github.com/mrbbot/miniflare/tree/master/packages/miniflare#readme",
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "entryPoints": [
+    "src/bootstrap.ts",
+    "src/cli.ts"
+  ],
+  "bin": {
+    "miniflare2": "dist/src/bootstrap.js"
+  },
+  "dependencies": {
+    "@miniflare/cache": "2.0.0",
+    "@miniflare/cli": "2.0.0",
+    "@miniflare/core": "2.0.0",
+    "@miniflare/durable-objects": "2.0.0",
+    "@miniflare/html-rewriter": "2.0.0",
+    "@miniflare/http-server": "2.0.0",
+    "@miniflare/kv": "2.0.0",
+    "@miniflare/runner-vm": "2.0.0",
+    "@miniflare/scheduler": "2.0.0",
+    "@miniflare/shared": "2.0.0",
+    "@miniflare/sites": "2.0.0",
+    "@miniflare/storage-file": "2.0.0",
+    "@miniflare/storage-memory": "2.0.0",
+    "@miniflare/watcher": "2.0.0",
+    "@miniflare/web-sockets": "2.0.0",
+    "kleur": "^4.1.4"
+  },
+  "peerDependencies": {
+    "@miniflare/storage-redis": "2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@miniflare/storage-redis": {
+      "optional": true
+    }
+  }
+}
