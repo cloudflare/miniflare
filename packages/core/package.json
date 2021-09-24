@@ -1,0 +1,58 @@
+{
+  "name": "@miniflare/core",
+  "version": "2.0.0",
+  "description": "",
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "worker",
+    "local",
+    "cloudworker"
+  ],
+  "author": "MrBBot <me@mrbbot.dev>",
+  "license": "MIT",
+  "type": "module",
+  "exports": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "files": [
+    "./dist/src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrbbot/miniflare.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/mrbbot/miniflare/issues"
+  },
+  "homepage": "https://github.com/mrbbot/miniflare/tree/master/packages/core#readme",
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "entryPoints": [
+    "src/plugins/rust.ts"
+  ],
+  "dependencies": {
+    "@iarna/toml": "^2.2.5",
+    "@miniflare/shared": "2.0.0",
+    "@miniflare/web-sockets": "2.0.0",
+    "dequal": "^2.0.2",
+    "dotenv": "^10.0.0",
+    "undici": "^4.5.1",
+    "ws": "^8.2.2"
+  },
+  "devDependencies": {
+    "@miniflare/watcher": "2.0.0"
+  },
+  "peerDependencies": {
+    "@miniflare/watcher": "2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@miniflare/watcher": {
+      "optional": true
+    }
+  }
+}
