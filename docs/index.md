@@ -24,4 +24,4 @@ runtime APIs, refer to the
 If you find something that doesn't behave as it does in the real Workers
 environment (and this difference isn't documented), or something's wrong in
 these docs, please
-[open a GitHub issue](https://github.com/mrbbot/miniflare/issues/new/choose).
+[open a GitHub issue](https://github.com/cloudflare/miniflare/issues/new/choose).

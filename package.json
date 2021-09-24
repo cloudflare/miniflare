@@ -93,10 +93,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mrbbot/miniflare.git"
+    "url": "git+https://github.com/cloudflare/miniflare.git"
   },
   "bugs": {
-    "url": "https://github.com/mrbbot/miniflare/issues"
+    "url": "https://github.com/cloudflare/miniflare/issues"
   },
   "homepage": "https://miniflare.dev/",
   "volta": {

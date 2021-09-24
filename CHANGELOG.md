@@ -7,7 +7,7 @@
 - Fixed linking of modules with cyclic imports, allowing
   [new Rust workers](https://blog.cloudflare.com/workers-rust-sdk/) to be run
   with Miniflare. Closes
-  [issue #41](https://github.com/mrbbot/miniflare/issues/41), thanks
+  [issue #41](https://github.com/cloudflare/miniflare/issues/41), thanks
   [@nuvanti](https://github.com/nuvanti).
 - Fixed handling of `ArrayBufferView`s as `Response` bodies
 
@@ -17,10 +17,10 @@
 
 - Added `Event` and `EventTarget` to the sandbox. The global scope and
   `WebSocket` now inherit from `EventTarget` so `removeEventListener` is now
-  supported. Closes [issue #18](https://github.com/mrbbot/miniflare/issues/18),
+  supported. Closes [issue #18](https://github.com/cloudflare/miniflare/issues/18),
   thanks [@jayphelps](https://github.com/jayphelps).
 - Added workers' uncompressed size to logs, closes
-  [issue #23](https://github.com/mrbbot/miniflare/issues/23), thanks
+  [issue #23](https://github.com/cloudflare/miniflare/issues/23), thanks
   [@ItsWendell](https://github.com/ItsWendell)
 - Switch to lighter dependencies, thanks [@lukeed](https://github.com/lukeed).
   There's still lots of work to do here for the next major release.
@@ -28,18 +28,18 @@
 ### Fixes
 
 - Require the `GET` method for WebSocket upgrades, closes
-  [issue #25](https://github.com/mrbbot/miniflare/issues/25), thanks
+  [issue #25](https://github.com/cloudflare/miniflare/issues/25), thanks
   [@ItsWendell](https://github.com/ItsWendell)
 - Added `WebSocket` to the sandbox, closes
-  [issue #30](https://github.com/mrbbot/miniflare/issues/30), thanks
+  [issue #30](https://github.com/cloudflare/miniflare/issues/30), thanks
   [@ItsWendell](https://github.com/ItsWendell). Note you still need to use
   `WebSocketPair` and `fetch` to set up WebSocket connections. See
   [✉️ WebSockets](https://miniflare.dev/web-sockets.html) for more details.
 - Fixed caching with `URL` request keys, closes
-  [issue #33](https://github.com/mrbbot/miniflare/issues/33), thanks
+  [issue #33](https://github.com/cloudflare/miniflare/issues/33), thanks
   [@TimTinkers](https://github.com/TimTinkers)
 - Disable the watcher whilst rebuilding, closes
-  [issue #34](https://github.com/mrbbot/miniflare/issues/34), thanks
+  [issue #34](https://github.com/cloudflare/miniflare/issues/34), thanks
   [@TimTinkers](https://github.com/TimTinkers)
 
 ## 1.3.3
@@ -88,25 +88,25 @@
   [📄 HTMLRewriter](https://miniflare.dev/html-rewriter.html) for more details.
 - Added HTTPS support for local development, thanks
   [@RichiCoder1](https://github.com/RichiCoder1) for the
-  [suggestion (#12)](https://github.com/mrbbot/miniflare/issues/12). See
+  [suggestion (#12)](https://github.com/cloudflare/miniflare/issues/12). See
   [💻 Using the CLI](https://miniflare.dev/cli.html#https-server) and
   [🧰 Using the API](https://miniflare.dev/api.html#https-server) for more
   details.
 - When using the CLI, the `--watch` flag is now assumed if `--build-watch-path`
   is set, thanks [@evanderkoogh](https://github.com/evanderkoogh) for the
-  [PR (#8)](https://github.com/mrbbot/miniflare/pull/8)
+  [PR (#8)](https://github.com/cloudflare/miniflare/pull/8)
 - Added source maps to `CommonJS` module transformation
 
 ### Fixes
 
 - Switched to real values for the `cf` property, thanks
   [@chase](https://github.com/chase) for the
-  [PR (#11)](https://github.com/mrbbot/miniflare/pull/11)
+  [PR (#11)](https://github.com/cloudflare/miniflare/pull/11)
 - Upgraded the TOML parser to support dotted keys, thanks
   [@leader22](https://github.com/leader22) for the
-  [PR (#13)](https://github.com/mrbbot/miniflare/pull/13)
+  [PR (#13)](https://github.com/cloudflare/miniflare/pull/13)
 - Added `CryptoKey` to the sandbox, thanks [@mosch](https://github.com/mosch)
-  for the [PR (#14)](https://github.com/mrbbot/miniflare/pull/14)
+  for the [PR (#14)](https://github.com/cloudflare/miniflare/pull/14)
 
 ## 1.2.0
 
@@ -117,12 +117,12 @@
   [✨ Cache](https://miniflare.dev/cache.html#persistence) and
   [📌 Durable Objects](https://miniflare.dev/durable-objects.html#persistence)
 - Added support for loading scripts from `package.json`, closes
-  [issue #7](https://github.com/mrbbot/miniflare/issues/7). See
+  [issue #7](https://github.com/cloudflare/miniflare/issues/7). See
   [💻 Using the CLI](https://miniflare.dev/cli.html#script-requirement) and
   [⚡️ Developing with esbuild](https://miniflare.dev/recipes/esbuild.html#dependencies)
   for more details.
 - Added `FormData` to the sandbox, closes
-  [issue #6](https://github.com/mrbbot/miniflare/issues/6)
+  [issue #6](https://github.com/cloudflare/miniflare/issues/6)
 - Added an automatic update checker. See
   [💻 Using the CLI](https://miniflare.dev/cli.html#update-checker) for more
   details.
@@ -134,7 +134,7 @@
 ### Fixes
 
 - Fixed **Windows** support, closes
-  [issue #10](https://github.com/mrbbot/miniflare/issues/10)
+  [issue #10](https://github.com/cloudflare/miniflare/issues/10)
 - Fixed issue where scripts were not reloaded correctly when editing script path
   in `wrangler.toml`. Scripts are now always reloaded on options change.
   `Miniflare.reloadScript()` is now deprecated. You should use
@@ -232,7 +232,7 @@
 
 - Fixed error if options object (containing `type` and `cacheTtl` properties)
   passed as second parameter to KV `get` method, closes
-  [issue #3](https://github.com/mrbbot/miniflare/issues/3)
+  [issue #3](https://github.com/cloudflare/miniflare/issues/3)
 - Fixed error if `ArrayBuffer` passed as `data` to
   `crypto.subtle.digest("md5", data)`
 - Fixed handling of `ignoreMethod` option for `Cache` `match` and `delete`
@@ -246,7 +246,7 @@
 ### Fixes
 
 - Depend on `@mrbbot/node-fetch` from npm instead of GitHub, closes
-  [issue #2](https://github.com/mrbbot/miniflare/issues/2)
+  [issue #2](https://github.com/cloudflare/miniflare/issues/2)
 
 ## 0.1.0
 
