@@ -1,5 +1,3 @@
-/// <reference lib="webworker" />
-
 declare module "crypto" {
   namespace webcrypto {
     const subtle: typeof crypto.subtle;
