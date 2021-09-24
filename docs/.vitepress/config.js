@@ -15,7 +15,7 @@ module.exports = {
     ["meta", { property: "og:description", content: pkg.description }],
   ],
   themeConfig: {
-    repo: "mrbbot/miniflare",
+    repo: "cloudflare/miniflare",
     docsDir: "docs",
     editLinks: true,
     algolia: {

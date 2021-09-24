@@ -157,7 +157,7 @@ This assumes most concurrent transactions will operate on disjoint key sets. For
 development, it's likely there will be very little concurrency so this shouldn't
 be a problem. If running tests in parallel, on the same `Miniflare` instance,
 you may experience starvation in extreme cases. If you do, please
-[open a GitHub issue](https://github.com/mrbbot/miniflare/issues/new/choose). It
+[open a GitHub issue](https://github.com/cloudflare/miniflare/issues/new/choose). It
 would be interesting to hear about your use case.
 
 `deleteAll` also has slightly different semantics to Cloudflare's
