@@ -1,0 +1,42 @@
+{
+  "name": "@miniflare/web-sockets",
+  "version": "2.0.0",
+  "description": "",
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "worker",
+    "local",
+    "cloudworker"
+  ],
+  "author": "MrBBot <me@mrbbot.dev>",
+  "license": "MIT",
+  "type": "module",
+  "exports": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "files": [
+    "./dist/src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrbbot/miniflare.git",
+    "directory": "packages/web-sockets"
+  },
+  "bugs": {
+    "url": "https://github.com/mrbbot/miniflare/issues"
+  },
+  "homepage": "https://github.com/mrbbot/miniflare/tree/master/packages/web-sockets#readme",
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "dependencies": {
+    "@miniflare/shared": "2.0.0",
+    "ws": "^8.2.2"
+  },
+  "devDependencies": {
+    "@types/ws": "^7.4.7"
+  }
+}
