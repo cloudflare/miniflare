@@ -1,31 +1,37 @@
 import { ReadableStream } from "stream/web";
-import anyTest, { Macro, TestInterface } from "ava";
 import {
   KVGetValueType,
   KVListOptions,
+  KVNamespace,
   KVPutOptions,
   KVPutValueType,
-  KVStorage,
-  KVStorageNamespace,
-  KVStoredKey,
-  KVStoredValue,
-  MemoryKVStorage,
-} from "../../src";
-import { KVClock } from "../../src/kv/helpers";
-import { getObjectProperties } from "../helpers";
-
-const testClock: KVClock = () => 1000000; // 1000s
+} from "@miniflare/kv";
+import {
+  StorageOperator,
+  StoredKeyMeta,
+  StoredValueMeta,
+  base64Encode,
+} from "@miniflare/shared";
+import { MemoryStorageOperator } from "@miniflare/storage-memory";
+import anyTest, { Macro, TestInterface } from "ava";
+import { getObjectProperties, utf8Encode } from "test:@miniflare/shared";
+import {
+  TIME_EXPIRED,
+  TIME_EXPIRING,
+  TIME_NOW,
+  testClock,
+} from "test:@miniflare/storage-memory";
 
 interface Context {
-  storage: KVStorage;
-  ns: KVStorageNamespace;
+  storage: StorageOperator;
+  ns: KVNamespace;
 }
 
 const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
-  const storage = new MemoryKVStorage(undefined, testClock);
-  const ns = new KVStorageNamespace(storage, testClock);
+  const storage = new MemoryStorageOperator(undefined, testClock);
+  const ns = new KVNamespace(storage, testClock);
   t.context = { storage, ns };
 });
 
@@ -34,13 +40,12 @@ const getMacro: Macro<
   Context
 > = async (t, { value, type, expected }) => {
   const { storage, ns } = t.context;
-  await storage.put("key", { value: Buffer.from(value, "utf8") });
+  await storage.put("key", { value: utf8Encode(value) });
   // Test both ways of specifying the type
   t.deepEqual(await ns.get("key", type as any), expected);
   t.deepEqual(await ns.get("key", { type: type as any }), expected);
 };
 getMacro.title = (providedTitle) => `get: gets ${providedTitle}`;
-
 test("text by default", getMacro, {
   value: "value",
   expected: "value",
@@ -60,10 +65,9 @@ test("array buffers", getMacro, {
   type: "arrayBuffer",
   expected: new Uint8Array([1, 2, 3]).buffer,
 });
-
 test("get: gets streams", async (t) => {
   const { storage, ns } = t.context;
-  await storage.put("key", { value: Buffer.from("\x01\x02\x03", "utf8") });
+  await storage.put("key", { value: new Uint8Array([1, 2, 3]) });
   const value = await ns.get("key", "stream");
   if (value === null) return t.fail();
   const reader = value.getReader();
@@ -78,19 +82,21 @@ test("get: returns null for non-existent keys", async (t) => {
   const { ns } = t.context;
   t.is(await ns.get("key"), null);
 });
-test("get: returns null for and removes expired keys", async (t) => {
+test("get: returns null for expired keys", async (t) => {
   const { storage, ns } = t.context;
   await storage.put("key", {
-    value: Buffer.from("value", "utf8"),
-    expiration: 500,
+    value: utf8Encode("value"),
+    expiration: TIME_EXPIRED,
   });
   t.is(await ns.get("key"), null);
-  t.is(await storage.get("key"), undefined);
 });
 test("get: ignores cache ttl", async (t) => {
   const { storage, ns } = t.context;
-  await storage.put("key", { value: Buffer.from('{"field":"value"}', "utf8") });
-  t.is(await ns.get("key", { cacheTtl: 3600 }), '{"field":"value"}');
+  await storage.put("key", { value: utf8Encode('{"field":"value"}') });
+  t.is(
+    await ns.get("key", { type: undefined, cacheTtl: 3600 }),
+    '{"field":"value"}'
+  );
   t.deepEqual(await ns.get("key", { type: "json", cacheTtl: 3600 }), {
     field: "value",
   });
@@ -102,7 +108,7 @@ const getWithMetadataMacro: Macro<
 > = async (t, { value, type, expected }) => {
   const { storage, ns } = t.context;
   await storage.put("key", {
-    value: Buffer.from(value, "utf8"),
+    value: utf8Encode(value),
     metadata: { testing: true },
   });
   // Test both ways of specifying the type
@@ -117,7 +123,6 @@ const getWithMetadataMacro: Macro<
 };
 getWithMetadataMacro.title = (providedTitle) =>
   `getWithMetadata: gets ${providedTitle} with metadata`;
-
 test("text by default", getWithMetadataMacro, {
   value: "value",
   expected: "value",
@@ -137,11 +142,10 @@ test("array buffers", getWithMetadataMacro, {
   type: "arrayBuffer",
   expected: new Uint8Array([1, 2, 3]).buffer,
 });
-
 test("getWithMetadata: gets streams with metadata", async (t) => {
   const { storage, ns } = t.context;
   await storage.put("key", {
-    value: Buffer.from("\x01\x02\x03", "utf8"),
+    value: new Uint8Array([1, 2, 3]),
     metadata: { testing: true },
   });
   const { value, metadata } = await ns.getWithMetadata("key", "stream");
@@ -159,34 +163,30 @@ test("getWithMetadata: gets streams with metadata", async (t) => {
 });
 test("getWithMetadata: returns null for non-existent keys with metadata", async (t) => {
   const { ns } = t.context;
-  t.deepEqual(await ns.getWithMetadata("key"), {
-    value: null,
-    metadata: null,
-  });
+  t.deepEqual(await ns.getWithMetadata("key"), { value: null, metadata: null });
 });
-test("getWithMetadata: returns null for and removes expired keys with metadata", async (t) => {
+test("getWithMetadata: returns null for expired keys with metadata", async (t) => {
   const { storage, ns } = t.context;
   await storage.put("key", {
-    value: Buffer.from("value", "utf8"),
-    expiration: 500,
+    value: utf8Encode("value"),
+    expiration: TIME_EXPIRED,
     metadata: { testing: true },
   });
-  t.deepEqual(await ns.getWithMetadata("key"), {
-    value: null,
-    metadata: null,
-  });
-  t.is(await storage.get("key"), undefined);
+  t.deepEqual(await ns.getWithMetadata("key"), { value: null, metadata: null });
 });
 test("getWithMetadata: ignores cache ttl", async (t) => {
   const { storage, ns } = t.context;
   await storage.put("key", {
-    value: Buffer.from('{"field":"value"}', "utf8"),
+    value: utf8Encode('{"field":"value"}'),
     metadata: { testing: true },
   });
-  t.deepEqual(await ns.getWithMetadata("key", { cacheTtl: 3600 }), {
-    value: '{"field":"value"}',
-    metadata: { testing: true },
-  });
+  t.deepEqual(
+    await ns.getWithMetadata("key", { type: undefined, cacheTtl: 3600 }),
+    {
+      value: '{"field":"value"}',
+      metadata: { testing: true },
+    }
+  );
   t.deepEqual(
     await ns.getWithMetadata("key", { type: "json", cacheTtl: 3600 }),
     {
@@ -198,27 +198,23 @@ test("getWithMetadata: ignores cache ttl", async (t) => {
 
 const putMacro: Macro<
   [
-    {
-      value: KVPutValueType;
-      options?: KVPutOptions;
-      expected: KVStoredValue<string>;
-    }
+    { value: KVPutValueType; options?: KVPutOptions; expected: StoredValueMeta }
   ],
   Context
 > = async (t, { value, options, expected }) => {
   const { storage, ns } = t.context;
   await ns.put("key", value, options);
   t.deepEqual(await storage.get("key"), {
-    value: Buffer.from(expected.value, "utf8"),
+    value: expected.value,
+    // Make sure expiration and metadata are in expected result if undefined
     expiration: expected.expiration,
     metadata: expected.metadata,
   });
 };
 putMacro.title = (providedTitle) => `put: puts ${providedTitle}`;
-
 test("text", putMacro, {
   value: "value",
-  expected: { value: "value" },
+  expected: { value: utf8Encode("value") },
 });
 test("streams", putMacro, {
   value: new ReadableStream({
@@ -227,70 +223,76 @@ test("streams", putMacro, {
       controller.close();
     },
   }),
-  expected: { value: "\x01\x02\x03" },
+  expected: { value: new Uint8Array([1, 2, 3]) },
 });
 test("array buffers", putMacro, {
   value: new Uint8Array([1, 2, 3]).buffer,
-  expected: { value: "\x01\x02\x03" },
+  expected: { value: new Uint8Array([1, 2, 3]) },
 });
 test("text with expiration", putMacro, {
   value: "value",
-  options: { expiration: 1100 },
-  expected: { value: "value", expiration: 1100 },
+  options: { expiration: TIME_EXPIRING },
+  expected: { value: utf8Encode("value"), expiration: TIME_EXPIRING },
 });
 test("text with string expiration", putMacro, {
   value: "value",
-  options: { expiration: "1100" },
-  expected: { value: "value", expiration: 1100 },
+  options: { expiration: TIME_EXPIRING.toString() },
+  expected: { value: utf8Encode("value"), expiration: TIME_EXPIRING },
 });
 test("text with expiration ttl", putMacro, {
   value: "value",
   options: { expirationTtl: 1000 },
-  expected: { value: "value", expiration: 2000 },
+  expected: { value: utf8Encode("value"), expiration: TIME_NOW + 1000 },
 });
 test("text with string expiration ttl", putMacro, {
   value: "value",
   options: { expirationTtl: "1000" },
-  expected: { value: "value", expiration: 2000 },
+  expected: { value: utf8Encode("value"), expiration: TIME_NOW + 1000 },
 });
 test("text with metadata", putMacro, {
   value: "value",
   options: { metadata: { testing: true } },
-  expected: { value: "value", metadata: { testing: true } },
+  expected: { value: utf8Encode("value"), metadata: { testing: true } },
 });
 test("text with expiration and metadata", putMacro, {
   value: "value",
-  options: { expiration: 1100, metadata: { testing: true } },
-  expected: { value: "value", expiration: 1100, metadata: { testing: true } },
+  options: { expiration: TIME_EXPIRING, metadata: { testing: true } },
+  expected: {
+    value: utf8Encode("value"),
+    expiration: TIME_EXPIRING,
+    metadata: { testing: true },
+  },
 });
 test("text with expiration ttl and metadata", putMacro, {
   value: "value",
   options: { expirationTtl: 1000, metadata: { testing: true } },
-  expected: { value: "value", expiration: 2000, metadata: { testing: true } },
+  expected: {
+    value: utf8Encode("value"),
+    expiration: TIME_NOW + 1000,
+    metadata: { testing: true },
+  },
 });
-
 test("put: overrides existing keys", async (t) => {
   const { storage, ns } = t.context;
   await ns.put("key", "value1");
   await ns.put("key", "value2", {
-    expiration: 1100,
+    expiration: TIME_EXPIRING,
     metadata: { testing: true },
   });
   t.deepEqual(await storage.get("key"), {
-    value: Buffer.from("value2", "utf8"),
-    expiration: 1100,
+    value: utf8Encode("value2"),
+    expiration: TIME_EXPIRING,
     metadata: { testing: true },
   });
 });
 
 test("delete: deletes existing keys", async (t) => {
   const { storage, ns } = t.context;
-  await storage.put("key", { value: Buffer.from("value", "utf8") });
+  await storage.put("key", { value: utf8Encode("value") });
   t.not(await storage.get("key"), undefined);
   await ns.delete("key");
   t.is(await storage.get("key"), undefined);
 });
-
 test("delete: does nothing for non-existent keys", async (t) => {
   const { ns } = t.context;
   await ns.delete("key");
@@ -300,20 +302,16 @@ test("delete: does nothing for non-existent keys", async (t) => {
 const listMacro: Macro<
   [
     {
-      values: Record<string, KVStoredValue<string>>;
+      values: Record<string, StoredValueMeta>;
       options?: KVListOptions;
-      pages: KVStoredKey[][];
+      pages: StoredKeyMeta[][];
     }
   ],
   Context
 > = async (t, { values, options = {}, pages }) => {
   const { storage, ns } = t.context;
   for (const [key, value] of Object.entries(values)) {
-    await storage.put(key, {
-      value: Buffer.from(value.value, "utf8"),
-      expiration: value.expiration,
-      metadata: value.metadata,
-    });
+    await storage.put(key, value);
   }
 
   let lastCursor = "";
@@ -343,43 +341,42 @@ const listMacro: Macro<
   }
 };
 listMacro.title = (providedTitle) => `list: ${providedTitle}`;
-
 test("lists keys in sorted order", listMacro, {
   values: {
-    key3: { value: "value3" },
-    key1: { value: "value1" },
-    key2: { value: "value2" },
+    key3: { value: utf8Encode("value3") },
+    key1: { value: utf8Encode("value1") },
+    key2: { value: utf8Encode("value2") },
   },
   pages: [[{ name: "key1" }, { name: "key2" }, { name: "key3" }]],
 });
 test("lists keys matching prefix", listMacro, {
   values: {
-    section1key1: { value: "value11" },
-    section1key2: { value: "value12" },
-    section2key1: { value: "value21" },
+    section1key1: { value: utf8Encode("value11") },
+    section1key2: { value: utf8Encode("value12") },
+    section2key1: { value: utf8Encode("value21") },
   },
   options: { prefix: "section1" },
   pages: [[{ name: "section1key1" }, { name: "section1key2" }]],
 });
 test("lists keys with expiration", listMacro, {
   values: {
-    key1: { value: "value1", expiration: 1100 },
-    key2: { value: "value2", expiration: 1200 },
-    key3: { value: "value3", expiration: 1300 },
+    key1: { value: utf8Encode("value1"), expiration: TIME_EXPIRING },
+    key2: { value: utf8Encode("value2"), expiration: TIME_EXPIRING + 100 },
+    key3: { value: utf8Encode("value3"), expiration: TIME_EXPIRING + 200 },
   },
   pages: [
     [
-      { name: "key1", expiration: 1100 },
-      { name: "key2", expiration: 1200 },
-      { name: "key3", expiration: 1300 },
+      { name: "key1", expiration: TIME_EXPIRING },
+      { name: "key2", expiration: TIME_EXPIRING + 100 },
+      { name: "key3", expiration: TIME_EXPIRING + 200 },
     ],
   ],
 });
 test("lists keys with metadata", listMacro, {
   values: {
-    key1: { value: "value1", metadata: { testing: 1 } },
-    key2: { value: "value2", metadata: { testing: 2 } },
-    key3: { value: "value3", metadata: { testing: 3 } },
+    key1: { value: utf8Encode("value1"), metadata: { testing: 1 } },
+    key2: { value: utf8Encode("value2"), metadata: { testing: 2 } },
+    key3: { value: utf8Encode("value3"), metadata: { testing: 3 } },
   },
   pages: [
     [
@@ -391,15 +388,39 @@ test("lists keys with metadata", listMacro, {
 });
 test("lists keys with expiration and metadata", listMacro, {
   values: {
-    key1: { value: "value1", expiration: 1100, metadata: { testing: 1 } },
-    key2: { value: "value2", expiration: 1200, metadata: { testing: 2 } },
-    key3: { value: "value3", expiration: 1300, metadata: { testing: 3 } },
+    key1: {
+      value: utf8Encode("value1"),
+      expiration: TIME_EXPIRING,
+      metadata: { testing: 1 },
+    },
+    key2: {
+      value: utf8Encode("value2"),
+      expiration: TIME_EXPIRING + 100,
+      metadata: { testing: 2 },
+    },
+    key3: {
+      value: utf8Encode("value3"),
+      expiration: TIME_EXPIRING + 200,
+      metadata: { testing: 3 },
+    },
   },
   pages: [
     [
-      { name: "key1", expiration: 1100, metadata: { testing: 1 } },
-      { name: "key2", expiration: 1200, metadata: { testing: 2 } },
-      { name: "key3", expiration: 1300, metadata: { testing: 3 } },
+      {
+        name: "key1",
+        expiration: TIME_EXPIRING,
+        metadata: { testing: 1 },
+      },
+      {
+        name: "key2",
+        expiration: TIME_EXPIRING + 100,
+        metadata: { testing: 2 },
+      },
+      {
+        name: "key3",
+        expiration: TIME_EXPIRING + 200,
+        metadata: { testing: 3 },
+      },
     ],
   ],
 });
@@ -409,37 +430,37 @@ test("returns an empty list with no keys", listMacro, {
 });
 test("returns an empty list with no matching keys", listMacro, {
   values: {
-    key1: { value: "value1" },
-    key2: { value: "value2" },
-    key3: { value: "value3" },
+    key1: { value: utf8Encode("value1") },
+    key2: { value: utf8Encode("value2") },
+    key3: { value: utf8Encode("value3") },
   },
   options: { prefix: "none" },
   pages: [[]],
 });
 test("returns an empty list with an invalid cursor", listMacro, {
   values: {
-    key1: { value: "value1" },
-    key2: { value: "value2" },
-    key3: { value: "value3" },
+    key1: { value: utf8Encode("value1") },
+    key2: { value: utf8Encode("value2") },
+    key3: { value: utf8Encode("value3") },
   },
-  options: { cursor: Buffer.from("bad", "utf8").toString("base64") },
+  options: { cursor: base64Encode("bad") },
   pages: [[]],
 });
 test("paginates keys", listMacro, {
   values: {
-    key1: { value: "value1" },
-    key2: { value: "value2" },
-    key3: { value: "value3" },
+    key1: { value: utf8Encode("value1") },
+    key2: { value: utf8Encode("value2") },
+    key3: { value: utf8Encode("value3") },
   },
   options: { limit: 2 },
   pages: [[{ name: "key1" }, { name: "key2" }], [{ name: "key3" }]],
 });
 test("paginates keys matching prefix", listMacro, {
   values: {
-    section1key1: { value: "value11" },
-    section1key2: { value: "value12" },
-    section1key3: { value: "value13" },
-    section2key1: { value: "value21" },
+    section1key1: { value: utf8Encode("value11") },
+    section1key2: { value: utf8Encode("value12") },
+    section1key3: { value: utf8Encode("value13") },
+    section2key1: { value: utf8Encode("value21") },
   },
   options: { prefix: "section1", limit: 2 },
   pages: [
@@ -447,12 +468,11 @@ test("paginates keys matching prefix", listMacro, {
     [{ name: "section1key3" }],
   ],
 });
-
 test("list: paginates with variable limit", async (t) => {
   const { storage, ns } = t.context;
-  await storage.put("key1", { value: Buffer.from("value1", "utf8") });
-  await storage.put("key2", { value: Buffer.from("value2", "utf8") });
-  await storage.put("key3", { value: Buffer.from("value3", "utf8") });
+  await storage.put("key1", { value: utf8Encode("value1") });
+  await storage.put("key2", { value: utf8Encode("value2") });
+  await storage.put("key3", { value: utf8Encode("value3") });
 
   // Get first page
   let page = await ns.list({ limit: 1 });
@@ -471,12 +491,11 @@ test("list: paginates with variable limit", async (t) => {
   t.true(page.list_complete);
   t.is(page.cursor, "");
 });
-
 test("list: returns keys inserted whilst paginating", async (t) => {
   const { storage, ns } = t.context;
-  await storage.put("key1", { value: Buffer.from("value1", "utf8") });
-  await storage.put("key3", { value: Buffer.from("value3", "utf8") });
-  await storage.put("key5", { value: Buffer.from("value5", "utf8") });
+  await storage.put("key1", { value: utf8Encode("value1") });
+  await storage.put("key3", { value: utf8Encode("value3") });
+  await storage.put("key5", { value: utf8Encode("value5") });
 
   // Get first page
   let page = await ns.list({ limit: 2 });
@@ -488,8 +507,8 @@ test("list: returns keys inserted whilst paginating", async (t) => {
   t.not(page.cursor, "");
 
   // Insert key2 and key4
-  await storage.put("key2", { value: Buffer.from("value2", "utf8") });
-  await storage.put("key4", { value: Buffer.from("value4", "utf8") });
+  await storage.put("key2", { value: utf8Encode("value2") });
+  await storage.put("key4", { value: utf8Encode("value4") });
 
   // Get second page, expecting to see key4 but not key2
   page = await ns.list({ limit: 2, cursor: page.cursor });
@@ -500,21 +519,15 @@ test("list: returns keys inserted whilst paginating", async (t) => {
   t.true(page.list_complete);
   t.is(page.cursor, "");
 });
-
-test("list: ignores and removes expired keys", async (t) => {
+test("list: ignores expired keys", async (t) => {
   const { storage, ns } = t.context;
   for (let i = 1; i <= 3; i++) {
     await storage.put(`key${i}`, {
-      value: Buffer.from(`value${i}`, "utf8"),
+      value: utf8Encode(`value${i}`),
       expiration: i * 100,
     });
   }
-  // Check keys ignored
   t.deepEqual(await ns.list(), { keys: [], list_complete: true, cursor: "" });
-  // Check keys deleted
-  t.is(await storage.get("key1"), undefined);
-  t.is(await storage.get("key2"), undefined);
-  t.is(await storage.get("key3"), undefined);
 });
 
 test("hides implementation details", (t) => {
