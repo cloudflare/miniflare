@@ -1,19 +1,31 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "esnext",
     "target": "esnext",
-    "lib": ["esnext"],
+    "lib": ["esnext", "webworker"],
     "strict": true,
     "moduleResolution": "node",
     "esModuleInterop": true,
+    "isolatedModules": true,
+    "experimentalDecorators": true,
+    "resolveJsonModule": true,
     "types": ["node"],
     "outDir": "dist",
+    "sourceMap": true,
     "declaration": true,
-    "sourceMap": true
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "baseUrl": ".",
+    "rootDir": ".",
+    "paths": {
+      "miniflare": ["packages/miniflare/src"],
+      "@miniflare/*": ["packages/*/src"],
+      "test:@miniflare/*": ["packages/*/test"]
+    }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "types"],
-  "exclude": ["node_modules"],
-  "ts-node": {
-    "files": true
-  }
+  "include": [
+    "packages/*/src",
+    "packages/*/test",
+    "types"
+  ]
 }
