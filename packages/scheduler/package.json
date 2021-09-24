@@ -1,0 +1,43 @@
+{
+  "name": "@miniflare/scheduler",
+  "version": "2.0.0",
+  "description": "",
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "worker",
+    "local",
+    "cloudworker"
+  ],
+  "author": "MrBBot <me@mrbbot.dev>",
+  "license": "MIT",
+  "type": "module",
+  "exports": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "files": [
+    "./dist/src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrbbot/miniflare.git",
+    "directory": "packages/scheduler"
+  },
+  "bugs": {
+    "url": "https://github.com/mrbbot/miniflare/issues"
+  },
+  "homepage": "https://github.com/mrbbot/miniflare/tree/master/packages/scheduler#readme",
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "dependencies": {
+    "@miniflare/core": "2.0.0",
+    "@miniflare/shared": "2.0.0",
+    "node-cron": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node-cron": "^2.0.4"
+  }
+}
