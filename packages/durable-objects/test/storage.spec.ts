@@ -1,35 +1,32 @@
-import { AssertionError } from "assert";
-import anyTest, { Macro, TestInterface } from "ava";
+import { serialize } from "v8";
 import {
   DurableObjectListOptions,
   DurableObjectStorage,
-  DurableObjectTransaction,
-  KVStorage,
-  KVStoredValue,
-  MemoryKVStorage,
-} from "../../src";
-import {
-  abortAllSymbol,
-  transactionReadSymbol,
-  transactionValidateWriteSymbol,
-} from "../../src/kv/do";
-import { getObjectProperties, triggerPromise } from "../helpers";
+} from "@miniflare/durable-objects";
+import { Storage, StoredValueMeta, viewToArray } from "@miniflare/shared";
+import { MemoryStorage } from "@miniflare/storage-memory";
+import anyTest, { Macro, TestInterface } from "ava";
+import { getObjectProperties } from "test:@miniflare/shared";
 
 interface Context {
-  backing: KVStorage;
+  backing: Storage;
   storage: DurableObjectStorage;
 }
 
 const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
-  const backing = new MemoryKVStorage();
+  const backing = new MemoryStorage();
   const storage = new DurableObjectStorage(backing);
   t.context = { backing, storage };
 });
 
-function storedValue(data: any): KVStoredValue {
-  return { value: Buffer.from(JSON.stringify(data), "utf8") };
+function storedValue(value: any): StoredValueMeta {
+  return {
+    value: viewToArray(serialize(value)),
+    expiration: undefined,
+    metadata: undefined,
+  };
 }
 
 const testString = "value";
@@ -37,13 +34,10 @@ const testSet = new Set(["a", "b", "c"]);
 const testDate = new Date(1000);
 const testObject = { a: 1, b: 2, c: 3 };
 
-const testStringStored = storedValue("value");
-const testSetStored = storedValue({
-  $: ["a", "b", "c"],
-  $types: { $: { "": "set" } },
-});
-const testDateStored = storedValue({ $: 1000, $types: { $: { "": "date" } } });
-const testObjectStored = storedValue({ a: 1, b: 2, c: 3 });
+const testStringStored = storedValue(testString);
+const testSetStored = storedValue(testSet);
+const testDateStored = storedValue(testDate);
+const testObjectStored = storedValue(testObject);
 
 test("get: gets single key", async (t) => {
   const { backing, storage } = t.context;
@@ -92,7 +86,7 @@ test("get: returns map with non-existent keys omitted", async (t) => {
   ]);
   t.deepEqual(await storage.get(["key1", "key2", "key3"]), expected);
 });
-test("get: gets from shadow copies", async (t) => {
+test("get: gets uncommitted values", async (t) => {
   t.plan(5);
   const { backing, storage } = t.context;
   await backing.put("key1", storedValue("value1"));
@@ -113,7 +107,7 @@ test("get: gets from shadow copies", async (t) => {
     t.is(await backing.get("key3"), undefined);
   });
 });
-test("get: gets some keys from shadow copies and some from storage", async (t) => {
+test("get: gets committed and uncommitted values in same transaction", async (t) => {
   t.plan(3);
   const { backing, storage } = t.context;
   await backing.put("key1", storedValue("value1"));
@@ -123,8 +117,8 @@ test("get: gets some keys from shadow copies and some from storage", async (t) =
     await txn.delete("key3");
     const values = await txn.get(["key1", "key2", "key3"]);
     t.is(values.size, 2);
-    t.is(values.get("key1"), "value1"); // from storage
-    t.is(values.get("key2"), "value2"); // from shadow copies
+    t.is(values.get("key1"), "value1"); // committed
+    t.is(values.get("key2"), "value2"); // uncommitted
   });
 });
 
@@ -218,9 +212,9 @@ const listMacro: Macro<
     section3key1: "value31",
     section3key2: "value32",
   };
-  for (const [key, value] of Object.entries(values)) {
-    await backing.put(key, storedValue(value));
-  }
+  await backing.putMany(
+    Object.entries(values).map(([key, value]) => [key, storedValue(value)])
+  );
   t.deepEqual(
     await storage.list(options),
     new Map(expected.map((key) => [key, values[key]]))
@@ -294,60 +288,6 @@ test("list: returns empty list with no keys", async (t) => {
   t.deepEqual(await storage.list(), new Map());
 });
 
-function incrementTransaction(...keys: string[]) {
-  return async (txn: DurableObjectTransaction) => {
-    const values = await txn.get<number>(keys);
-    const entries: Record<string, number> = {};
-    for (const [key, value] of values.entries()) entries[key] = value + 1;
-    await txn.put(entries);
-  };
-}
-
-test("transaction: commits single transaction", async (t) => {
-  const { backing, storage } = t.context;
-  await backing.put("a", storedValue(1));
-  await backing.put("b", storedValue(2));
-  await storage.transaction(incrementTransaction("a", "b"));
-  t.deepEqual(await backing.get("a"), storedValue(2));
-  t.deepEqual(await backing.get("b"), storedValue(3));
-});
-test("transaction: commits concurrent transactions operating on disjoint keys", async (t) => {
-  const { backing, storage } = t.context;
-  await backing.put("a", storedValue(1));
-  await backing.put("b", storedValue(2));
-  const txnA = await storage[transactionReadSymbol](incrementTransaction("a"));
-  const txnB = await storage[transactionReadSymbol](incrementTransaction("b"));
-  t.true(await storage[transactionValidateWriteSymbol](txnA.txn));
-  t.true(await storage[transactionValidateWriteSymbol](txnB.txn));
-  t.deepEqual(await backing.get("a"), storedValue(2));
-  t.deepEqual(await backing.get("b"), storedValue(3));
-});
-test("transaction: aborts concurrent transactions operating on conflicting keys", async (t) => {
-  const { backing, storage } = t.context;
-  await backing.put("a", storedValue(1));
-  await backing.put("b", storedValue(2));
-  const txnA = await storage[transactionReadSymbol](incrementTransaction("a"));
-  const txnB = await storage[transactionReadSymbol](
-    incrementTransaction("a", "b")
-  );
-  t.true(await storage[transactionValidateWriteSymbol](txnA.txn));
-  t.false(await storage[transactionValidateWriteSymbol](txnB.txn));
-  t.deepEqual(await backing.get("a"), storedValue(2));
-  t.deepEqual(await backing.get("b"), storedValue(2));
-});
-test("transaction: retries concurrent transactions operating on conflicting keys", async (t) => {
-  // TODO: (low priority) fix this test's scenario, currently each transaction is just run once
-  const { backing, storage } = t.context;
-  await backing.put("a", storedValue(1));
-  await backing.put("b", storedValue(2));
-  await Promise.all([
-    await storage.transaction(incrementTransaction("a")),
-    await storage.transaction(incrementTransaction("a", "b")),
-  ]);
-  t.deepEqual(await backing.get("a"), storedValue(3));
-  t.deepEqual(await backing.get("b"), storedValue(3));
-});
-// TODO: (low priority) test concurrent transactions using other operations (e.g. delete, deleteAll, list, etc)
 test("transaction: rolledback transaction doesn't commit", async (t) => {
   const { backing, storage } = t.context;
   await backing.put("key", storedValue("old"));
@@ -357,21 +297,6 @@ test("transaction: rolledback transaction doesn't commit", async (t) => {
   });
   t.deepEqual(await backing.get("key"), storedValue("old"));
 });
-test("transaction: cannot perform more operations after rollback", async (t) => {
-  const { storage } = t.context;
-  t.plan(6);
-  await storage.transaction(async (txn) => {
-    txn.rollback();
-    await t.throwsAsync(txn.get("key"), { instanceOf: AssertionError });
-    await t.throwsAsync(txn.put("key", "value"), {
-      instanceOf: AssertionError,
-    });
-    await t.throwsAsync(txn.delete("key"), { instanceOf: AssertionError });
-    await t.throwsAsync(txn.deleteAll(), { instanceOf: AssertionError });
-    await t.throwsAsync(txn.list(), { instanceOf: AssertionError });
-    await t.throws(() => txn.rollback(), { instanceOf: AssertionError });
-  });
-});
 test("transaction: propagates return value", async (t) => {
   const { backing, storage } = t.context;
   await backing.put("a", storedValue(1));
@@ -380,22 +305,6 @@ test("transaction: propagates return value", async (t) => {
     return value + 2;
   });
   t.is(res, 3);
-});
-test("transaction: aborts all in-progress transactions", async (t) => {
-  const { backing, storage } = t.context;
-  await backing.put("key", storedValue("old"));
-  const [barrierTrigger, barrierPromise] = triggerPromise<void>();
-  const txnPromise = storage.transaction(async (txn) => {
-    await txn.put("key", "new");
-    await barrierPromise;
-  });
-
-  // Abort all, then allow the transaction to complete
-  storage[abortAllSymbol]();
-  barrierTrigger();
-  await txnPromise;
-
-  t.deepEqual(await backing.get("key"), storedValue("old"));
 });
 
 test("hides implementation details", (t) => {
