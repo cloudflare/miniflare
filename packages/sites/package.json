@@ -1,0 +1,45 @@
+{
+  "name": "@miniflare/sites",
+  "version": "2.0.0",
+  "description": "",
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "worker",
+    "local",
+    "cloudworker"
+  ],
+  "author": "MrBBot <me@mrbbot.dev>",
+  "license": "MIT",
+  "type": "module",
+  "exports": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "files": [
+    "./dist/src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrbbot/miniflare.git",
+    "directory": "packages/sites"
+  },
+  "bugs": {
+    "url": "https://github.com/mrbbot/miniflare/issues"
+  },
+  "homepage": "https://github.com/mrbbot/miniflare/tree/master/packages/sites#readme",
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "entryPoints": [
+    "test/fixtures/plugin.assetHandler.js"
+  ],
+  "dependencies": {
+    "@miniflare/kv": "2.0.0",
+    "@miniflare/shared": "2.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/kv-asset-handler": "^0.1.3"
+  }
+}
