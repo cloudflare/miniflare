@@ -1,19 +1,15 @@
 import assert from "assert";
-import { HeadersInit, RequestInfo } from "@mrbbot/node-fetch";
+import { URL } from "url";
+import { Cache, CachedMeta } from "@miniflare/cache";
+import { StorageOperator } from "@miniflare/shared";
+import { MemoryStorageOperator } from "@miniflare/storage-memory";
 import anyTest, { Macro, TestInterface } from "ava";
-import {
-  Cache,
-  CachedResponse,
-  KVStorage,
-  MemoryKVStorage,
-  NoOpCache,
-  Request,
-  Response,
-} from "../../src";
-import { getObjectProperties } from "../helpers";
+import { getObjectProperties, utf8Decode } from "test:@miniflare/shared";
+import { HeadersInit, Request, RequestInfo, Response } from "undici";
+import { testResponse } from "./helpers";
 
 interface Context {
-  storage: KVStorage;
+  storage: StorageOperator;
   clock: { timestamp: number };
   cache: Cache;
 }
@@ -21,35 +17,34 @@ interface Context {
 const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
-  const clock = { timestamp: 1000000 };
-  const kvClock = () => clock.timestamp;
-  const storage = new MemoryKVStorage(undefined, kvClock);
-  const cache = new Cache(storage, kvClock);
+  const clock = { timestamp: 1_000_000 }; // 1000s
+  const clockFunction = () => clock.timestamp;
+  const storage = new MemoryStorageOperator(undefined, clockFunction);
+  const cache = new Cache(storage, clockFunction);
   t.context = { storage, clock, cache };
-});
-
-const testResponse = new Response("value", {
-  headers: { "Cache-Control": "max-age=3600" },
 });
 
 // Cache:* tests adapted from Cloudworker:
 // https://github.com/dollarshaveclub/cloudworker/blob/master/lib/runtime/cache/__tests__/cache.test.js
 const putMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   const { storage, cache } = t.context;
-  await cache.put(req, testResponse.clone());
+  await cache.put(req, testResponse());
 
-  const storedValue = await storage.get("http://localhost:8787/test.json");
-  t.not(storedValue, undefined);
-  t.not(storedValue?.expiration, undefined);
-  assert(storedValue?.expiration); // for TypeScript
-  t.is(storedValue.expiration, 1000 + 3600);
+  const stored = await storage.get<CachedMeta>("http://localhost:8787/test");
+  t.not(stored, undefined);
+  t.not(stored?.expiration, undefined);
+  assert(stored?.expiration); // for TypeScript
+  t.is(stored.expiration, 1000 + 3600);
 
-  const cached: CachedResponse = JSON.parse(storedValue.value.toString("utf8"));
-  t.deepEqual(cached, {
-    status: 200,
-    headers: { "Cache-Control": ["max-age=3600"] },
-    body: Buffer.from("value", "utf8").toString("base64"),
-  });
+  t.not(stored.metadata, undefined);
+  assert(stored.metadata); // for TypeScript
+  t.is(stored.metadata.status, 200);
+  t.deepEqual(stored.metadata.headers, [
+    ["cache-control", "max-age=3600"],
+    ["content-type", "text/plain; charset=utf8"],
+  ]);
+
+  t.is(utf8Decode(stored.value), "value");
 };
 putMacro.title = (providedTitle) => `Cache: puts ${providedTitle}`;
 test("request", putMacro, new Request("http://localhost:8787/test"));
@@ -61,28 +56,31 @@ test("Cache: only puts GET requests", async (t) => {
   for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
     await cache.put(
       new Request(`http://localhost:8787/${method}`, { method }),
-      testResponse.clone()
+      testResponse()
     );
   }
   t.deepEqual(
-    (await storage.list()).map(({ name }) => name),
-    ["http://localhost:8787/GET.json"]
+    (await storage.list()).keys.map(({ name }) => name),
+    ["http://localhost:8787/GET"]
   );
 });
 
 const matchMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   const { cache } = t.context;
-  await cache.put(
-    new Request("http://localhost:8787/test"),
-    testResponse.clone()
-  );
+  await cache.put(new Request("http://localhost:8787/test"), testResponse());
 
   const cached = await cache.match(req);
-  t.is(cached?.status, 200);
-  t.deepEqual(cached?.headers.raw(), {
-    "Cache-Control": ["max-age=3600"],
-    "CF-Cache-Status": ["HIT"],
-  });
+  t.not(cached, undefined);
+  assert(cached); // for TypeScript
+  t.is(cached.status, 200);
+  t.deepEqual(
+    [...cached.headers],
+    [
+      ["cache-control", "max-age=3600"],
+      ["cf-cache-status", "HIT"],
+      ["content-type", "text/plain; charset=utf8"],
+    ]
+  );
   t.is(await cached?.text(), "value");
 };
 matchMacro.title = (providedTitle) => `Cache: matches ${providedTitle}`;
@@ -92,10 +90,7 @@ test("url request", matchMacro, new URL("http://localhost:8787/test"));
 
 test("Cache: only matches non-GET requests when ignoring method", async (t) => {
   const { cache } = t.context;
-  await cache.put(
-    new Request("http://localhost:8787/test"),
-    testResponse.clone()
-  );
+  await cache.put(new Request("http://localhost:8787/test"), testResponse());
   const req = new Request("http://localhost:8787/test", { method: "POST" });
   t.is(await cache.match(req), undefined);
   t.not(await cache.match(req, { ignoreMethod: true }), undefined);
@@ -103,13 +98,10 @@ test("Cache: only matches non-GET requests when ignoring method", async (t) => {
 
 const deleteMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   const { storage, cache } = t.context;
-  await cache.put(
-    new Request("http://localhost:8787/test"),
-    testResponse.clone()
-  );
-  t.not(await storage.get("http://localhost:8787/test.json"), undefined);
+  await cache.put(new Request("http://localhost:8787/test"), testResponse());
+  t.not(await storage.get("http://localhost:8787/test"), undefined);
   t.true(await cache.delete(req));
-  t.is(await storage.get("http://localhost:8787/test.json"), undefined);
+  t.is(await storage.get("http://localhost:8787/test"), undefined);
   t.false(await cache.delete(req));
 };
 deleteMacro.title = (providedTitle) => `Cache: deletes ${providedTitle}`;
@@ -119,10 +111,7 @@ test("url request", deleteMacro, new URL("http://localhost:8787/test"));
 
 test("Cache: only deletes non-GET requests when ignoring method", async (t) => {
   const { cache } = t.context;
-  await cache.put(
-    new Request("http://localhost:8787/test"),
-    testResponse.clone()
-  );
+  await cache.put(new Request("http://localhost:8787/test"), testResponse());
   const req = new Request("http://localhost:8787/test", { method: "POST" });
   t.false(await cache.delete(req));
   t.true(await cache.delete(req, { ignoreMethod: true }));
@@ -171,7 +160,7 @@ const isCachedMacro: Macro<
       },
     })
   );
-  const storedValue = await storage.get("http://localhost:8787/test.json");
+  const storedValue = await storage.get("http://localhost:8787/test");
   (cached ? t.not : t.is)(storedValue, undefined);
   const cachedRes = await cache.match("http://localhost:8787/test");
   (cached ? t.not : t.is)(cachedRes, undefined);
@@ -208,13 +197,4 @@ test(
 test("Cache: hides implementation details", (t) => {
   const { cache } = t.context;
   t.deepEqual(getObjectProperties(cache), ["delete", "match", "put"]);
-});
-
-test("NoOpCache: doesn't cache", async (t) => {
-  const req = "http://localhost:8787/test";
-  const cache = new NoOpCache();
-  t.is(await cache.put(req, testResponse.clone()), undefined);
-  t.is(await cache.match(req), undefined);
-  t.is(await cache.put(req, testResponse.clone()), undefined);
-  t.false(await cache.delete(req));
 });
