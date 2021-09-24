@@ -14,3 +14,5 @@ process.emitWarning = (warning, ctorTypeOptions, ctorCode, ctor) => {
   }
   originalEmitWarning(warning, ctorTypeOptions, ctorCode, ctor);
 };
+
+export {};
