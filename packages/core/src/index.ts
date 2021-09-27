@@ -21,8 +21,6 @@ import {
 import type { Watcher } from "@miniflare/watcher";
 import { dequal } from "dequal/lite";
 import { dim } from "kleur/colors";
-// @ts-expect-error we need these for making Request's Headers immutable
-import fetchSymbols from "undici/lib/fetch/symbols.js";
 import { addAll, formatSize, pathsToString } from "./helpers";
 import { CorePlugin, autoPopulateBuildConfiguration } from "./plugins";
 import {
@@ -35,6 +33,7 @@ import {
   kAddModuleScheduledListener,
   kDispatchFetch,
   kDispatchScheduled,
+  withImmutableHeaders,
 } from "./standards";
 import { PluginStorageFactory } from "./storage";
 
@@ -565,10 +564,8 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
     assert(corePlugin && globalScope);
     const request =
       input instanceof Request && !init ? input : new Request(input, init);
-    // @ts-expect-error internal kGuard isn't included in type definitions
-    request.headers[fetchSymbols.kGuard] = "immutable";
     return globalScope[kDispatchFetch]<WaitUntil>(
-      request,
+      withImmutableHeaders(request),
       !!corePlugin.upstream
     );
   }
