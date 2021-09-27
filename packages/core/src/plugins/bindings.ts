@@ -81,9 +81,6 @@ export class BindingsPlugin
       watch.push(envPath);
     }
 
-    // Copy user's arbitrary bindings
-    Object.assign(bindings, this.bindings);
-
     // Load WebAssembly module bindings from files
     if (this.wasmBindings) {
       for (const [name, wasmPath] of Object.entries(this.wasmBindings)) {
@@ -91,6 +88,9 @@ export class BindingsPlugin
         watch.push(wasmPath);
       }
     }
+
+    // Copy user's arbitrary bindings
+    Object.assign(bindings, this.bindings);
 
     return { bindings, watch };
   }

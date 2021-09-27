@@ -15,6 +15,8 @@ import {
   BodyInit,
   fetch as baseFetch,
 } from "undici";
+// @ts-expect-error we need these for making Request's Headers immutable
+import fetchSymbols from "undici/lib/fetch/symbols.js";
 import StandardWebSocket from "ws";
 
 export type RequestInfo = BaseRequestInfo | Request;
@@ -47,6 +49,12 @@ export class Request extends BaseRequest {
     cloned.clone = this.clone.bind(cloned);
     return cloned;
   };
+}
+
+export function withImmutableHeaders(req: Request): Request {
+  // @ts-expect-error internal kGuard isn't included in type definitions
+  req.headers[fetchSymbols.kGuard] = "immutable";
+  return req;
 }
 
 export interface ResponseInit extends BaseResponseInit {
@@ -156,7 +164,10 @@ export async function fetch(
     // Couple web socket with pair and resolve
     const [worker, client] = Object.values(new WebSocketPair());
     await coupleWebSocket(ws, client);
-    return new Response(null, { webSocket: worker });
+    return new Response(null, {
+      status: 101,
+      webSocket: worker,
+    });
   }
 
   // TODO: (low priority) support cache using fetch:
