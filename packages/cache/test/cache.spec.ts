@@ -1,11 +1,18 @@
 import assert from "assert";
 import { URL } from "url";
 import { Cache, CachedMeta } from "@miniflare/cache";
+import { Response } from "@miniflare/core";
 import { StorageOperator } from "@miniflare/shared";
 import { getObjectProperties, utf8Decode } from "@miniflare/shared-test";
 import { MemoryStorageOperator } from "@miniflare/storage-memory";
+import { WebSocketPair } from "@miniflare/web-sockets";
 import anyTest, { Macro, TestInterface } from "ava";
-import { HeadersInit, Request, RequestInfo, Response } from "undici";
+import {
+  Response as BaseResponse,
+  HeadersInit,
+  Request,
+  RequestInfo,
+} from "undici";
 import { testResponse } from "./helpers";
 
 interface Context {
@@ -51,6 +58,18 @@ test("request", putMacro, new Request("http://localhost:8787/test"));
 test("string request", putMacro, "http://localhost:8787/test");
 test("url request", putMacro, new URL("http://localhost:8787/test"));
 
+test("Cache: doesn't cache WebSocket responses", async (t) => {
+  const { cache } = t.context;
+  const pair = new WebSocketPair();
+  const res = new Response(null, {
+    status: 101,
+    webSocket: pair["0"],
+  });
+  await t.throwsAsync(cache.put("http://localhost:8787/", res), {
+    instanceOf: TypeError,
+    message: "Cannot cache WebSocket upgrade response.",
+  });
+});
 test("Cache: only puts GET requests", async (t) => {
   const { cache } = t.context;
   for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
@@ -65,6 +84,34 @@ test("Cache: only puts GET requests", async (t) => {
       }
     );
   }
+});
+test("Cache: doesn't cache partial content responses", async (t) => {
+  const { cache } = t.context;
+  const res = new Response("body", {
+    status: 206,
+    headers: { "content-range": "bytes 0-4/8" },
+  });
+  await t.throwsAsync(cache.put("http://localhost:8787/", res), {
+    instanceOf: TypeError,
+    message: "Cannot cache response to a range request (206 Partial Content).",
+  });
+});
+test("Cache: doesn't cache vary all responses", async (t) => {
+  const { cache } = t.context;
+  let res = new Response("body", {
+    headers: { vary: "*" },
+  });
+  await t.throwsAsync(cache.put("http://localhost:8787/", res), {
+    instanceOf: TypeError,
+    message: "Cannot cache response with 'Vary: *' header.",
+  });
+  res = new Response("body", {
+    headers: { vary: "user-agent, *" },
+  });
+  await t.throwsAsync(cache.put("http://localhost:8787/", res), {
+    instanceOf: TypeError,
+    message: "Cannot cache response with 'Vary: *' header.",
+  });
 });
 
 const matchMacro: Macro<[RequestInfo], Context> = async (t, req) => {
@@ -126,7 +173,7 @@ const expireMacro: Macro<
   const { clock, cache } = t.context;
   await cache.put(
     new Request("http://localhost:8787/test"),
-    new Response("value", { headers })
+    new BaseResponse("value", { headers })
   );
   t.not(await cache.match("http://localhost:8787/test"), undefined);
   clock.timestamp += expectedTtl / 2;
@@ -155,7 +202,7 @@ const isCachedMacro: Macro<
   const { storage, cache } = t.context;
   await cache.put(
     new Request("http://localhost:8787/test"),
-    new Response("value", {
+    new BaseResponse("value", {
       headers: {
         ...headers,
         Expires: new Date(Date.now() + 2000).toUTCString(),
