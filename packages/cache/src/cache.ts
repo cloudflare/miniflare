@@ -62,7 +62,7 @@ export class Cache implements CacheInterface {
     if (res instanceof Response && res.webSocket) {
       throw new TypeError("Cannot cache WebSocket upgrade response.");
     }
-    if (req.method === "GET") {
+    if (req.method !== "GET") {
       throw new TypeError("Cannot cache response to non-GET request.");
     }
     if (res.status === 206) {

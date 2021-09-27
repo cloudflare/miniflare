@@ -1,5 +1,6 @@
 import assert from "assert";
 import { CorePlugin, Request } from "@miniflare/core";
+import { NoOpLog, triggerPromise, useMiniflare } from "@miniflare/shared-test";
 import {
   CloseEvent,
   ErrorEvent,
@@ -9,7 +10,6 @@ import {
   WebSocketPlugin,
 } from "@miniflare/web-sockets";
 import test from "ava";
-import { NoOpLog, triggerPromise, useMiniflare } from "test:@miniflare/shared";
 
 test("WebSocketPlugin: setup: includes WebSocket stuff in globals", (t) => {
   const plugin = new WebSocketPlugin(new NoOpLog());

@@ -2,7 +2,8 @@ import http from "http";
 import { AddressInfo } from "net";
 import { URL } from "url";
 import { ExecutionContext } from "ava";
-import StandardWebSocket from "ws";
+// @ts-expect-error ws's type definitions haven't been updated yet
+import StandardWebSocket, { WebSocketServer } from "ws";
 
 export async function useServer(
   t: ExecutionContext,
@@ -16,7 +17,7 @@ export async function useServer(
     const server = http.createServer(listener);
     // Only setup web socket server if listener provided
     if (webSocketListener) {
-      const wss = new StandardWebSocket.Server({ server });
+      const wss = new WebSocketServer({ server });
       wss.on("connection", webSocketListener);
     }
     // 0 binds to random unused port

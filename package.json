@@ -1,5 +1,6 @@
 {
   "private": true,
+  "name": "@miniflare/root",
   "version": "2.0.0",
   "description": "Fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
@@ -16,17 +17,22 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "build:types": "tsc && node scripts/types.mjs",
-    "dev": "node scripts/build.mjs watch",
+    "build": "node scripts/build.js",
+    "build:types": "tsc && node scripts/types.js",
+    "dev": "node scripts/build.js watch",
     "test": "npm run build && ava",
     "lint": "eslint 'packages/*/{src,test}/**/*.ts' 'scripts/**/*.{js,mjs}' 'types/**/*.ts'",
-    "helpers:scaffold": "node scripts/scaffold.mjs",
-    "helpers:version": "node scripts/version.mjs"
+    "prepublishOnly": "npm run lint && npm run test",
+    "helpers:scaffold": "node scripts/scaffold.js",
+    "helpers:version": "node scripts/version.js",
+    "docs:changelog": "node docs/.vitepress/changelog.js",
+    "docs:dev": "npm run docs:changelog && vitepress dev docs",
+    "docs:build": "npm run docs:changelog && vitepress build docs",
+    "docs:serve": "vitepress serve docs"
   },
   "devDependencies": {
     "@ava/typescript": "^2.0.0",
-    "@microsoft/api-extractor": "^7.18.9",
+    "@microsoft/api-extractor": "^7.18.11",
     "@types/node": "^16.7.7",
     "@types/rimraf": "^3.0.2",
     "@typescript-eslint/eslint-plugin": "^4.29.3",
@@ -40,7 +46,8 @@
     "esm": "^3.2.25",
     "prettier": "^2.3.2",
     "rimraf": "^3.0.2",
-    "typescript": "^4.4.3"
+    "typescript": "^4.4.3",
+    "vitepress": "^0.19.1"
   },
   "volta": {
     "node": "16.9.0"

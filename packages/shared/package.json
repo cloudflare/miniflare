@@ -36,7 +36,6 @@
     "ignore": "^5.1.8"
   },
   "devDependencies": {
-    "@miniflare/core": "2.0.0",
-    "@miniflare/runner-vm": "2.0.0"
+    "@miniflare/shared-test": "2.0.0"
   }
 }

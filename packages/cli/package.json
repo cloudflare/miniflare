@@ -38,7 +38,8 @@
     "mri": "^1.1.6"
   },
   "devDependencies": {
-    "@miniflare/core": "^2.0.0",
+    "@miniflare/core": "2.0.0",
+    "@miniflare/shared-test": "2.0.0",
     "@types/mri": "^1.1.1"
   }
 }

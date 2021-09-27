@@ -43,6 +43,7 @@
     "youch": "^2.2.2"
   },
   "devDependencies": {
+    "@miniflare/shared-test": "2.0.0",
     "@types/node-forge": "^0.10.4"
   }
 }

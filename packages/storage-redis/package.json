@@ -39,6 +39,7 @@
     "ioredis": "^4.27.9"
   },
   "devDependencies": {
+    "@miniflare/shared-test": "2.0.0",
     "@types/ioredis": "^4.27.2"
   }
 }

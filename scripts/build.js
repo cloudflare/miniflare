@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import esbuild from "esbuild";
-import { getPackage, pkgsDir, pkgsList, projectRoot } from "./common.mjs";
+import { getPackage, pkgsDir, pkgsList, projectRoot } from "./common.js";
 
 const argv = process.argv.slice(2);
 const watch = argv[0] === "watch";
@@ -50,6 +50,7 @@ const buildOptions = {
   target: "esnext",
   bundle: true,
   sourcemap: true,
+  sourcesContent: false,
   // minify: true,
   // minifySyntax: true,
   // minifyWhitespace: true,
@@ -70,18 +71,23 @@ async function buildPackage(name) {
   const pkg = await getPackage(pkgRoot);
 
   const indexPath = path.join(pkgRoot, "src", "index.ts");
-  // Look for test files ending with .spec.ts in the test directory
-  const testPaths = (await walk(path.join(pkgRoot, "test"))).filter(
-    (testPath) => testPath.endsWith(".spec.ts")
-  );
-  // Make sure built source files are always in dist/src even when there aren't
-  // any tests
-  const outPath =
-    testPaths.length === 0
-      ? path.join(pkgRoot, "dist", "src")
-      : path.join(pkgRoot, "dist");
+  // Look for test files ending with .spec.ts in the test directory, default to
+  // empty array if not found
+  let testPaths = [];
+  try {
+    testPaths = (await walk(path.join(pkgRoot, "test"))).filter((testPath) =>
+      testPath.endsWith(".spec.ts")
+    );
+  } catch (e) {
+    if (e.code !== "ENOENT") throw e;
+  }
+  const outPath = path.join(pkgRoot, "dist");
 
-  const commonBuildOptions = {
+  const entryPoints = [indexPath, ...testPaths];
+  if (pkg.entryPoints) {
+    entryPoints.push(...pkg.entryPoints.map((e) => path.join(pkgRoot, e)));
+  }
+  await esbuild.build({
     ...buildOptions,
     external: [
       // Extend root package's dependencies with this package's
@@ -94,51 +100,11 @@ async function buildPackage(name) {
       "miniflare",
       "@miniflare/*",
     ],
-  };
-
-  const entryPoints = [indexPath, ...testPaths];
-  if (pkg.entryPoints) {
-    entryPoints.push(...pkg.entryPoints.map((e) => path.join(pkgRoot, e)));
-  }
-  await esbuild.build({
-    ...commonBuildOptions,
     entryPoints,
     outdir: outPath,
+    outbase: pkgRoot,
   });
 }
 
-/**
- * Builds an AVA config including TypeScript rewrite paths for all packages.
- * Even though ava.config.js has the .js extension, you can't load any modules
- * in it, so we can't access the file system to do this there. This will change
- * in AVA version 4.
- * @returns {Promise<void>}
- */
-async function buildAVAConfig() {
-  const rewritePaths = Object.fromEntries(
-    pkgsList.map((name) => [
-      `packages/${name}/test/`,
-      `packages/${name}/dist/test/`,
-    ])
-  );
-  // TODO: need to update this to work with ESM
-  const avaConfig = {
-    files: ["packages/*/test/**/*.spec.ts"],
-    // Long timeout for initial (uncached) Rust worker build
-    timeout: "5m",
-    nodeArguments: ["--experimental-vm-modules"],
-    typescript: {
-      compile: false,
-      rewritePaths,
-    },
-  };
-  const avaConfigJSON = JSON.stringify(avaConfig, null, 2);
-  const contents = `/* eslint-disable */\nexport default ${avaConfigJSON};`;
-  await fs.writeFile(path.join(projectRoot, "ava.config.js"), contents, "utf8");
-}
-
-// Bundle all packages, optionally watching, and AVA config
-await Promise.all([
-  ...pkgsList.map((pkgName) => buildPackage(pkgName)),
-  buildAVAConfig(),
-]);
+// Bundle all packages, optionally watching
+await Promise.all(pkgsList.map((pkgName) => buildPackage(pkgName)));

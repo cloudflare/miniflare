@@ -7,7 +7,7 @@ import {
   projectRoot,
   scope,
   setPackage,
-} from "./common.mjs";
+} from "./common.js";
 
 const argv = process.argv.slice(2);
 const version = argv[0];

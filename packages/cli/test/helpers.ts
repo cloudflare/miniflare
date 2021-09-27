@@ -1,6 +1,6 @@
 import { Log, Option, OptionType, Plugin } from "@miniflare/shared";
 
-// TODO: consider moving this to test:@miniflare/shared
+// TODO: consider moving this to @miniflare/shared-test
 
 export interface TestOptions {
   noneOption?: string;

@@ -45,6 +45,7 @@
     "ws": "^8.2.2"
   },
   "devDependencies": {
+    "@miniflare/shared-test": "2.0.0",
     "@miniflare/watcher": "2.0.0"
   },
   "peerDependencies": {

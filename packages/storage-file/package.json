@@ -36,5 +36,8 @@
     "@miniflare/shared": "2.0.0",
     "@miniflare/storage-memory": "2.0.0",
     "exit-hook": "^2.2.1"
+  },
+  "devDependencies": {
+    "@miniflare/shared-test": "2.0.0"
   }
 }

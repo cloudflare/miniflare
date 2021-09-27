@@ -15,4 +15,5 @@ export const operatorMacros = [
 
 export const txnMacros = Object.values(txnMacrosObject);
 
+export * from "./factory";
 export * from "./shared";

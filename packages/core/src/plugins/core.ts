@@ -30,7 +30,7 @@ import {
   SetupResult,
   globsToMatcher,
 } from "@miniflare/shared";
-import { WebSocket } from "@miniflare/web-sockets";
+import { WebSocket, isWebSocketClosed } from "@miniflare/web-sockets";
 import { FormData, Headers } from "undici";
 import {
   DOMException,
@@ -346,7 +346,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
   reload(): void {
     // Ensure all fetched web sockets are closed
     for (const ws of this[kWebSockets]) {
-      ws.close(1012, "Service Restart");
+      if (!isWebSocketClosed(ws)) ws.close(1012, "Service Restart");
     }
     this[kWebSockets].clear();
   }

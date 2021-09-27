@@ -1,14 +1,14 @@
 import assert from "assert";
 import { viewToBuffer } from "@miniflare/shared";
-import { WebSocketPair, coupleWebSocket } from "@miniflare/web-sockets";
-import { CloseEvent, MessageEvent } from "@miniflare/web-sockets";
-import test from "ava";
 import {
   triggerPromise,
   useServer,
   utf8Decode,
   utf8Encode,
-} from "test:@miniflare/shared";
+} from "@miniflare/shared-test";
+import { WebSocketPair, coupleWebSocket } from "@miniflare/web-sockets";
+import { CloseEvent, MessageEvent } from "@miniflare/web-sockets";
+import test from "ava";
 import StandardWebSocket from "ws";
 
 const noop = () => {};
@@ -181,6 +181,6 @@ test("coupleWebSocket: throws if web socket already closed", async (t) => {
   ws.close(1000, "Test Closure");
   await t.throwsAsync(coupleWebSocket(ws, client), {
     instanceOf: Error,
-    message: "WebSocket already closed",
+    message: "Incoming WebSocket connection already closed.",
   });
 });

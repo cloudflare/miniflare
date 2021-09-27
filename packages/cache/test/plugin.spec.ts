@@ -7,7 +7,6 @@ import {
   NoOpCache,
 } from "@miniflare/cache";
 import { StoredValueMeta } from "@miniflare/shared";
-import test from "ava";
 import {
   MemoryStorageFactory,
   NoOpLog,
@@ -16,7 +15,8 @@ import {
   parsePluginArgv,
   parsePluginWranglerConfig,
   utf8Decode,
-} from "test:@miniflare/shared";
+} from "@miniflare/shared-test";
+import test from "ava";
 import { testResponse } from "./helpers";
 
 test("CacheStorage: provides default cache", async (t) => {

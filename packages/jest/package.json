@@ -35,5 +35,8 @@
   "dependencies": {
     "@miniflare/shared": "2.0.0",
     "jest": "^27.2.1"
+  },
+  "devDependencies": {
+    "@miniflare/shared-test": "2.0.0"
   }
 }
