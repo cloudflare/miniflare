@@ -4,9 +4,9 @@ import path from "path";
 import { setTimeout } from "timers/promises";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
+import { useTmp } from "@miniflare/shared-test";
 import { FileMutex } from "@miniflare/storage-file";
 import test from "ava";
-import { useTmp } from "test:@miniflare/shared";
 
 const execFile = promisify(childProcess.execFile);
 

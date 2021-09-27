@@ -6,5 +6,6 @@ export {
   ErrorEvent,
   WebSocket,
   WebSocketPair,
+  isWebSocketClosed,
 } from "./websocket";
 export type { WebSocketEventMap } from "./websocket";

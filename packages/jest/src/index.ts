@@ -70,6 +70,7 @@ export class MiniflareEnvironment implements JestEnvironment {
 
     this.fakeTimers = new LegacyFakeTimers({
       config: this.config,
+      // @ts-expect-error this is copied from the Node environment
       global: this.global,
       moduleMocker: this.moduleMocker,
       timerConfig,
@@ -77,6 +78,7 @@ export class MiniflareEnvironment implements JestEnvironment {
 
     this.fakeTimersModern = new ModernFakeTimers({
       config: this.config,
+      // @ts-expect-error this is copied from the Node environment
       global: this.global,
     });
   }

@@ -1,19 +1,19 @@
 import assert from "assert";
 import { Storage, StoredValueMeta, sanitisePath } from "@miniflare/shared";
 import {
+  TIME_EXPIRED,
+  TIME_EXPIRING,
+  TestStorageFactory,
+  operatorMacros,
+  randomHex,
+  txnMacros,
+} from "@miniflare/shared-test";
+import {
   RedisPool,
   RedisStorage,
   bufferFromArray,
 } from "@miniflare/storage-redis";
 import test, { ExecutionContext } from "ava";
-import { randomHex } from "test:@miniflare/shared";
-import {
-  TIME_EXPIRED,
-  TIME_EXPIRING,
-  TestStorageFactory,
-  operatorMacros,
-  txnMacros,
-} from "test:@miniflare/storage-memory";
 
 // Only test Redis if a server URL has been set
 // (WARNING: database will be flushed)

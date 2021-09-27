@@ -1,5 +1,6 @@
 import {
   KVGetOptions,
+  KVGetValueType,
   KVListOptions,
   KVListResult,
   KVNamespace,
@@ -38,14 +39,17 @@ export class FilteredKVNamespace extends KVNamespace {
     return true;
   }
 
-  get(key: string, options?: KVGetOptions): KVValue<any> {
+  get(
+    key: string,
+    options?: KVGetValueType | Partial<KVGetOptions>
+  ): KVValue<any> {
     if (!this[kIncluded](key)) return Promise.resolve(null);
     return super.get(key, options as any);
   }
 
   getWithMetadata<Meta = unknown>(
     key: string,
-    options?: KVGetOptions
+    options?: KVGetValueType | Partial<KVGetOptions>
   ): KVValueMeta<any, Meta> {
     if (!this[kIncluded](key)) {
       return Promise.resolve({ value: null, metadata: null });

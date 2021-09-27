@@ -2,14 +2,14 @@ import assert from "assert";
 import { CachedMeta } from "@miniflare/cache";
 import { KVNamespace, KVPlugin } from "@miniflare/kv";
 import { StoredValueMeta } from "@miniflare/shared";
-import test from "ava";
 import {
   MemoryStorageFactory,
   NoOpLog,
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
-} from "test:@miniflare/shared";
+} from "@miniflare/shared-test";
+import test from "ava";
 
 test("KVPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(KVPlugin, [

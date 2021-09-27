@@ -1,15 +1,17 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { Storage, StorageOperator, StoredValueMeta } from "@miniflare/shared";
-import { FileStorage, FileStorageError } from "@miniflare/storage-file";
-import test, { ExecutionContext } from "ava";
-import { useTmp, utf8Decode, utf8Encode } from "test:@miniflare/shared";
 import {
   TestStorageFactory,
   operatorMacros,
   testClock,
   txnMacros,
-} from "test:@miniflare/storage-memory";
+  useTmp,
+  utf8Decode,
+  utf8Encode,
+} from "@miniflare/shared-test";
+import { FileStorage, FileStorageError } from "@miniflare/storage-file";
+import test, { ExecutionContext } from "ava";
 
 class FileStorageFactory extends TestStorageFactory {
   name = "FileStorage";

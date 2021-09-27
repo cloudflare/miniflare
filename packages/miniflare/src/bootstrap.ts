@@ -20,9 +20,9 @@ childProcess
     process.execPath,
     // TODO: maybe pass original execPath as env variable
     [
+      "--no-warnings", // TODO: not sure about this, maybe only in prod?
       "--enable-source-maps", // TODO: this caches source maps, check these get flushed properly
       "--experimental-vm-modules",
-      // "--no-warnings", // TODO: not sure about this, maybe only in prod?
       ...process.execArgv,
       path.join(__dirname, "cli.js"),
       ...process.argv.slice(2),

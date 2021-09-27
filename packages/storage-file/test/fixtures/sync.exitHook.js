@@ -1,4 +1,4 @@
-import { FileMutex } from "../..";
+import { FileMutex } from "../../dist/src/index.js";
 // Acquire lock at path process.argv[2]...
 const mutex = new FileMutex(process.argv[2]);
 // ...but terminate process (exitHook should cleanup lock)

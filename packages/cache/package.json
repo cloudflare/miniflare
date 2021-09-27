@@ -39,6 +39,7 @@
     "undici": "^4.5.1"
   },
   "devDependencies": {
+    "@miniflare/shared-test": "2.0.0",
     "@types/http-cache-semantics": "^4.0.1"
   }
 }

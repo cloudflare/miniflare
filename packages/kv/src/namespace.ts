@@ -26,9 +26,10 @@ export type KVValueMeta<Value, Meta> = Promise<{
 }>;
 
 export type KVGetValueType = "text" | "json" | "arrayBuffer" | "stream";
-export type KVGetOptions<
-  Type extends KVGetValueType | undefined = KVGetValueType | undefined
-> = Type | { type: Type; cacheTtl?: number };
+export type KVGetOptions<Type extends KVGetValueType = KVGetValueType> = {
+  type: Type;
+  cacheTtl?: number;
+};
 const getValueTypes = new Set(["text", "json", "arrayBuffer", "stream"]);
 
 export type KVPutValueType =
@@ -79,8 +80,10 @@ function validateKey(method: Method, key: string): void {
  * Normalises type, ignoring cacheTtl as there is only one "edge location":
  * the user's computer
  */
-function validateGetOptions(options?: KVGetOptions): KVGetValueType {
-  const string = typeof options == "string";
+function validateGetOptions(
+  options?: KVGetValueType | Partial<KVGetOptions>
+): KVGetValueType {
+  const string = typeof options === "string";
   const type = string ? options : options?.type ?? "text";
   const cacheTtl = string ? undefined : options?.cacheTtl;
   if (cacheTtl && (isNaN(cacheTtl) || cacheTtl < MIN_CACHE_TTL)) {
@@ -140,16 +143,25 @@ export class KVNamespace {
     this[kClock] = clock;
   }
 
-  get(key: string, options?: KVGetOptions<"text" | undefined>): KVValue<string>;
+  get(
+    key: string,
+    options?: "text" | Partial<KVGetOptions<"text">>
+  ): KVValue<string>;
   get<Value = unknown>(
     key: string,
-    options: KVGetOptions<"json">
+    options: "json" | KVGetOptions<"json">
   ): KVValue<Value>;
-  get(key: string, options: KVGetOptions<"arrayBuffer">): KVValue<ArrayBuffer>;
-  get(key: string, options: KVGetOptions<"stream">): KVValue<ReadableStream>;
+  get(
+    key: string,
+    options: "arrayBuffer" | KVGetOptions<"arrayBuffer">
+  ): KVValue<ArrayBuffer>;
+  get(
+    key: string,
+    options: "stream" | KVGetOptions<"stream">
+  ): KVValue<ReadableStream>;
   async get<Value = unknown>(
     key: string,
-    options?: KVGetOptions
+    options?: KVGetValueType | Partial<KVGetOptions>
   ): KVValue<KVPutValueType | Value> {
     // Validate key and options
     validateKey("GET", key);
@@ -165,23 +177,23 @@ export class KVNamespace {
 
   getWithMetadata<Metadata = unknown>(
     key: string,
-    options?: KVGetOptions<"text" | undefined>
+    options?: "text" | Partial<KVGetOptions<"text">>
   ): KVValueMeta<string, Metadata>;
   getWithMetadata<Value = unknown, Metadata = unknown>(
     key: string,
-    options: KVGetOptions<"json">
+    options: "json" | KVGetOptions<"json">
   ): KVValueMeta<Value, Metadata>;
   getWithMetadata<Metadata = unknown>(
     key: string,
-    options: KVGetOptions<"arrayBuffer">
+    options: "arrayBuffer" | KVGetOptions<"arrayBuffer">
   ): KVValueMeta<ArrayBuffer, Metadata>;
   getWithMetadata<Metadata = unknown>(
     key: string,
-    options: KVGetOptions<"stream">
+    options: "stream" | KVGetOptions<"stream">
   ): KVValueMeta<ReadableStream, Metadata>;
   async getWithMetadata<Value = unknown, Metadata = unknown>(
     key: string,
-    options?: KVGetOptions
+    options?: KVGetValueType | Partial<KVGetOptions>
   ): KVValueMeta<KVPutValueType | Value, Metadata> {
     // Validate key and options
     validateKey("GET", key);
@@ -271,7 +283,7 @@ export class KVNamespace {
       throwKVError(
         "PUT",
         413,
-        `413 Metadata length of ${metadataLength} exceeds limit of ${MAX_METADATA_SIZE}.`
+        `Metadata length of ${metadataLength} exceeds limit of ${MAX_METADATA_SIZE}.`
       );
     }
 

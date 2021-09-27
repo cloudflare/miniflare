@@ -1,6 +1,6 @@
 import { StoredValueMeta } from "@miniflare/shared";
 import { Macro } from "ava";
-import { utf8Decode, utf8Encode } from "test:@miniflare/shared";
+import { utf8Decode, utf8Encode } from "../data";
 import {
   MIXED_SEED,
   TIME_EXPIRING,

@@ -1,6 +1,6 @@
 import assert from "assert";
 import { Macro } from "ava";
-import { utf8Decode, utf8Encode } from "test:@miniflare/shared";
+import { utf8Decode, utf8Encode } from "../data";
 import { MIXED_SEED, TestOperatorFactory, assertExpiring } from "./shared";
 
 export const getExistingMacro: Macro<[TestOperatorFactory]> = async (

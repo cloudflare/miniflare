@@ -1,5 +1,6 @@
 {
-  "name": "@miniflare/runner-vm",
+  "private": true,
+  "name": "@miniflare/shared-test",
   "version": "2.0.0",
   "description": "",
   "keywords": [
@@ -17,25 +18,24 @@
   "files": [
     "./dist/src"
   ],
-  "publishConfig": {
-    "access": "public"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mrbbot/miniflare.git",
-    "directory": "packages/runner-vm"
+    "directory": "packages/shared-test"
   },
   "bugs": {
     "url": "https://github.com/mrbbot/miniflare/issues"
   },
-  "homepage": "https://github.com/mrbbot/miniflare/tree/master/packages/runner-vm#readme",
+  "homepage": "https://github.com/mrbbot/miniflare/tree/master/packages/shared-test#readme",
   "volta": {
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/shared": "2.0.0"
-  },
-  "devDependencies": {
-    "@miniflare/shared-test": "2.0.0"
+    "@miniflare/cli": "2.0.0",
+    "@miniflare/core": "2.0.0",
+    "@miniflare/runner-vm": "2.0.0",
+    "@miniflare/shared": "2.0.0",
+    "@miniflare/storage-memory": "2.0.0",
+    "ws": "^8.2.2"
   }
 }

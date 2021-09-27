@@ -1,9 +1,12 @@
 import { StorageOperator } from "@miniflare/shared";
+import {
+  getObjectProperties,
+  testClock,
+  utf8Encode,
+} from "@miniflare/shared-test";
 import { FilteredKVNamespace } from "@miniflare/sites";
 import { MemoryStorageOperator } from "@miniflare/storage-memory";
 import anyTest, { TestInterface } from "ava";
-import { getObjectProperties, utf8Encode } from "test:@miniflare/shared";
-import { testClock } from "test:@miniflare/storage-memory";
 
 interface Context {
   storage: StorageOperator;

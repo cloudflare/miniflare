@@ -1,10 +1,10 @@
 import { BindingsPlugin } from "@miniflare/core";
-import test from "ava";
 import {
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
-} from "test:@miniflare/shared";
+} from "@miniflare/shared-test";
+import test from "ava";
 
 test("BindingsPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(BindingsPlugin, [
@@ -67,12 +67,12 @@ test("BindingsPlugin: logs options", (t) => {
   ]);
 });
 
-// TODO: complete
-test("BindingsPlugin: setup: loads .env bindings from default location", (t) => {
-  // ...and throws if noent
-});
-test("BindingsPlugin: setup: loads .env bindings from custom location", (t) => {
-  // ...and throws if noent
-});
-test("BindingsPlugin: setup: includes custom bindings", (t) => {});
-test("BindingsPlugin: setup: loads WebAssembly bindings", (t) => {});
+// // TODO: complete
+// test("BindingsPlugin: setup: loads .env bindings from default location", (t) => {
+//   // ...and throws if noent
+// });
+// test("BindingsPlugin: setup: loads .env bindings from custom location", (t) => {
+//   // ...and throws if noent
+// });
+// test("BindingsPlugin: setup: includes custom bindings", (t) => {});
+// test("BindingsPlugin: setup: loads WebAssembly bindings", (t) => {});

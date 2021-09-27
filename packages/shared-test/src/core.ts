@@ -1,7 +1,8 @@
 import { CorePluginSignatures, MiniflareCore } from "@miniflare/core";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import { Options } from "@miniflare/shared";
-import { MemoryStorageFactory, TestLog } from "test:@miniflare/shared";
+import { TestLog } from "./log";
+import { MemoryStorageFactory } from "./storage";
 
 const scriptRunner = new VMScriptRunner();
 

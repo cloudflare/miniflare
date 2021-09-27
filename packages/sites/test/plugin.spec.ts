@@ -3,8 +3,6 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { CachePlugin } from "@miniflare/cache";
 import { CorePlugin, Request } from "@miniflare/core";
-import { SitesOptions, SitesPlugin } from "@miniflare/sites";
-import test, { Macro } from "ava";
 import {
   NoOpLog,
   logPluginOptions,
@@ -12,7 +10,9 @@ import {
   parsePluginWranglerConfig,
   useMiniflare,
   useTmp,
-} from "test:@miniflare/shared";
+} from "@miniflare/shared-test";
+import { SitesOptions, SitesPlugin } from "@miniflare/sites";
+import test, { Macro } from "ava";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

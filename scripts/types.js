@@ -1,6 +1,6 @@
 import path from "path";
 import { Extractor, ExtractorConfig } from "@microsoft/api-extractor";
-import { getPackage, pkgsDir, pkgsList, projectRoot } from "./common.mjs";
+import { getPackage, pkgsDir, pkgsList, projectRoot } from "./common.js";
 
 // TODO: consider using more of api-extractor, it's got lots of nifty features
 

@@ -1,10 +1,10 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { useTmp, utf8Decode, utf8Encode } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
 import { RedisPool } from "@miniflare/storage-redis";
 import test from "ava";
 import { VariedStorageFactory } from "miniflare";
-import { useTmp, utf8Decode, utf8Encode } from "test:@miniflare/shared";
 
 test("VariedStorageFactory: creates and reuses in-memory-storage", async (t) => {
   const memoryStorages = new Map<string, MemoryStorage>();

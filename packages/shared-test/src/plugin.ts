@@ -5,7 +5,7 @@ import {
   WranglerConfig,
   logOptions,
 } from "@miniflare/shared";
-import { TestLog } from "test:@miniflare/shared";
+import { TestLog } from "./log";
 
 export function parsePluginArgv<Plugin extends PluginSignature>(
   plugin: Plugin,

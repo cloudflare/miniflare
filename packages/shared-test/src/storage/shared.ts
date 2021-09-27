@@ -8,7 +8,9 @@ import {
   millisToSeconds,
 } from "@miniflare/shared";
 import { ExecutionContext } from "ava";
-import { isWithin, triggerPromise, utf8Encode } from "test:@miniflare/shared";
+import { isWithin } from "../asserts";
+import { utf8Encode } from "../data";
+import { triggerPromise } from "../sync";
 
 // Stored expiration value to signal an expired key. Storages using actual
 // time should interpret this as the current time.

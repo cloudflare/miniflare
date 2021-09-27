@@ -4,9 +4,9 @@ import {
   DurableObjectStorage,
 } from "@miniflare/durable-objects";
 import { Storage, StoredValueMeta, viewToArray } from "@miniflare/shared";
+import { getObjectProperties } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
 import anyTest, { Macro, TestInterface } from "ava";
-import { getObjectProperties } from "test:@miniflare/shared";
 
 interface Context {
   backing: Storage;

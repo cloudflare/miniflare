@@ -12,15 +12,16 @@ import {
   StoredValueMeta,
   base64Encode,
 } from "@miniflare/shared";
-import { MemoryStorageOperator } from "@miniflare/storage-memory";
-import anyTest, { Macro, TestInterface } from "ava";
-import { getObjectProperties, utf8Encode } from "test:@miniflare/shared";
 import {
   TIME_EXPIRED,
   TIME_EXPIRING,
   TIME_NOW,
+  getObjectProperties,
   testClock,
-} from "test:@miniflare/storage-memory";
+  utf8Encode,
+} from "@miniflare/shared-test";
+import { MemoryStorageOperator } from "@miniflare/storage-memory";
+import anyTest, { Macro, TestInterface } from "ava";
 
 interface Context {
   storage: StorageOperator;

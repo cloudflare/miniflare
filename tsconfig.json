@@ -19,8 +19,7 @@
     "rootDir": ".",
     "paths": {
       "miniflare": ["packages/miniflare/src"],
-      "@miniflare/*": ["packages/*/src"],
-      "test:@miniflare/*": ["packages/*/test"]
+      "@miniflare/*": ["packages/*/src"]
     }
   },
   "include": [

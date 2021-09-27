@@ -1,4 +1,4 @@
-const DOM_EXCEPTION_NAMES = {
+export const DOM_EXCEPTION_NAMES = {
   IndexSizeError: 1,
   DOMStringSizeError: 2,
   HierarchyRequestError: 3,

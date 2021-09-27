@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import "./suppress";
 import { ParseError, buildHelp, parseArgv } from "@miniflare/cli";
 import { Options } from "@miniflare/shared";
 import { red } from "kleur/colors";

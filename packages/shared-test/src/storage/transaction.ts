@@ -1,7 +1,7 @@
 import { setTimeout } from "timers/promises";
 import { StorageTransaction, StoredValue } from "@miniflare/shared";
 import { Macro } from "ava";
-import { utf8Decode, utf8Encode } from "test:@miniflare/shared";
+import { utf8Decode, utf8Encode } from "../data";
 import { TestStorageFactory, keyNames } from "./shared";
 
 function incrementTransaction(...keys: string[]) {

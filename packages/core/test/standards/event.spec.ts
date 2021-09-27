@@ -9,14 +9,14 @@ import {
   kDispatchFetch,
   kDispatchScheduled,
 } from "@miniflare/core";
-import anyTest, { TestInterface } from "ava";
 import {
   NoOpLog,
   TestLog,
   getObjectProperties,
   useMiniflare,
   useServer,
-} from "test:@miniflare/shared";
+} from "@miniflare/shared-test";
+import anyTest, { TestInterface } from "ava";
 
 interface Context {
   log: TestLog;
@@ -27,12 +27,7 @@ const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
   const log = new TestLog();
-  const globalScope = new ServiceWorkerGlobalScope(
-    log,
-    {},
-    { KEY: "value" },
-    true // modules mode, so environment only included in env not global
-  );
+  const globalScope = new ServiceWorkerGlobalScope(log, {}, { KEY: "value" });
   t.context = { log, globalScope };
 });
 
@@ -71,6 +66,7 @@ test("ServiceWorkerGlobalScope: hides implementation details", async (t) => {
   const { globalScope } = t.context;
   t.deepEqual(getObjectProperties(globalScope), [
     // EventTarget methods included twice for superclass
+    "KEY", // binding
     "addEventListener",
     "addEventListener",
     "dispatchEvent",

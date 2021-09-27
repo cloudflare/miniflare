@@ -1,6 +1,12 @@
 import { viewToBuffer } from "@miniflare/shared";
 import StandardWebSocket from "ws";
-import { ErrorEvent, WebSocket, kAccepted, kCoupled } from "./websocket";
+import {
+  ErrorEvent,
+  WebSocket,
+  kAccepted,
+  kClosed,
+  kCoupled,
+} from "./websocket";
 
 export async function coupleWebSocket(
   ws: StandardWebSocket,
@@ -16,7 +22,6 @@ export async function coupleWebSocket(
       "Can't return WebSocket in a Response after calling accept()."
     );
   }
-  pair[kCoupled] = true;
 
   // Forward events from client to worker
   ws.on("message", (message: Buffer, isBinary: boolean) => {
@@ -27,7 +32,7 @@ export async function coupleWebSocket(
     }
   });
   ws.on("close", (code: number, reason: Buffer) => {
-    pair.close(code, reason.toString());
+    if (!pair[kClosed]) pair.close(code, reason.toString());
   });
   ws.on("error", (error) => {
     pair.dispatchEvent(new ErrorEvent(error));
@@ -38,15 +43,17 @@ export async function coupleWebSocket(
     ws.send(e.data);
   });
   pair.addEventListener("close", (e) => {
-    ws.close(e.code, e.reason);
+    if (ws.readyState < StandardWebSocket.CLOSING) ws.close(e.code, e.reason);
   });
 
-  if (ws.readyState >= StandardWebSocket.CLOSING) {
-    throw new TypeError("Incoming WebSocket connection already closed.");
-  } else if (ws.readyState === StandardWebSocket.CONNECTING) {
-    // Wait for client to be open before accepting worker pair
+  if (ws.readyState === StandardWebSocket.CONNECTING) {
+    // Wait for client to be open before accepting worker pair (which would
+    // release buffered messages)
     await new Promise((resolve, reject) => {
-      ws.on("open", () => {
+      ws.once("open", () => {
+        pair.accept();
+        pair[kCoupled] = true;
+
         ws.off("close", reject);
         ws.off("error", reject);
         resolve(undefined);
@@ -54,7 +61,13 @@ export async function coupleWebSocket(
       ws.once("close", reject);
       ws.once("error", reject);
     });
+  } else {
+    // Accept worker pair immediately
+    pair.accept();
+    pair[kCoupled] = true;
+    // Throw error if socket is already closing/closed
+    if (ws.readyState >= StandardWebSocket.CLOSING) {
+      throw new TypeError("Incoming WebSocket connection already closed.");
+    }
   }
-
-  pair.accept();
 }

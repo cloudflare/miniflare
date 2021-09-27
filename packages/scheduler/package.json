@@ -38,6 +38,7 @@
     "node-cron": "^3.0.0"
   },
   "devDependencies": {
+    "@miniflare/shared-test": "2.0.0",
     "@types/node-cron": "^2.0.4"
   }
 }

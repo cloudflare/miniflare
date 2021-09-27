@@ -1,6 +1,6 @@
 import { StorageListOptions } from "@miniflare/shared";
 import { Macro } from "ava";
-import { utf8Encode } from "test:@miniflare/shared";
+import { utf8Encode } from "../data";
 import {
   MIXED_SEED,
   SECTION_SEED,

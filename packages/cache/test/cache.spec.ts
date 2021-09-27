@@ -2,9 +2,9 @@ import assert from "assert";
 import { URL } from "url";
 import { Cache, CachedMeta } from "@miniflare/cache";
 import { StorageOperator } from "@miniflare/shared";
+import { getObjectProperties, utf8Decode } from "@miniflare/shared-test";
 import { MemoryStorageOperator } from "@miniflare/storage-memory";
 import anyTest, { Macro, TestInterface } from "ava";
-import { getObjectProperties, utf8Decode } from "test:@miniflare/shared";
 import { HeadersInit, Request, RequestInfo, Response } from "undici";
 import { testResponse } from "./helpers";
 
@@ -52,17 +52,19 @@ test("string request", putMacro, "http://localhost:8787/test");
 test("url request", putMacro, new URL("http://localhost:8787/test"));
 
 test("Cache: only puts GET requests", async (t) => {
-  const { storage, cache } = t.context;
-  for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
-    await cache.put(
-      new Request(`http://localhost:8787/${method}`, { method }),
-      testResponse()
+  const { cache } = t.context;
+  for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+    await t.throwsAsync(
+      cache.put(
+        new Request(`http://localhost:8787/${method}`, { method }),
+        testResponse()
+      ),
+      {
+        instanceOf: TypeError,
+        message: "Cannot cache response to non-GET request.",
+      }
     );
   }
-  t.deepEqual(
-    (await storage.list()).keys.map(({ name }) => name),
-    ["http://localhost:8787/GET"]
-  );
 });
 
 const matchMacro: Macro<[RequestInfo], Context> = async (t, req) => {

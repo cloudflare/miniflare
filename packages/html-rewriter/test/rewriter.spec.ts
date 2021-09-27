@@ -4,6 +4,7 @@ import { setTimeout } from "timers/promises";
 import { URLSearchParams } from "url";
 import { TextDecoder, TextEncoder } from "util";
 import { HTMLRewriter } from "@miniflare/html-rewriter";
+import { getObjectProperties } from "@miniflare/shared-test";
 import test, { Macro } from "ava";
 import {
   Comment,
@@ -12,7 +13,6 @@ import {
   Element,
   TextChunk,
 } from "html-rewriter-wasm";
-import { getObjectProperties } from "test:@miniflare/shared";
 import { Response } from "undici";
 
 // TODO: (low priority) remove most of these tests, they're now in html-rewriter-wasm

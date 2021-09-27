@@ -53,7 +53,7 @@ export class WebSocket extends typedEventTarget<WebSocketEventMap>() {
       );
     }
 
-    if (this[kAccepted]) return;
+    if (this[kAccepted]) return; // TODO: check calling accept() multiple times is allowed
     this[kAccepted] = true;
 
     const sendQueue = this[kSendQueue];
@@ -86,11 +86,6 @@ export class WebSocket extends typedEventTarget<WebSocketEventMap>() {
   }
 
   close(code?: number, reason?: string): void {
-    // Allow WebSocket to be closed multiple times. Workers don't allow this
-    // but it means we don't have to worry about checking the internal [kClosed]
-    // property when trying to close the WebSocket on reload.
-    if (this[kClosed]) return;
-
     const pair = this[kPair];
     if (!this[kAccepted]) {
       throw new TypeError(
@@ -105,7 +100,7 @@ export class WebSocket extends typedEventTarget<WebSocketEventMap>() {
         code !== 1004 &&
         code !== 1005 &&
         code !== 1006 &&
-        code != 1015;
+        code !== 1015;
       if (!validCode) throw new TypeError("Invalid WebSocket close code.");
     }
     if (reason !== undefined && code === undefined) {
@@ -135,4 +130,8 @@ export class WebSocketPair {
     this[0][kPair] = this[1];
     this[1][kPair] = this[0];
   }
+}
+
+export function isWebSocketClosed(ws: WebSocket): boolean {
+  return ws[kClosed];
 }

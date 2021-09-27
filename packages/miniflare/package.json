@@ -58,6 +58,7 @@
     "kleur": "^4.1.4"
   },
   "peerDependencies": {
+    "@miniflare/shared-test": "2.0.0",
     "@miniflare/storage-redis": "2.0.0"
   },
   "peerDependenciesMeta": {
