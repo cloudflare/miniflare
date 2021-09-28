@@ -39,7 +39,7 @@ event, use the `time` and `cron` query parameters:
 
 ```shell
 $ curl "http://localhost:8787/.mf/scheduled?time=1000"
-$ curl "http://localhost:8787/.mf/scheduled?cron=* * * * *"
+$ curl "http://localhost:8787/.mf/scheduled?cron=*+*+*+*+*"
 ```
 
 ## Dispatching Events
