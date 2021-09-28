@@ -5,6 +5,7 @@ export class TextDecoder extends BaseTextDecoder {
     encoding?: string,
     options?: { fatal?: boolean; ignoreBOM?: boolean }
   ) {
+    // Note this is meant to be case-sensitive
     const validEncoding =
       encoding === undefined ||
       encoding === "utf-8" ||
