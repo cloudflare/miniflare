@@ -25,7 +25,7 @@ export interface OptionMetadataType<Type extends OptionType, Value> {
   alias?: string;
   description?: string;
   logName?: string;
-  logValue?: (value: Value) => string;
+  logValue?: (value: Value) => string | undefined;
   fromEntries?: Type extends OptionType.OBJECT
     ? (entries: [key: string, value: string][]) => Value
     : undefined;
@@ -99,7 +99,8 @@ export abstract class Plugin<Options extends Context = never> {
     mainScriptPath?: string
   ): MaybePromise<void>;
 
-  // Called when a new instance of the plugin is about to be created
+  // Called when a new instance of the plugin is about to be created,
+  // likely delegates to beforeReload or reload
   dispose?(): MaybePromise<void>;
 }
 
@@ -157,13 +158,18 @@ export function logOptions<Plugins extends PluginSignatures>(
       const value = pluginOptions[key];
       if (value === undefined || meta.type === OptionType.NONE) continue;
       const keyName = meta?.logName ?? titleCase(key);
-      let s: string | undefined = (meta.logValue as any)?.(value);
-      if (s === undefined) {
-        if (meta.type === OptionType.OBJECT) s = Object.keys(value).join(", ");
-        else if (meta.type === OptionType.ARRAY) s = value.join(", ");
-        else s = value.toString();
+      let str: string | undefined;
+      if (meta.logValue) {
+        str = (meta.logValue as any)(value);
+        if (str === undefined) continue;
+      } else if (meta.type === OptionType.OBJECT) {
+        str = Object.keys(value).join(", ");
+      } else if (meta.type === OptionType.ARRAY) {
+        str = value.join(", ");
+      } else {
+        str = value.toString();
       }
-      log.debug(`- ${keyName}: ${s}`);
+      log.debug(`- ${keyName}: ${str}`);
     }
   }
 }

@@ -1,6 +1,7 @@
 import assert from "assert";
 import { viewToBuffer } from "@miniflare/shared";
 import {
+  noop,
   triggerPromise,
   useServer,
   utf8Decode,
@@ -10,8 +11,6 @@ import { WebSocketPair, coupleWebSocket } from "@miniflare/web-sockets";
 import { CloseEvent, MessageEvent } from "@miniflare/web-sockets";
 import test from "ava";
 import StandardWebSocket from "ws";
-
-const noop = () => {};
 
 test("coupleWebSocket: forwards messages from client to worker before coupling", async (t) => {
   const server = await useServer(t, noop, (ws) => ws.send("test"));

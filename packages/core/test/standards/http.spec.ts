@@ -8,12 +8,10 @@ import {
   withImmutableHeaders,
   withWaitUntil,
 } from "@miniflare/core";
-import { triggerPromise, useServer } from "@miniflare/shared-test";
+import { noop, triggerPromise, useServer } from "@miniflare/shared-test";
 import { WebSocketPair } from "@miniflare/web-sockets";
 import test from "ava";
 import { Response as BaseResponse, FormData } from "undici";
-
-function noop(): void {}
 
 test("Request: supports non-standard properties", (t) => {
   const cf = { country: "GB" };

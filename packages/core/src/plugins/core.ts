@@ -1,3 +1,4 @@
+import { Blob } from "buffer";
 import { promises as fs } from "fs";
 import path from "path";
 import {
@@ -31,7 +32,7 @@ import {
   globsToMatcher,
 } from "@miniflare/shared";
 import { WebSocket, isWebSocketClosed } from "@miniflare/web-sockets";
-import { FormData, Headers } from "undici";
+import { File, FormData, Headers } from "undici";
 import {
   DOMException,
   FetchEvent,
@@ -73,7 +74,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
   // Both script and scriptPath are optional, this allows us not to pass a
   // script for testing (e.g. Jest environment). The CLI should error if no
   // script is passed though.
-  @Option({ type: OptionType.NONE })
+  @Option({ type: OptionType.NONE, logValue: () => STRING_SCRIPT_PATH })
   script?: string;
   @Option({
     type: OptionType.STRING_POSITIONAL,
@@ -94,8 +95,11 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     name: "wrangler-config",
     alias: "c",
     description: "Path to wrangler.toml",
-    logValue: (value: boolean | string) =>
-      value === true ? "wrangler.toml" : value.toString(),
+    logValue(value: boolean | string) {
+      if (value === true) return "wrangler.toml";
+      if (value === false) return undefined;
+      return value;
+    },
   })
   wranglerConfigPath?: boolean | string;
 
@@ -111,8 +115,11 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     type: OptionType.STRING,
     name: "package",
     description: "Path to package.json",
-    logValue: (value: boolean | string) =>
-      value === true ? "package.json" : value.toString(),
+    logValue(value: boolean | string) {
+      if (value === true) return "package.json";
+      if (value === false) return undefined;
+      return value;
+    },
   })
   packagePath?: boolean | string;
 
@@ -174,6 +181,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   @Option({
     type: OptionType.BOOLEAN,
+    alias: "V",
     description: "Enable verbose logging",
     fromWrangler: ({ miniflare }) => miniflare?.verbose,
   })
@@ -194,6 +202,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     this.assignOptions(options);
 
     // Build globals object
+    this.fetch = this.fetch.bind(this);
     this[kGlobals] = {
       console,
 
@@ -210,11 +219,13 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       TextDecoder,
       TextEncoder,
 
-      fetch: this.fetch.bind(this),
+      fetch: this.fetch,
       Headers,
       Request,
       Response,
       FormData,
+      Blob,
+      File,
       URL,
       URLSearchParams,
 
@@ -234,6 +245,8 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
       Event,
       EventTarget,
+      AbortController,
+      AbortSignal,
       FetchEvent,
       ScheduledEvent,
 
@@ -319,7 +332,8 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       if (packagePath) {
         try {
           const pkg = JSON.parse(await fs.readFile(packagePath, "utf8"));
-          scriptPath = this.modules ? pkg.modules : pkg.main;
+          scriptPath = this.modules ? pkg.module : pkg.main;
+          scriptPath &&= path.resolve(path.dirname(packagePath), scriptPath);
         } catch (e: any) {
           // Ignore ENOENT (file not found) errors for default path
           if (!(e.code === "ENOENT" && this.packagePath === true)) throw e;

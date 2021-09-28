@@ -19,7 +19,7 @@ export interface ProcessedModuleRule {
   include: Matcher;
 }
 
-// Blueprint fileName to use if script came from "script" option
+// Blueprint filePath to use if script came from "script" option
 export const STRING_SCRIPT_PATH = "<script>";
 
 export interface ScriptBlueprint {
