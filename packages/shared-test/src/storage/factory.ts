@@ -3,7 +3,7 @@ import { Storage, StorageFactory, StoredValueMeta } from "@miniflare/shared";
 import { MemoryStorage } from "@miniflare/storage-memory";
 
 export class MemoryStorageFactory extends StorageFactory {
-  private readonly storages = new Map<string, MemoryStorage>();
+  readonly storages = new Map<string, MemoryStorage>();
 
   constructor(
     private readonly persist: Record<string, Map<string, StoredValueMeta>> = {}
