@@ -106,7 +106,7 @@ test("BindingsPlugin: setup: loads .env bindings from custom location", async (t
   const log = new NoOpLog();
   const tmp = await useTmp(t);
   const defaultEnvPath = path.join(tmp, ".env.default");
-  const customEnvPath = path.join(tmp, ".env");
+  const customEnvPath = path.join(tmp, ".env.custom");
   await fs.writeFile(defaultEnvPath, "KEY=default");
 
   const plugin = new BindingsPlugin(
@@ -115,7 +115,10 @@ test("BindingsPlugin: setup: loads .env bindings from custom location", async (t
     defaultEnvPath
   );
   // Should throw if file doesn't exist
-  await t.throwsAsync(plugin.setup(), { code: "ENOENT" });
+  await t.throwsAsync(plugin.setup(), {
+    code: "ENOENT",
+    message: /\.env\.custom/,
+  });
 
   // Create file and try setup again
   await fs.writeFile(customEnvPath, "KEY=custom");

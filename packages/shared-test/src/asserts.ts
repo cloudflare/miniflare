@@ -1,6 +1,8 @@
 import assert from "assert";
 import { ExecutionContext } from "ava";
 
+export function noop(): void {}
+
 export function isWithin(
   t: ExecutionContext,
   epsilon: number,

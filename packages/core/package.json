@@ -41,6 +41,7 @@
     "@miniflare/web-sockets": "2.0.0",
     "dequal": "^2.0.2",
     "dotenv": "^10.0.0",
+    "kleur": "^4.1.4",
     "undici": "^4.5.1",
     "ws": "^8.2.2"
   },
