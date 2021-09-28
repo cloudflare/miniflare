@@ -1,18 +1,18 @@
-import { CorePluginSignatures, MiniflareCore } from "@miniflare/core";
+import { CorePlugin, MiniflareCore } from "@miniflare/core";
 import { VMScriptRunner } from "@miniflare/runner-vm";
-import { Options } from "@miniflare/shared";
+import { Options, PluginSignatures } from "@miniflare/shared";
 import { TestLog } from "./log";
 import { MemoryStorageFactory } from "./storage";
 
 const scriptRunner = new VMScriptRunner();
 
-export function useMiniflare<Plugins extends CorePluginSignatures>(
+export function useMiniflare<Plugins extends PluginSignatures>(
   plugins: Plugins,
-  options: Options<Plugins>,
+  options: Options<{ CorePlugin: typeof CorePlugin } & Plugins>,
   log = new TestLog()
-): MiniflareCore<Plugins> {
+): MiniflareCore<{ CorePlugin: typeof CorePlugin } & Plugins> {
   return new MiniflareCore(
-    plugins,
+    { CorePlugin, ...plugins },
     {
       log,
       storageFactory: new MemoryStorageFactory(),

@@ -1,5 +1,5 @@
 import assert from "assert";
-import { CorePlugin, Request } from "@miniflare/core";
+import { Request } from "@miniflare/core";
 import { NoOpLog, triggerPromise, useMiniflare } from "@miniflare/shared-test";
 import {
   CloseEvent,
@@ -43,7 +43,7 @@ test("MiniflareCore: sends and responds to web socket messages", async (t) => {
       );
     });
   }).toString()})()`;
-  const mf = useMiniflare({ CorePlugin, WebSocketPlugin }, { script });
+  const mf = useMiniflare({ WebSocketPlugin }, { script });
   const res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
   t.not(res.webSocket, undefined);
   assert(res.webSocket); // for TypeScript

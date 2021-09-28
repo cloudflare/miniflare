@@ -1,6 +1,5 @@
 import {
   BindingsPlugin,
-  CorePlugin,
   FetchEvent,
   Request,
   Response,
@@ -86,7 +85,7 @@ test("MiniflareCore: adds fetch event listener", async (t) => {
       e.respondWith(new sandbox.Response(e.request.url));
     });
   }).toString()})()`;
-  const mf = useMiniflare({ CorePlugin }, { script });
+  const mf = useMiniflare({}, { script });
   const res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
   t.is(await res.text(), "http://localhost:8787/");
 });
@@ -98,7 +97,7 @@ test("MiniflareCore: adds scheduled event listener", async (t) => {
       e.waitUntil(Promise.resolve(e.cron));
     });
   }).toString()})()`;
-  const mf = useMiniflare({ CorePlugin }, { script });
+  const mf = useMiniflare({}, { script });
   const res = await mf.dispatchScheduled(1000, "30 * * * *");
   t.is(res[0], 1000);
   t.is(res[1], "30 * * * *");
@@ -111,7 +110,7 @@ test("MiniflareCore: adds module fetch event listener", async (t) => {
     }
   }`;
   const mf = useMiniflare(
-    { CorePlugin, BindingsPlugin },
+    { BindingsPlugin },
     { modules: true, script, bindings: { KEY: "value" } }
   );
   const res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
@@ -127,7 +126,7 @@ test("MiniflareCore: adds module scheduled event listener", async (t) => {
     }
   }`;
   const mf = useMiniflare(
-    { CorePlugin, BindingsPlugin },
+    { BindingsPlugin },
     { modules: true, script, bindings: { KEY: "value" } }
   );
   const res = await mf.dispatchScheduled(1000, "30 * * * *");

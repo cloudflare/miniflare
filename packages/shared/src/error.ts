@@ -1,5 +1,5 @@
 export abstract class MiniflareError<
-  Code extends string = string
+  Code extends string | number = string | number
 > extends Error {
   constructor(public readonly code: Code, message?: string) {
     super(message);
