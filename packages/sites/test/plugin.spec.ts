@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { CachePlugin } from "@miniflare/cache";
-import { CorePlugin, Request } from "@miniflare/core";
+import { Request } from "@miniflare/core";
 import {
   NoOpLog,
   logPluginOptions,
@@ -108,7 +108,7 @@ const getMacro: Macro<[SitesOptions, Set<Route>]> = async (
   }
 
   const mf = useMiniflare(
-    { CorePlugin, SitesPlugin, CachePlugin },
+    { SitesPlugin, CachePlugin },
     { ...options, scriptPath: sitesScriptPath, sitePath: tmp }
   );
 
@@ -156,7 +156,7 @@ const matchMacro: Macro<[string]> = async (t, include) => {
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(path.join(dir, "test.txt"), "test", "utf8");
   const mf = useMiniflare(
-    { CorePlugin, SitesPlugin, CachePlugin },
+    { SitesPlugin, CachePlugin },
     { siteInclude: [include], scriptPath: sitesScriptPath, sitePath: tmp }
   );
   const res = await mf.dispatchFetch(
@@ -176,7 +176,7 @@ test("MiniflareCore: doesn't cache files", async (t) => {
   const tmp = await useTmp(t);
   const testPath = path.join(tmp, "test.txt");
   const mf = useMiniflare(
-    { CorePlugin, SitesPlugin, CachePlugin },
+    { SitesPlugin, CachePlugin },
     { scriptPath: sitesScriptPath, sitePath: tmp }
   );
 

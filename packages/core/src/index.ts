@@ -22,7 +22,7 @@ import type { Watcher } from "@miniflare/watcher";
 import { dequal } from "dequal/lite";
 import { dim } from "kleur/colors";
 import { addAll, formatSize, pathsToString } from "./helpers";
-import { CorePlugin, autoPopulateBuildConfiguration } from "./plugins";
+import { CorePlugin, populateBuildConfig } from "./plugins";
 import {
   Request,
   RequestInfo,
@@ -269,7 +269,7 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
         const configDir = path.dirname(configPath);
 
         // Add build configuration for webpack and rust builds
-        autoPopulateBuildConfiguration(config, configDir);
+        populateBuildConfig(config, configDir);
 
         options = splitWranglerConfig(
           this[kPlugins],
