@@ -34,7 +34,8 @@ interface Closable {
   close(): void;
 }
 
-// TODO: work out why this breaks with macOS TextEdit
+// TODO: work out why this breaks with macOS TextEdit,
+//  maybe check if file, and if it is just use polling fs.watchFile
 
 export class Watcher {
   private readonly [kWatchers] = new Map<string, Map<string, Closable>>();

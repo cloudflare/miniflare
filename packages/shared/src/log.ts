@@ -54,6 +54,8 @@ export class Log {
     }
   }
 
+  // TODO: make this only take arguments of type Error, rethrow if not logged
+  //  (use Proxy to add stuff to message.stack)
   error(message: string | { stack?: string }): void {
     if (typeof message === "string") {
       this.logWithLevel(LogLevel.ERROR, message);

@@ -6,6 +6,8 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// TODO: add node version check here, suggest volta/nvm in error if too low
+
 /* Spawn a new process using the same Node.js executable and passing the same
  * command line arguments, but with required flags for source map and modules
  * support.
