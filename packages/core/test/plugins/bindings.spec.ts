@@ -28,6 +28,10 @@ test("BindingsPlugin: parses options from argv", (t) => {
     "KEY1=value1",
     "--binding",
     "KEY2=value2",
+    "--global",
+    "KEY3=value3",
+    "--global",
+    "KEY4=value4",
     "--wasm",
     "MODULE1=module1.wasm",
     "--wasm",
@@ -36,6 +40,7 @@ test("BindingsPlugin: parses options from argv", (t) => {
   t.deepEqual(options, {
     envPath: ".env.test",
     bindings: { KEY1: "value1", KEY2: "value2" },
+    globals: { KEY3: "value3", KEY4: "value4" },
     wasmBindings: { MODULE1: "module1.wasm", MODULE2: "module2.wasm" },
   });
   options = parsePluginArgv(BindingsPlugin, [
@@ -53,8 +58,9 @@ test("BindingsPlugin: parses options from argv", (t) => {
 });
 test("BindingsPlugin: parses options from wrangler config", (t) => {
   const options = parsePluginWranglerConfig(BindingsPlugin, {
-    vars: { KEY1: "value1", KEY2: "value2" },
+    vars: { KEY1: "value1", KEY2: "value2", KEY3: true, KEY4: 42 },
     miniflare: {
+      globals: { KEY5: "value5", KEY6: false, KEY7: 10 },
       env_path: ".env.test",
       wasm_bindings: [
         { name: "MODULE1", path: "module1.wasm" },
@@ -64,7 +70,10 @@ test("BindingsPlugin: parses options from wrangler config", (t) => {
   });
   t.deepEqual(options, {
     envPath: ".env.test",
-    bindings: { KEY1: "value1", KEY2: "value2" },
+    // Bindings should be stringified...
+    bindings: { KEY1: "value1", KEY2: "value2", KEY3: "true", KEY4: "42" },
+    // ...but globals shouldn't
+    globals: { KEY5: "value5", KEY6: false, KEY7: 10 },
     wasmBindings: { MODULE1: "module1.wasm", MODULE2: "module2.wasm" },
   });
 });
@@ -72,11 +81,13 @@ test("BindingsPlugin: logs options", (t) => {
   const logs = logPluginOptions(BindingsPlugin, {
     envPath: true,
     bindings: { KEY1: "value1", KEY2: "value2" },
+    globals: { KEY3: "value3", KEY4: "value4" },
     wasmBindings: { MODULE1: "module1.wasm", MODULE2: "module2.wasm" },
   });
   t.deepEqual(logs, [
     "Env Path: .env",
     "Custom Bindings: KEY1, KEY2",
+    "Custom Globals: KEY3, KEY4",
     "WASM Bindings: MODULE1, MODULE2",
   ]);
 });
@@ -90,17 +101,25 @@ test("BindingsPlugin: setup: loads .env bindings from default location", async (
   // Shouldn't throw if file doesn't exist...
   let result = await plugin.setup();
   // ...but should still watch file
-  t.deepEqual(result, { bindings: {}, watch: [defaultEnvPath] });
+  t.deepEqual(result, {
+    globals: undefined,
+    bindings: {},
+    watch: [defaultEnvPath],
+  });
 
   // Create file and try setup again
   await fs.writeFile(defaultEnvPath, "KEY=value");
   result = await plugin.setup();
-  t.deepEqual(result, { bindings: { KEY: "value" }, watch: [defaultEnvPath] });
+  t.deepEqual(result, {
+    globals: undefined,
+    bindings: { KEY: "value" },
+    watch: [defaultEnvPath],
+  });
 
   // Check default .env only loaded when envPath set to true
   plugin = new BindingsPlugin(log, {}, defaultEnvPath);
   result = await plugin.setup();
-  t.deepEqual(result, { bindings: {}, watch: [] });
+  t.deepEqual(result, { globals: undefined, bindings: {}, watch: [] });
 });
 test("BindingsPlugin: setup: loads .env bindings from custom location", async (t) => {
   const log = new NoOpLog();
@@ -123,7 +142,11 @@ test("BindingsPlugin: setup: loads .env bindings from custom location", async (t
   // Create file and try setup again
   await fs.writeFile(customEnvPath, "KEY=custom");
   const result = await plugin.setup();
-  t.deepEqual(result, { bindings: { KEY: "custom" }, watch: [customEnvPath] });
+  t.deepEqual(result, {
+    globals: undefined,
+    bindings: { KEY: "custom" },
+    watch: [customEnvPath],
+  });
 });
 test("BindingsPlugin: setup: includes custom bindings", async (t) => {
   const log = new NoOpLog();

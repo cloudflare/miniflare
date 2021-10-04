@@ -12,6 +12,7 @@ import dotenv from "dotenv";
 export interface BindingsOptions {
   envPath?: boolean | string;
   bindings?: Record<string, any>;
+  globals?: Record<string, any>;
   wasmBindings?: Record<string, string>;
 }
 
@@ -33,11 +34,25 @@ export class BindingsPlugin
   @Option({
     type: OptionType.OBJECT,
     alias: "b",
-    description: "Bind variable/secret",
+    description: "Binds variable/secret to environment",
     logName: "Custom Bindings",
-    fromWrangler: ({ vars }) => vars,
+    fromWrangler: ({ vars }) => {
+      if (!vars) return;
+      // Wrangler stringifies all environment variables
+      return Object.fromEntries(
+        Object.entries(vars).map(([key, value]) => [key, String(value)])
+      );
+    },
   })
   bindings?: Record<string, any>;
+
+  @Option({
+    type: OptionType.OBJECT,
+    description: "Binds variable/secret to global scope",
+    logName: "Custom Globals",
+    fromWrangler: ({ miniflare }) => miniflare?.globals,
+  })
+  globals?: Record<string, any>;
 
   @Option({
     type: OptionType.OBJECT,
@@ -92,6 +107,6 @@ export class BindingsPlugin
     // Copy user's arbitrary bindings
     Object.assign(bindings, this.bindings);
 
-    return { bindings, watch };
+    return { globals: this.globals, bindings, watch };
   }
 }
