@@ -33,7 +33,7 @@ export const PLUGINS = {
   HTTPPlugin,
   SchedulerPlugin,
   BuildPlugin,
-  BindingsPlugin,
+  BindingsPlugin, // TODO: should probably be last if we're enforcing this
 
   // Storage
   KVPlugin,
@@ -48,11 +48,7 @@ export const PLUGINS = {
 
 export type Plugins = typeof PLUGINS;
 
-const kCore = Symbol("kCore");
-
 export class Miniflare extends MiniflareCore<Plugins> {
-  private [kCore]: MiniflareCore<Plugins>;
-
   constructor(options?: Options<Plugins>) {
     const logLevel = options?.verbose
       ? LogLevel.VERBOSE
@@ -72,24 +68,24 @@ export class Miniflare extends MiniflareCore<Plugins> {
   }
 
   async getKVNamespace(namespace: string): Promise<KVNamespace> {
-    const plugin = (await this[kCore].getPlugins()).KVPlugin;
-    const storage = this[kCore].getPluginStorage("KVPlugin");
+    const plugin = (await this.getPlugins()).KVPlugin;
+    const storage = this.getPluginStorage("KVPlugin");
     return plugin.getNamespace(storage, namespace);
   }
 
   async getDurableObjectNamespace(
     objectName: string
   ): Promise<DurableObjectNamespace> {
-    const plugin = (await this[kCore].getPlugins()).DurableObjectsPlugin;
-    const storage = this[kCore].getPluginStorage("DurableObjectsPlugin");
+    const plugin = (await this.getPlugins()).DurableObjectsPlugin;
+    const storage = this.getPluginStorage("DurableObjectsPlugin");
     return plugin.getNamespace(storage, objectName);
   }
 
   async getDurableObjectStorage(
     id: DurableObjectId
   ): Promise<DurableObjectStorage> {
-    const plugin = (await this[kCore].getPlugins()).DurableObjectsPlugin;
-    const storage = this[kCore].getPluginStorage("DurableObjectsPlugin");
+    const plugin = (await this.getPlugins()).DurableObjectsPlugin;
+    const storage = this.getPluginStorage("DurableObjectsPlugin");
     const internals = await plugin.getObject(storage, id);
     return internals.state.storage;
   }

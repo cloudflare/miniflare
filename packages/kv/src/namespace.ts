@@ -131,16 +131,13 @@ function convertStoredToGetValue(stored: Uint8Array, type: KVGetValueType) {
   }
 }
 
-const kStorage = Symbol("kStorage");
-const kClock = Symbol("kClock");
-
 export class KVNamespace {
-  readonly [kStorage]: StorageOperator;
-  readonly [kClock]: Clock;
+  readonly #storage: StorageOperator;
+  readonly #clock: Clock;
 
   constructor(storage: StorageOperator, clock = defaultClock) {
-    this[kStorage] = storage;
-    this[kClock] = clock;
+    this.#storage = storage;
+    this.#clock = clock;
   }
 
   get(
@@ -168,7 +165,7 @@ export class KVNamespace {
     const type = validateGetOptions(options);
 
     // Get value without metadata, returning null if not found
-    const stored = await this[kStorage].get(key, true);
+    const stored = await this.#storage.get(key, true);
     if (stored === undefined) return null;
 
     // Return correctly typed value
@@ -200,7 +197,7 @@ export class KVNamespace {
     const type = validateGetOptions(options);
 
     // Get value with metadata, returning nulls if not found
-    const storedValue = await this[kStorage].get<Metadata>(key);
+    const storedValue = await this.#storage.get<Metadata>(key);
     if (storedValue === undefined) return { value: null, metadata: null };
     const { value, metadata = null } = storedValue;
 
@@ -232,7 +229,7 @@ export class KVNamespace {
     }
 
     // Normalise and validate expiration
-    const now = millisToSeconds(this[kClock]());
+    const now = millisToSeconds(this.#clock());
     let expiration = normaliseInt(options.expiration);
     const expirationTtl = normaliseInt(options.expirationTtl);
     if (expirationTtl !== undefined) {
@@ -288,7 +285,7 @@ export class KVNamespace {
     }
 
     // Store value with expiration and metadata
-    await this[kStorage].put(key, {
+    await this.#storage.put(key, {
       value: stored,
       expiration,
       metadata: options.metadata,
@@ -297,7 +294,7 @@ export class KVNamespace {
 
   async delete(key: string): Promise<void> {
     validateKey("DELETE", key);
-    await this[kStorage].delete(key);
+    await this.#storage.delete(key);
   }
 
   async list<Meta = unknown>({
@@ -320,7 +317,7 @@ export class KVNamespace {
         `Invalid key_count_limit of ${limit}. Please specify an integer less than ${MAX_LIST_KEYS}.`
       );
     }
-    const res = await this[kStorage].list<Meta>({ prefix, limit, cursor });
+    const res = await this.#storage.list<Meta>({ prefix, limit, cursor });
     return {
       keys: res.keys,
       cursor: res.cursor,

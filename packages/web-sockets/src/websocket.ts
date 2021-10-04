@@ -29,7 +29,6 @@ export class ErrorEvent extends Event {
 // construct both sockets before setting the circular references
 const kPair = Symbol("kPair");
 
-const kSendQueue = Symbol("kSendQueue");
 export const kAccepted = Symbol("kAccepted");
 export const kCoupled = Symbol("kCoupled");
 export const kClosed = Symbol("kClosed");
@@ -40,8 +39,8 @@ export type WebSocketEventMap = {
   error: ErrorEvent;
 };
 export class WebSocket extends typedEventTarget<WebSocketEventMap>() {
+  #sendQueue?: MessageEvent[] = [];
   [kPair]: WebSocket;
-  [kSendQueue]?: MessageEvent[] = [];
   [kAccepted] = false;
   [kCoupled] = false;
   [kClosed] = false;
@@ -56,10 +55,10 @@ export class WebSocket extends typedEventTarget<WebSocketEventMap>() {
     if (this[kAccepted]) return; // TODO: check calling accept() multiple times is allowed
     this[kAccepted] = true;
 
-    const sendQueue = this[kSendQueue];
+    const sendQueue = this.#sendQueue;
     if (sendQueue) {
       for (const event of sendQueue) this.dispatchEvent(event);
-      this[kSendQueue] = undefined;
+      this.#sendQueue = undefined;
     }
   }
 
@@ -79,7 +78,7 @@ export class WebSocket extends typedEventTarget<WebSocketEventMap>() {
     if (pair[kAccepted]) {
       pair.dispatchEvent(event);
     } else {
-      const sendQueue = pair[kSendQueue];
+      const sendQueue = pair.#sendQueue;
       assert(sendQueue !== undefined);
       sendQueue.push(event);
     }

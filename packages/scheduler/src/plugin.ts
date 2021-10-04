@@ -16,8 +16,6 @@ export interface SchedulerOptions {
   crons?: string[];
 }
 
-const kValidatedCrons = Symbol("kValidatedCrons");
-
 export class SchedulerPlugin
   extends Plugin<SchedulerOptions>
   implements SchedulerOptions
@@ -31,7 +29,7 @@ export class SchedulerPlugin
   })
   crons?: string[];
 
-  private [kValidatedCrons]: string[];
+  #validatedCrons: string[] = [];
 
   constructor(log: Log, options?: SchedulerOptions) {
     super(log);
@@ -39,13 +37,13 @@ export class SchedulerPlugin
   }
 
   get validatedCrons(): string[] {
-    return this[kValidatedCrons];
+    return this.#validatedCrons;
   }
 
   async setup(): Promise<void> {
     const validatedCrons: string[] = [];
     if (!this.crons?.length) {
-      this[kValidatedCrons] = validatedCrons;
+      this.#validatedCrons = validatedCrons;
       return;
     }
     const cron = await import("node-cron");
@@ -64,6 +62,6 @@ export class SchedulerPlugin
         );
       }
     }
-    this[kValidatedCrons] = validatedCrons;
+    this.#validatedCrons = validatedCrons;
   }
 }

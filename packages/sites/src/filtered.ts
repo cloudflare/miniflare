@@ -17,11 +17,8 @@ export interface FilteredKVStorageNamespaceOptions {
   exclude?: Matcher;
 }
 
-const kOptions = Symbol("kOptions");
-const kIncluded = Symbol("kIncluded");
-
 export class FilteredKVNamespace extends KVNamespace {
-  private readonly [kOptions]: FilteredKVStorageNamespaceOptions;
+  readonly #options: FilteredKVStorageNamespaceOptions;
 
   constructor(
     storage: StorageOperator,
@@ -29,11 +26,11 @@ export class FilteredKVNamespace extends KVNamespace {
     clock?: Clock
   ) {
     super(storage, clock);
-    this[kOptions] = options;
+    this.#options = options;
   }
 
-  private [kIncluded](key: string): boolean {
-    const options = this[kOptions];
+  #included(key: string): boolean {
+    const options = this.#options;
     if (options.include !== undefined) return options.include.test(key);
     if (options.exclude !== undefined) return !options.exclude.test(key);
     return true;
@@ -43,7 +40,7 @@ export class FilteredKVNamespace extends KVNamespace {
     key: string,
     options?: KVGetValueType | Partial<KVGetOptions>
   ): KVValue<any> {
-    if (!this[kIncluded](key)) return Promise.resolve(null);
+    if (!this.#included(key)) return Promise.resolve(null);
     return super.get(key, options as any);
   }
 
@@ -51,7 +48,7 @@ export class FilteredKVNamespace extends KVNamespace {
     key: string,
     options?: KVGetValueType | Partial<KVGetOptions>
   ): KVValueMeta<any, Meta> {
-    if (!this[kIncluded](key)) {
+    if (!this.#included(key)) {
       return Promise.resolve({ value: null, metadata: null });
     }
     return super.getWithMetadata(key, options as any);
@@ -62,14 +59,14 @@ export class FilteredKVNamespace extends KVNamespace {
     value: KVPutValueType,
     options?: KVPutOptions
   ): Promise<void> {
-    if (this[kOptions].readOnly) {
+    if (this.#options.readOnly) {
       throw new TypeError("Unable to put into read-only namespace");
     }
     return super.put(key, value, options);
   }
 
   async delete(key: string): Promise<void> {
-    if (this[kOptions].readOnly) {
+    if (this.#options.readOnly) {
       throw new TypeError("Unable to delete from read-only namespace");
     }
     return super.delete(key);
@@ -80,7 +77,7 @@ export class FilteredKVNamespace extends KVNamespace {
   ): Promise<KVListResult<Meta>> {
     const { keys, list_complete, cursor } = await super.list<Meta>(options);
     return {
-      keys: keys.filter((key) => this[kIncluded](key.name)),
+      keys: keys.filter((key) => this.#included(key.name)),
       list_complete,
       cursor,
     };

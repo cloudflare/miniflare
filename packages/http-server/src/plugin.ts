@@ -46,8 +46,6 @@ function valueOrFile(
   return value ?? (filePath && fs.readFile(filePath, "utf8"));
 }
 
-const kHttpsOptions = Symbol("kHttpsOptions");
-
 export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
   @Option({
     type: OptionType.STRING,
@@ -132,7 +130,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
 
   readonly httpsEnabled: boolean;
 
-  private [kHttpsOptions]?: ProcessedHTTPSOptions;
+  #httpsOptions?: ProcessedHTTPSOptions;
 
   constructor(
     log: Log,
@@ -157,7 +155,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
   }
 
   get httpsOptions(): ProcessedHTTPSOptions | undefined {
-    return this[kHttpsOptions];
+    return this.#httpsOptions;
   }
 
   async setup(): Promise<SetupResult> {
@@ -237,7 +235,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     }
 
     // Load custom HTTPS options
-    this[kHttpsOptions] = {
+    this.#httpsOptions = {
       key: await valueOrFile(this.httpsKey, this.httpsKeyPath),
       cert: await valueOrFile(this.httpsCert, this.httpsCertPath),
       ca: await valueOrFile(this.httpsCa, this.httpsCaPath),

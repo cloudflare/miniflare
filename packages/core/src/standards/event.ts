@@ -82,16 +82,6 @@ export type ModuleScheduledListener = (
   ctx: { waitUntil: (promise: Promise<any>) => void }
 ) => any;
 
-const kLog = Symbol("kLog");
-const kBindings = Symbol("kBindings");
-const kModules = Symbol("kModules");
-const kWrappedListeners = Symbol("kWrappedListeners");
-const kWrappedError = Symbol("kWrappedError");
-const kWrap = Symbol("kWrap");
-
-const kAddEventListener = Symbol("kAddEventListener");
-const kDispatchEvent = Symbol("kDispatchEvent");
-
 export const kAddModuleFetchListener = Symbol("kAddModuleFetchListener");
 export const kAddModuleScheduledListener = Symbol(
   "kAddModuleScheduledListener"
@@ -107,14 +97,14 @@ export type WorkerGlobalScopeEventMap = {
 export class WorkerGlobalScope extends typedEventTarget<WorkerGlobalScopeEventMap>() {}
 
 export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
-  private readonly [kLog]: Log;
-  private readonly [kBindings]: Context;
-  private readonly [kModules]?: boolean;
-  private readonly [kWrappedListeners] = new WeakMap<
+  readonly #log: Log;
+  readonly #bindings: Context;
+  readonly #modules?: boolean;
+  readonly #wrappedListeners = new WeakMap<
     TypedEventListener<ValueOf<WorkerGlobalScopeEventMap>>,
     TypedEventListener<ValueOf<WorkerGlobalScopeEventMap>>
   >();
-  private [kWrappedError]?: Error;
+  #wrappedError?: Error;
 
   // Global self-references
   // noinspection JSUnusedGlobalSymbols
@@ -131,9 +121,9 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     modules?: boolean
   ) {
     super();
-    this[kLog] = log;
-    this[kBindings] = bindings;
-    this[kModules] = modules;
+    this.#log = log;
+    this.#bindings = bindings;
+    this.#modules = modules;
 
     // Only including bindings in global scope if not using modules
     Object.assign(this, globals);
@@ -145,13 +135,13 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     this.dispatchEvent = this.dispatchEvent.bind(this);
   }
 
-  private [kWrap]<Type extends keyof WorkerGlobalScopeEventMap>(
+  #wrap<Type extends keyof WorkerGlobalScopeEventMap>(
     listener: TypedEventListener<WorkerGlobalScopeEventMap[Type]> | null
   ): TypedEventListener<WorkerGlobalScopeEventMap[Type]> | null {
     // When an event listener throws, we want dispatching to stop and the
     // error to be thrown so we can catch it and display a nice error page.
     if (!listener) return null;
-    let wrappedListener = this[kWrappedListeners].get(listener as any);
+    let wrappedListener = this.#wrappedListeners.get(listener as any);
     if (wrappedListener) return wrappedListener;
     wrappedListener = (event) => {
       try {
@@ -162,19 +152,19 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
         }
       } catch (error: any) {
         event.stopImmediatePropagation();
-        this[kWrappedError] = error;
+        this.#wrappedError = error;
       }
     };
-    this[kWrappedListeners].set(listener as any, wrappedListener);
+    this.#wrappedListeners.set(listener as any, wrappedListener);
     return wrappedListener;
   }
 
-  private [kAddEventListener]<Type extends keyof WorkerGlobalScopeEventMap>(
+  #addEventListener<Type extends keyof WorkerGlobalScopeEventMap>(
     type: Type,
     listener: TypedEventListener<WorkerGlobalScopeEventMap[Type]> | null,
     options?: AddEventListenerOptions | boolean
   ): void {
-    super.addEventListener(type, this[kWrap](listener), options);
+    super.addEventListener(type, this.#wrap(listener), options);
   }
 
   addEventListener<Type extends keyof WorkerGlobalScopeEventMap>(
@@ -182,13 +172,13 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     listener: TypedEventListener<WorkerGlobalScopeEventMap[Type]> | null,
     options?: AddEventListenerOptions | boolean
   ): void {
-    if (this[kModules]) {
+    if (this.#modules) {
       throw new TypeError(
         "Global addEventListener() cannot be used in modules. Instead, event " +
           "handlers should be declared as exports on the root module."
       );
     }
-    this[kAddEventListener](type, listener, options);
+    this.#addEventListener(type, listener, options);
   }
 
   removeEventListener<Type extends keyof WorkerGlobalScopeEventMap>(
@@ -196,50 +186,50 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     listener: TypedEventListener<WorkerGlobalScopeEventMap[Type]> | null,
     options?: EventListenerOptions | boolean
   ): void {
-    if (this[kModules]) {
+    if (this.#modules) {
       throw new TypeError(
         "Global removeEventListener() cannot be used in modules. Instead, event " +
           "handlers should be declared as exports on the root module."
       );
     }
     // removeEventListener isn't called internally, so no need for a
-    // [kRemoveEventListener] to bypass modules mode checking
-    super.removeEventListener(type, this[kWrap](listener), options);
+    // #removeEventListener to bypass modules mode checking
+    super.removeEventListener(type, this.#wrap(listener), options);
   }
 
-  private [kDispatchEvent](event: ValueOf<WorkerGlobalScopeEventMap>): boolean {
-    this[kWrappedError] = undefined;
+  #dispatchEvent(event: ValueOf<WorkerGlobalScopeEventMap>): boolean {
+    this.#wrappedError = undefined;
     const result = super.dispatchEvent(event);
-    if (this[kWrappedError] !== undefined) throw this[kWrappedError];
+    if (this.#wrappedError !== undefined) throw this.#wrappedError;
     return result;
   }
 
   dispatchEvent(event: ValueOf<WorkerGlobalScopeEventMap>): boolean {
-    if (this[kModules]) {
+    if (this.#modules) {
       throw new TypeError(
         "Global dispatchEvent() cannot be used in modules. Instead, event " +
           "handlers should be declared as exports on the root module."
       );
     }
-    return this[kDispatchEvent](event);
+    return this.#dispatchEvent(event);
   }
 
   [kAddModuleFetchListener](listener: ModuleFetchListener): void {
-    this[kAddEventListener]("fetch", (e) => {
+    this.#addEventListener("fetch", (e) => {
       const ctx = {
         passThroughOnException: e.passThroughOnException.bind(e),
         waitUntil: e.waitUntil.bind(e),
       };
-      const res = listener(e.request, this[kBindings], ctx);
+      const res = listener(e.request, this.#bindings, ctx);
       e.respondWith(res);
     });
   }
 
   [kAddModuleScheduledListener](listener: ModuleScheduledListener): void {
-    this[kAddEventListener]("scheduled", (e) => {
+    this.#addEventListener("scheduled", (e) => {
       const controller = { cron: e.cron, scheduledTime: e.scheduledTime };
       const ctx = { waitUntil: e.waitUntil.bind(e) };
-      const res = listener(controller, this[kBindings], ctx);
+      const res = listener(controller, this.#bindings, ctx);
       e.waitUntil(Promise.resolve(res));
     });
   }
@@ -252,7 +242,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     // it somewhere else
     const event = new FetchEvent(proxy ? request.clone() : request);
     try {
-      this[kDispatchEvent](event);
+      this.#dispatchEvent(event);
       // `event[kResponse]` may be `undefined`, but `await undefined` is still
       // `undefined`
       const response = await event[kResponse];
@@ -263,7 +253,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
       }
     } catch (e: any) {
       if (event[kPassThrough]) {
-        this[kLog].warn(e.stack);
+        this.#log.warn(e.stack);
       } else {
         throw e;
       }
@@ -290,7 +280,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     cron?: string
   ): Promise<WaitUntil> {
     const event = new ScheduledEvent(scheduledTime ?? Date.now(), cron ?? "");
-    this[kDispatchEvent](event);
+    this.#dispatchEvent(event);
     return (await Promise.all(event[kWaitUntil])) as WaitUntil;
   }
 }

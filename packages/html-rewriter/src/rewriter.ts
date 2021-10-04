@@ -28,22 +28,19 @@ function transformToArray(chunk: any): Uint8Array {
   }
 }
 
-const kElementHandlers = Symbol("kElementHandlers");
-const kDocumentHandlers = Symbol("kDocumentHandlers");
-
 type SelectorElementHandlers = [selector: string, handlers: ElementHandlers];
 
 export class HTMLRewriter {
-  private readonly [kElementHandlers]: SelectorElementHandlers[] = [];
-  private readonly [kDocumentHandlers]: DocumentHandlers[] = [];
+  readonly #elementHandlers: SelectorElementHandlers[] = [];
+  readonly #documentHandlers: DocumentHandlers[] = [];
 
   on(selector: string, handlers: ElementHandlers): this {
-    this[kElementHandlers].push([selector, handlers]);
+    this.#elementHandlers.push([selector, handlers]);
     return this;
   }
 
   onDocument(handlers: DocumentHandlers): this {
-    this[kDocumentHandlers].push(handlers);
+    this.#documentHandlers.push(handlers);
     return this;
   }
 
@@ -61,10 +58,10 @@ export class HTMLRewriter {
           if (output.length !== 0) controller.enqueue(output);
         });
         // Add all registered handlers
-        for (const [selector, handlers] of this[kElementHandlers]) {
+        for (const [selector, handlers] of this.#elementHandlers) {
           rewriter.on(selector, handlers);
         }
-        for (const handlers of this[kDocumentHandlers]) {
+        for (const handlers of this.#documentHandlers) {
           rewriter.onDocument(handlers);
         }
 

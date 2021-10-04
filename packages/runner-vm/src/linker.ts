@@ -14,22 +14,22 @@ interface CommonJSModule {
 }
 
 export class ModuleLinker {
-  private readonly referencedPathSizes = new Map<string, number>();
-  private readonly moduleCache = new Map<string, vm.Module>();
-  private readonly cjsModuleCache = new Map<string, CommonJSModule>();
+  readonly #referencedPathSizes = new Map<string, number>();
+  readonly #moduleCache = new Map<string, vm.Module>();
+  readonly #cjsModuleCache = new Map<string, CommonJSModule>();
 
   constructor(private moduleRules: ProcessedModuleRule[]) {
     this.linker = this.linker.bind(this);
   }
 
   get referencedPaths(): IterableIterator<string> {
-    return this.referencedPathSizes.keys();
+    return this.#referencedPathSizes.keys();
   }
 
   get referencedPathsTotalSize(): number {
     // Make sure we only include each module once, even if it's referenced
     // from multiple scripts
-    const sizes = Array.from(this.referencedPathSizes.values());
+    const sizes = Array.from(this.#referencedPathSizes.values());
     return sizes.reduce((total, size) => total + size, 0);
   }
 
@@ -48,7 +48,7 @@ export class ModuleLinker {
     const identifier = path.resolve(path.dirname(referencing.identifier), spec);
     // If we've already seen a module with the same identifier, return it, to
     // handle import cycles
-    const cached = this.moduleCache.get(identifier);
+    const cached = this.#moduleCache.get(identifier);
     if (cached) return cached;
 
     // Find first matching module rule ("ignore" requires relative paths)
@@ -65,7 +65,7 @@ export class ModuleLinker {
 
     // Load module based on rule type
     const data = await fs.readFile(identifier);
-    this.referencedPathSizes.set(identifier, data.byteLength);
+    this.#referencedPathSizes.set(identifier, data.byteLength);
     const moduleOptions = { identifier, context: referencing.context };
     let module: vm.Module;
     switch (rule.type) {
@@ -119,7 +119,7 @@ export class ModuleLinker {
           `${errorBase}: ${rule.type} modules are unsupported`
         );
     }
-    this.moduleCache.set(identifier, module);
+    this.#moduleCache.set(identifier, module);
     return module;
   }
 
@@ -130,7 +130,7 @@ export class ModuleLinker {
   ): any {
     // If we've already seen a module with the same identifier, return it, to
     // handle import cycles
-    const cached = this.cjsModuleCache.get(identifier);
+    const cached = this.#cjsModuleCache.get(identifier);
     if (cached) return cached;
 
     // Find first matching module rule ("ignore" requires relative paths)
@@ -148,11 +148,11 @@ export class ModuleLinker {
     // Create module and store in cache now as require is sync, so may load
     // this module again before this function returns
     const module: CommonJSModule = { exports: {} };
-    this.cjsModuleCache.set(identifier, module);
+    this.#cjsModuleCache.set(identifier, module);
 
     // Load module based on rule type
     const data = readFileSync(identifier);
-    this.referencedPathSizes.set(identifier, data.byteLength);
+    this.#referencedPathSizes.set(identifier, data.byteLength);
     switch (rule.type) {
       case "ESModule":
         throw new VMScriptRunnerError(

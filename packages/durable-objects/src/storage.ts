@@ -1,5 +1,4 @@
 import assert from "assert";
-import { setTimeout } from "timers/promises";
 import { deserialize, serialize } from "v8";
 import {
   Storage,
@@ -81,24 +80,20 @@ function assertValueSize(value: Buffer, key?: string) {
 }
 
 const kTxn = Symbol("kTxn");
-const kRolledback = Symbol("kRolledback");
 const kCommitted = Symbol("kCommitted");
-const kCheck = Symbol("kCheck");
-const kWriteKeys = Symbol("kTxnKeys");
-const kMarkWritten = Symbol("kMarkWritten");
 
 export class DurableObjectTransaction implements DurableObjectOperator {
   readonly [kTxn]: StorageTransaction;
-  private [kRolledback] = false;
+  #rolledback = false;
   [kCommitted] = false;
-  private readonly [kWriteKeys] = new Set<string>();
+  readonly #writeKeys = new Set<string>();
 
   constructor(txn: StorageTransaction) {
     this[kTxn] = txn;
   }
 
-  private [kCheck](op: string) {
-    if (this[kRolledback]) {
+  #check(op: string): void {
+    if (this.#rolledback) {
       throw new Error(`Cannot ${op} on rolled back transaction`);
     }
     if (this[kCommitted]) {
@@ -108,9 +103,9 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     }
   }
 
-  private [kMarkWritten](...keys: string[]) {
-    for (const key of keys) this[kWriteKeys].add(key);
-    if (this[kWriteKeys].size > MAX_KEYS) {
+  #markWritten(...keys: string[]): void {
+    for (const key of keys) this.#writeKeys.add(key);
+    if (this.#writeKeys.size > MAX_KEYS) {
       throw new Error(
         `Maximum number of keys modified in a transaction is ${MAX_KEYS}.`
       );
@@ -128,7 +123,7 @@ export class DurableObjectTransaction implements DurableObjectOperator {
   async get<Value = unknown>(
     keys: string | string[]
   ): Promise<Value | undefined | Map<string, Value>> {
-    this[kCheck]("get()");
+    this.#check("get()");
     if (Array.isArray(keys)) {
       if (keys.length > MAX_KEYS) {
         throw new RangeError(`Maximum number of keys is ${MAX_KEYS}.`);
@@ -162,7 +157,7 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     keyEntries: string | Record<string, Value>,
     valueOptions?: Value | DurableObjectPutOptions
   ): Promise<void> {
-    this[kCheck]("put()");
+    this.#check("put()");
     if (typeof keyEntries === "string") {
       if (valueOptions === undefined) {
         throw new TypeError("put() called with undefined value.");
@@ -171,7 +166,7 @@ export class DurableObjectTransaction implements DurableObjectOperator {
       const serialized = serialize(valueOptions);
       assertValueSize(serialized);
       const value = viewToArray(serialized);
-      this[kMarkWritten](keyEntries);
+      this.#markWritten(keyEntries);
       return Promise.resolve(this[kTxn].put(keyEntries, { value }));
     }
 
@@ -188,22 +183,22 @@ export class DurableObjectTransaction implements DurableObjectOperator {
         return [key, { value }];
       }
     );
-    this[kMarkWritten](...mapped.map(([key]) => key));
+    this.#markWritten(...mapped.map(([key]) => key));
     return this[kTxn].putMany(mapped);
   }
 
   delete(key: string, options?: DurableObjectPutOptions): Promise<boolean>;
   delete(keys: string[], options?: DurableObjectPutOptions): Promise<number>;
   delete(keys: string | string[]): Promise<boolean | number> {
-    this[kCheck]("delete()");
+    this.#check("delete()");
     if (Array.isArray(keys)) {
       if (keys.length > MAX_KEYS) {
         throw new RangeError(`Maximum number of keys is ${MAX_KEYS}.`);
       }
-      this[kMarkWritten](...keys);
+      this.#markWritten(...keys);
       return this[kTxn].deleteMany(keys);
     }
-    this[kMarkWritten](keys);
+    this.#markWritten(keys);
     return Promise.resolve(this[kTxn].delete(keys));
   }
 
@@ -214,7 +209,7 @@ export class DurableObjectTransaction implements DurableObjectOperator {
   async list<Value = unknown>(
     options: DurableObjectListOptions = {}
   ): Promise<Map<string, Value>> {
-    this[kCheck]("list()");
+    this.#check("list()");
     if (options.limit !== undefined && options.limit <= 0) {
       throw new TypeError("List limit must be positive.");
     }
@@ -231,20 +226,18 @@ export class DurableObjectTransaction implements DurableObjectOperator {
 
   rollback(): void {
     // Allow multiple rollback() calls
-    if (this[kRolledback]) return;
-    this[kCheck]("rollback()");
-    this[kRolledback] = true;
+    if (this.#rolledback) return;
+    this.#check("rollback()");
+    this.#rolledback = true;
     this[kTxn].rollback();
   }
 }
 
-const kStorage = Symbol("kStorage");
-
 export class DurableObjectStorage implements DurableObjectOperator {
-  private readonly [kStorage]: Storage;
+  readonly #storage: Storage;
 
   constructor(storage: Storage) {
-    this[kStorage] = storage;
+    this.#storage = storage;
   }
 
   get<Value = unknown>(
@@ -307,15 +300,12 @@ export class DurableObjectStorage implements DurableObjectOperator {
   async transaction<T>(
     closure: (txn: DurableObjectTransaction) => Promise<T>
   ): Promise<T> {
-    // return runWithInputGateClosed(async () => {
-    //   await setTimeout(3000);
-    return this[kStorage].transaction(async (txn) => {
+    return this.#storage.transaction(async (txn) => {
       const durableObjectTxn = new DurableObjectTransaction(txn);
       const result = await closure(durableObjectTxn);
-      // Might not actually commit, this is just for [kCheck]()
+      // Might not actually commit, this is just for #check()
       durableObjectTxn[kCommitted] = true;
       return result;
     });
-    // });
   }
 }

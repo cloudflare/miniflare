@@ -19,26 +19,22 @@ export type CacheErrorCode = "ERR_RESERVED";
 
 export class CacheError extends MiniflareError<CacheErrorCode> {}
 
-const kStorage = Symbol("kStorage");
-const kOptions = Symbol("kOptions");
-const kDefaultCache = Symbol("kDefaultCache");
-
 export class CacheStorage {
-  private readonly [kOptions]: CacheOptions;
-  private readonly [kStorage]: StorageFactory;
-  private [kDefaultCache]?: CacheInterface;
+  readonly #options: CacheOptions;
+  readonly #storage: StorageFactory;
+  #defaultCache?: CacheInterface;
 
   constructor(options: CacheOptions, storageFactory: StorageFactory) {
-    this[kOptions] = options;
-    this[kStorage] = storageFactory;
+    this.#options = options;
+    this.#storage = storageFactory;
   }
 
   get default(): CacheInterface {
     // Return existing cache if already created
-    const defaultCache = this[kDefaultCache];
+    const defaultCache = this.#defaultCache;
     if (defaultCache) return defaultCache;
     // Return noop cache is caching disabled
-    const { disableCache, cachePersist } = this[kOptions];
+    const { disableCache, cachePersist } = this.#options;
     if (disableCache) return NOOP_CACHE;
     // Return cache, deferring operator await to Cache, since this needs to
     // return synchronously. We want to avoid loading @miniflare/storage-*
@@ -47,8 +43,8 @@ export class CacheStorage {
     // There's a risk of an unhandled promise rejection here is the user
     // doesn't do anything with the cache immediately, but this is unlikely.
     // TODO: log once if workers_dev = true
-    return (this[kDefaultCache] = new Cache(
-      this[kStorage].operator(DEFAULT_CACHE_NAME, cachePersist)
+    return (this.#defaultCache = new Cache(
+      this.#storage.operator(DEFAULT_CACHE_NAME, cachePersist)
     ));
   }
 
@@ -63,11 +59,11 @@ export class CacheStorage {
       throw new TypeError("Cache name is too long.");
     }
     // Return noop cache is caching disabled
-    const { disableCache, cachePersist } = this[kOptions];
+    const { disableCache, cachePersist } = this.#options;
     if (disableCache) return NOOP_CACHE;
     // Return regular cache
     // TODO: log once if workers_dev = true
-    return new Cache(await this[kStorage].operator(cacheName, cachePersist));
+    return new Cache(await this.#storage.operator(cacheName, cachePersist));
   }
 }
 

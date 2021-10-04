@@ -24,12 +24,6 @@ async function walkDirs(root: string, callback: (dir: string) => void) {
 
 export type WatcherCallback = (path: string) => void;
 
-const kWatchers = Symbol("kWatchers");
-const kCallback = Symbol("kCallback");
-const kLog = Symbol("kLog");
-const kDebounce = Symbol("kDebounce");
-const kWatchCreated = Symbol("kWatchCreated");
-
 interface Closable {
   close(): void;
 }
@@ -38,27 +32,27 @@ interface Closable {
 //  maybe check if file, and if it is just use polling fs.watchFile
 
 export class Watcher {
-  private readonly [kWatchers] = new Map<string, Map<string, Closable>>();
-  private readonly [kCallback]: WatcherCallback;
-  private readonly [kLog]?: (message: string) => void;
-  private readonly [kDebounce]: number;
+  readonly #watchers = new Map<string, Map<string, Closable>>();
+  readonly #callback: WatcherCallback;
+  readonly #log?: (message: string) => void;
+  readonly #debounce: number;
 
   constructor(callback: WatcherCallback, log?: Log, debounce = 50) {
-    this[kCallback] = callback;
-    this[kLog] = log && log.verbose.bind(log);
-    this[kDebounce] = debounce;
+    this.#callback = callback;
+    this.#log = log && log.verbose.bind(log);
+    this.#debounce = debounce;
   }
 
-  private [kWatchCreated](resolved: string, debounced: () => void) {
-    this[kLog]?.(`${resolved}: waiting for create...`);
+  #watchCreated(resolved: string, debounced: () => void): void {
+    this.#log?.(`${resolved}: waiting for create...`);
     // Polls <resolved> every second until a file is created there, then stops
     // watching.
     const listener = (curr: fs.Stats) => {
       if (curr.mtimeMs === 0) return;
-      this[kLog]?.(`${resolved}: created, tidying up temporary watcher...`);
+      this.#log?.(`${resolved}: created, tidying up temporary watcher...`);
       close();
       // Delete the map so watch doesn't think we're already watching the files
-      this[kWatchers].delete(resolved);
+      this.#watchers.delete(resolved);
       // Emit an event for creating the file
       debounced();
       // Try watch the path again now the path actually exists
@@ -69,10 +63,10 @@ export class Watcher {
 
     // Add watcher to the map so it's cleaned-up if path is unwatched before
     // file is created.
-    let map = this[kWatchers].get(resolved);
+    let map = this.#watchers.get(resolved);
     if (!map) {
       map = new Map<string, Closable>();
-      this[kWatchers].set(resolved, map);
+      this.#watchers.set(resolved, map);
     }
     map.set(resolved, { close });
   }
@@ -83,15 +77,15 @@ export class Watcher {
       // Use a consistent absolute path key for the watchers map
       const resolved = path.resolve(rawPath);
       // If we're already watching this path, don't watch it again
-      if (this[kWatchers].has(resolved)) {
-        this[kLog]?.(`${resolved}: already watching`);
+      if (this.#watchers.has(resolved)) {
+        this.#log?.(`${resolved}: already watching`);
         continue;
       }
 
       // Create a map of watched absolute paths to watchers, this tracks
       // watchers to close when unwatching or when directories are deleted
       const map = new Map<string, fs.FSWatcher>();
-      this[kWatchers].set(resolved, map);
+      this.#watchers.set(resolved, map);
 
       // Create a map of previous mtimes. Only emit events if mtime changes to
       // avoid emitting on spurious callbacks.
@@ -100,7 +94,7 @@ export class Watcher {
       // Debounce events for the same root path
       let debounceHandle: NodeJS.Timeout;
       const debounce = async (event?: string, fileName?: string) => {
-        this[kLog]?.(`${resolved}: ${event}: ${fileName}`);
+        this.#log?.(`${resolved}: ${event}: ${fileName}`);
         // Try to detect and ignore spurious events where mtime is unchanged
         if (fileName) {
           try {
@@ -113,7 +107,7 @@ export class Watcher {
             }
             const previousMtime = mtimeMap.get(filePath);
             if (previousMtime === mtime) {
-              this[kLog]?.(`${resolved}: ignored spurious event`);
+              this.#log?.(`${resolved}: ignored spurious event`);
               return;
             }
             mtimeMap.set(filePath, mtime);
@@ -123,23 +117,23 @@ export class Watcher {
         }
         clearTimeout(debounceHandle);
         if (!fs.existsSync(resolved)) {
-          this[kLog]?.(`${resolved}: deleted, tidying up watcher...`);
+          this.#log?.(`${resolved}: deleted, tidying up watcher...`);
           this.unwatch(resolved);
-          this[kWatchCreated](resolved, debounce);
+          this.#watchCreated(resolved, debounce);
           return;
         }
-        debounceHandle = setTimeout(this[kCallback], this[kDebounce], resolved);
+        debounceHandle = setTimeout(this.#callback, this.#debounce, resolved);
       };
 
       try {
         // Prefer the recursive option, this will only work on macOS or Windows
         map.set(resolved, fs.watch(resolved, { recursive: true }, debounce));
-        this[kLog]?.(`${resolved}: watching recursively...`);
+        this.#log?.(`${resolved}: watching recursively...`);
         // TODO: check deleting directory on windows, and other caveats from Node docs
         // TODO: also test moving root watched directory
       } catch (e: any) {
         if (e.code === "ENOENT") {
-          this[kWatchCreated](resolved, debounce);
+          this.#watchCreated(resolved, debounce);
           continue;
         }
         if (e.code !== "ERR_FEATURE_UNAVAILABLE_ON_PLATFORM") {
@@ -177,7 +171,7 @@ export class Watcher {
               }
             }
           }
-          this[kLog]?.(`${resolved}: watching ${[...map.keys()].join(",")}`);
+          this.#log?.(`${resolved}: watching ${[...map.keys()].join(",")}`);
         };
 
         const walkCallback = (dir: string) => {
@@ -187,7 +181,7 @@ export class Watcher {
           }
         };
 
-        this[kLog]?.(`${resolved}: watching with walk...`);
+        this.#log?.(`${resolved}: watching with walk...`);
         await walkDirs(resolved, walkCallback);
       }
     }
@@ -197,13 +191,13 @@ export class Watcher {
     if (typeof paths === "string") paths = [paths];
     for (const rawPath of paths) {
       const resolved = path.resolve(rawPath);
-      this[kLog]?.(`${resolved}: unwatching...`);
+      this.#log?.(`${resolved}: unwatching...`);
       // Remove all watchers associated with the path
-      for (const watcher of this[kWatchers].get(resolved)?.values() ?? []) {
+      for (const watcher of this.#watchers.get(resolved)?.values() ?? []) {
         watcher.close();
       }
       // Remove the watchers map for this path
-      this[kWatchers].delete(resolved);
+      this.#watchers.delete(resolved);
     }
   }
 }

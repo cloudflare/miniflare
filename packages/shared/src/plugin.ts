@@ -65,11 +65,10 @@ export interface SetupResult extends BeforeSetupResult {
 
 export type ModuleExports = Map<string, Context>;
 
-const kPhantom = Symbol("kPhantom");
-
 export abstract class Plugin<Options extends Context = never> {
   // Required for PluginOptions type to be correct, no idea why
-  private readonly [kPhantom]!: Options;
+  // noinspection JSUnusedLocalSymbols
+  readonly #phantom!: Options;
   // Metadata added by @Option decorator
   opts?: Map<string, OptionMetadata>;
 
