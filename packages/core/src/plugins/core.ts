@@ -52,10 +52,6 @@ const DEFAULT_MODULE_RULES: ModuleRule[] = [
   { type: "CommonJS", include: ["**/*.js", "**/*.cjs"] },
 ];
 
-const kGlobals = Symbol("kGlobals");
-const kMainScriptPath = Symbol("kMainScriptPath");
-const kWebSockets = Symbol("kWebSockets");
-
 export interface CoreOptions {
   script?: string;
   scriptPath?: string;
@@ -189,9 +185,9 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   readonly processedModuleRules: ProcessedModuleRule[] = [];
 
-  private readonly [kGlobals]: Context;
-  private [kMainScriptPath]?: string;
-  private [kWebSockets] = new Set<WebSocket>();
+  readonly #globals: Context;
+  #mainScriptPath?: string;
+  #webSockets = new Set<WebSocket>();
 
   constructor(
     log: Log,
@@ -203,7 +199,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
     // Build globals object
     this.fetch = this.fetch.bind(this);
-    this[kGlobals] = {
+    this.#globals = {
       console,
 
       setTimeout,
@@ -300,21 +296,21 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
     const response = await fetch(input, init);
-    if (response.webSocket) this[kWebSockets].add(response.webSocket);
+    if (response.webSocket) this.#webSockets.add(response.webSocket);
     return response;
   }
 
   get mainScriptPath(): string | undefined {
-    return this[kMainScriptPath];
+    return this.#mainScriptPath;
   }
 
   async setup(): Promise<SetupResult> {
-    const globals = this[kGlobals];
-    this[kMainScriptPath] = undefined;
+    const globals = this.#globals;
+    this.#mainScriptPath = undefined;
 
     // First, try to load script from string, no need to watch any files
     if (this.script !== undefined) {
-      this[kMainScriptPath] = STRING_SCRIPT_PATH;
+      this.#mainScriptPath = STRING_SCRIPT_PATH;
       return {
         globals,
         scripts: [{ filePath: STRING_SCRIPT_PATH, code: this.script }],
@@ -348,7 +344,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       scriptPath = path.resolve(scriptPath);
       const code = await fs.readFile(scriptPath, "utf8");
       watch.push(scriptPath);
-      this[kMainScriptPath] = scriptPath;
+      this.#mainScriptPath = scriptPath;
       return { globals, scripts: [{ filePath: scriptPath, code }], watch };
     }
 
@@ -359,10 +355,10 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   reload(): void {
     // Ensure all fetched web sockets are closed
-    for (const ws of this[kWebSockets]) {
+    for (const ws of this.#webSockets) {
       if (!isWebSocketClosed(ws)) ws.close(1012, "Service Restart");
     }
-    this[kWebSockets].clear();
+    this.#webSockets.clear();
   }
 
   dispose(): void {

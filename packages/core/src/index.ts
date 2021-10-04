@@ -1,4 +1,3 @@
-import assert from "assert";
 import { promises as fs } from "fs";
 import path from "path";
 import {
@@ -136,38 +135,6 @@ export class ReloadEvent<Plugins extends PluginSignatures> extends Event {
   }
 }
 
-const kEventTarget = Symbol("kEventTarget");
-const kPlugins = Symbol("kPlugins");
-const kOverrides = Symbol("kOverrides");
-const kPreviousOptions = Symbol("kPreviousOptions");
-
-const kStorage = Symbol("kStorage");
-const kPluginStorages = Symbol("kPluginStorages");
-const kScriptRunner = Symbol("kScriptRunner");
-const kScriptRequired = Symbol("kScriptRequired");
-
-const kInstances = Symbol("kInstances");
-
-const kWranglerConfigPath = Symbol("kWranglerConfigPath");
-const kWatching = Symbol("kWatching");
-
-const kRunBeforeSetup = Symbol("kRunBeforeSetup");
-const kRunSetup = Symbol("kRunSetup");
-const kUpdateWatch = Symbol("kUpdateWatch");
-const kBeforeSetupWatch = Symbol("kBeforeSetupWatch");
-const kSetupWatch = Symbol("kSetupWatch");
-const kSetupResults = Symbol("kSetupResults");
-
-const kGlobalScope = Symbol("kGlobalScope");
-const kWatcher = Symbol("kWatcher");
-const kWatcherCallback = Symbol("kWatcherCallback");
-const kWatcherCallbackMutex = Symbol("KWatcherCallbackMutex");
-const kPreviousWatchPaths = Symbol("kPreviousWatchPaths");
-
-const kInitPromise = Symbol("kInitPromise");
-const kInit = Symbol("kInit");
-const kReload = Symbol("kReload");
-
 type MiniflareCoreEventMap<Plugins extends PluginSignatures> = {
   reload: ReloadEvent<Plugins>;
 };
@@ -175,60 +142,58 @@ type MiniflareCoreEventMap<Plugins extends PluginSignatures> = {
 export class MiniflareCore<Plugins extends CorePluginSignatures> {
   // Ideally we'd be extending from typedEventTarget<...>(), but TypeScript
   // doesn't let you use type parameters in heritage clauses
-  private readonly [kEventTarget]: TypedEventTarget<
-    MiniflareCoreEventMap<Plugins>
-  >;
-  private readonly [kPlugins]: PluginEntries<Plugins>;
-  private [kOverrides]: PluginOptions<Plugins>;
-  private [kPreviousOptions]?: PluginOptions<Plugins>;
+  readonly #eventTarget: TypedEventTarget<MiniflareCoreEventMap<Plugins>>;
+  readonly #plugins: PluginEntries<Plugins>;
+  #overrides: PluginOptions<Plugins>;
+  #previousOptions?: PluginOptions<Plugins>;
 
   readonly log: Log;
-  private readonly [kStorage]: StorageFactory;
-  private readonly [kPluginStorages]: PluginData<Plugins, PluginStorageFactory>;
-  private readonly [kScriptRunner]: ScriptRunner;
-  private readonly [kScriptRequired]?: boolean;
+  readonly #storage: StorageFactory;
+  readonly #pluginStorages: PluginData<Plugins, PluginStorageFactory>;
+  readonly #scriptRunner: ScriptRunner;
+  readonly #scriptRequired?: boolean;
 
-  private [kInstances]: PluginInstances<Plugins>;
+  #instances?: PluginInstances<Plugins>;
 
-  private [kWranglerConfigPath]?: string;
-  private [kWatching]: boolean;
-  private [kBeforeSetupWatch]: PluginData<Plugins, Set<string>>;
-  private [kSetupWatch]: PluginData<Plugins, Set<string>>;
-  private [kSetupResults]: PluginData<Plugins, SetupResult>;
+  #wranglerConfigPath?: string;
+  #watching?: boolean;
+  #beforeSetupWatch?: PluginData<Plugins, Set<string>>;
+  #setupWatch?: PluginData<Plugins, Set<string>>;
+  #setupResults?: PluginData<Plugins, SetupResult>;
 
-  private [kGlobalScope]: ServiceWorkerGlobalScope;
-  private [kWatcher]?: Watcher;
-  private [kWatcherCallbackMutex]: Mutex;
-  private [kPreviousWatchPaths]?: Set<string>;
+  #globalScope?: ServiceWorkerGlobalScope;
+  #watcher?: Watcher;
+  #watcherCallbackMutex?: Mutex;
+  #previousWatchPaths?: Set<string>;
 
   constructor(
     plugins: Plugins,
     ctx: MiniflareCoreContext,
     options: Options<Plugins> = {} as Options<Plugins>
   ) {
-    this[kEventTarget] = new EventTarget() as TypedEventTarget<
+    this.#eventTarget = new EventTarget() as TypedEventTarget<
       MiniflareCoreEventMap<Plugins>
     >;
     // TODO: make sure CorePlugin is always loaded first (so other plugins can override built-ins, e.g. WebSocket fetch), and BindingsPlugin if
     //  included is always last (so user can override anything)
-    this[kPlugins] = Object.entries({ ...plugins, CorePlugin }) as any;
-    this[kOverrides] = splitPluginOptions(this[kPlugins], options);
+    this.#plugins = Object.entries({ ...plugins, CorePlugin }) as any;
+    this.#overrides = splitPluginOptions(this.#plugins, options);
 
     this.log = ctx.log;
-    this[kStorage] = ctx.storageFactory;
-    this[kPluginStorages] = new Map<keyof Plugins, PluginStorageFactory>();
-    this[kScriptRunner] = ctx.scriptRunner;
-    this[kScriptRequired] = ctx.scriptRequired;
+    this.#storage = ctx.storageFactory;
+    this.#pluginStorages = new Map<keyof Plugins, PluginStorageFactory>();
+    this.#scriptRunner = ctx.scriptRunner;
+    this.#scriptRequired = ctx.scriptRequired;
 
-    this[kInitPromise] = this[kInit]().then(() => this[kReload]());
+    this.#initPromise = this.#init().then(() => this.#reload());
   }
 
-  private [kUpdateWatch](
+  #updateWatch(
     data: PluginData<Plugins, Set<string>>,
     name: keyof Plugins,
     result: BeforeSetupResult | void
   ): void {
-    if (this[kWatching] && result?.watch) {
+    if (this.#watching && result?.watch) {
       const resolved = result.watch.map(pathResolve);
       data.set(name, new Set(resolved));
     } else {
@@ -236,34 +201,34 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
     }
   }
 
-  private async [kRunBeforeSetup](name: keyof Plugins): Promise<void> {
-    const instance = this[kInstances][name];
+  async #runBeforeSetup(name: keyof Plugins): Promise<void> {
+    const instance = this.#instances![name];
     if (!instance.beforeSetup) return;
     this.log.verbose(`- beforeSetup(${name})`);
     const result = await instance.beforeSetup();
-    this[kUpdateWatch](this[kBeforeSetupWatch], name, result);
+    this.#updateWatch(this.#beforeSetupWatch!, name, result);
   }
 
-  private async [kRunSetup](name: keyof Plugins): Promise<void> {
-    const instance = this[kInstances][name];
+  async #runSetup(name: keyof Plugins): Promise<void> {
+    const instance = this.#instances![name];
     if (!instance.setup) return;
     this.log.verbose(`- setup(${name})`);
     const result = await instance.setup(this.getPluginStorage(name));
-    this[kUpdateWatch](this[kSetupWatch], name, result);
-    this[kSetupResults].set(name, {
+    this.#updateWatch(this.#setupWatch!, name, result);
+    this.#setupResults!.set(name, {
       globals: result?.globals,
       bindings: result?.bindings,
       scripts: result?.scripts,
     });
   }
 
-  private readonly [kInitPromise]: Promise<void>;
-  private async [kInit](): Promise<void> {
+  readonly #initPromise: Promise<void>;
+  async #init(): Promise<void> {
     this.log.debug("Initialising worker...");
 
     // Get required options
-    const previous = this[kPreviousOptions];
-    let options = this[kOverrides];
+    const previous = this.#previousOptions;
+    let options = this.#overrides;
 
     // Merge in wrangler config if defined
     const originalConfigPath = options.CorePlugin.wranglerConfigPath;
@@ -272,7 +237,7 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
       originalConfigPath === true ? "wrangler.toml" : originalConfigPath;
     if (configPath) {
       configPath = path.resolve(configPath);
-      this[kWranglerConfigPath] = configPath;
+      this.#wranglerConfigPath = configPath;
       try {
         const configData = await fs.readFile(configPath, "utf8");
         const toml = await import("@iarna/toml");
@@ -287,8 +252,8 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
         populateBuildConfig(config, configDir);
 
         options = splitWranglerConfig(
-          this[kPlugins],
-          this[kOverrides],
+          this.#plugins,
+          this.#overrides,
           config,
           configDir
         );
@@ -302,63 +267,63 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
     // Store the watching option for the first init only. We don't want to stop
     // watching if the user changes the watch option in wrangler config mid-way
     // through execution. (NOTE: ??= will only assign on undefined, not false)
-    this[kWatching] ??= options.CorePlugin.watch ?? false;
+    this.#watching ??= options.CorePlugin.watch ?? false;
     // TODO: maybe throw exception if watch changes?
 
     // Create plugin instances and run beforeSetup hooks, recreating any plugins
     // with changed options
-    this[kInstances] ??= {} as PluginInstances<Plugins>;
-    this[kBeforeSetupWatch] ??= new Map<keyof Plugins, Set<string>>();
+    this.#instances ??= {} as PluginInstances<Plugins>;
+    this.#beforeSetupWatch ??= new Map<keyof Plugins, Set<string>>();
     let ranBeforeSetup = false;
-    for (const [name, plugin] of this[kPlugins]) {
+    for (const [name, plugin] of this.#plugins) {
       if (previous !== undefined && dequal(previous[name], options[name])) {
         continue;
       }
 
       // If we have an existing instance, run its cleanup first
-      const existingInstance = this[kInstances][name];
+      const existingInstance = this.#instances[name];
       if (existingInstance?.dispose) {
         this.log.verbose(`- dispose(${name})`);
         await existingInstance.dispose();
       }
 
       const instance = new plugin(this.log, options[name]);
-      this[kInstances][name] = instance as any;
-      await this[kRunBeforeSetup](name);
+      this.#instances[name] = instance as any;
+      await this.#runBeforeSetup(name);
       ranBeforeSetup = true;
     }
 
     // Run setup hooks for (re)created plugins
-    this[kSetupWatch] ??= new Map<keyof Plugins, Set<string>>();
-    this[kSetupResults] ??= new Map<keyof Plugins, SetupResult>();
-    for (const [name] of this[kPlugins]) {
+    this.#setupWatch ??= new Map<keyof Plugins, Set<string>>();
+    this.#setupResults ??= new Map<keyof Plugins, SetupResult>();
+    for (const [name] of this.#plugins) {
       if (
         previous !== undefined &&
         dequal(previous[name], options[name]) &&
         // Make sure if we ran any beforeSetups and this plugin previously
         // returned scripts, that we rerun its setup
-        !(ranBeforeSetup && this[kSetupResults].get(name)?.scripts?.length)
+        !(ranBeforeSetup && this.#setupResults.get(name)?.scripts?.length)
       ) {
         continue;
       }
 
-      await this[kRunSetup](name);
+      await this.#runSetup(name);
     }
 
     // Store previous options so we can diff them later when wrangler config
     // changes
-    this[kPreviousOptions] = options;
+    this.#previousOptions = options;
 
     // Make sure we've got a script if it's required
-    if (this[kScriptRequired] && !this[kInstances].CorePlugin.mainScriptPath) {
+    if (this.#scriptRequired && !this.#instances.CorePlugin.mainScriptPath) {
       throwNoScriptError(options.CorePlugin.modules);
     }
 
     // Log options every time they might've changed
-    logOptions(this[kPlugins], this.log, options);
+    logOptions(this.#plugins, this.log, options);
   }
 
-  private async [kReload](): Promise<void> {
+  async #reload(): Promise<void> {
     this.log.debug("Reloading worker...");
 
     const globals: Context = {};
@@ -366,42 +331,42 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
     const blueprints: ScriptBlueprint[] = [];
 
     const newWatchPaths = new Set<string>();
-    const configPath = this[kWranglerConfigPath];
+    const configPath = this.#wranglerConfigPath;
     if (configPath) newWatchPaths.add(configPath);
 
-    for (const [name] of this[kPlugins]) {
+    for (const [name] of this.#plugins) {
       // Run beforeReload hook
-      const instance = this[kInstances][name];
+      const instance = this.#instances![name];
       if (instance.beforeReload) {
         this.log.verbose(`- beforeReload(${name})`);
         await instance.beforeReload();
       }
 
       // Build global scope and extract script blueprints
-      const result = this[kSetupResults].get(name);
+      const result = this.#setupResults!.get(name);
       Object.assign(globals, result?.globals);
       Object.assign(bindings, result?.bindings);
       if (result?.scripts) blueprints.push(...result.scripts);
 
       // Extract watch paths
-      const beforeSetupWatch = this[kBeforeSetupWatch].get(name);
+      const beforeSetupWatch = this.#beforeSetupWatch!.get(name);
       if (beforeSetupWatch) addAll(newWatchPaths, beforeSetupWatch);
-      const setupWatch = this[kSetupWatch].get(name);
+      const setupWatch = this.#setupWatch!.get(name);
       if (setupWatch) addAll(newWatchPaths, setupWatch);
     }
     const { modules, processedModuleRules, mainScriptPath } =
-      this[kInstances].CorePlugin;
+      this.#instances!.CorePlugin;
     const globalScope = new ServiceWorkerGlobalScope(
       this.log,
       globals,
       bindings,
       modules
     );
-    this[kGlobalScope] = globalScope;
+    this.#globalScope = globalScope;
 
     // Run script blueprints, with modules rules if in modules mode
     const rules = modules ? processedModuleRules : undefined;
-    const res = await this[kScriptRunner].run(globalScope, blueprints, rules);
+    const res = await this.#scriptRunner.run(globalScope, blueprints, rules);
     if (res.watch) addAll(newWatchPaths, res.watch);
 
     // Add module event listeners if any
@@ -419,15 +384,15 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
     }
 
     // Run reload hooks
-    for (const [name] of this[kPlugins]) {
-      const instance = this[kInstances][name];
+    for (const [name] of this.#plugins) {
+      const instance = this.#instances![name];
       if (instance.reload) {
         this.log.verbose(`- reload(${name})`);
         await instance.reload(res.exports, bindings, mainScriptPath);
       }
     }
     // Dispatch reload event
-    this[kEventTarget].dispatchEvent(new ReloadEvent(this[kInstances]));
+    this.#eventTarget.dispatchEvent(new ReloadEvent(this.#instances!));
 
     // Log bundle size and warning if too big
     this.log.info(
@@ -445,28 +410,28 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
     }
 
     // Update watched paths if watching
-    if (this[kWatching]) {
-      let watcher = this[kWatcher];
+    if (this.#watching) {
+      let watcher = this.#watcher;
       // Make sure we've created the watcher
       if (!watcher) {
         const { Watcher } = await import("@miniflare/watcher");
-        this[kWatcherCallbackMutex] = new Mutex();
-        watcher = new Watcher(this[kWatcherCallback].bind(this), this.log);
-        this[kWatcher] = watcher;
+        this.#watcherCallbackMutex = new Mutex();
+        watcher = new Watcher(this.#watcherCallback.bind(this), this.log);
+        this.#watcher = watcher;
       }
 
       // Store changed paths
       const unwatchedPaths = new Set<string>();
       const watchedPaths = new Set<string>();
       // Unwatch paths that should no longer be watched
-      for (const watchedPath of this[kPreviousWatchPaths] ?? []) {
+      for (const watchedPath of this.#previousWatchPaths ?? []) {
         if (!newWatchPaths.has(watchedPath)) {
           unwatchedPaths.add(watchedPath);
         }
       }
       // Watch paths that should now be watched
       for (const newWatchedPath of newWatchPaths) {
-        if (!this[kPreviousWatchPaths]?.has(newWatchedPath)) {
+        if (!this.#previousWatchPaths?.has(newWatchedPath)) {
           watchedPaths.add(newWatchedPath);
         }
       }
@@ -477,38 +442,38 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
       }
       if (watchedPaths.size > 0) {
         this.log.debug(`Watching ${pathsToString(newWatchPaths)}...`);
-        watcher.watch(watchedPaths);
+        await watcher.watch(watchedPaths);
       }
-      this[kPreviousWatchPaths] = newWatchPaths;
+      this.#previousWatchPaths = newWatchPaths;
     }
   }
 
-  private [kWatcherCallback](eventPath: string): void {
+  #watcherCallback(eventPath: string): void {
     this.log.debug(`${path.relative("", eventPath)} changed...`);
-    const promise = this[kWatcherCallbackMutex].runWith(async () => {
+    const promise = this.#watcherCallbackMutex!.runWith(async () => {
       // If wrangler config changed, re-init any changed plugins
-      if (eventPath === this[kWranglerConfigPath]) {
-        await this[kInit]();
+      if (eventPath === this.#wranglerConfigPath) {
+        await this.#init();
       }
 
       // Re-run hooks that returned the paths to watch originally
       let ranBeforeSetup = false;
-      for (const [name] of this[kPlugins]) {
-        if (this[kBeforeSetupWatch].get(name)?.has(eventPath)) {
-          await this[kRunBeforeSetup](name);
+      for (const [name] of this.#plugins) {
+        if (this.#beforeSetupWatch!.get(name)?.has(eventPath)) {
+          await this.#runBeforeSetup(name);
           ranBeforeSetup = true;
         }
-        if (this[kSetupWatch].get(name)?.has(eventPath)) {
-          await this[kRunSetup](name);
+        if (this.#setupWatch!.get(name)?.has(eventPath)) {
+          await this.#runSetup(name);
         }
       }
 
       if (ranBeforeSetup) {
         // If we ran any beforeSetup hooks, rerun setup hooks for any plugins
         // that returned scripts
-        for (const [name] of this[kPlugins]) {
-          if (this[kSetupResults].get(name)?.scripts?.length) {
-            await this[kRunSetup](name);
+        for (const [name] of this.#plugins) {
+          if (this.#setupResults!.get(name)?.scripts?.length) {
+            await this.#runSetup(name);
           }
         }
       }
@@ -518,17 +483,17 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
       // case, just reloading will re-read it so we don't need to do anything.
 
       // Wait until we've processed all changes before reloading
-      if (!this[kWatcherCallbackMutex].hasWaiting) {
-        await this[kReload]();
+      if (!this.#watcherCallbackMutex!.hasWaiting) {
+        await this.#reload();
       }
     });
     promise.catch((e) => this.log.error(e));
   }
 
   async reload(): Promise<void> {
-    await this[kInitPromise];
-    await this[kInit]();
-    await this[kReload]();
+    await this.#initPromise;
+    await this.#init();
+    await this.#reload();
   }
 
   addEventListener(
@@ -536,7 +501,7 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
     listener: TypedEventListener<ReloadEvent<Plugins>>,
     options?: AddEventListenerOptions
   ): void {
-    this[kEventTarget].addEventListener(type, listener, options);
+    this.#eventTarget.addEventListener(type, listener, options);
   }
 
   removeEventListener(
@@ -544,49 +509,46 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
     listener: TypedEventListener<ReloadEvent<Plugins>>,
     options?: EventListenerOptions
   ): void {
-    this[kEventTarget].removeEventListener(type, listener, options);
+    this.#eventTarget.removeEventListener(type, listener, options);
   }
 
   async setOptions(options: Options<Plugins>): Promise<void> {
-    await this[kInitPromise];
-    this[kOverrides] = splitPluginOptions(this[kPlugins], options);
-    await this[kInit]();
-    await this[kReload]();
+    await this.#initPromise;
+    this.#overrides = splitPluginOptions(this.#plugins, options);
+    await this.#init();
+    await this.#reload();
   }
 
   getPluginStorage(name: keyof Plugins): PluginStorageFactory {
-    let storage = this[kPluginStorages].get(name);
+    let storage = this.#pluginStorages.get(name);
     if (storage) return storage;
-    this[kPluginStorages].set(
+    this.#pluginStorages.set(
       name,
-      (storage = new PluginStorageFactory(this[kStorage], name as string))
+      (storage = new PluginStorageFactory(this.#storage, name as string))
     );
     return storage;
   }
 
   async getPlugins(): Promise<PluginInstances<Plugins>> {
-    await this[kInitPromise];
-    assert(this[kInstances]);
-    return this[kInstances];
+    await this.#initPromise;
+    return this.#instances!;
   }
 
   async getGlobalScope(): Promise<Context> {
-    await this[kInitPromise];
-    assert(this[kGlobalScope]);
-    return this[kGlobalScope];
+    await this.#initPromise;
+    return this.#globalScope!;
   }
 
   async dispatchFetch<WaitUntil extends any[] = unknown[]>(
     input: RequestInfo,
     init?: RequestInit
   ): Promise<Response<WaitUntil>> {
-    await this[kInitPromise];
-    const corePlugin = this[kInstances].CorePlugin;
-    const globalScope = this[kGlobalScope];
-    assert(corePlugin && globalScope);
+    await this.#initPromise;
+    const corePlugin = this.#instances!.CorePlugin;
+    const globalScope = this.#globalScope;
     const request =
       input instanceof Request && !init ? input : new Request(input, init);
-    return globalScope[kDispatchFetch]<WaitUntil>(
+    return globalScope![kDispatchFetch]<WaitUntil>(
       withImmutableHeaders(request),
       !!corePlugin.upstream
     );
@@ -596,17 +558,16 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
     scheduledTime?: number,
     cron?: string
   ): Promise<WaitUntil> {
-    await this[kInitPromise];
-    const globalScope = this[kGlobalScope];
-    assert(globalScope);
-    return globalScope[kDispatchScheduled]<WaitUntil>(scheduledTime, cron);
+    await this.#initPromise;
+    const globalScope = this.#globalScope;
+    return globalScope![kDispatchScheduled]<WaitUntil>(scheduledTime, cron);
   }
 
   async dispose(): Promise<void> {
     // Run dispose hooks
-    for (const [name] of this[kPlugins]) {
-      const instance = this[kInstances][name];
-      if (instance.dispose) {
+    for (const [name] of this.#plugins) {
+      const instance = this.#instances?.[name];
+      if (instance?.dispose) {
         this.log.verbose(`- dispose(${name})`);
         await instance.dispose();
       }

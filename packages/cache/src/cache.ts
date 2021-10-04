@@ -41,16 +41,13 @@ function getKey(req: BaseRequest): string {
   }
 }
 
-const kStorage = Symbol("kStorage");
-const kClock = Symbol("kClock");
-
 export class Cache implements CacheInterface {
-  private readonly [kStorage]: MaybePromise<StorageOperator>;
-  private readonly [kClock]: Clock;
+  readonly #storage: MaybePromise<StorageOperator>;
+  readonly #clock: Clock;
 
   constructor(storage: MaybePromise<StorageOperator>, clock = defaultClock) {
-    this[kStorage] = storage;
-    this[kClock] = clock;
+    this.#storage = storage;
+    this.#clock = clock;
   }
 
   async put(
@@ -106,7 +103,7 @@ export class Cache implements CacheInterface {
     // @ts-expect-error `now` isn't included in CachePolicy's type definitions
     const originalNow = CachePolicy.prototype.now;
     // @ts-expect-error `now` isn't included in CachePolicy's type definitions
-    CachePolicy.prototype.now = this[kClock];
+    CachePolicy.prototype.now = this.#clock;
     let expirationTtl: number;
     try {
       const policy = new CachePolicy(cacheReq, cacheRes, { shared: true });
@@ -128,10 +125,10 @@ export class Cache implements CacheInterface {
       status: res.status,
       headers: [...res.headers],
     };
-    const storage = await this[kStorage];
+    const storage = await this.#storage;
     await storage.put(key, {
       value: new Uint8Array(await res.arrayBuffer()),
-      expiration: millisToSeconds(this[kClock]() + expirationTtl),
+      expiration: millisToSeconds(this.#clock() + expirationTtl),
       metadata,
     });
   }
@@ -146,7 +143,7 @@ export class Cache implements CacheInterface {
 
     // Check if we have the response cached
     const key = getKey(req);
-    const storage = await this[kStorage];
+    const storage = await this.#storage;
     const cached = await storage.get<CachedMeta>(key);
     if (!cached) return;
 
@@ -171,7 +168,7 @@ export class Cache implements CacheInterface {
 
     // Delete the cached response if it exists
     const key = getKey(req);
-    const storage = await this[kStorage];
+    const storage = await this.#storage;
     return storage.delete(key);
   }
 }

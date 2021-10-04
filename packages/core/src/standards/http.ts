@@ -62,14 +62,14 @@ export interface ResponseInit extends BaseResponseInit {
 }
 
 const kStatus = Symbol("kStatus");
-const kWebSocket = Symbol("kWebSocket");
 const kWaitUntil = Symbol("kWaitUntil");
 
 export class Response<
   WaitUntil extends any[] = unknown[]
 > extends BaseResponse {
+  // noinspection TypeScriptFieldCanBeMadeReadonly
   private [kStatus]?: number;
-  private [kWebSocket]?: WebSocket;
+  readonly #webSocket?: WebSocket;
   [kWaitUntil]?: Promise<WaitUntil>;
 
   constructor(body?: BodyInit, init?: ResponseInit) {
@@ -87,7 +87,7 @@ export class Response<
     }
     super(body, init);
     this[kStatus] = originalStatus;
-    this[kWebSocket] = init?.webSocket;
+    this.#webSocket = init?.webSocket;
   }
 
   // @ts-expect-error status is defined as an accessor in undici
@@ -96,7 +96,7 @@ export class Response<
   }
 
   get webSocket(): WebSocket | undefined {
-    return this[kWebSocket];
+    return this.#webSocket;
   }
 
   waitUntil(): Promise<WaitUntil> {
@@ -104,7 +104,7 @@ export class Response<
   }
 
   clone = (): Response => {
-    if (this[kWebSocket]) {
+    if (this.#webSocket) {
       throw new TypeError("Cannot clone a response to a WebSocket handshake.");
     }
 

@@ -19,7 +19,7 @@ export class ShadowStorageTransaction<
 > extends StorageTransaction {
   readonly readSet = new Set<string>();
   readonly copies = new Map<string, StoredValueMeta | undefined>();
-  rolledback = false;
+  #rolledback = false;
 
   constructor(protected readonly inner: Inner, readonly startTxnCount: number) {
     super();
@@ -222,7 +222,11 @@ export class ShadowStorageTransaction<
 
   rollback(): void {
     // Allow multiple calls to rollback
-    this.rolledback = true;
+    this.#rolledback = true;
+  }
+
+  get rolledback(): boolean {
+    return this.#rolledback;
   }
 
   get writeSet(): Set<string> {
