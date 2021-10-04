@@ -15,6 +15,8 @@ import {
   ScriptRunner,
   SetupResult,
   StorageFactory,
+  TypedEventListener,
+  TypedEventTarget,
   WranglerConfig,
   logOptions,
 } from "@miniflare/shared";
@@ -54,10 +56,6 @@ type PluginData<Plugins extends PluginSignatures, Data> = Map<
   keyof Plugins,
   Data
 >;
-
-export type ReloadListener<Plugins extends PluginSignatures> = (
-  plugins: PluginInstances<Plugins>
-) => void;
 
 function splitPluginOptions<Plugins extends PluginSignatures>(
   plugins: PluginEntries<Plugins>,
@@ -132,6 +130,13 @@ export interface MiniflareCoreContext {
   scriptRequired?: boolean;
 }
 
+export class ReloadEvent<Plugins extends PluginSignatures> extends Event {
+  constructor(readonly plugins: PluginInstances<Plugins>) {
+    super("reload");
+  }
+}
+
+const kEventTarget = Symbol("kEventTarget");
 const kPlugins = Symbol("kPlugins");
 const kOverrides = Symbol("kOverrides");
 const kPreviousOptions = Symbol("kPreviousOptions");
@@ -159,13 +164,20 @@ const kWatcherCallback = Symbol("kWatcherCallback");
 const kWatcherCallbackMutex = Symbol("KWatcherCallbackMutex");
 const kPreviousWatchPaths = Symbol("kPreviousWatchPaths");
 
-const kReloadListeners = Symbol("kReloadListeners");
-
 const kInitPromise = Symbol("kInitPromise");
 const kInit = Symbol("kInit");
 const kReload = Symbol("kReload");
 
+type MiniflareCoreEventMap<Plugins extends PluginSignatures> = {
+  reload: ReloadEvent<Plugins>;
+};
+
 export class MiniflareCore<Plugins extends CorePluginSignatures> {
+  // Ideally we'd be extending from typedEventTarget<...>(), but TypeScript
+  // doesn't let you use type parameters in heritage clauses
+  private readonly [kEventTarget]: TypedEventTarget<
+    MiniflareCoreEventMap<Plugins>
+  >;
   private readonly [kPlugins]: PluginEntries<Plugins>;
   private [kOverrides]: PluginOptions<Plugins>;
   private [kPreviousOptions]?: PluginOptions<Plugins>;
@@ -189,13 +201,16 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
   private [kWatcherCallbackMutex]: Mutex;
   private [kPreviousWatchPaths]?: Set<string>;
 
-  private readonly [kReloadListeners] = new Set<ReloadListener<Plugins>>();
-
   constructor(
     plugins: Plugins,
     ctx: MiniflareCoreContext,
     options: Options<Plugins> = {} as Options<Plugins>
   ) {
+    this[kEventTarget] = new EventTarget() as TypedEventTarget<
+      MiniflareCoreEventMap<Plugins>
+    >;
+    // TODO: make sure CorePlugin is always loaded first (so other plugins can override built-ins, e.g. WebSocket fetch), and BindingsPlugin if
+    //  included is always last (so user can override anything)
     this[kPlugins] = Object.entries({ ...plugins, CorePlugin }) as any;
     this[kOverrides] = splitPluginOptions(this[kPlugins], options);
 
@@ -288,6 +303,7 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
     // watching if the user changes the watch option in wrangler config mid-way
     // through execution. (NOTE: ??= will only assign on undefined, not false)
     this[kWatching] ??= options.CorePlugin.watch ?? false;
+    // TODO: maybe throw exception if watch changes?
 
     // Create plugin instances and run beforeSetup hooks, recreating any plugins
     // with changed options
@@ -410,8 +426,8 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
         await instance.reload(res.exports, bindings, mainScriptPath);
       }
     }
-    // Run reload listeners
-    for (const listener of this[kReloadListeners]) listener(this[kInstances]);
+    // Dispatch reload event
+    this[kEventTarget].dispatchEvent(new ReloadEvent(this[kInstances]));
 
     // Log bundle size and warning if too big
     this.log.info(
@@ -515,14 +531,20 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
     await this[kReload]();
   }
 
-  // TODO: event target?
-
-  addReloadListener(listener: ReloadListener<Plugins>): void {
-    this[kReloadListeners].add(listener);
+  addEventListener(
+    type: "reload",
+    listener: TypedEventListener<ReloadEvent<Plugins>>,
+    options?: AddEventListenerOptions
+  ): void {
+    this[kEventTarget].addEventListener(type, listener, options);
   }
 
-  removeReloadListener(listener: ReloadListener<Plugins>): void {
-    this[kReloadListeners].delete(listener);
+  removeEventListener(
+    type: "reload",
+    listener: TypedEventListener<ReloadEvent<Plugins>>,
+    options?: EventListenerOptions
+  ): void {
+    this[kEventTarget].removeEventListener(type, listener, options);
   }
 
   async setOptions(options: Options<Plugins>): Promise<void> {
