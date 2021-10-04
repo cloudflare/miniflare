@@ -90,6 +90,7 @@ export class DurableObjectStub {
     return this.id.name;
   }
 
+  // TODO: check websocket requests work here
   async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
     const internals = await this[kFactory](this.id);
     // TODO: add fake-host

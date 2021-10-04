@@ -272,6 +272,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     }
 
     if (!proxy) {
+      // TODO: split this error up, add check for handlers, check type of returns
       throw new TypeError(
         "No fetch handler responded and no upstream to proxy to specified.\n" +
           "Have you added a fetch event listener that responds with a Response?"

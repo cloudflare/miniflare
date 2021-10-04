@@ -18,7 +18,8 @@
   ],
   "scripts": {
     "build": "node scripts/build.js",
-    "build:types": "tsc && node scripts/types.js",
+    "types:build": "tsc",
+    "types:bundle": "npm run types:build && node scripts/types.js",
     "dev": "node scripts/build.js watch",
     "test": "npm run build && ava",
     "lint": "eslint 'packages/*/{src,test}/**/*.ts' 'scripts/**/*.{js,mjs}' 'types/**/*.ts'",

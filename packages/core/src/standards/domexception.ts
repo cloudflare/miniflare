@@ -26,6 +26,7 @@ export const DOM_EXCEPTION_NAMES = {
   DataCloneError: 25,
 };
 
+// noinspection JSUnusedGlobalSymbols
 export class DOMException extends Error {
   static readonly INDEX_SIZE_ERR = 1;
   static readonly DOMSTRING_SIZE_ERR = 2;

@@ -8,7 +8,7 @@ export interface WranglerEnvironmentConfig {
   route?: string;
   routes?: string[];
   webpack_config?: string;
-  vars?: Record<string, string>;
+  vars?: Record<string, any>;
   kv_namespaces?: {
     binding: string;
     id?: string;
@@ -24,6 +24,8 @@ export interface WranglerEnvironmentConfig {
     bindings?: {
       name: string;
       class_name: string;
+      // TODO: interpret this properly, it's not a path, it's the name of the worker
+      //  (maybe have additional map of script_name => script_path in [miniflare] section?)
       script_name?: string;
     }[];
   };
@@ -46,6 +48,7 @@ export interface WranglerEnvironmentConfig {
     };
   };
   miniflare?: {
+    globals?: Record<string, any>;
     upstream?: string;
     watch?: boolean;
     debug?: boolean;
