@@ -127,10 +127,6 @@ export function createRequestListener<Plugins extends CorePluginSignatures>(
         response = await mf.dispatchFetch(request);
         waitUntil = response.waitUntil();
         status = response.status;
-        // node-fetch will decompress compressed responses meaning these
-        // headers are probably wrong
-        response.headers.delete("content-length");
-        response.headers.delete("content-encoding");
         res?.writeHead(response.status, [...response.headers].flat());
         // Response body may be null if empty
         if (response.body) {
@@ -230,8 +226,8 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
       ws.close(1012, "Service Restart");
     }
   };
-  mf.addReloadListener(reloadListener);
-  server.on("close", () => mf.removeReloadListener(reloadListener));
+  mf.addEventListener("reload", reloadListener);
+  server.on("close", () => mf.removeEventListener("reload", reloadListener));
 
   return server;
 }
