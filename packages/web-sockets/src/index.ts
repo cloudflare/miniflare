@@ -1,3 +1,4 @@
+export { upgradingFetch } from "./fetch";
 export * from "./plugin";
 export * from "./couple";
 export {
@@ -6,6 +7,5 @@ export {
   ErrorEvent,
   WebSocket,
   WebSocketPair,
-  isWebSocketClosed,
 } from "./websocket";
 export type { WebSocketEventMap } from "./websocket";

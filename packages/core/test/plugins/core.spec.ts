@@ -6,11 +6,8 @@ import { STRING_SCRIPT_PATH } from "@miniflare/shared";
 import {
   NoOpLog,
   logPluginOptions,
-  noop,
   parsePluginArgv,
   parsePluginWranglerConfig,
-  triggerPromise,
-  useServer,
   useTmp,
 } from "@miniflare/shared-test";
 import test from "ava";
@@ -185,7 +182,6 @@ test("CorePlugin: setup: includes web standards", async (t) => {
   t.true(typeof globals.TextDecoder === "function");
   t.true(typeof globals.TextEncoder === "function");
 
-  t.is(globals.fetch, plugin.fetch);
   t.true(typeof globals.fetch === "function");
   t.true(typeof globals.Headers === "function");
   t.true(typeof globals.Request === "function");
@@ -289,63 +285,6 @@ test("CorePlugin: processedModuleRules: empty if modules disabled", (t) => {
   const plugin = new CorePlugin(new NoOpLog());
   const rules = plugin.processedModuleRules;
   t.is(rules.length, 0);
-});
-
-test("CorePlugin: fetch, reload, dispose: closes WebSockets", async (t) => {
-  const plugin = new CorePlugin(new NoOpLog());
-  let [eventTrigger, eventPromise] =
-    triggerPromise<{ code: number; reason: string }>();
-  const server = await useServer(t, noop, (ws) => {
-    ws.addEventListener("close", eventTrigger);
-  });
-  let res = await plugin.fetch(server.ws, {
-    headers: { upgrade: "websocket" },
-  });
-  let webSocket = res.webSocket;
-  t.not(webSocket, undefined);
-  assert(webSocket);
-  webSocket.accept();
-
-  // Check reload closes WebSockets
-  plugin.reload();
-  let event = await eventPromise;
-  t.is(event.code, 1012);
-  t.is(event.reason, "Service Restart");
-
-  // Check dispose closes WebSockets
-  [eventTrigger, eventPromise] = triggerPromise();
-  res = await plugin.fetch(server.ws, {
-    headers: { upgrade: "websocket" },
-  });
-  webSocket = res.webSocket;
-  t.not(webSocket, undefined);
-  assert(webSocket);
-  webSocket.accept();
-  plugin.dispose();
-  event = await eventPromise;
-  t.is(event.code, 1012);
-  t.is(event.reason, "Service Restart");
-});
-test("CorePlugin: fetch, reload: ignores already closed WebSockets", async (t) => {
-  const plugin = new CorePlugin(new NoOpLog());
-  const [eventTrigger, eventPromise] =
-    triggerPromise<{ code: number; reason: string }>();
-  const server = await useServer(t, noop, (ws) => {
-    ws.addEventListener("close", eventTrigger);
-  });
-  const res = await plugin.fetch(server.ws, {
-    headers: { upgrade: "websocket" },
-  });
-  const webSocket = res.webSocket;
-  t.not(webSocket, undefined);
-  assert(webSocket);
-  webSocket.accept();
-  webSocket.close(1000, "Test Closure");
-
-  plugin.reload(); // Shouldn't throw
-  const event = await eventPromise;
-  t.is(event.code, 1000);
-  t.is(event.reason, "Test Closure"); // Not "Service Restart"
 });
 
 test("CorePlugin: setup: loads no script if none defined", async (t) => {

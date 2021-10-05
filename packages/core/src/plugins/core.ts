@@ -31,20 +31,16 @@ import {
   SetupResult,
   globsToMatcher,
 } from "@miniflare/shared";
-import { WebSocket, isWebSocketClosed } from "@miniflare/web-sockets";
-import { File, FormData, Headers } from "undici";
+import { File, FormData, Headers, fetch } from "undici";
 import {
   DOMException,
   FetchEvent,
   Request,
-  RequestInfo,
-  RequestInit,
   Response,
   ScheduledEvent,
   TextDecoder,
   WorkerGlobalScope,
   crypto,
-  fetch,
 } from "../standards";
 
 const DEFAULT_MODULE_RULES: ModuleRule[] = [
@@ -187,7 +183,6 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   readonly #globals: Context;
   #mainScriptPath?: string;
-  #webSockets = new Set<WebSocket>();
 
   constructor(
     log: Log,
@@ -198,7 +193,6 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     this.assignOptions(options);
 
     // Build globals object
-    this.fetch = this.fetch.bind(this);
     this.#globals = {
       console,
 
@@ -215,7 +209,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       TextDecoder,
       TextEncoder,
 
-      fetch: this.fetch,
+      fetch,
       Headers,
       Request,
       Response,
@@ -294,12 +288,6 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     }
   }
 
-  async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-    const response = await fetch(input, init);
-    if (response.webSocket) this.#webSockets.add(response.webSocket);
-    return response;
-  }
-
   get mainScriptPath(): string | undefined {
     return this.#mainScriptPath;
   }
@@ -351,17 +339,5 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     // If we couldn't load a script yet, keep watching package.json anyways, it
     // might get edited with a path
     return { globals, watch };
-  }
-
-  reload(): void {
-    // Ensure all fetched web sockets are closed
-    for (const ws of this.#webSockets) {
-      if (!isWebSocketClosed(ws)) ws.close(1012, "Service Restart");
-    }
-    this.#webSockets.clear();
-  }
-
-  dispose(): void {
-    return this.reload();
   }
 }
