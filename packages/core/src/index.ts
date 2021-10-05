@@ -15,7 +15,6 @@ import {
   SetupResult,
   StorageFactory,
   TypedEventListener,
-  TypedEventTarget,
   WranglerConfig,
   logOptions,
 } from "@miniflare/shared";
@@ -23,7 +22,7 @@ import type { Watcher } from "@miniflare/watcher";
 import { dequal } from "dequal/lite";
 import { dim } from "kleur/colors";
 import { addAll, formatSize, pathsToString } from "./helpers";
-import { CorePlugin, populateBuildConfig } from "./plugins";
+import { BindingsPlugin, CorePlugin, populateBuildConfig } from "./plugins";
 import {
   Request,
   RequestInfo,
@@ -55,6 +54,35 @@ type PluginData<Plugins extends PluginSignatures, Data> = Map<
   keyof Plugins,
   Data
 >;
+
+function getPluginEntries<Plugins extends PluginSignatures>(
+  plugins: Plugins
+): PluginEntries<Plugins> {
+  // Split plugins into entries so they're easier to iterate later on.
+  // Also make sure CorePlugin is always first (so other plugins can override
+  // built-ins, e.g. WebSocketPlugin overriding fetch to handle WebSocket
+  // upgrades), and BindingsPlugin (if included) is always last (so user can
+  // override any binding/global).
+  const entries = Object.entries(plugins) as PluginEntries<Plugins>;
+  let coreIndex = -1;
+  let bindingsIndex = -1;
+  for (let i = 0; i < entries.length; i++) {
+    const [, plugin] = entries[i];
+    // @ts-expect-error plugin has type `typeof Plugin`
+    if (plugin === CorePlugin) coreIndex = i;
+    // @ts-expect-error plugin has type `typeof Plugin`
+    else if (plugins === BindingsPlugin) bindingsIndex = i;
+  }
+  // If CorePlugin isn't already first, move it to start
+  if (coreIndex > 0) {
+    entries.unshift(...entries.splice(coreIndex, 1));
+  }
+  // If BindingsPlugin isn't already last (and it was included), move it to end
+  if (bindingsIndex !== -1 && bindingsIndex !== entries.length - 1) {
+    entries.push(...entries.splice(bindingsIndex, 1));
+  }
+  return entries;
+}
 
 function splitPluginOptions<Plugins extends PluginSignatures>(
   plugins: PluginEntries<Plugins>,
@@ -135,14 +163,11 @@ export class ReloadEvent<Plugins extends PluginSignatures> extends Event {
   }
 }
 
-type MiniflareCoreEventMap<Plugins extends PluginSignatures> = {
-  reload: ReloadEvent<Plugins>;
-};
-
-export class MiniflareCore<Plugins extends CorePluginSignatures> {
+export class MiniflareCore<
+  Plugins extends CorePluginSignatures
+> extends EventTarget {
   // Ideally we'd be extending from typedEventTarget<...>(), but TypeScript
   // doesn't let you use type parameters in heritage clauses
-  readonly #eventTarget: TypedEventTarget<MiniflareCoreEventMap<Plugins>>;
   readonly #plugins: PluginEntries<Plugins>;
   #overrides: PluginOptions<Plugins>;
   #previousOptions?: PluginOptions<Plugins>;
@@ -171,12 +196,8 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
     ctx: MiniflareCoreContext,
     options: Options<Plugins> = {} as Options<Plugins>
   ) {
-    this.#eventTarget = new EventTarget() as TypedEventTarget<
-      MiniflareCoreEventMap<Plugins>
-    >;
-    // TODO: make sure CorePlugin is always loaded first (so other plugins can override built-ins, e.g. WebSocket fetch), and BindingsPlugin if
-    //  included is always last (so user can override anything)
-    this.#plugins = Object.entries({ ...plugins, CorePlugin }) as any;
+    super();
+    this.#plugins = getPluginEntries(plugins);
     this.#overrides = splitPluginOptions(this.#plugins, options);
 
     this.log = ctx.log;
@@ -392,7 +413,7 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
       }
     }
     // Dispatch reload event
-    this.#eventTarget.dispatchEvent(new ReloadEvent(this.#instances!));
+    this.dispatchEvent(new ReloadEvent(this.#instances!));
 
     // Log bundle size and warning if too big
     this.log.info(
@@ -498,18 +519,18 @@ export class MiniflareCore<Plugins extends CorePluginSignatures> {
 
   addEventListener(
     type: "reload",
-    listener: TypedEventListener<ReloadEvent<Plugins>>,
+    listener: TypedEventListener<ReloadEvent<Plugins>> | null,
     options?: AddEventListenerOptions
   ): void {
-    this.#eventTarget.addEventListener(type, listener, options);
+    super.addEventListener(type, listener as any, options);
   }
 
   removeEventListener(
     type: "reload",
-    listener: TypedEventListener<ReloadEvent<Plugins>>,
+    listener: TypedEventListener<ReloadEvent<Plugins>> | null,
     options?: EventListenerOptions
   ): void {
-    this.#eventTarget.removeEventListener(type, listener, options);
+    super.removeEventListener(type, listener as any, options);
   }
 
   async setOptions(options: Options<Plugins>): Promise<void> {
