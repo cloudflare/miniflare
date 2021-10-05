@@ -1,5 +1,6 @@
 import { createHash, webcrypto } from "crypto";
 
+// Workers support non-standard MD5 digests
 function digest(
   algorithm: AlgorithmIdentifier,
   data: BufferSource

@@ -1,13 +1,16 @@
 import { crypto } from "@miniflare/core";
-import test from "ava";
+import { utf8Encode } from "@miniflare/shared-test";
+import test, { Macro } from "ava";
 
-test("crypto: computes md5 digest", async (t) => {
-  const digest = await crypto.subtle.digest(
-    "md5",
-    new TextEncoder().encode("test")
-  );
+const md5Macro: Macro<[BufferSource]> = async (t, data) => {
+  const digest = await crypto.subtle.digest("md5", data);
   t.is(Buffer.from(digest).toString("hex"), "098f6bcd4621d373cade4e832627b4f6");
-});
+};
+md5Macro.title = (providedTitle) =>
+  `crypto: computes md5 digest of ${providedTitle}`;
+test("Uint8Array", md5Macro, utf8Encode("test"));
+test("DataView", md5Macro, new DataView(utf8Encode("test").buffer));
+test("ArrayBuffer", md5Macro, utf8Encode("test").buffer);
 
 test("crypto: computes other digest", async (t) => {
   const digest = await crypto.subtle.digest(
