@@ -1,10 +1,6 @@
 import http from "http";
 import { Log, nonCircularClone } from "@miniflare/shared";
-import {
-  WebSocket,
-  WebSocketPair,
-  coupleWebSocket,
-} from "@miniflare/web-sockets";
+import type { WebSocket } from "@miniflare/web-sockets";
 import { Colorize, blue, bold, green, grey, red, yellow } from "kleur/colors";
 import {
   Request as BaseRequest,
@@ -13,11 +9,9 @@ import {
   Response as BaseResponse,
   ResponseInit as BaseResponseInit,
   BodyInit,
-  fetch as baseFetch,
 } from "undici";
 // @ts-expect-error we need these for making Request's Headers immutable
 import fetchSymbols from "undici/lib/fetch/symbols.js";
-import StandardWebSocket from "ws";
 
 export type RequestInfo = BaseRequestInfo | Request;
 
@@ -119,12 +113,6 @@ export class Response<
   };
 }
 
-function convertBaseResponse<WaitUntil extends any[]>(
-  res: BaseResponse
-): Response<WaitUntil> {
-  return new Response(res.body, res);
-}
-
 export function withWaitUntil<WaitUntil extends any[]>(
   res: Response | BaseResponse,
   waitUntil: Promise<WaitUntil>
@@ -132,49 +120,9 @@ export function withWaitUntil<WaitUntil extends any[]>(
   const resWaitUntil: Response<WaitUntil> =
     res instanceof Response
       ? (res as Response<WaitUntil>)
-      : convertBaseResponse(res);
+      : new Response(res.body, res);
   resWaitUntil[kWaitUntil] = waitUntil;
   return resWaitUntil;
-}
-
-export async function fetch(
-  input: RequestInfo,
-  init?: RequestInit
-): Promise<Response> {
-  const request = new Request(input, init);
-
-  // Cloudflare ignores request Host
-  request.headers.delete("host");
-
-  // Handle web socket upgrades
-  if (
-    request.method === "GET" &&
-    request.headers.get("upgrade") === "websocket"
-  ) {
-    // Establish web socket connection
-    const headers: Record<string, string> = {};
-    for (const [key, value] of request.headers.entries()) {
-      headers[key] = value;
-    }
-    const ws = new StandardWebSocket(request.url, {
-      followRedirects: request.redirect === "follow",
-      headers,
-    });
-
-    // Couple web socket with pair and resolve
-    const [worker, client] = Object.values(new WebSocketPair());
-    await coupleWebSocket(ws, client);
-    return new Response(null, {
-      status: 101,
-      webSocket: worker,
-    });
-  }
-
-  // TODO: (low priority) support cache using fetch:
-  //  https://developers.cloudflare.com/workers/learning/how-the-cache-works#fetch
-  //  https://developers.cloudflare.com/workers/examples/cache-using-fetch
-
-  return convertBaseResponse(await baseFetch(request));
 }
 
 export type HRTime = [seconds: number, nanoseconds: number];

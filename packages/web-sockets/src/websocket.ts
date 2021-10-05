@@ -130,7 +130,3 @@ export class WebSocketPair {
     this[1][kPair] = this[0];
   }
 }
-
-export function isWebSocketClosed(ws: WebSocket): boolean {
-  return ws[kClosed];
-}

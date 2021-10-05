@@ -1,6 +1,12 @@
 import assert from "assert";
 import { Request } from "@miniflare/core";
-import { NoOpLog, triggerPromise, useMiniflare } from "@miniflare/shared-test";
+import {
+  NoOpLog,
+  noop,
+  triggerPromise,
+  useMiniflare,
+  useServer,
+} from "@miniflare/shared-test";
 import {
   CloseEvent,
   ErrorEvent,
@@ -20,7 +26,65 @@ test("WebSocketPlugin: setup: includes WebSocket stuff in globals", (t) => {
     ErrorEvent,
     WebSocketPair,
     WebSocket,
+    fetch: plugin.fetch,
   });
+});
+
+test("WebSocketPlugin: fetch, reload, dispose: closes WebSockets", async (t) => {
+  const plugin = new WebSocketPlugin(new NoOpLog());
+  let [eventTrigger, eventPromise] =
+    triggerPromise<{ code: number; reason: string }>();
+  const server = await useServer(t, noop, (ws) => {
+    ws.addEventListener("close", eventTrigger);
+  });
+  let res = await plugin.fetch(server.ws, {
+    headers: { upgrade: "websocket" },
+  });
+  let webSocket = res.webSocket;
+  t.not(webSocket, undefined);
+  assert(webSocket);
+  webSocket.accept();
+
+  // Check reload closes WebSockets
+  plugin.reload();
+  let event = await eventPromise;
+  t.is(event.code, 1012);
+  t.is(event.reason, "Service Restart");
+
+  // Check dispose closes WebSockets
+  [eventTrigger, eventPromise] = triggerPromise();
+  res = await plugin.fetch(server.ws, {
+    headers: { upgrade: "websocket" },
+  });
+  webSocket = res.webSocket;
+  t.not(webSocket, undefined);
+  assert(webSocket);
+  webSocket.accept();
+  plugin.dispose();
+  event = await eventPromise;
+  t.is(event.code, 1012);
+  t.is(event.reason, "Service Restart");
+});
+test("WebSocketPlugin: fetch, reload: ignores already closed WebSockets", async (t) => {
+  const plugin = new WebSocketPlugin(new NoOpLog());
+  const [eventTrigger, eventPromise] =
+    triggerPromise<{ code: number; reason: string }>();
+  const server = await useServer(t, noop, (ws) => {
+    ws.addEventListener("close", eventTrigger);
+  });
+  const res = await plugin.fetch(server.ws, {
+    headers: { upgrade: "websocket" },
+  });
+  const webSocket = res.webSocket;
+  t.not(webSocket, undefined);
+  assert(webSocket);
+  webSocket.accept();
+  webSocket.close(1000, "Test Closure");
+
+  plugin.reload(); // Shouldn't throw
+  const event = await eventPromise;
+  t.is(event.code, 1000);
+  t.is(event.reason, "Test Closure"); // Not "Service Restart"
 });
 
 test("MiniflareCore: sends and responds to web socket messages", async (t) => {
