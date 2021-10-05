@@ -57,8 +57,10 @@
     "@miniflare/web-sockets": "2.0.0",
     "kleur": "^4.1.4"
   },
+  "devDependencies": {
+    "@miniflare/shared-test": "2.0.0"
+  },
   "peerDependencies": {
-    "@miniflare/shared-test": "2.0.0",
     "@miniflare/storage-redis": "2.0.0"
   },
   "peerDependenciesMeta": {

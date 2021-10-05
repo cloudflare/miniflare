@@ -39,7 +39,7 @@ export class CacheStorage {
     // Return cache, deferring operator await to Cache, since this needs to
     // return synchronously. We want to avoid loading @miniflare/storage-*
     // packages unless the user is actually using storage. Since Cache is
-    // included in CorePlugin, we'd always load these if we didn't do it lazily.
+    // included by default, we'd always load these if we didn't do it lazily.
     // There's a risk of an unhandled promise rejection here is the user
     // doesn't do anything with the cache immediately, but this is unlikely.
     // TODO: log once if workers_dev = true

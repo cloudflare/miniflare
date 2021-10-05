@@ -27,13 +27,14 @@ import { SitesPlugin } from "@miniflare/sites";
 import { WebSocketPlugin } from "@miniflare/web-sockets";
 import { VariedStorageFactory } from "./storage";
 
+// MiniflareCore will ensure CorePlugin is first and BindingsPlugin is last,
+// so help it out by doing it ourselves so it doesn't have to
 export const PLUGINS = {
   // Core
   CorePlugin,
   HTTPPlugin,
   SchedulerPlugin,
   BuildPlugin,
-  BindingsPlugin, // TODO: should probably be last if we're enforcing this
 
   // Storage
   KVPlugin,
@@ -44,6 +45,8 @@ export const PLUGINS = {
   // No options
   HTMLRewriterPlugin,
   WebSocketPlugin,
+
+  BindingsPlugin,
 };
 
 export type Plugins = typeof PLUGINS;
