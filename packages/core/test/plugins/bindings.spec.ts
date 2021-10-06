@@ -78,18 +78,22 @@ test("BindingsPlugin: parses options from wrangler config", (t) => {
   });
 });
 test("BindingsPlugin: logs options", (t) => {
-  const logs = logPluginOptions(BindingsPlugin, {
-    envPath: true,
+  let logs = logPluginOptions(BindingsPlugin, {
+    envPath: ".env.custom",
     bindings: { KEY1: "value1", KEY2: "value2" },
     globals: { KEY3: "value3", KEY4: "value4" },
     wasmBindings: { MODULE1: "module1.wasm", MODULE2: "module2.wasm" },
   });
   t.deepEqual(logs, [
-    "Env Path: .env",
+    "Env Path: .env.custom",
     "Custom Bindings: KEY1, KEY2",
     "Custom Globals: KEY3, KEY4",
     "WASM Bindings: MODULE1, MODULE2",
   ]);
+  logs = logPluginOptions(BindingsPlugin, { envPath: true });
+  t.deepEqual(logs, ["Env Path: .env"]);
+  logs = logPluginOptions(BindingsPlugin, { envPath: false });
+  t.deepEqual(logs, []);
 });
 
 test("BindingsPlugin: setup: loads .env bindings from default location", async (t) => {

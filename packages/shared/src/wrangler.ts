@@ -51,8 +51,6 @@ export interface WranglerEnvironmentConfig {
     globals?: Record<string, any>;
     upstream?: string;
     watch?: boolean;
-    debug?: boolean;
-    verbose?: boolean;
     kv_persist?: boolean | string;
     cache_persist?: boolean | string;
     disable_cache?: boolean;

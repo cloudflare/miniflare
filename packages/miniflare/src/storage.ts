@@ -51,4 +51,8 @@ export class VariedStorageFactory extends StorageFactory {
     const { FileStorage } = await import("@miniflare/storage-file");
     return new FileStorage(root);
   }
+
+  async dispose(): Promise<void> {
+    for (const redisPool of this.redisPools.values()) await redisPool.dispose();
+  }
 }

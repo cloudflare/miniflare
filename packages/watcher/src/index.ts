@@ -31,6 +31,8 @@ interface Closable {
 // TODO: work out why this breaks with macOS TextEdit,
 //  maybe check if file, and if it is just use polling fs.watchFile
 
+// TODO: maybe just remove logging, or put behind env variable
+
 export class Watcher {
   readonly #watchers = new Map<string, Map<string, Closable>>();
   readonly #callback: WatcherCallback;

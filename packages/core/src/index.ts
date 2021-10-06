@@ -71,7 +71,7 @@ function getPluginEntries<Plugins extends PluginSignatures>(
     // @ts-expect-error plugin has type `typeof Plugin`
     if (plugin === CorePlugin) coreIndex = i;
     // @ts-expect-error plugin has type `typeof Plugin`
-    else if (plugins === BindingsPlugin) bindingsIndex = i;
+    else if (plugin === BindingsPlugin) bindingsIndex = i;
   }
   // If CorePlugin isn't already first, move it to start
   if (coreIndex > 0) {
@@ -155,6 +155,7 @@ export interface MiniflareCoreContext {
   storageFactory: StorageFactory;
   scriptRunner: ScriptRunner;
   scriptRequired?: boolean;
+  defaultConfigPath?: string;
 }
 
 export class ReloadEvent<Plugins extends PluginSignatures> extends Event {
@@ -177,6 +178,7 @@ export class MiniflareCore<
   readonly #pluginStorages: PluginData<Plugins, PluginStorageFactory>;
   readonly #scriptRunner: ScriptRunner;
   readonly #scriptRequired?: boolean;
+  readonly #defaultConfigPath: string;
 
   #instances?: PluginInstances<Plugins>;
 
@@ -205,6 +207,7 @@ export class MiniflareCore<
     this.#pluginStorages = new Map<keyof Plugins, PluginStorageFactory>();
     this.#scriptRunner = ctx.scriptRunner;
     this.#scriptRequired = ctx.scriptRequired;
+    this.#defaultConfigPath = ctx.defaultConfigPath ?? "wrangler.toml";
 
     this.#initPromise = this.#init().then(() => this.#reload());
   }
@@ -222,17 +225,18 @@ export class MiniflareCore<
     }
   }
 
-  async #runBeforeSetup(name: keyof Plugins): Promise<void> {
+  async #runBeforeSetup(name: keyof Plugins): Promise<boolean> {
     const instance = this.#instances![name];
-    if (!instance.beforeSetup) return;
+    if (!instance.beforeSetup) return false;
     this.log.verbose(`- beforeSetup(${name})`);
     const result = await instance.beforeSetup();
     this.#updateWatch(this.#beforeSetupWatch!, name, result);
+    return true;
   }
 
-  async #runSetup(name: keyof Plugins): Promise<void> {
+  async #runSetup(name: keyof Plugins): Promise<boolean> {
     const instance = this.#instances![name];
-    if (!instance.setup) return;
+    if (!instance.setup) return false;
     this.log.verbose(`- setup(${name})`);
     const result = await instance.setup(this.getPluginStorage(name));
     this.#updateWatch(this.#setupWatch!, name, result);
@@ -241,6 +245,7 @@ export class MiniflareCore<
       bindings: result?.bindings,
       scripts: result?.scripts,
     });
+    return true;
   }
 
   readonly #initPromise: Promise<void>;
@@ -255,7 +260,9 @@ export class MiniflareCore<
     const originalConfigPath = options.CorePlugin.wranglerConfigPath;
     const configEnv = options.CorePlugin.wranglerConfigEnv;
     let configPath =
-      originalConfigPath === true ? "wrangler.toml" : originalConfigPath;
+      originalConfigPath === true
+        ? this.#defaultConfigPath
+        : originalConfigPath;
     if (configPath) {
       configPath = path.resolve(configPath);
       this.#wranglerConfigPath = configPath;
@@ -310,8 +317,7 @@ export class MiniflareCore<
 
       const instance = new plugin(this.log, options[name]);
       this.#instances[name] = instance as any;
-      await this.#runBeforeSetup(name);
-      ranBeforeSetup = true;
+      if (await this.#runBeforeSetup(name)) ranBeforeSetup = true;
     }
 
     // Run setup hooks for (re)created plugins
@@ -352,8 +358,7 @@ export class MiniflareCore<
     const blueprints: ScriptBlueprint[] = [];
 
     const newWatchPaths = new Set<string>();
-    const configPath = this.#wranglerConfigPath;
-    if (configPath) newWatchPaths.add(configPath);
+    if (this.#wranglerConfigPath) newWatchPaths.add(this.#wranglerConfigPath);
 
     for (const [name] of this.#plugins) {
       // Run beforeReload hook
@@ -424,7 +429,7 @@ export class MiniflareCore<
     // TODO: compress asynchronously
     if (res.bundleSize !== undefined && res.bundleSize > 1_048_576) {
       this.log.warn(
-        "Worker's uncompressed size exceeds the 1MiB limit!" +
+        "Worker's uncompressed size exceeds the 1MiB limit! " +
           "Note that your worker will be compressed during upload " +
           "so you may still be able to deploy it."
       );
@@ -437,7 +442,7 @@ export class MiniflareCore<
       if (!watcher) {
         const { Watcher } = await import("@miniflare/watcher");
         this.#watcherCallbackMutex = new Mutex();
-        watcher = new Watcher(this.#watcherCallback.bind(this), this.log);
+        watcher = new Watcher(this.#watcherCallback.bind(this)); // , this.log
         this.#watcher = watcher;
       }
 
@@ -540,7 +545,7 @@ export class MiniflareCore<
     await this.#reload();
   }
 
-  getPluginStorage(name: keyof Plugins): PluginStorageFactory {
+  getPluginStorage(name: keyof Plugins): StorageFactory {
     let storage = this.#pluginStorages.get(name);
     if (storage) return storage;
     this.#pluginStorages.set(

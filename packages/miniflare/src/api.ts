@@ -52,22 +52,31 @@ export const PLUGINS = {
 export type Plugins = typeof PLUGINS;
 
 export class Miniflare extends MiniflareCore<Plugins> {
+  #storageFactory: VariedStorageFactory;
+
   constructor(options?: Options<Plugins>) {
     const logLevel = options?.verbose
       ? LogLevel.VERBOSE
       : options?.debug
       ? LogLevel.DEBUG
       : LogLevel.INFO;
+    const storageFactory = new VariedStorageFactory();
     super(
       PLUGINS,
       {
         log: new Log(logLevel),
-        storageFactory: new VariedStorageFactory(),
+        storageFactory,
         scriptRunner: new VMScriptRunner(),
         scriptRequired: true,
       },
       options
     );
+    this.#storageFactory = storageFactory;
+  }
+
+  async dispose(): Promise<void> {
+    await super.dispose();
+    await this.#storageFactory.dispose();
   }
 
   async getKVNamespace(namespace: string): Promise<KVNamespace> {
