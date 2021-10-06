@@ -57,6 +57,7 @@ export class DurableObjectsPlugin
     fromWrangler: ({ durable_objects }) =>
       durable_objects?.bindings?.reduce(
         (objects, { name, class_name, script_name }) => {
+          // TODO: handle script_name properly, probably have map of script_name to path in [miniflare] section
           objects[name] = { className: class_name, scriptPath: script_name };
           return objects;
         },

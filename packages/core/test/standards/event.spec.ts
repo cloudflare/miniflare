@@ -12,6 +12,7 @@ import {
   NoOpLog,
   TestLog,
   getObjectProperties,
+  isWithin,
   useMiniflare,
   useServer,
 } from "@miniflare/shared-test";
@@ -268,6 +269,16 @@ test("kDispatchScheduled: dispatches event", async (t) => {
   });
   const res = await globalScope[kDispatchScheduled](1000, "30 * * * *");
   t.deepEqual(res, [1, 2, 3, 1000, "30 * * * *"]);
+});
+test("kDispatchScheduled: defaults to current time and empty cron if none specified", async (t) => {
+  const { globalScope } = t.context;
+  globalScope.addEventListener("scheduled", (e) => {
+    e.waitUntil(Promise.resolve(e.scheduledTime));
+    e.waitUntil(Promise.resolve(e.cron));
+  });
+  const [scheduledTime, cron] = await globalScope[kDispatchScheduled]();
+  isWithin(t, 10000, Date.now(), scheduledTime);
+  t.is(cron, "");
 });
 test("kDispatchScheduled: stops calling listeners after first error", async (t) => {
   t.plan(3);

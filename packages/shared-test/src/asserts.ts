@@ -19,6 +19,30 @@ export function isWithin(
   );
 }
 
+export function startsWith<T>(
+  t: ExecutionContext,
+  actual: T[],
+  expected: T[]
+): void {
+  t.deepEqual(
+    actual.slice(0, expected.length),
+    expected,
+    "actual array does not start with expected"
+  );
+}
+
+export function endsWith<T>(
+  t: ExecutionContext,
+  actual: T[],
+  expected: T[]
+): void {
+  t.deepEqual(
+    actual.slice(actual.length - expected.length),
+    expected,
+    "actual array does not end with expected"
+  );
+}
+
 export function getObjectProperties<T>(obj: T): string[] {
   return [
     ...Object.getOwnPropertyNames(obj),

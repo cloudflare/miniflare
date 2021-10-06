@@ -42,7 +42,7 @@ function dimInternalStackLine(line: string): string {
 }
 
 export class Log {
-  constructor(private readonly level = LogLevel.INFO) {}
+  constructor(protected readonly level = LogLevel.INFO) {}
 
   log(message: string): void {
     console.log(message);

@@ -1,4 +1,5 @@
 import { promises as fs } from "fs";
+import path from "path";
 import {
   Context,
   Log,
@@ -25,8 +26,11 @@ export class BindingsPlugin
     name: "env",
     alias: "e",
     description: "Path to .env file",
-    logValue: (value: boolean | string) =>
-      value === true ? ".env" : value.toString(),
+    logValue(value: boolean | string) {
+      if (value === true) return ".env";
+      if (value === false) return undefined;
+      return path.relative("", value);
+    },
     fromWrangler: ({ miniflare }) => miniflare?.env_path,
   })
   envPath?: boolean | string;

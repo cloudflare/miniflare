@@ -140,5 +140,5 @@ export abstract class StorageFactory {
     persist?: boolean | string
   ): MaybePromise<Storage>;
 
-  // TODO: add optional dispose, for cleaning up database connections
+  dispose?(): MaybePromise<void>;
 }

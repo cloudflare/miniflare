@@ -90,7 +90,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     logValue(value: boolean | string) {
       if (value === true) return "wrangler.toml";
       if (value === false) return undefined;
-      return value;
+      return path.relative("", value);
     },
   })
   wranglerConfigPath?: boolean | string;
@@ -110,7 +110,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     logValue(value: boolean | string) {
       if (value === true) return "package.json";
       if (value === false) return undefined;
-      return value;
+      return path.relative("", value);
     },
   })
   packagePath?: boolean | string;
@@ -167,7 +167,6 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     type: OptionType.BOOLEAN,
     alias: "d",
     description: "Enable debug logging",
-    fromWrangler: ({ miniflare }) => miniflare?.debug,
   })
   debug?: boolean;
 
@@ -175,7 +174,6 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     type: OptionType.BOOLEAN,
     alias: "V",
     description: "Enable verbose logging",
-    fromWrangler: ({ miniflare }) => miniflare?.verbose,
   })
   verbose?: boolean;
 

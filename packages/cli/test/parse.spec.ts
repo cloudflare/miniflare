@@ -1,7 +1,7 @@
 import { ParseError, parseArgv } from "@miniflare/cli";
 import { CorePlugin } from "@miniflare/core";
+import { TestPlugin } from "@miniflare/shared-test";
 import test, { ThrowsExpectation } from "ava";
-import { TestPlugin } from "./helpers";
 
 const plugins = { CorePlugin, TestPlugin };
 
