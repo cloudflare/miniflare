@@ -64,12 +64,7 @@ export class BindingsPlugin
     name: "wasm",
     description: "WASM module to bind",
     logName: "WASM Bindings",
-    // TODO: change to wasm_modules, wrangler issue #1716
-    fromWrangler: ({ miniflare }) =>
-      miniflare?.wasm_bindings?.reduce((bindings, { name, path }) => {
-        bindings[name] = path;
-        return bindings;
-      }, {} as Record<string, string>),
+    fromWrangler: ({ wasm_modules }) => wasm_modules,
   })
   wasmBindings?: Record<string, string>;
 

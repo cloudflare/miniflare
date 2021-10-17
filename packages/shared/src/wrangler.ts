@@ -47,6 +47,7 @@ export interface WranglerEnvironmentConfig {
       }[];
     };
   };
+  wasm_modules?: Record<string, string>;
   miniflare?: {
     globals?: Record<string, any>;
     upstream?: string;
@@ -68,7 +69,6 @@ export interface WranglerEnvironmentConfig {
           pfx?: string;
           passphrase?: string;
         };
-    wasm_bindings?: { name: string; path: string }[];
     disable_updater?: boolean;
   };
 }
