@@ -18,14 +18,14 @@ function digest(
 }
 
 const subtle = new Proxy(webcrypto.subtle, {
-  get(target, propertyKey, receiver): any {
+  get(target, propertyKey, receiver) {
     if (propertyKey === "digest") return digest;
     return Reflect.get(target, propertyKey, receiver);
   },
 });
 
 export const crypto = new Proxy(webcrypto, {
-  get(target, propertyKey, receiver): any {
+  get(target, propertyKey, receiver) {
     if (propertyKey === "subtle") return subtle;
     return Reflect.get(target, propertyKey, receiver);
   },

@@ -176,8 +176,16 @@ export function createRequestListener<Plugins extends CorePluginSignatures>(
           res?.end(e.stack, "utf8");
         }
 
-        const stack = `${req.method} ${req.url}: ${e.stack}`;
-        mf.log.error({ stack });
+        // Add method and URL to stack trace
+        const proxiedError = new Proxy(e, {
+          get(target, propertyKey, receiver) {
+            const value = Reflect.get(target, propertyKey, receiver);
+            return propertyKey === "stack"
+              ? `${req.method} ${req.url}: ${value}`
+              : value;
+          },
+        });
+        mf.log.error(proxiedError);
       }
     }
 
@@ -213,7 +221,9 @@ export function createWebSocketUpgradeListener<
     if (response?.status !== 101 || !webSocket) {
       ws.close(1002, "Protocol Error");
       mf.log.error(
-        "Web Socket request did not return status 101 Switching Protocols response with Web Socket"
+        new TypeError(
+          "Web Socket request did not return status 101 Switching Protocols response with Web Socket"
+        )
       );
       return;
     }

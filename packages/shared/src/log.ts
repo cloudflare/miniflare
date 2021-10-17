@@ -54,12 +54,12 @@ export class Log {
     }
   }
 
-  // TODO: make this only take arguments of type Error, rethrow if not logged
-  //  (use Proxy to add stuff to message.stack)
-  error(message: string | { stack?: string }): void {
-    if (typeof message === "string") {
-      this.logWithLevel(LogLevel.ERROR, message);
+  error(message: Error): void {
+    if (LogLevel.ERROR > this.level) {
+      // Rethrow message if it won't get logged
+      throw message;
     } else if (message.stack) {
+      // Dim internal stack trace lines to highlight user code
       const lines = message.stack.split("\n").map(dimInternalStackLine);
       this.logWithLevel(LogLevel.ERROR, lines.join("\n"));
     } else {
