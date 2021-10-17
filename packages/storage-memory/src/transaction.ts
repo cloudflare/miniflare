@@ -63,7 +63,7 @@ export class ShadowStorageTransaction<
     for (const key of keys) {
       await this.markRead(key);
       if (this.copies.has(key)) {
-        count++;
+        if (this.copies.get(key) !== undefined) count++;
       } else {
         innerHasKeys.push(key);
       }

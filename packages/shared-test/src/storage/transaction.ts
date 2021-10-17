@@ -19,6 +19,31 @@ function incrementTransaction(...keys: string[]) {
   };
 }
 
+export const txnHasMixedMacro: Macro<[TestStorageFactory]> = async (
+  t,
+  { factory }
+) => {
+  const storage = await factory(t, {
+    key1: { value: utf8Encode("value1") },
+    key2: { value: utf8Encode("value2") },
+  });
+  await storage.transaction(async (txn) => {
+    // Test overriding existing key
+    await txn.put("key1", { value: utf8Encode("new") });
+    t.true(await txn.has("key1"));
+
+    // Test deleting existing key
+    await txn.delete("key2");
+    t.false(await txn.has("key2"));
+
+    // Test adding new key
+    await txn.put("key3", { value: utf8Encode("value3") });
+    t.true(await txn.has("key3"));
+  });
+};
+txnHasMixedMacro.title = (providedTitle, { name }) =>
+  `${name}: transaction: checks if committed and uncommitted values exist in same transaction`;
+
 export const txnGetUncommittedMacro: Macro<[TestStorageFactory]> = async (
   t,
   { factory }
