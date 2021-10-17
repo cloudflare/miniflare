@@ -19,8 +19,8 @@ export class TestLog extends Log {
     if (level <= this.level) this.logs.push([level, message]);
   }
 
-  error(message: string): void {
-    throw new TestLogError("ERR_ERROR", message);
+  error(message: Error): void {
+    throw message;
   }
 
   logsAtLevel(level: LogLevel): string[] {
