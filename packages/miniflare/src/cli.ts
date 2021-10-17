@@ -24,14 +24,14 @@ async function main() {
     return;
   }
 
-  // Autoload configuration files from default locations
+  // Autoload configuration files from default locations if none set
   options.wranglerConfigPath ??= true;
   options.packagePath ??= true;
   options.envPath ??= true;
   // Assume --watch if --build-watch-path set
   if (options.buildWatchPaths?.length) options.watch = true;
 
-  // TODO: warn if script path is src/... but dist/... exists
+  // TODO: warn if script path is src/... but dist/... exists, or build command set, or type webpack/rust
 
   const mf = new Miniflare(options);
   try {

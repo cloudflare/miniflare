@@ -6,6 +6,8 @@ import {
   StorageOperator,
   defaultClock,
   millisToSeconds,
+  waitForOpenInputGate,
+  waitForOpenOutputGate,
 } from "@miniflare/shared";
 import CachePolicy from "http-cache-semantics";
 import {
@@ -126,11 +128,13 @@ export class Cache implements CacheInterface {
       headers: [...res.headers],
     };
     const storage = await this.#storage;
+    await waitForOpenOutputGate();
     await storage.put(key, {
       value: new Uint8Array(await res.arrayBuffer()),
       expiration: millisToSeconds(this.#clock() + expirationTtl),
       metadata,
     });
+    await waitForOpenInputGate();
   }
 
   async match(
@@ -145,6 +149,7 @@ export class Cache implements CacheInterface {
     const key = getKey(req);
     const storage = await this.#storage;
     const cached = await storage.get<CachedMeta>(key);
+    await waitForOpenInputGate();
     if (!cached) return;
 
     // Build Response from cache
@@ -169,6 +174,9 @@ export class Cache implements CacheInterface {
     // Delete the cached response if it exists
     const key = getKey(req);
     const storage = await this.#storage;
-    return storage.delete(key);
+    await waitForOpenOutputGate();
+    const result = storage.delete(key);
+    await waitForOpenInputGate();
+    return result;
   }
 }

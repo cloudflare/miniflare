@@ -14,14 +14,15 @@ import {
   ScriptRunner,
   SetupResult,
   StorageFactory,
-  TypedEventListener,
+  TypedEventTarget,
   WranglerConfig,
+  addAll,
   logOptions,
 } from "@miniflare/shared";
 import type { Watcher } from "@miniflare/watcher";
 import { dequal } from "dequal/lite";
 import { dim } from "kleur/colors";
-import { addAll, formatSize, pathsToString } from "./helpers";
+import { formatSize, pathsToString } from "./helpers";
 import { BindingsPlugin, CorePlugin, populateBuildConfig } from "./plugins";
 import {
   Request,
@@ -164,11 +165,13 @@ export class ReloadEvent<Plugins extends PluginSignatures> extends Event {
   }
 }
 
+export type MiniflareCoreEventMap<Plugins extends PluginSignatures> = {
+  reload: ReloadEvent<Plugins>;
+};
+
 export class MiniflareCore<
   Plugins extends CorePluginSignatures
-> extends EventTarget {
-  // Ideally we'd be extending from typedEventTarget<...>(), but TypeScript
-  // doesn't let you use type parameters in heritage clauses
+> extends TypedEventTarget<MiniflareCoreEventMap<Plugins>> {
   readonly #plugins: PluginEntries<Plugins>;
   #overrides: PluginOptions<Plugins>;
   #previousOptions?: PluginOptions<Plugins>;
@@ -520,22 +523,6 @@ export class MiniflareCore<
     await this.#initPromise;
     await this.#init();
     await this.#reload();
-  }
-
-  addEventListener(
-    type: "reload",
-    listener: TypedEventListener<ReloadEvent<Plugins>> | null,
-    options?: AddEventListenerOptions
-  ): void {
-    super.addEventListener(type, listener as any, options);
-  }
-
-  removeEventListener(
-    type: "reload",
-    listener: TypedEventListener<ReloadEvent<Plugins>> | null,
-    options?: EventListenerOptions
-  ): void {
-    super.removeEventListener(type, listener as any, options);
   }
 
   async setOptions(options: Options<Plugins>): Promise<void> {

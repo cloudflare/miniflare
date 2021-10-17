@@ -1,5 +1,8 @@
 import assert from "assert";
-import { typedEventTarget } from "@miniflare/shared";
+import {
+  InputGatedEventTarget,
+  waitForOpenOutputGate,
+} from "@miniflare/shared";
 
 export class MessageEvent extends Event {
   constructor(readonly data: ArrayBuffer | string) {
@@ -38,7 +41,7 @@ export type WebSocketEventMap = {
   close: CloseEvent;
   error: ErrorEvent;
 };
-export class WebSocket extends typedEventTarget<WebSocketEventMap>() {
+export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
   #sendQueue?: MessageEvent[] = [];
   [kPair]: WebSocket;
   [kAccepted] = false;
@@ -47,6 +50,7 @@ export class WebSocket extends typedEventTarget<WebSocketEventMap>() {
 
   accept(): void {
     if (this[kCoupled]) {
+      // TODO: test error
       throw new TypeError(
         "Can't accept() WebSocket that was already used in a response."
       );
@@ -63,9 +67,8 @@ export class WebSocket extends typedEventTarget<WebSocketEventMap>() {
   }
 
   send(message: ArrayBuffer | string): void {
-    const pair = this[kPair];
-
     if (!this[kAccepted]) {
+      // TODO: test error
       throw new TypeError(
         "You must call accept() on this WebSocket before sending messages."
       );
@@ -75,6 +78,12 @@ export class WebSocket extends typedEventTarget<WebSocketEventMap>() {
     }
 
     const event = new MessageEvent(message);
+    void this.#dispatchMessageEvent(event);
+  }
+
+  async #dispatchMessageEvent(event: MessageEvent): Promise<void> {
+    await waitForOpenOutputGate();
+    const pair = this[kPair];
     if (pair[kAccepted]) {
       pair.dispatchEvent(event);
     } else {
@@ -86,6 +95,7 @@ export class WebSocket extends typedEventTarget<WebSocketEventMap>() {
 
   close(code?: number, reason?: string): void {
     const pair = this[kPair];
+    // TODO: test errors
     if (!this[kAccepted]) {
       throw new TypeError(
         "You must call accept() on this WebSocket before sending messages."
@@ -110,23 +120,32 @@ export class WebSocket extends typedEventTarget<WebSocketEventMap>() {
 
     this[kClosed] = true;
     pair[kClosed] = true;
+    void this.#dispatchCloseEvent(code, reason);
+  }
 
+  async #dispatchCloseEvent(code?: number, reason?: string): Promise<void> {
+    await waitForOpenOutputGate();
     // See https://github.com/nodejs/node/pull/39772
     this.dispatchEvent(new CloseEvent(code, reason));
-    pair.dispatchEvent(new CloseEvent(code, reason));
+    this[kPair].dispatchEvent(new CloseEvent(code, reason));
   }
 }
 
-export class WebSocketPair {
-  // TODO: type this properly, see workers-types
-  [key: string]: WebSocket;
+export type WebSocketPair = {
   0: WebSocket;
   1: WebSocket;
+};
 
-  constructor() {
-    this[0] = new WebSocket();
-    this[1] = new WebSocket();
-    this[0][kPair] = this[1];
-    this[1][kPair] = this[0];
+export const WebSocketPair: { new (): WebSocketPair } = function (
+  this: WebSocketPair
+) {
+  if (!(this instanceof WebSocketPair)) {
+    throw new TypeError(
+      "Failed to construct 'WebSocketPair': Please use the 'new' operator, this object constructor cannot be called as a function."
+    );
   }
-}
+  this[0] = new WebSocket();
+  this[1] = new WebSocket();
+  this[0][kPair] = this[1];
+  this[1][kPair] = this[0];
+} as any;

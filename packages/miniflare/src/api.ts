@@ -96,10 +96,11 @@ export class Miniflare extends MiniflareCore<Plugins> {
   async getDurableObjectStorage(
     id: DurableObjectId
   ): Promise<DurableObjectStorage> {
+    // TODO: how should this interact with gates?
     const plugin = (await this.getPlugins()).DurableObjectsPlugin;
     const storage = this.getPluginStorage("DurableObjectsPlugin");
-    const internals = await plugin.getObject(storage, id);
-    return internals.state.storage;
+    const state = await plugin.getObject(storage, id);
+    return state.storage;
   }
 
   createServer(

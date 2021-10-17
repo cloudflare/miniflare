@@ -1,5 +1,5 @@
 import { arrayBuffer } from "stream/consumers";
-import { ReadableStream } from "stream/web";
+import { ReadableByteStream, ReadableStream } from "stream/web";
 import {
   Clock,
   StorageOperator,
@@ -8,7 +8,11 @@ import {
   millisToSeconds,
   viewToArray,
   viewToBuffer,
+  waitForOpenInputGate,
+  waitForOpenOutputGate,
 } from "@miniflare/shared";
+
+// TODO: test errors/validation
 
 const MIN_CACHE_TTL = 60; /* 60s */
 const MAX_LIST_KEYS = 1000;
@@ -121,9 +125,12 @@ function convertStoredToGetValue(stored: Uint8Array, type: KVGetValueType) {
     case "json":
       return JSON.parse(decoder.decode(stored));
     case "stream":
-      return new ReadableStream({
+      return new ReadableStream<Uint8Array>({
         type: "bytes",
-        start(controller) {
+        // Delay enqueuing chunk until it's actually requested so we can wait
+        // for the input gate to open before delivering it
+        async pull(controller) {
+          await waitForOpenInputGate();
           controller.enqueue(stored);
           controller.close();
         },
@@ -155,7 +162,7 @@ export class KVNamespace {
   get(
     key: string,
     options: "stream" | KVGetOptions<"stream">
-  ): KVValue<ReadableStream>;
+  ): KVValue<ReadableByteStream>;
   async get<Value = unknown>(
     key: string,
     options?: KVGetValueType | Partial<KVGetOptions>
@@ -166,6 +173,7 @@ export class KVNamespace {
 
     // Get value without metadata, returning null if not found
     const stored = await this.#storage.get(key, true);
+    await waitForOpenInputGate();
     if (stored === undefined) return null;
 
     // Return correctly typed value
@@ -187,7 +195,7 @@ export class KVNamespace {
   getWithMetadata<Metadata = unknown>(
     key: string,
     options: "stream" | KVGetOptions<"stream">
-  ): KVValueMeta<ReadableStream, Metadata>;
+  ): KVValueMeta<ReadableByteStream, Metadata>;
   async getWithMetadata<Value = unknown, Metadata = unknown>(
     key: string,
     options?: KVGetValueType | Partial<KVGetOptions>
@@ -198,6 +206,7 @@ export class KVNamespace {
 
     // Get value with metadata, returning nulls if not found
     const storedValue = await this.#storage.get<Metadata>(key);
+    await waitForOpenInputGate();
     if (storedValue === undefined) return { value: null, metadata: null };
     const { value, metadata = null } = storedValue;
 
@@ -285,16 +294,20 @@ export class KVNamespace {
     }
 
     // Store value with expiration and metadata
+    await waitForOpenOutputGate();
     await this.#storage.put(key, {
       value: stored,
       expiration,
       metadata: options.metadata,
     });
+    await waitForOpenInputGate();
   }
 
   async delete(key: string): Promise<void> {
     validateKey("DELETE", key);
+    await waitForOpenOutputGate();
     await this.#storage.delete(key);
+    await waitForOpenInputGate();
   }
 
   async list<Meta = unknown>({
@@ -318,6 +331,7 @@ export class KVNamespace {
       );
     }
     const res = await this.#storage.list<Meta>({ prefix, limit, cursor });
+    await waitForOpenInputGate();
     return {
       keys: res.keys,
       cursor: res.cursor,

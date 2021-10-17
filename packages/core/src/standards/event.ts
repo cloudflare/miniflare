@@ -2,13 +2,13 @@ import {
   Context,
   Log,
   MaybePromise,
+  ThrowingEventTarget,
   TypedEventListener,
   ValueOf,
-  typedEventTarget,
 } from "@miniflare/shared";
 import { Response as BaseResponse, fetch } from "undici";
 import { DOMException } from "./domexception";
-import { Request, Response, withWaitUntil } from "./http";
+import { Request, Response, kInner, withWaitUntil } from "./http";
 
 const kResponse = Symbol("kResponse");
 const kPassThrough = Symbol("kPassThrough");
@@ -18,14 +18,17 @@ const kSent = Symbol("kSent");
 export class FetchEvent extends Event {
   [kResponse]?: Promise<Response | BaseResponse>;
   [kPassThrough] = false;
-  readonly [kWaitUntil]: Promise<any>[] = [];
+  readonly [kWaitUntil]: Promise<unknown>[] = [];
   [kSent] = false;
 
   constructor(public readonly request: Request) {
     super("fetch");
   }
 
+  // TODO: check if we need to add "Illegal Invocation" errors to these methods
+
   respondWith(response: MaybePromise<Response | BaseResponse>): void {
+    // TODO: test these errors
     if (this[kResponse]) {
       throw new DOMException(
         "FetchEvent.respondWith() has already been called; it can only be called once.",
@@ -53,7 +56,7 @@ export class FetchEvent extends Event {
 }
 
 export class ScheduledEvent extends Event {
-  readonly [kWaitUntil]: Promise<any>[] = [];
+  readonly [kWaitUntil]: Promise<unknown>[] = [];
 
   constructor(
     public readonly scheduledTime: number,
@@ -62,6 +65,7 @@ export class ScheduledEvent extends Event {
     super("scheduled");
   }
 
+  // TODO: check if we need to add "Illegal Invocation" error to this method
   waitUntil(promise: Promise<any>): void {
     this[kWaitUntil].push(promise);
   }
@@ -94,17 +98,12 @@ export type WorkerGlobalScopeEventMap = {
   scheduled: ScheduledEvent;
 };
 
-export class WorkerGlobalScope extends typedEventTarget<WorkerGlobalScopeEventMap>() {}
+export class WorkerGlobalScope extends ThrowingEventTarget<WorkerGlobalScopeEventMap> {}
 
 export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
   readonly #log: Log;
   readonly #bindings: Context;
   readonly #modules?: boolean;
-  readonly #wrappedListeners = new WeakMap<
-    TypedEventListener<ValueOf<WorkerGlobalScopeEventMap>>,
-    TypedEventListener<ValueOf<WorkerGlobalScopeEventMap>>
-  >();
-  #wrappedError?: Error;
 
   // Global self-references
   // noinspection JSUnusedGlobalSymbols
@@ -135,87 +134,51 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     this.dispatchEvent = this.dispatchEvent.bind(this);
   }
 
-  #wrap<Type extends keyof WorkerGlobalScopeEventMap>(
-    listener: TypedEventListener<WorkerGlobalScopeEventMap[Type]> | null
-  ): TypedEventListener<WorkerGlobalScopeEventMap[Type]> | null {
-    // When an event listener throws, we want dispatching to stop and the
-    // error to be thrown so we can catch it and display a nice error page.
-    if (!listener) return null;
-    let wrappedListener = this.#wrappedListeners.get(listener as any);
-    if (wrappedListener) return wrappedListener;
-    wrappedListener = (event) => {
-      try {
-        if ("handleEvent" in listener) {
-          listener.handleEvent(event as WorkerGlobalScopeEventMap[Type]);
-        } else {
-          listener(event as WorkerGlobalScopeEventMap[Type]);
-        }
-      } catch (error: any) {
-        event.stopImmediatePropagation();
-        this.#wrappedError = error;
-      }
-    };
-    this.#wrappedListeners.set(listener as any, wrappedListener);
-    return wrappedListener;
-  }
-
-  #addEventListener<Type extends keyof WorkerGlobalScopeEventMap>(
+  addEventListener = <Type extends keyof WorkerGlobalScopeEventMap>(
     type: Type,
     listener: TypedEventListener<WorkerGlobalScopeEventMap[Type]> | null,
     options?: AddEventListenerOptions | boolean
-  ): void {
-    super.addEventListener(type, this.#wrap(listener), options);
-  }
-
-  addEventListener<Type extends keyof WorkerGlobalScopeEventMap>(
-    type: Type,
-    listener: TypedEventListener<WorkerGlobalScopeEventMap[Type]> | null,
-    options?: AddEventListenerOptions | boolean
-  ): void {
+  ): void => {
     if (this.#modules) {
+      // TODO: test this error
       throw new TypeError(
         "Global addEventListener() cannot be used in modules. Instead, event " +
           "handlers should be declared as exports on the root module."
       );
     }
-    this.#addEventListener(type, listener, options);
-  }
+    super.addEventListener(type, listener, options);
+  };
 
-  removeEventListener<Type extends keyof WorkerGlobalScopeEventMap>(
+  removeEventListener = <Type extends keyof WorkerGlobalScopeEventMap>(
     type: Type,
     listener: TypedEventListener<WorkerGlobalScopeEventMap[Type]> | null,
     options?: EventListenerOptions | boolean
-  ): void {
+  ): void => {
     if (this.#modules) {
+      // TODO: test this error
       throw new TypeError(
         "Global removeEventListener() cannot be used in modules. Instead, event " +
           "handlers should be declared as exports on the root module."
       );
     }
-    // removeEventListener isn't called internally, so no need for a
-    // #removeEventListener to bypass modules mode checking
-    super.removeEventListener(type, this.#wrap(listener), options);
-  }
+    super.removeEventListener(type, listener, options);
+  };
 
-  #dispatchEvent(event: ValueOf<WorkerGlobalScopeEventMap>): boolean {
-    this.#wrappedError = undefined;
-    const result = super.dispatchEvent(event);
-    if (this.#wrappedError !== undefined) throw this.#wrappedError;
-    return result;
-  }
-
-  dispatchEvent(event: ValueOf<WorkerGlobalScopeEventMap>): boolean {
+  dispatchEvent = (event: ValueOf<WorkerGlobalScopeEventMap>): boolean => {
     if (this.#modules) {
+      // TODO: test this error
       throw new TypeError(
         "Global dispatchEvent() cannot be used in modules. Instead, event " +
           "handlers should be declared as exports on the root module."
       );
     }
-    return this.#dispatchEvent(event);
-  }
+    return super.dispatchEvent(event);
+  };
 
   [kAddModuleFetchListener](listener: ModuleFetchListener): void {
-    this.#addEventListener("fetch", (e) => {
+    super.addEventListener("fetch", (e) => {
+      // TODO: check if we need to add "Illegal Invocation" errors to these methods,
+      //  (maybe make ctx an instance of a class?)
       const ctx = {
         passThroughOnException: e.passThroughOnException.bind(e),
         waitUntil: e.waitUntil.bind(e),
@@ -226,7 +189,9 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
   }
 
   [kAddModuleScheduledListener](listener: ModuleScheduledListener): void {
-    this.#addEventListener("scheduled", (e) => {
+    super.addEventListener("scheduled", (e) => {
+      // TODO: check if we need to add "Illegal Invocation" errors to these methods,
+      //  (maybe make controller and ctx instances of classes?)
       const controller = { cron: e.cron, scheduledTime: e.scheduledTime };
       const ctx = { waitUntil: e.waitUntil.bind(e) };
       const res = listener(controller, this.#bindings, ctx);
@@ -242,7 +207,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     // it somewhere else
     const event = new FetchEvent(proxy ? request.clone() : request);
     try {
-      this.#dispatchEvent(event);
+      super.dispatchEvent(event);
       // `event[kResponse]` may be `undefined`, but `await undefined` is still
       // `undefined`
       const response = await event[kResponse];
@@ -272,7 +237,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     request.headers.delete("host");
     // noinspection ES6MissingAwait
     const waitUntil = Promise.all(event[kWaitUntil]) as Promise<WaitUntil>;
-    return withWaitUntil(await fetch(request), waitUntil);
+    return withWaitUntil(await fetch(request[kInner]), waitUntil);
   }
 
   async [kDispatchScheduled]<WaitUntil extends any[] = any[]>(
@@ -280,7 +245,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     cron?: string
   ): Promise<WaitUntil> {
     const event = new ScheduledEvent(scheduledTime ?? Date.now(), cron ?? "");
-    this.#dispatchEvent(event);
+    super.dispatchEvent(event);
     return (await Promise.all(event[kWaitUntil])) as WaitUntil;
   }
 }

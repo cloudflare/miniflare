@@ -1,19 +1,16 @@
 import { createHash, webcrypto } from "crypto";
+import { viewToBuffer } from "@miniflare/shared";
 
 // Workers support non-standard MD5 digests
 function digest(
   algorithm: AlgorithmIdentifier,
   data: BufferSource
 ): Promise<ArrayBuffer> {
-  const algorithmName =
-    typeof algorithm === "string" ? algorithm : algorithm?.name;
-  if (algorithmName?.toLowerCase() == "md5") {
+  const name = typeof algorithm === "string" ? algorithm : algorithm?.name;
+  if (name?.toLowerCase() == "md5") {
     if (data instanceof ArrayBuffer) data = new Uint8Array(data);
-    return Promise.resolve(
-      createHash("md5")
-        .update(data as any)
-        .digest().buffer
-    );
+    const hash = createHash("md5").update(data as any);
+    return Promise.resolve(viewToBuffer(hash.digest()));
   }
 
   // If the algorithm isn't MD5, defer to the original function

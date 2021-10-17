@@ -65,15 +65,11 @@ test("ServiceWorkerGlobalScope: includes global self-references", async (t) => {
 test("ServiceWorkerGlobalScope: hides implementation details", async (t) => {
   const { globalScope } = t.context;
   t.deepEqual(getObjectProperties(globalScope), [
-    // EventTarget methods included twice for superclass
     "KEY", // binding
     "addEventListener",
-    "addEventListener",
-    "dispatchEvent",
     "dispatchEvent",
     "global",
     "globalThis",
-    "removeEventListener",
     "removeEventListener",
     "self",
   ]);

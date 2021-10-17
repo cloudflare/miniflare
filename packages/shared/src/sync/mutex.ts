@@ -1,15 +1,14 @@
 import assert from "assert";
-
-export type MaybePromise<T> = T | Promise<T>;
+import { MaybePromise } from "@miniflare/shared";
 
 export class Mutex {
   private locked = false;
   private resolveQueue: (() => void)[] = [];
 
-  private lock(): Promise<void> {
+  private lock(): MaybePromise<void> {
     if (!this.locked) {
       this.locked = true;
-      return Promise.resolve();
+      return;
     }
     return new Promise((resolve) => this.resolveQueue.push(resolve));
   }
@@ -35,11 +34,4 @@ export class Mutex {
       this.unlock();
     }
   }
-}
-
-export type Clock = () => number;
-export const defaultClock: Clock = () => Date.now();
-
-export function millisToSeconds(millis: number): number {
-  return Math.floor(millis / 1000);
 }

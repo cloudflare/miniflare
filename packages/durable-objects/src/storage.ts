@@ -4,7 +4,9 @@ import {
   Storage,
   StorageTransaction,
   StoredValue,
+  runWithInputGateClosed,
   viewToArray,
+  waitUntilOnOutputGate,
 } from "@miniflare/shared";
 
 const MAX_KEYS = 128;
@@ -12,11 +14,9 @@ const MAX_KEY_SIZE = 2048; /* 2KiB */
 const MAX_VALUE_SIZE = 32 * 1024; /* 32KiB */
 const ENFORCED_MAX_VALUE_SIZE = MAX_VALUE_SIZE + 32;
 
-// TODO: support input gates and all these fancy options
-
 export interface DurableObjectGetOptions {
-  allowConcurrency?: boolean; // TODO: disable input gate locking
-  noCache?: boolean;
+  allowConcurrency?: boolean;
+  noCache?: boolean; // Currently ignored
 }
 
 export interface DurableObjectPutOptions extends DurableObjectGetOptions {
@@ -94,11 +94,11 @@ export class DurableObjectTransaction implements DurableObjectOperator {
 
   #check(op: string): void {
     if (this.#rolledback) {
-      throw new Error(`Cannot ${op} on rolled back transaction`);
+      throw new Error(`Cannot ${op}() on rolled back transaction`);
     }
     if (this[kCommitted]) {
       throw new Error(
-        `Cannot call ${op} on transaction that has already committed: did you move \`txn\` outside of the closure?`
+        `Cannot call ${op}() on transaction that has already committed: did you move \`txn\` outside of the closure?`
       );
     }
   }
@@ -112,18 +112,9 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     }
   }
 
-  get<Value = unknown>(
-    key: string,
-    options?: DurableObjectGetOptions
-  ): Promise<Value | undefined>;
-  get<Value = unknown>(
-    keys: string[],
-    options?: DurableObjectGetOptions
-  ): Promise<Map<string, Value>>;
-  async get<Value = unknown>(
+  async #get<Value = unknown>(
     keys: string | string[]
   ): Promise<Value | undefined | Map<string, Value>> {
-    this.#check("get()");
     if (Array.isArray(keys)) {
       if (keys.length > MAX_KEYS) {
         throw new RangeError(`Maximum number of keys is ${MAX_KEYS}.`);
@@ -144,20 +135,29 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     return value && deserialize(value.value);
   }
 
-  put<Value = unknown>(
+  get<Value = unknown>(
     key: string,
-    value: Value,
-    options?: DurableObjectPutOptions
-  ): Promise<void>;
-  put<Value = unknown>(
-    entries: Record<string, Value>,
-    options?: DurableObjectPutOptions
-  ): Promise<void>;
-  put<Value = unknown>(
+    options?: DurableObjectGetOptions
+  ): Promise<Value | undefined>;
+  get<Value = unknown>(
+    keys: string[],
+    options?: DurableObjectGetOptions
+  ): Promise<Map<string, Value>>;
+  get<Value = unknown>(
+    keys: string | string[],
+    options?: DurableObjectGetOptions
+  ): Promise<Value | undefined | Map<string, Value>> {
+    this.#check("get");
+    return runWithInputGateClosed(
+      () => this.#get(keys as any),
+      options?.allowConcurrency
+    );
+  }
+
+  #put<Value = unknown>(
     keyEntries: string | Record<string, Value>,
-    valueOptions?: Value | DurableObjectPutOptions
+    valueOptions?: Value
   ): Promise<void> {
-    this.#check("put()");
     if (typeof keyEntries === "string") {
       if (valueOptions === undefined) {
         throw new TypeError("put() called with undefined value.");
@@ -187,10 +187,32 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     return this[kTxn].putMany(mapped);
   }
 
-  delete(key: string, options?: DurableObjectPutOptions): Promise<boolean>;
-  delete(keys: string[], options?: DurableObjectPutOptions): Promise<number>;
-  delete(keys: string | string[]): Promise<boolean | number> {
-    this.#check("delete()");
+  put<Value = unknown>(
+    key: string,
+    value: Value,
+    options?: DurableObjectPutOptions
+  ): Promise<void>;
+  put<Value = unknown>(
+    entries: Record<string, Value>,
+    options?: DurableObjectPutOptions
+  ): Promise<void>;
+  put<Value = unknown>(
+    keyEntries: string | Record<string, Value>,
+    valueOptions?: Value | DurableObjectPutOptions,
+    options?: DurableObjectPutOptions
+  ): Promise<void> {
+    this.#check("put");
+    if (!options && typeof keyEntries !== "string") options = valueOptions;
+    return waitUntilOnOutputGate(
+      runWithInputGateClosed(
+        () => this.#put(keyEntries, valueOptions),
+        options?.allowConcurrency
+      ),
+      options?.allowUnconfirmed
+    );
+  }
+
+  #delete(keys: string | string[]): Promise<boolean | number> {
     if (Array.isArray(keys)) {
       if (keys.length > MAX_KEYS) {
         throw new RangeError(`Maximum number of keys is ${MAX_KEYS}.`);
@@ -202,36 +224,56 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     return Promise.resolve(this[kTxn].delete(keys));
   }
 
+  delete(key: string, options?: DurableObjectPutOptions): Promise<boolean>;
+  delete(keys: string[], options?: DurableObjectPutOptions): Promise<number>;
+  delete(
+    keys: string | string[],
+    options?: DurableObjectPutOptions
+  ): Promise<boolean | number> {
+    this.#check("delete");
+    return waitUntilOnOutputGate(
+      runWithInputGateClosed(
+        () => this.#delete(keys),
+        options?.allowConcurrency
+      ),
+      options?.allowUnconfirmed
+    );
+  }
+
   deleteAll(): never {
     throw new Error("Cannot call deleteAll() within a transaction");
   }
 
-  async list<Value = unknown>(
+  list<Value = unknown>(
     options: DurableObjectListOptions = {}
   ): Promise<Map<string, Value>> {
-    this.#check("list()");
+    // TODO: should there be a maximum limit of MAX_KEYS here?
+    this.#check("list");
     if (options.limit !== undefined && options.limit <= 0) {
       throw new TypeError("List limit must be positive.");
     }
-    const listOptions = {
-      start: options.start,
-      end: options.end,
-      prefix: options.prefix,
-      reverse: options.reverse,
-      limit: options.limit,
-    };
-    const { keys } = await this[kTxn].list(listOptions, true);
-    return this.get(keys.map(({ name }) => name));
+    return runWithInputGateClosed(async () => {
+      const { keys } = await this[kTxn].list(options, true);
+      return this.get(keys.map(({ name }) => name));
+    }, options.allowConcurrency);
   }
 
   rollback(): void {
-    // Allow multiple rollback() calls
-    if (this.#rolledback) return;
-    this.#check("rollback()");
+    if (this.#rolledback) return; // Allow multiple rollback() calls
+    this.#check("rollback");
     this.#rolledback = true;
     this[kTxn].rollback();
   }
 }
+
+// When using implicit transactions for storage operations, there's no need
+// to close gates when performing the actual storage operations as this will
+// be done with the transaction itself, and the storage operation is the only
+// thing these transactions do. These options disable any gates.
+const bypassGatesOptions: DurableObjectPutOptions = {
+  allowConcurrency: true,
+  allowUnconfirmed: true,
+};
 
 export class DurableObjectStorage implements DurableObjectOperator {
   readonly #storage: Storage;
@@ -252,7 +294,11 @@ export class DurableObjectStorage implements DurableObjectOperator {
     keys: string | string[],
     options?: DurableObjectGetOptions
   ): Promise<Value | undefined | Map<string, Value>> {
-    return this.transaction((txn) => txn.get(keys as any, options));
+    return this.#transaction(
+      (txn) => txn.get(keys as any, bypassGatesOptions),
+      // Reading so no need for output gate, hence allowUnconfirmed: true
+      { allowConcurrency: options?.allowConcurrency, allowUnconfirmed: true }
+    );
   }
 
   put<Value = unknown>(
@@ -269,8 +315,9 @@ export class DurableObjectStorage implements DurableObjectOperator {
     valueOptions?: Value | DurableObjectPutOptions,
     options?: DurableObjectPutOptions
   ): Promise<void> {
-    return this.transaction((txn) =>
-      txn.put(keyEntries as any, valueOptions, options)
+    return this.#transaction(
+      (txn) => txn.put(keyEntries as any, valueOptions, bypassGatesOptions),
+      options
     );
   }
 
@@ -280,32 +327,52 @@ export class DurableObjectStorage implements DurableObjectOperator {
     keys: string | string[],
     options?: DurableObjectPutOptions
   ): Promise<boolean | number> {
-    return this.transaction((txn) => txn.delete(keys as any, options));
+    return this.#transaction(
+      (txn) => txn.delete(keys as any, bypassGatesOptions),
+      options
+    );
   }
 
-  async deleteAll(_options?: DurableObjectPutOptions): Promise<void> {
-    return this.transaction(async (txn) => {
+  async deleteAll(options?: DurableObjectPutOptions): Promise<void> {
+    return this.#transaction(async (txn) => {
       // Bypassing max key checks, and actually getting keys' values too
       const { keys } = await txn[kTxn].list();
       await txn[kTxn].deleteMany(keys.map(({ name }) => name));
-    });
+    }, options);
   }
 
   async list<Value = unknown>(
     options?: DurableObjectListOptions
   ): Promise<Map<string, Value>> {
-    return this.transaction((txn) => txn.list(options));
+    return this.#transaction(
+      (txn) => txn.list({ ...options, ...bypassGatesOptions }),
+      // Reading so no need for output gate, hence allowUnconfirmed: true
+      { allowConcurrency: options?.allowConcurrency, allowUnconfirmed: true }
+    );
   }
 
-  async transaction<T>(
+  #transaction<T>(
+    closure: (txn: DurableObjectTransaction) => Promise<T>,
+    options?: DurableObjectPutOptions
+  ): Promise<T> {
+    return waitUntilOnOutputGate(
+      runWithInputGateClosed(() => {
+        return this.#storage.transaction(async (txn) => {
+          const durableObjectTxn = new DurableObjectTransaction(txn);
+          const result = await closure(durableObjectTxn);
+          // Might not actually commit, this is just for #check()
+          durableObjectTxn[kCommitted] = true;
+          return result;
+        });
+      }, options?.allowConcurrency),
+      options?.allowUnconfirmed
+    );
+  }
+
+  transaction<T>(
     closure: (txn: DurableObjectTransaction) => Promise<T>
   ): Promise<T> {
-    return this.#storage.transaction(async (txn) => {
-      const durableObjectTxn = new DurableObjectTransaction(txn);
-      const result = await closure(durableObjectTxn);
-      // Might not actually commit, this is just for #check()
-      durableObjectTxn[kCommitted] = true;
-      return result;
-    });
+    // Close input and output gate, we don't know what this transaction will do
+    return this.#transaction(closure);
   }
 }
