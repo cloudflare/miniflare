@@ -59,13 +59,13 @@ test("BindingsPlugin: parses options from argv", (t) => {
 test("BindingsPlugin: parses options from wrangler config", (t) => {
   const options = parsePluginWranglerConfig(BindingsPlugin, {
     vars: { KEY1: "value1", KEY2: "value2", KEY3: true, KEY4: 42 },
+    wasm_modules: {
+      MODULE1: "module1.wasm",
+      MODULE2: "module2.wasm",
+    },
     miniflare: {
       globals: { KEY5: "value5", KEY6: false, KEY7: 10 },
       env_path: ".env.test",
-      wasm_bindings: [
-        { name: "MODULE1", path: "module1.wasm" },
-        { name: "MODULE2", path: "module2.wasm" },
-      ],
     },
   });
   t.deepEqual(options, {
