@@ -135,7 +135,7 @@ export function createRequestListener<Plugins extends CorePluginSignatures>(
       } else {
         status = 404;
       }
-      res?.writeHead(status, { "Content-Type": "text/html; charset=UTF-8" });
+      res?.writeHead(status, { "Content-Type": "text/plain; charset=UTF-8" });
       res?.end();
     } else {
       try {
@@ -151,18 +151,31 @@ export function createRequestListener<Plugins extends CorePluginSignatures>(
         }
         res?.end();
       } catch (e: any) {
-        const { default: Youch } = await import("youch");
-        const youch = new Youch(e, req);
-        youch.addLink(() => {
-          return [
-            '<a href="https://developers.cloudflare.com/workers/" target="_blank" style="text-decoration:none">📚 Workers Docs</a>',
-            '<a href="https://discord.gg/cloudflaredev" target="_blank" style="text-decoration:none">💬 Workers Discord</a>',
-            '<a href="https://miniflare.dev" target="_blank" style="text-decoration:none">🔥 Miniflare Docs</a>',
-          ].join("");
-        });
-        const errorHtml = await youch.toHTML();
-        res?.writeHead(500, { "Content-Type": "text/html; charset=UTF-8" });
-        res?.end(errorHtml, "utf8");
+        const accept = req.headers.accept ?? "";
+        if (
+          accept.includes("text/html") ||
+          accept.includes("*/*") ||
+          accept.includes("text/*")
+        ) {
+          // Send pretty HTML error page if client accepts it
+          const { default: Youch } = await import("youch");
+          const youch = new Youch(e, req);
+          youch.addLink(() => {
+            return [
+              '<a href="https://developers.cloudflare.com/workers/" target="_blank" style="text-decoration:none">📚 Workers Docs</a>',
+              '<a href="https://discord.gg/cloudflaredev" target="_blank" style="text-decoration:none">💬 Workers Discord</a>',
+              '<a href="https://miniflare.dev" target="_blank" style="text-decoration:none">🔥 Miniflare Docs</a>',
+            ].join("");
+          });
+          const errorHtml = await youch.toHTML();
+          res?.writeHead(500, { "Content-Type": "text/html; charset=UTF-8" });
+          res?.end(errorHtml, "utf8");
+        } else {
+          // Otherwise, send plaintext stack trace
+          res?.writeHead(500, { "Content-Type": "text/plain; charset=UTF-8" });
+          res?.end(e.stack, "utf8");
+        }
+
         const stack = `${req.method} ${req.url}: ${e.stack}`;
         mf.log.error({ stack });
       }
