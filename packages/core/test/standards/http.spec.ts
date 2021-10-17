@@ -2,6 +2,7 @@ import assert from "assert";
 import { text } from "stream/consumers";
 import { ReadableStream, TransformStream, WritableStream } from "stream/web";
 import {
+  IncomingRequestCfProperties,
   InputGatedBody,
   Request,
   Response,
@@ -25,6 +26,9 @@ import {
   Response as BaseResponse,
   BodyMixin,
 } from "undici";
+
+// @ts-expect-error filling out all properties is annoying
+const cf: IncomingRequestCfProperties = { country: "GB" };
 
 // These tests also implicitly test withInputGating
 test("InputGatedBody: body isn't input gated by default", async (t) => {
@@ -159,17 +163,19 @@ test("Request: can construct new Request from existing Request", async (t) => {
   const req = new Request("http://localhost", {
     method: "POST",
     body: "body",
+    cf,
   });
   const req2 = new Request(req);
   // Should be different as new instance created
   t.not(req2.headers, req.headers);
   t.not(req2.body, req.body);
+  t.not(req2.cf, req.cf);
 
   t.is(req2.method, "POST");
   t.is(await req2.text(), "body");
+  t.deepEqual(req2.cf, cf);
 });
 test("Request: supports non-standard properties", (t) => {
-  const cf = { country: "GB" };
   const req = new Request("http://localhost", {
     method: "POST",
     cf,
@@ -180,7 +186,6 @@ test("Request: supports non-standard properties", (t) => {
   t.not(req.cf, cf);
 });
 test("Request: clones non-standard properties", (t) => {
-  const cf = { country: "GB" };
   const req = new Request("http://localhost", {
     method: "POST",
     cf,

@@ -1,5 +1,10 @@
 import { URL } from "url";
-import { Request, RequestInfo, Response } from "@miniflare/core";
+import {
+  Request,
+  RequestInfo,
+  RequestInitCfProperties,
+  Response,
+} from "@miniflare/core";
 import {
   Clock,
   MaybePromise,
@@ -17,8 +22,10 @@ import {
 } from "undici";
 import { CacheInterface, CacheMatchOptions, CachedMeta } from "./helpers";
 
-function normaliseRequest(req: RequestInfo): BaseRequest {
-  return req instanceof BaseRequest ? req : new Request(req);
+function normaliseRequest(req: RequestInfo): BaseRequest | Request {
+  return req instanceof Request || req instanceof BaseRequest
+    ? req
+    : new Request(req);
 }
 
 // Normalises headers to object mapping lower-case names to single values.
@@ -31,15 +38,94 @@ function normaliseHeaders(headers: Headers): Record<string, string> {
   return result;
 }
 
-function getKey(req: BaseRequest): string {
+function getKey(req: BaseRequest | Request): string {
+  // @ts-expect-error cf doesn't exist on BaseRequest, but we're using `?.`
+  if (req.cf?.cacheKey) return req.cf.cacheKey;
   try {
-    // TODO: support request cacheKey
     const url = new URL(req.url);
     return url.toString();
   } catch (e) {
     throw new TypeError(
       "Invalid URL. Cache API keys must be fully-qualified, valid URLs."
     );
+  }
+}
+
+const cacheTtlByStatusRangeRegexp = /^(?<from>\d+)(-(?<to>\d+))?$/;
+
+function getExpirationTtl(
+  clock: Clock,
+  req: BaseRequest | Request,
+  res: BaseResponse | Response
+): number | undefined {
+  // Check cf property first for expiration TTL
+  // @ts-expect-error cf doesn't exist on BaseRequest, but it will just be
+  // undefined if it doesn't
+  const cf: RequestInitCfProperties | undefined = req.cf;
+  if (cf?.cacheTtl) return cf.cacheTtl * 1000;
+  if (cf?.cacheTtlByStatus) {
+    for (const [range, ttl] of Object.entries(cf.cacheTtlByStatus)) {
+      const match = cacheTtlByStatusRangeRegexp.exec(range);
+      const fromString: string | undefined = match?.groups?.from;
+      // If no match, skip to next range
+      if (!fromString) continue;
+      const from = parseInt(fromString);
+      const toString: string | undefined = match?.groups?.to;
+      // If matched "to" group, check range, otherwise, just check equal status
+      if (toString) {
+        const to = parseInt(toString);
+        if (from <= res.status && res.status <= to) return ttl * 1000;
+      } else if (res.status === from) {
+        return ttl * 1000;
+      }
+    }
+  }
+
+  // Cloudflare ignores request Cache-Control
+  const reqHeaders = normaliseHeaders(req.headers);
+  delete reqHeaders["cache-control"];
+
+  // Cloudflare never caches responses with Set-Cookie headers
+  // If Cache-Control contains private=set-cookie, Cloudflare will remove
+  // the Set-Cookie header automatically
+  const resHeaders = normaliseHeaders(res.headers);
+  if (
+    resHeaders["cache-control"]?.toLowerCase().includes("private=set-cookie")
+  ) {
+    resHeaders["cache-control"] = resHeaders["cache-control"].replace(
+      /private=set-cookie/i,
+      ""
+    );
+    delete resHeaders["set-cookie"];
+  }
+
+  // Build request and responses suitable for CachePolicy
+  const cacheReq: CachePolicy.Request = {
+    url: req.url,
+    method: req.method,
+    headers: reqHeaders,
+  };
+  const cacheRes: CachePolicy.Response = {
+    status: res.status,
+    headers: resHeaders,
+  };
+
+  // @ts-expect-error `now` isn't included in CachePolicy's type definitions
+  const originalNow = CachePolicy.prototype.now;
+  // @ts-expect-error `now` isn't included in CachePolicy's type definitions
+  CachePolicy.prototype.now = clock;
+  try {
+    const policy = new CachePolicy(cacheReq, cacheRes, { shared: true });
+
+    // Check if the request & response is cacheable, if not return undefined
+    if ("set-cookie" in resHeaders || !policy.storable()) {
+      return;
+    }
+
+    return policy.timeToLive();
+  } finally {
+    // @ts-expect-error `now` isn't included in CachePolicy's type definitions
+    CachePolicy.prototype.now = originalNow;
   }
 }
 
@@ -73,55 +159,11 @@ export class Cache implements CacheInterface {
       throw new TypeError("Cannot cache response with 'Vary: *' header.");
     }
 
-    // Cloudflare ignores request Cache-Control
-    const reqHeaders = normaliseHeaders(req.headers);
-    delete reqHeaders["cache-control"];
+    // Check if response cacheable and get expiration TTL if any
+    const expirationTtl = getExpirationTtl(this.#clock, req, res);
+    if (expirationTtl === undefined) return;
 
-    // Cloudflare never caches responses with Set-Cookie headers
-    // If Cache-Control contains private=set-cookie, Cloudflare will remove
-    // the Set-Cookie header automatically
-    const resHeaders = normaliseHeaders(res.headers);
-    if (
-      resHeaders["cache-control"]?.toLowerCase().includes("private=set-cookie")
-    ) {
-      resHeaders["cache-control"] = resHeaders["cache-control"].replace(
-        /private=set-cookie/i,
-        ""
-      );
-      delete resHeaders["set-cookie"];
-    }
-
-    // Build request and responses suitable for CachePolicy
-    const cacheReq: CachePolicy.Request = {
-      url: req.url,
-      method: req.method,
-      headers: reqHeaders,
-    };
-    const cacheRes: CachePolicy.Response = {
-      status: res.status,
-      headers: resHeaders,
-    };
-
-    // @ts-expect-error `now` isn't included in CachePolicy's type definitions
-    const originalNow = CachePolicy.prototype.now;
-    // @ts-expect-error `now` isn't included in CachePolicy's type definitions
-    CachePolicy.prototype.now = this.#clock;
-    let expirationTtl: number;
-    try {
-      const policy = new CachePolicy(cacheReq, cacheRes, { shared: true });
-
-      // Check if the request & response is cacheable, if not return undefined
-      if ("set-cookie" in resHeaders || !policy.storable()) {
-        return;
-      }
-
-      expirationTtl = policy.timeToLive();
-    } finally {
-      // @ts-expect-error `now` isn't included in CachePolicy's type definitions
-      CachePolicy.prototype.now = originalNow;
-    }
-
-    // If it is cacheable, store it in KV
+    // If it is cacheable, store it
     const key = getKey(req);
     const metadata: CachedMeta = {
       status: res.status,

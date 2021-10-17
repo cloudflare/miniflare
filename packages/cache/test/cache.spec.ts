@@ -1,7 +1,7 @@
 import assert from "assert";
 import { URL } from "url";
 import { Cache, CachedMeta } from "@miniflare/cache";
-import { Response } from "@miniflare/core";
+import { Request, RequestInitCfProperties, Response } from "@miniflare/core";
 import { StorageOperator } from "@miniflare/shared";
 import {
   getObjectProperties,
@@ -13,9 +13,9 @@ import { MemoryStorageOperator } from "@miniflare/storage-memory";
 import { WebSocketPair } from "@miniflare/web-sockets";
 import anyTest, { Macro, TestInterface } from "ava";
 import {
+  Request as BaseRequest,
   Response as BaseResponse,
   HeadersInit,
-  Request,
   RequestInfo,
 } from "undici";
 import { testResponse } from "./helpers";
@@ -59,7 +59,7 @@ const putMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   t.is(utf8Decode(stored.value), "value");
 };
 putMacro.title = (providedTitle) => `Cache: puts ${providedTitle}`;
-test("request", putMacro, new Request("http://localhost:8787/test"));
+test("request", putMacro, new BaseRequest("http://localhost:8787/test"));
 test("string request", putMacro, "http://localhost:8787/test");
 test("url request", putMacro, new URL("http://localhost:8787/test"));
 
@@ -80,7 +80,7 @@ test("Cache: only puts GET requests", async (t) => {
   for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
     await t.throwsAsync(
       cache.put(
-        new Request(`http://localhost:8787/${method}`, { method }),
+        new BaseRequest(`http://localhost:8787/${method}`, { method }),
         testResponse()
       ),
       {
@@ -118,6 +118,77 @@ test("Cache: doesn't cache vary all responses", async (t) => {
     message: "Cannot cache response with 'Vary: *' header.",
   });
 });
+test("Cache: respects cache key", async (t) => {
+  const { storage, cache } = t.context;
+
+  const req1 = new Request("http://localhost/", { cf: { cacheKey: "1" } });
+  const req2 = new Request("http://localhost/", { cf: { cacheKey: "2" } });
+  const res1 = testResponse("value1");
+  const res2 = testResponse("value2");
+
+  await cache.put(req1, res1);
+  await cache.put(req2, res2);
+  t.true(await storage.has("1"));
+  t.true(await storage.has("2"));
+
+  const match1 = await cache.match(req1);
+  const match2 = await cache.match(req2);
+  t.is(await match1?.text(), "value1");
+  t.is(await match2?.text(), "value2");
+});
+test("Cache: put respects cf cacheTtl", async (t) => {
+  const { clock, cache } = t.context;
+  await cache.put(
+    new Request("http://localhost/test", { cf: { cacheTtl: 1 } }),
+    new BaseResponse("value")
+  );
+  t.not(await cache.match("http://localhost/test"), undefined);
+  clock.timestamp += 500;
+  t.not(await cache.match("http://localhost/test"), undefined);
+  clock.timestamp += 500;
+  t.is(await cache.match("http://localhost/test"), undefined);
+});
+test("Cache: put respects cf cacheTtlByStatus", async (t) => {
+  const { clock, cache } = t.context;
+  const cf: RequestInitCfProperties = {
+    cacheTtlByStatus: { "200-299": 2, "? :D": 99, "404": 1, "500-599": 0 },
+  };
+  const headers = { "Cache-Control": "max-age=5" };
+  const req200 = new Request("http://localhost/200", { cf });
+  const req201 = new Request("http://localhost/201", { cf });
+  const req302 = new Request("http://localhost/302", { cf });
+  const req404 = new Request("http://localhost/404", { cf });
+  const req599 = new Request("http://localhost/599", { cf });
+  await cache.put(req200, new BaseResponse(null, { status: 200, headers }));
+  await cache.put(req201, new BaseResponse(null, { status: 201, headers }));
+  await cache.put(req302, new BaseResponse(null, { status: 302, headers }));
+  await cache.put(req404, new BaseResponse(null, { status: 404, headers }));
+  await cache.put(req599, new BaseResponse(null, { status: 599, headers }));
+
+  // Check all but 5xx responses cached
+  t.not(await cache.match("http://localhost/200"), undefined);
+  t.not(await cache.match("http://localhost/201"), undefined);
+  t.not(await cache.match("http://localhost/302"), undefined);
+  t.not(await cache.match("http://localhost/404"), undefined);
+  t.is(await cache.match("http://localhost/599"), undefined);
+
+  // Check 404 response expires after 1 second
+  clock.timestamp += 1000;
+  t.not(await cache.match("http://localhost/200"), undefined);
+  t.not(await cache.match("http://localhost/201"), undefined);
+  t.not(await cache.match("http://localhost/302"), undefined);
+  t.is(await cache.match("http://localhost/404"), undefined);
+
+  // Check 2xx responses expire after 2 seconds
+  clock.timestamp += 1000;
+  t.is(await cache.match("http://localhost/200"), undefined);
+  t.is(await cache.match("http://localhost/201"), undefined);
+  t.not(await cache.match("http://localhost/302"), undefined);
+
+  // Check 302 response expires after 5 seconds
+  clock.timestamp += 3000;
+  t.is(await cache.match("http://localhost/302"), undefined);
+});
 
 test("Cache: put waits for output gate to open before storing", (t) => {
   const { cache } = t.context;
@@ -136,7 +207,10 @@ test("Cache: put waits for input gate to open before returning", (t) => {
 
 const matchMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   const { cache } = t.context;
-  await cache.put(new Request("http://localhost:8787/test"), testResponse());
+  await cache.put(
+    new BaseRequest("http://localhost:8787/test"),
+    testResponse()
+  );
 
   const cached = await cache.match(req);
   t.not(cached, undefined);
@@ -153,14 +227,17 @@ const matchMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   t.is(await cached?.text(), "value");
 };
 matchMacro.title = (providedTitle) => `Cache: matches ${providedTitle}`;
-test("request", matchMacro, new Request("http://localhost:8787/test"));
+test("request", matchMacro, new BaseRequest("http://localhost:8787/test"));
 test("string request", matchMacro, "http://localhost:8787/test");
 test("url request", matchMacro, new URL("http://localhost:8787/test"));
 
 test("Cache: only matches non-GET requests when ignoring method", async (t) => {
   const { cache } = t.context;
-  await cache.put(new Request("http://localhost:8787/test"), testResponse());
-  const req = new Request("http://localhost:8787/test", { method: "POST" });
+  await cache.put(
+    new BaseRequest("http://localhost:8787/test"),
+    testResponse()
+  );
+  const req = new BaseRequest("http://localhost:8787/test", { method: "POST" });
   t.is(await cache.match(req), undefined);
   t.not(await cache.match(req, { ignoreMethod: true }), undefined);
 });
@@ -177,21 +254,27 @@ test("Cache: match HIT waits for input gate to open before returning", async (t)
 
 const deleteMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   const { storage, cache } = t.context;
-  await cache.put(new Request("http://localhost:8787/test"), testResponse());
+  await cache.put(
+    new BaseRequest("http://localhost:8787/test"),
+    testResponse()
+  );
   t.not(await storage.get("http://localhost:8787/test"), undefined);
   t.true(await cache.delete(req));
   t.is(await storage.get("http://localhost:8787/test"), undefined);
   t.false(await cache.delete(req));
 };
 deleteMacro.title = (providedTitle) => `Cache: deletes ${providedTitle}`;
-test("request", deleteMacro, new Request("http://localhost:8787/test"));
+test("request", deleteMacro, new BaseRequest("http://localhost:8787/test"));
 test("string request", deleteMacro, "http://localhost:8787/test");
 test("url request", deleteMacro, new URL("http://localhost:8787/test"));
 
 test("Cache: only deletes non-GET requests when ignoring method", async (t) => {
   const { cache } = t.context;
-  await cache.put(new Request("http://localhost:8787/test"), testResponse());
-  const req = new Request("http://localhost:8787/test", { method: "POST" });
+  await cache.put(
+    new BaseRequest("http://localhost:8787/test"),
+    testResponse()
+  );
+  const req = new BaseRequest("http://localhost:8787/test", { method: "POST" });
   t.false(await cache.delete(req));
   t.true(await cache.delete(req, { ignoreMethod: true }));
 });
@@ -217,7 +300,7 @@ const expireMacro: Macro<
 > = async (t, { headers, expectedTtl }) => {
   const { clock, cache } = t.context;
   await cache.put(
-    new Request("http://localhost:8787/test"),
+    new BaseRequest("http://localhost:8787/test"),
     new BaseResponse("value", { headers })
   );
   t.not(await cache.match("http://localhost:8787/test"), undefined);
@@ -246,7 +329,7 @@ const isCachedMacro: Macro<
 > = async (t, { headers, cached }) => {
   const { storage, cache } = t.context;
   await cache.put(
-    new Request("http://localhost:8787/test"),
+    new BaseRequest("http://localhost:8787/test"),
     new BaseResponse("value", {
       headers: {
         ...headers,
