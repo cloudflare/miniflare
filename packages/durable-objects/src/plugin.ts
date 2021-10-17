@@ -15,10 +15,10 @@ import {
   DurableObjectConstructor,
   DurableObjectFactory,
   DurableObjectId,
-  DurableObjectInternals,
   DurableObjectNamespace,
   DurableObjectState,
-  objectNameFromId,
+  kInstance,
+  kObjectName,
 } from "./namespace";
 import { DurableObjectStorage } from "./storage";
 
@@ -75,20 +75,20 @@ export class DurableObjectsPlugin
   })
   durableObjectsPersist?: boolean;
 
-  private readonly processedObjects: ProcessedDurableObject[];
+  readonly #processedObjects: ProcessedDurableObject[];
 
-  private contextPromise: Promise<void>;
-  private contextResolve?: () => void;
-  private constructors = new Map<string, DurableObjectConstructor>();
-  private bindings: Context = {};
+  #contextPromise: Promise<void>;
+  #contextResolve?: () => void;
+  #constructors = new Map<string, DurableObjectConstructor>();
+  #bindings: Context = {};
 
-  private readonly internals = new Map<string, DurableObjectInternals>();
+  readonly #objects = new Map<string, Promise<DurableObjectState>>();
 
   constructor(log: Log, options?: DurableObjectsOptions) {
     super(log);
     this.assignOptions(options);
 
-    this.processedObjects = Object.entries(this.durableObjects ?? {}).map(
+    this.#processedObjects = Object.entries(this.durableObjects ?? {}).map(
       ([name, options]) => {
         const className =
           typeof options === "object" ? options.className : options;
@@ -99,37 +99,46 @@ export class DurableObjectsPlugin
       }
     );
 
-    this.contextPromise = new Promise(
-      (resolve) => (this.contextResolve = resolve)
+    this.#contextPromise = new Promise(
+      (resolve) => (this.#contextResolve = resolve)
     );
   }
 
   async getObject(
     storage: StorageFactory,
     id: DurableObjectId
-  ): Promise<DurableObjectInternals> {
-    // Wait for constructors and environment
-    await this.contextPromise;
+  ): Promise<DurableObjectState> {
+    // Wait for constructors and bindings
+    await this.#contextPromise;
 
     // Reuse existing instances
-    const objectName = objectNameFromId(id);
-    const key = `${objectName}/${id.toString()}`;
-    let internals = this.internals.get(key);
-    if (internals) return internals;
+    const objectName = id[kObjectName];
+    // Put each object in its own namespace/directory
+    const key = `${objectName}:${id.toString()}`;
+    let statePromise = this.#objects.get(key);
+    if (statePromise) return statePromise;
 
-    // Create and store new instance if none found
-    const constructor = this.constructors.get(objectName);
-    // Should've thrown error earlier in reload if class not found
-    assert(constructor);
-    const objectStorage = new DurableObjectStorage(
-      await storage.storage(key, this.durableObjectsPersist)
-    );
-    const state = new DurableObjectState(id, objectStorage);
-    const instance = new constructor(state, this.bindings);
-    internals = new DurableObjectInternals(state, instance);
-    this.internals.set(key, internals);
+    // We store Promise<DurableObjectState> for map values instead of
+    // DurableObjectState as we only ever want to create one
+    // DurableObjectStorage for a Durable Object, and getting storage is an
+    // asynchronous operation. The alternative would be to make this a critical
+    // section protected with a mutex.
+    statePromise = (async () => {
+      const objectStorage = new DurableObjectStorage(
+        await storage.storage(key, this.durableObjectsPersist)
+      );
+      const state = new DurableObjectState(id, objectStorage);
 
-    return internals;
+      // Create and store new instance if none found
+      const constructor = this.#constructors.get(objectName);
+      // Should've thrown error earlier in reload if class not found
+      assert(constructor);
+
+      state[kInstance] = new constructor(state, this.#bindings);
+      return state;
+    })();
+    this.#objects.set(key, statePromise);
+    return statePromise;
   }
 
   getNamespace(
@@ -143,7 +152,7 @@ export class DurableObjectsPlugin
   setup(storageFactory: StorageFactory): SetupResult {
     const bindings: Context = {};
     const watch: string[] = [];
-    for (const { name, scriptPath } of this.processedObjects) {
+    for (const { name, scriptPath } of this.#processedObjects) {
       bindings[name] = this.getNamespace(storageFactory, name);
       if (scriptPath) watch.push(scriptPath);
     }
@@ -152,9 +161,9 @@ export class DurableObjectsPlugin
 
   beforeReload(): void {
     // Clear instance map, this should cause old instances to be GCed
-    this.internals.clear();
-    this.contextPromise = new Promise(
-      (resolve) => (this.contextResolve = resolve)
+    this.#objects.clear();
+    this.#contextPromise = new Promise(
+      (resolve) => (this.#contextResolve = resolve)
     );
   }
 
@@ -163,8 +172,8 @@ export class DurableObjectsPlugin
     bindings: Context,
     mainScriptPath?: string
   ): void {
-    this.constructors.clear();
-    for (const { name, className, scriptPath } of this.processedObjects) {
+    this.#constructors.clear();
+    for (const { name, className, scriptPath } of this.#processedObjects) {
       const resolvedScriptPath = scriptPath ?? mainScriptPath;
       const scriptExports =
         resolvedScriptPath === undefined
@@ -178,7 +187,7 @@ export class DurableObjectsPlugin
       }
       const constructor = scriptExports?.[className];
       if (constructor) {
-        this.constructors.set(name, constructor);
+        this.#constructors.set(name, constructor);
       } else {
         throw new DurableObjectError(
           "ERR_CLASS_NOT_FOUND",
@@ -186,8 +195,8 @@ export class DurableObjectsPlugin
         );
       }
     }
-    this.bindings = bindings;
-    this.contextResolve?.();
+    this.#bindings = bindings;
+    this.#contextResolve?.();
   }
 
   dispose(): void {

@@ -1,13 +1,173 @@
+import assert from "assert";
+import { text } from "stream/consumers";
+import { ReadableStream, TransformStream, WritableStream } from "stream/web";
 import {
+  InputGatedBody,
   Request,
   Response,
+  inputGatedFetch,
+  logResponse,
   withImmutableHeaders,
+  withInputGating,
   withWaitUntil,
 } from "@miniflare/core";
+import { InputGate, LogLevel } from "@miniflare/shared";
+import {
+  TestLog,
+  triggerPromise,
+  useServer,
+  waitsForInputGate,
+} from "@miniflare/shared-test";
 import { WebSocketPair } from "@miniflare/web-sockets";
-import test from "ava";
-import { Response as BaseResponse } from "undici";
+import test, { Macro } from "ava";
+import {
+  Request as BaseRequest,
+  Response as BaseResponse,
+  BodyMixin,
+} from "undici";
 
+// These tests also implicitly test withInputGating
+test("InputGatedBody: body isn't input gated by default", async (t) => {
+  const inputGate = new InputGate();
+  const [openTrigger, openPromise] = triggerPromise<void>();
+  await inputGate.runWith(async () => {
+    // noinspection ES6MissingAwait
+    void inputGate.runWithClosed(() => openPromise);
+    const body = new InputGatedBody(new BaseResponse("body")).body;
+    assert(body);
+    t.is(await text(body), "body");
+  });
+  openTrigger();
+});
+test("InputGatedBody: body returns null with null body", (t) => {
+  const body = withInputGating(new InputGatedBody(new BaseResponse(null)));
+  t.is(body.body, null);
+});
+test("InputGatedBody: same body instance is always returned", (t) => {
+  const body = withInputGating(new InputGatedBody(new BaseResponse("body")));
+  t.is(body.body, body.body);
+});
+test("InputGatedBody: body isn't locked until read from", async (t) => {
+  const res = withInputGating(new Response("body"));
+  // noinspection SuspiciousTypeOfGuard
+  t.true(res instanceof InputGatedBody);
+  // noinspection SuspiciousTypeOfGuard
+  assert(res.body instanceof ReadableStream);
+
+  // Access property that doesn't read any data
+  t.false(res.body.locked);
+  // Check we can still clone the body
+  const clone = res.clone();
+  t.is(await clone.text(), "body");
+});
+const inputGatedBodyMacro: Macro<[(body: ReadableStream) => Promise<any>]> =
+  async (t, closure) => {
+    const res = withInputGating(new InputGatedBody(new BaseResponse("body")));
+    // @ts-expect-error res.body is a ReadableStream
+    const body: ReadableStream = res.body;
+    await waitsForInputGate(t, () => closure(body));
+  };
+inputGatedBodyMacro.title = (providedTitle) =>
+  `InputGatedBody: body.${providedTitle}() applies input gating`;
+test("getReader", inputGatedBodyMacro, (body) => body.getReader().read());
+test("pipeTrough", inputGatedBodyMacro, (body) =>
+  body.pipeThrough(new TransformStream()).getReader().read()
+);
+test("pipeTo", inputGatedBodyMacro, (body) =>
+  body.pipeTo(new WritableStream())
+);
+test("tee", inputGatedBodyMacro, (body) => body.tee()[0].getReader().read());
+test("values", inputGatedBodyMacro, (body) => body.values().next());
+test("[Symbol.asyncIterator]", inputGatedBodyMacro, (body) =>
+  body[Symbol.asyncIterator]().next()
+);
+const inputGatedConsumerMacro: Macro<
+  [key: Exclude<keyof BodyMixin, "body" | "bodyUsed">, res?: BaseResponse]
+> = async (t, key, res = new BaseResponse('{"key": "value"}')) => {
+  // Check result is not input gated by default
+  const inputGate = new InputGate();
+  const [openTrigger, openPromise] = triggerPromise<void>();
+  await inputGate.runWith(async () => {
+    // noinspection ES6MissingAwait
+    void inputGate.runWithClosed(() => openPromise);
+    const body = new InputGatedBody(res.clone());
+    t.not(await body?.[key](), undefined);
+  });
+  openTrigger();
+
+  // Check input gating can be enabled
+  await waitsForInputGate(t, async () => {
+    const body = withInputGating(new InputGatedBody(res));
+    await body?.[key]();
+  });
+};
+inputGatedConsumerMacro.title = (providedTitle, key) =>
+  `InputGatedBody: ${key}() applies input gating`;
+test(inputGatedConsumerMacro, "arrayBuffer");
+test(inputGatedConsumerMacro, "blob");
+test(
+  inputGatedConsumerMacro,
+  "formData",
+  new BaseResponse("key=value", {
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  })
+);
+test(inputGatedConsumerMacro, "json");
+test(inputGatedConsumerMacro, "text");
+
+test("Request: constructing from BaseRequest doesn't create new BaseRequest unless required", (t) => {
+  // Check properties of Request are same as BaseRequest if not RequestInit passed
+  const controller = new AbortController();
+  const base = new BaseRequest("http://localhost", {
+    method: "POST",
+    keepalive: true,
+    headers: { "Content-Type": "text/html" },
+    body: "<p>test</p>",
+    redirect: "follow",
+    integrity: "sha256-BpfBw7ivV8q2jLiT13fxDYAe2tJllusRSZ273h2nFSE=",
+    signal: controller.signal,
+  });
+  let req = new Request(base);
+  // Wouldn't be the same instance if cloned
+  t.is(req.body, base.body);
+  t.is(req.headers, base.headers);
+
+  t.is(req.cache, base.cache);
+  t.is(req.credentials, base.credentials);
+  t.is(req.destination, base.destination);
+  t.is(req.integrity, base.integrity);
+  t.is(req.method, base.method);
+  t.is(req.cache, base.cache);
+  t.is(req.mode, base.mode);
+  t.is(req.redirect, base.redirect);
+  t.is(req.cache, base.cache);
+  t.is(req.referrerPolicy, base.referrerPolicy);
+  t.is(req.url, base.url);
+  t.is(req.keepalive, base.keepalive);
+  t.is(req.signal, base.signal);
+
+  // Check new BaseRequest created if RequestInit passed
+  req = new Request(base, {
+    method: "PATCH",
+  });
+  // Should be different as new instance created
+  t.not(req.body, base.body);
+  t.not(req.headers, base.headers);
+  t.is(req.method, "PATCH");
+});
+test("Request: can construct new Request from existing Request", async (t) => {
+  const req = new Request("http://localhost", {
+    method: "POST",
+    body: "body",
+  });
+  const req2 = new Request(req);
+  // Should be different as new instance created
+  t.not(req2.headers, req.headers);
+  t.not(req2.body, req.body);
+
+  t.is(req2.method, "POST");
+  t.is(await req2.text(), "body");
+});
 test("Request: supports non-standard properties", (t) => {
   const cf = { country: "GB" };
   const req = new Request("http://localhost", {
@@ -30,12 +190,23 @@ test("Request: clones non-standard properties", (t) => {
   t.deepEqual(req2.cf, cf);
   t.not(req2.cf, req.cf);
 
-  // Check prototype updated and clone still clones non-standard properties
+  // Check prototype correct and clone still clones non-standard properties
   t.is(Object.getPrototypeOf(req2), Request.prototype);
   const req3 = req2.clone();
   t.is(req3.method, "POST");
   t.deepEqual(req3.cf, cf);
   t.not(req3.cf, req2.cf);
+});
+test("Request: can be input gated", async (t) => {
+  const req = withInputGating(
+    new Request("http://localhost", {
+      method: "POST",
+      body: "body",
+    })
+  );
+  // noinspection SuspiciousTypeOfGuard
+  t.true(req instanceof InputGatedBody);
+  await waitsForInputGate(t, () => req.text());
 });
 
 test("withImmutableHeaders: makes Request's headers immutable", (t) => {
@@ -49,6 +220,49 @@ test("withImmutableHeaders: makes Request's headers immutable", (t) => {
   t.is(req.headers.get("X-Key"), "value");
 });
 
+test("Response.redirect: creates redirect response", (t) => {
+  const res = Response.redirect("http://localhost/", 302);
+  // noinspection SuspiciousTypeOfGuard
+  t.true(res instanceof Response);
+  t.is(res.headers.get("Location"), "http://localhost/");
+});
+test("Response: constructing from BaseResponse doesn't create new BaseResponse unless required", async (t) => {
+  const base = new BaseResponse("<p>test</p>", {
+    status: 404,
+    statusText: "Not Found",
+    headers: { "Content-Type": "text/html" },
+  });
+  let res = new Response(base.body, base);
+  // Wouldn't be the same if cloned
+  t.is(res.body, base.body);
+  t.is(res.headers, base.headers);
+
+  t.is(res.status, base.status);
+  t.is(res.ok, base.ok);
+  t.is(res.statusText, base.statusText);
+  t.is(res.type, base.type);
+  t.is(res.url, base.url);
+  t.is(res.redirected, base.redirected);
+
+  // Check new BaseResponse created if different body passed
+  res = new Response("<p>new</p>", base);
+  // Should be different as new instance created
+  t.not(res.body, base.body);
+  t.not(res.headers, base.headers);
+  t.is(await res.text(), "<p>new</p>");
+});
+test("Response: can construct new Response from existing Response", async (t) => {
+  const res = new Response("<p>test</p>", {
+    status: 404,
+    headers: { "Content-Type": "text/html" },
+  });
+  const res2 = new Response(res.body, res);
+  // Should be different as new instance created
+  t.not(res2.headers, res.headers);
+
+  t.is(res2.status, 404);
+  t.is(await res2.text(), "<p>test</p>");
+});
 test("Response: supports non-standard properties", (t) => {
   const pair = new WebSocketPair();
   const res = new Response(null, {
@@ -82,7 +296,7 @@ test("Response: clones non-standard properties", async (t) => {
   const res2 = res.clone();
   t.is(await res2.waitUntil(), waitUntil);
 
-  // Check prototype updated and clone still clones non-standard properties
+  // Check prototype correct and clone still clones non-standard properties
   t.is(Object.getPrototypeOf(res2), Response.prototype);
   const res3 = res2.clone();
   t.is(await res3.waitUntil(), waitUntil);
@@ -112,4 +326,72 @@ test("withWaitUntil: adds wait until to (Base)Response", async (t) => {
   const baseRes = new BaseResponse("body");
   res = withWaitUntil(baseRes, Promise.resolve(baseWaitUntil));
   t.is(await res.waitUntil(), baseWaitUntil);
+});
+
+test("inputGatedFetch: can fetch from existing Request", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  const req = new Request(upstream);
+  const res = await inputGatedFetch(req);
+  t.is(await res.text(), "upstream");
+});
+test("inputGatedFetch: waits for input gate to open before returning", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  await waitsForInputGate(t, () => inputGatedFetch(upstream));
+});
+test("inputGatedFetch: Response body is input gated", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  const res = await inputGatedFetch(upstream);
+  // noinspection SuspiciousTypeOfGuard
+  t.true(res instanceof InputGatedBody);
+  const body = await waitsForInputGate(t, () => res.text());
+  t.is(body, "upstream");
+});
+
+test("logResponse: logs HTTP response with waitUntil", async (t) => {
+  const log = new TestLog();
+  await logResponse(log, {
+    start: process.hrtime(),
+    method: "GET",
+    url: "http://localhost",
+    status: 404,
+    waitUntil: Promise.all([Promise.resolve(42)]),
+  });
+  const [level, message] = log.logs[0];
+  t.is(level, LogLevel.NONE);
+  t.regex(
+    message,
+    /GET http:\/\/localhost 404 Not Found \(\d+.\d{2}ms, waitUntil: \d+.\d{2}ms\)/
+  );
+});
+test("logResponse: logs response without status", async (t) => {
+  const log = new TestLog();
+  await logResponse(log, {
+    start: process.hrtime(),
+    method: "SCHD",
+    url: "http://localhost",
+  });
+  const [level, message] = log.logs[0];
+  t.is(level, LogLevel.NONE);
+  t.regex(message, /SCHD http:\/\/localhost \(\d+.\d{2}ms\)/);
+});
+test("logResponse: logs waitUntil error", async (t) => {
+  const log = new TestLog();
+  log.error = (message) => log.logWithLevel(LogLevel.ERROR, message.toString());
+  await logResponse(log, {
+    start: process.hrtime(),
+    method: "GET",
+    url: "http://localhost",
+    status: 200,
+    waitUntil: Promise.all([Promise.reject(new TypeError("Test"))]),
+  });
+  t.is(log.logs.length, 2);
+  let [level, message] = log.logs[0];
+  t.is(level, LogLevel.ERROR);
+  t.regex(message, /^TypeError: Test/);
+  [level, message] = log.logs[1];
+  t.is(level, LogLevel.NONE);
+  t.regex(
+    message,
+    /GET http:\/\/localhost 200 OK \(\d+.\d{2}ms, waitUntil: \d+.\d{2}ms\)/
+  );
 });

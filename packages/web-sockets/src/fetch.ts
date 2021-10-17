@@ -1,5 +1,10 @@
-import { Request, RequestInfo, RequestInit, Response } from "@miniflare/core";
-import { fetch as baseFetch } from "undici";
+import {
+  Request,
+  RequestInfo,
+  RequestInit,
+  Response,
+  inputGatedFetch,
+} from "@miniflare/core";
 import StandardWebSocket from "ws";
 import { coupleWebSocket } from "./couple";
 import { WebSocketPair } from "./websocket";
@@ -41,6 +46,5 @@ export async function upgradingFetch(
   //  https://developers.cloudflare.com/workers/learning/how-the-cache-works#fetch
   //  https://developers.cloudflare.com/workers/examples/cache-using-fetch
 
-  const res = await baseFetch(request);
-  return new Response(res.body, res);
+  return inputGatedFetch(request);
 }

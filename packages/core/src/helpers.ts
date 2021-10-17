@@ -12,7 +12,3 @@ export function formatSize(bytes: number): string {
   if (bytes >= 512) return `${(bytes / 1_024).toFixed(2)}KiB`;
   return `${bytes}B`;
 }
-
-export function addAll<T>(set: Set<T>, values: Iterable<T>): void {
-  for (const value of values) set.add(value);
-}

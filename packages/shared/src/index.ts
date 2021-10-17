@@ -5,5 +5,5 @@ export * from "./log";
 export * from "./plugin";
 export * from "./runner";
 export * from "./storage";
-export * from "./sync";
+export * from "./sync/";
 export * from "./wrangler";

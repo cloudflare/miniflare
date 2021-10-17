@@ -3,7 +3,12 @@ import { URL } from "url";
 import { Cache, CachedMeta } from "@miniflare/cache";
 import { Response } from "@miniflare/core";
 import { StorageOperator } from "@miniflare/shared";
-import { getObjectProperties, utf8Decode } from "@miniflare/shared-test";
+import {
+  getObjectProperties,
+  utf8Decode,
+  waitsForInputGate,
+  waitsForOutputGate,
+} from "@miniflare/shared-test";
 import { MemoryStorageOperator } from "@miniflare/storage-memory";
 import { WebSocketPair } from "@miniflare/web-sockets";
 import anyTest, { Macro, TestInterface } from "ava";
@@ -32,7 +37,7 @@ test.beforeEach((t) => {
 });
 
 // Cache:* tests adapted from Cloudworker:
-// https://github.com/dollarshaveclub/cloudworker/blob/master/lib/runtime/cache/__tests__/cache.test.js
+// https://github.com/dollarshaveclub/cloudworker/blob/4976f88c3d2629fbbd4ca49da88b9c8bf048ce0f/lib/runtime/cache/__tests__/cache.test.js
 const putMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   const { storage, cache } = t.context;
   await cache.put(req, testResponse());
@@ -114,6 +119,21 @@ test("Cache: doesn't cache vary all responses", async (t) => {
   });
 });
 
+test("Cache: put waits for output gate to open before storing", (t) => {
+  const { cache } = t.context;
+  return waitsForOutputGate(
+    t,
+    () => cache.put("http://localhost:8787/", testResponse()),
+    () => cache.match("http://localhost:8787/")
+  );
+});
+test("Cache: put waits for input gate to open before returning", (t) => {
+  const { cache } = t.context;
+  return waitsForInputGate(t, () =>
+    cache.put("http://localhost:8787/", testResponse())
+  );
+});
+
 const matchMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   const { cache } = t.context;
   await cache.put(new Request("http://localhost:8787/test"), testResponse());
@@ -145,6 +165,16 @@ test("Cache: only matches non-GET requests when ignoring method", async (t) => {
   t.not(await cache.match(req, { ignoreMethod: true }), undefined);
 });
 
+test("Cache: match MISS waits for input gate to open before returning", async (t) => {
+  const { cache } = t.context;
+  await waitsForInputGate(t, () => cache.match("http://localhost:8787/"));
+});
+test("Cache: match HIT waits for input gate to open before returning", async (t) => {
+  const { cache } = t.context;
+  await cache.put("http://localhost:8787/", testResponse());
+  await waitsForInputGate(t, () => cache.match("http://localhost:8787/"));
+});
+
 const deleteMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   const { storage, cache } = t.context;
   await cache.put(new Request("http://localhost:8787/test"), testResponse());
@@ -164,6 +194,21 @@ test("Cache: only deletes non-GET requests when ignoring method", async (t) => {
   const req = new Request("http://localhost:8787/test", { method: "POST" });
   t.false(await cache.delete(req));
   t.true(await cache.delete(req, { ignoreMethod: true }));
+});
+
+test("Cache: delete waits for output gate to open before deleting", async (t) => {
+  const { cache } = t.context;
+  await cache.put("http://localhost:8787/", testResponse());
+  await waitsForOutputGate(
+    t,
+    () => cache.delete("http://localhost:8787/"),
+    async () => !(await cache.match("http://localhost:8787/"))
+  );
+});
+test("Cache: delete waits for input gate to open before returning", async (t) => {
+  const { cache } = t.context;
+  await cache.put("http://localhost:8787/", testResponse());
+  await waitsForInputGate(t, () => cache.delete("http://localhost:8787/"));
 });
 
 const expireMacro: Macro<

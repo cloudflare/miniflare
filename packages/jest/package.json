@@ -33,7 +33,9 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/shared": "2.0.0"
+    "@miniflare/core": "2.0.0",
+    "@miniflare/shared": "2.0.0",
+    "miniflare": "2.0.0"
   },
   "peerDependencies": {
     "jest": ">=27"

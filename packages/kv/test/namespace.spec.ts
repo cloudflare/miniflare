@@ -1,3 +1,4 @@
+import assert from "assert";
 import { ReadableStream } from "stream/web";
 import {
   KVGetValueType,
@@ -18,7 +19,10 @@ import {
   TIME_NOW,
   getObjectProperties,
   testClock,
+  utf8Decode,
   utf8Encode,
+  waitsForInputGate,
+  waitsForOutputGate,
 } from "@miniflare/shared-test";
 import { MemoryStorageOperator } from "@miniflare/storage-memory";
 import anyTest, { Macro, TestInterface } from "ava";
@@ -101,6 +105,23 @@ test("get: ignores cache ttl", async (t) => {
   t.deepEqual(await ns.get("key", { type: "json", cacheTtl: 3600 }), {
     field: "value",
   });
+});
+test("get: waits for input gate to open before returning", async (t) => {
+  const { ns } = t.context;
+  await ns.put("key", "value");
+  await waitsForInputGate(t, () => ns.get("key"));
+});
+test("get: waits for input gate to open before returning with non-existent key", async (t) => {
+  const { ns } = t.context;
+  await waitsForInputGate(t, () => ns.get("key"));
+});
+test("get: waits for input gate to open before returning stream chunk", async (t) => {
+  const { ns } = t.context;
+  await ns.put("key", "value");
+  const stream = await waitsForInputGate(t, () => ns.get("key", "stream"));
+  assert(stream);
+  const chunk = await waitsForInputGate(t, () => stream.getReader().read());
+  t.is(utf8Decode(chunk.value), "value");
 });
 
 const getWithMetadataMacro: Macro<
@@ -196,6 +217,25 @@ test("getWithMetadata: ignores cache ttl", async (t) => {
     }
   );
 });
+test("getWithMetadata: waits for input gate to open before returning", async (t) => {
+  const { ns } = t.context;
+  await ns.put("key", "value");
+  await waitsForInputGate(t, () => ns.getWithMetadata("key"));
+});
+test("getWithMetadata: waits for input gate to open before returning with non-existent key", async (t) => {
+  const { ns } = t.context;
+  await waitsForInputGate(t, () => ns.getWithMetadata("key"));
+});
+test("getWithMetadata: waits for input gate to open before returning stream chunk", async (t) => {
+  const { ns } = t.context;
+  await ns.put("key", "value");
+  const { value } = await waitsForInputGate(t, () =>
+    ns.getWithMetadata("key", "stream")
+  );
+  assert(value);
+  const chunk = await waitsForInputGate(t, () => value.getReader().read());
+  t.is(utf8Decode(chunk.value), "value");
+});
 
 const putMacro: Macro<
   [
@@ -286,6 +326,18 @@ test("put: overrides existing keys", async (t) => {
     metadata: { testing: true },
   });
 });
+test("put: waits for output gate to open before storing", async (t) => {
+  const { ns } = t.context;
+  await waitsForOutputGate(
+    t,
+    () => ns.put("key", "value"),
+    () => ns.get("key")
+  );
+});
+test("put: waits for input gate to open before returning", async (t) => {
+  const { ns } = t.context;
+  await waitsForInputGate(t, () => ns.put("key", "value"));
+});
 
 test("delete: deletes existing keys", async (t) => {
   const { storage, ns } = t.context;
@@ -298,6 +350,20 @@ test("delete: does nothing for non-existent keys", async (t) => {
   const { ns } = t.context;
   await ns.delete("key");
   await t.pass();
+});
+test("delete: waits for output gate to open before deleting", async (t) => {
+  const { ns } = t.context;
+  await ns.put("key", "value");
+  await waitsForOutputGate(
+    t,
+    () => ns.delete("key"),
+    async () => !(await ns.get("key"))
+  );
+});
+test("delete: waits for input gate to open before returning", async (t) => {
+  const { ns } = t.context;
+  await ns.put("key", "value");
+  await waitsForInputGate(t, () => ns.delete("key"));
 });
 
 const listMacro: Macro<
@@ -529,6 +595,11 @@ test("list: ignores expired keys", async (t) => {
     });
   }
   t.deepEqual(await ns.list(), { keys: [], list_complete: true, cursor: "" });
+});
+test("list: waits for input gate to open before returning", async (t) => {
+  const { ns } = t.context;
+  await ns.put("key", "value");
+  await waitsForInputGate(t, () => ns.list());
 });
 
 test("hides implementation details", (t) => {

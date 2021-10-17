@@ -31,7 +31,7 @@ import {
   SetupResult,
   globsToMatcher,
 } from "@miniflare/shared";
-import { File, FormData, Headers, fetch } from "undici";
+import { File, FormData, Headers } from "undici";
 import {
   DOMException,
   FetchEvent,
@@ -41,6 +41,9 @@ import {
   TextDecoder,
   WorkerGlobalScope,
   crypto,
+  inputGatedFetch,
+  inputGatedSetInterval,
+  inputGatedSetTimeout,
 } from "../standards";
 
 const DEFAULT_MODULE_RULES: ModuleRule[] = [
@@ -194,8 +197,8 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     this.#globals = {
       console,
 
-      setTimeout,
-      setInterval,
+      setTimeout: inputGatedSetTimeout,
+      setInterval: inputGatedSetInterval,
       clearTimeout,
       clearInterval,
 
@@ -207,7 +210,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       TextDecoder,
       TextEncoder,
 
-      fetch,
+      fetch: inputGatedFetch,
       Headers,
       Request,
       Response,
@@ -266,7 +269,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       Uint32Array,
       WeakMap,
       WeakSet,
-      WebAssembly,
+      WebAssembly, // TODO: check WebAssembly compilation still disabled even if this is passed into sandbox
     };
 
     // Process module rules if modules mode was enabled

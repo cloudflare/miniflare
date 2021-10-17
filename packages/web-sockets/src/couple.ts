@@ -12,6 +12,7 @@ export async function coupleWebSocket(
   ws: StandardWebSocket,
   pair: WebSocket
 ): Promise<void> {
+  // TODO: test errors
   if (pair[kCoupled]) {
     throw new TypeError(
       "Can't return WebSocket that was already used in a response."

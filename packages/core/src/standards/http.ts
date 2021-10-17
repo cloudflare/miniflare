@@ -1,5 +1,14 @@
+import assert from "assert";
+import { Blob } from "buffer";
 import http from "http";
-import { Log, nonCircularClone } from "@miniflare/shared";
+import { ReadableStream } from "stream/web";
+import { URL } from "url";
+import {
+  InputGatedTransformStream,
+  Log,
+  nonCircularClone,
+  waitForOpenInputGate,
+} from "@miniflare/shared";
 import type { WebSocket } from "@miniflare/web-sockets";
 import { Colorize, blue, bold, green, grey, red, yellow } from "kleur/colors";
 import {
@@ -9,9 +18,131 @@ import {
   Response as BaseResponse,
   ResponseInit as BaseResponseInit,
   BodyInit,
+  BodyMixin,
+  ControlledAsyncIterable,
+  FormData,
+  RequestCache,
+  ResponseType,
+  fetch as baseFetch,
 } from "undici";
 // @ts-expect-error we need these for making Request's Headers immutable
 import fetchSymbols from "undici/lib/fetch/symbols.js";
+import {
+  Headers,
+  RequestCredentials,
+  RequestDestination,
+  RequestMode,
+  RequestRedirect,
+  ResponseRedirectStatus,
+} from "undici/types/fetch";
+
+// Instead of subclassing our customised Request and Response classes from
+// BaseRequest and BaseResponse, we instead compose them and implement the same
+// interface.
+//
+// This allows us to clone them without changing the prototype (which we'd have
+// to do so custom properties like cf are cloned if we clone the new cloned
+// response again).
+//
+// It also allows us to more easily apply input gating to the body stream whilst
+// still allowing it to be cloned. Internally, undici calls tee() on the actual
+// `body` property, but calling pipeThrough() on the stream (to apply input
+// gating) locks it, preventing the tee and the clone. We could use a Proxy to
+// lazily pipeThrough() when calling getReader(), [Symbol.asyncIterator](),
+// pipeTo(), or pipeThrough() on the stream, but then input gating wouldn't be
+// applied if the user called tee() themselves on the `body`.
+//
+// Finally, it allows us to easily remove methods Workers don't implement.
+export const kInner = Symbol("kInner");
+
+const kInputGated = Symbol("kInputGated");
+
+export class InputGatedBody<Inner extends BodyMixin> {
+  [kInner]: Inner;
+  [kInputGated] = false;
+  #inputGatedBody?: ReadableStream;
+
+  constructor(inner: Inner) {
+    this[kInner] = inner;
+  }
+
+  get body(): ControlledAsyncIterable | null {
+    const body = this[kInner].body;
+    if (!this[kInputGated] || body === null) return body;
+
+    // Only proxy body once
+    // @ts-expect-error ReadableStreams are basically ControlledAsyncIterables.
+    //  Users' Workers code will also expect ReadableStreams.
+    if (this.#inputGatedBody) return this.#inputGatedBody;
+
+    assert(body instanceof ReadableStream);
+    let bodyStream: ReadableStream = body; // Keep TypeScript happy later on
+    let bodyPiped = false;
+    this.#inputGatedBody = new Proxy(bodyStream, {
+      get(target, propertyKey: keyof ReadableStream, receiver) {
+        // Only call pipeThrough once we start reading the body. This means
+        // if the user just gets it (maybe to check it's not null?), but doesn't
+        // read anything from it, the stream won't be locked.
+        //
+        // locked (and cancel, but it doesn't matter if we cancel the piped
+        // stream) is the only property that doesn't read stream data.
+        // The rest do: getReader, pipeThrough, pipeTo, tee, values,
+        //  [Symbol.asyncIterator]
+        if (
+          !bodyPiped &&
+          (propertyKey === Symbol.asyncIterator ||
+            propertyKey === "getReader" ||
+            propertyKey === "pipeThrough" ||
+            propertyKey === "pipeTo" ||
+            propertyKey === "tee" ||
+            propertyKey === "values")
+        ) {
+          bodyPiped = true;
+          bodyStream = bodyStream.pipeThrough(new InputGatedTransformStream());
+        }
+        return Reflect.get(bodyStream, propertyKey, receiver);
+      },
+    });
+    // @ts-expect-error see above @ts-expect-error comment
+    return this.#inputGatedBody;
+  }
+  get bodyUsed(): boolean {
+    return this[kInner].bodyUsed;
+  }
+
+  async arrayBuffer(): Promise<Buffer> {
+    const body = await this[kInner].arrayBuffer();
+    this[kInputGated] && (await waitForOpenInputGate());
+    return body;
+  }
+  async blob(): Promise<Blob> {
+    const body = await this[kInner].blob();
+    this[kInputGated] && (await waitForOpenInputGate());
+    return body;
+  }
+  async formData(): Promise<FormData> {
+    const body = await this[kInner].formData();
+    this[kInputGated] && (await waitForOpenInputGate());
+    return body;
+  }
+  async json<T>(): Promise<T> {
+    const body = await this[kInner].json();
+    this[kInputGated] && (await waitForOpenInputGate());
+    return body as T;
+  }
+  async text(): Promise<string> {
+    const body = await this[kInner].text();
+    this[kInputGated] && (await waitForOpenInputGate());
+    return body;
+  }
+}
+
+export function withInputGating<Body extends InputGatedBody<BodyMixin>>(
+  body: Body
+): Body {
+  body[kInputGated] = true;
+  return body;
+}
 
 export type RequestInfo = BaseRequestInfo | Request;
 
@@ -19,30 +150,74 @@ export interface RequestInit extends BaseRequestInit {
   readonly cf?: any; // TODO: type properly
 }
 
-const kCf = Symbol("kCf");
-
-export class Request extends BaseRequest {
-  private [kCf]?: any;
+export class Request
+  extends InputGatedBody<BaseRequest>
+  implements BaseRequest
+{
+  // noinspection TypeScriptFieldCanBeMadeReadonly
+  #cf?: any;
 
   constructor(input: RequestInfo, init?: RequestInit) {
-    super(input, init);
-    const cf = input instanceof Request ? input[kCf] : init?.cf;
-    this[kCf] = cf ? nonCircularClone(cf) : undefined;
+    if (input instanceof BaseRequest && !init) {
+      // For cloning
+      super(input);
+    } else {
+      // Don't pass our strange hybrid Request to undici
+      if (input instanceof Request) input = input[kInner];
+      super(new BaseRequest(input, init));
+    }
+    const cf = input instanceof Request ? input.#cf : init?.cf;
+    this.#cf = cf ? nonCircularClone(cf) : undefined;
+  }
+
+  clone(): Request {
+    const innerClone = this[kInner].clone();
+    const clone = new Request(innerClone);
+    clone.#cf = this.cf ? nonCircularClone(this.cf) : undefined;
+    return clone;
   }
 
   get cf(): any | undefined {
-    return this[kCf];
+    return this.#cf;
   }
 
-  clone = (): Request => {
-    // @ts-expect-error cloned is a BaseRequest, but we're changing its
-    // prototype. This is horrible, but it works. ;)
-    const cloned: Request = super.clone();
-    Object.setPrototypeOf(cloned, Request.prototype);
-    cloned[kCf] = this.cf ? nonCircularClone(this.cf) : undefined;
-    cloned.clone = this.clone.bind(cloned);
-    return cloned;
-  };
+  // Pass-through standard properties
+  get cache(): RequestCache {
+    return this[kInner].cache;
+  }
+  get credentials(): RequestCredentials {
+    return this[kInner].credentials;
+  }
+  get destination(): RequestDestination {
+    return this[kInner].destination;
+  }
+  get headers(): Headers {
+    return this[kInner].headers;
+  }
+  get integrity(): string {
+    return this[kInner].integrity;
+  }
+  get method(): string {
+    return this[kInner].method;
+  }
+  get mode(): RequestMode {
+    return this[kInner].mode;
+  }
+  get redirect(): RequestRedirect {
+    return this[kInner].redirect;
+  }
+  get referrerPolicy(): string {
+    return this[kInner].referrerPolicy;
+  }
+  get url(): string {
+    return this[kInner].url;
+  }
+  get keepalive(): boolean {
+    return this[kInner].keepalive;
+  }
+  get signal(): AbortSignal {
+    return this[kInner].signal;
+  }
 }
 
 export function withImmutableHeaders(req: Request): Request {
@@ -55,38 +230,65 @@ export interface ResponseInit extends BaseResponseInit {
   readonly webSocket?: WebSocket;
 }
 
-const kStatus = Symbol("kStatus");
 const kWaitUntil = Symbol("kWaitUntil");
 
-export class Response<
-  WaitUntil extends any[] = unknown[]
-> extends BaseResponse {
+export class Response<WaitUntil extends any[] = unknown[]>
+  extends InputGatedBody<BaseResponse>
+  implements BaseResponse
+{
+  // Note Workers don't implement Response.error()
+
+  static redirect(url: string | URL, status: ResponseRedirectStatus): Response {
+    const res = BaseResponse.redirect(url, status);
+    return new Response(res.body, res);
+  }
+
   // noinspection TypeScriptFieldCanBeMadeReadonly
-  private [kStatus]?: number;
+  #status?: number;
   readonly #webSocket?: WebSocket;
   [kWaitUntil]?: Promise<WaitUntil>;
 
-  constructor(body?: BodyInit, init?: ResponseInit) {
-    // Status 101 Switching Protocols would normally throw a RangeError, but we
-    // need to allow it for WebSockets
-    let originalStatus: number | undefined;
-    if (init?.webSocket) {
-      if (init.status !== 101) {
-        throw new RangeError(
-          "Responses with a WebSocket must have status code 101."
-        );
+  constructor(body?: BodyInit, init?: ResponseInit | Response | BaseResponse) {
+    let status: number | undefined;
+    let webSocket: WebSocket | undefined;
+    if (init instanceof BaseResponse && body === init.body) {
+      // For cloning
+      super(init);
+    } else {
+      if (init instanceof Response) {
+        // Don't pass our strange hybrid Response to undici
+        init = init[kInner];
+      } else if (!(init instanceof BaseResponse) /* ResponseInit */) {
+        // Status 101 Switching Protocols would normally throw a RangeError, but we
+        // need to allow it for WebSockets
+        if (init?.webSocket) {
+          if (init.status !== 101) {
+            throw new RangeError(
+              "Responses with a WebSocket must have status code 101."
+            );
+          }
+          status = init.status;
+          webSocket = init.webSocket;
+          init = { ...init, status: 200 };
+        }
       }
-      originalStatus = init.status;
-      init = { ...init, status: 200 };
+      super(new BaseResponse(body, init));
     }
-    super(body, init);
-    this[kStatus] = originalStatus;
-    this.#webSocket = init?.webSocket;
+    this.#status = status;
+    this.#webSocket = webSocket;
   }
 
-  // @ts-expect-error status is defined as an accessor in undici
-  get status(): number {
-    return this[kStatus] ?? super.status;
+  clone(): Response {
+    if (this.#webSocket) {
+      throw new TypeError("Cannot clone a response to a WebSocket handshake.");
+    }
+    const innerClone = this[kInner].clone();
+    const clone = new Response(innerClone.body, innerClone);
+    // Technically don't need to copy status, as it should only be set for
+    // WebSocket handshake responses
+    clone.#status = this.#status;
+    clone[kWaitUntil] = this[kWaitUntil];
+    return clone;
   }
 
   get webSocket(): WebSocket | undefined {
@@ -97,20 +299,29 @@ export class Response<
     return this[kWaitUntil] ?? Promise.resolve([] as unknown as WaitUntil);
   }
 
-  clone = (): Response => {
-    if (this.#webSocket) {
-      throw new TypeError("Cannot clone a response to a WebSocket handshake.");
-    }
+  get status(): number {
+    return this.#status ?? this[kInner].status;
+  }
 
-    // @ts-expect-error cloned is a BaseResponse, but we're changing its
-    // prototype. This is horrible, but it works. ;)
-    const cloned: Response = super.clone();
-    Object.setPrototypeOf(cloned, Response.prototype);
-    cloned[kStatus] = this[kStatus];
-    cloned[kWaitUntil] = this[kWaitUntil];
-    cloned.clone = this.clone.bind(cloned);
-    return cloned;
-  };
+  // Pass-through standard properties
+  get headers(): Headers {
+    return this[kInner].headers;
+  }
+  get ok(): boolean {
+    return this[kInner].ok;
+  }
+  get statusText(): string {
+    return this[kInner].statusText;
+  }
+  get type(): ResponseType {
+    return this[kInner].type;
+  }
+  get url(): string {
+    return this[kInner].url;
+  }
+  get redirected(): boolean {
+    return this[kInner].redirected;
+  }
 }
 
 export function withWaitUntil<WaitUntil extends any[]>(
@@ -123,6 +334,19 @@ export function withWaitUntil<WaitUntil extends any[]>(
       : new Response(res.body, res);
   resWaitUntil[kWaitUntil] = waitUntil;
   return resWaitUntil;
+}
+
+export async function inputGatedFetch(
+  input: RequestInfo,
+  init?: RequestInit
+): Promise<Response> {
+  // Don't pass our strange hybrid Request to undici
+  // noinspection SuspiciousTypeOfGuard
+  if (input instanceof Request) input = input[kInner];
+  const baseRes = await baseFetch(input, init);
+  const res = new Response(baseRes.body, baseRes);
+  await waitForOpenInputGate();
+  return withInputGating(res);
 }
 
 export type HRTime = [seconds: number, nanoseconds: number];
@@ -161,6 +385,8 @@ export async function logResponse(
   try {
     waitUntilResponse = await waitUntil;
   } catch (e: any) {
+    // Create dummy waitUntilResponse so waitUntil time shown in log
+    waitUntilResponse = [""];
     log.error(e);
   }
   const waitUntilTime = millisFromHRTime(process.hrtime(start));

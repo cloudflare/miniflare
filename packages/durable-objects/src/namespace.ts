@@ -1,15 +1,28 @@
 import { createHash, webcrypto } from "crypto";
-import { Request, RequestInfo, RequestInit, Response } from "@miniflare/core";
-import { Context, MaybePromise } from "@miniflare/shared";
+import { URL } from "url";
+import {
+  Request,
+  RequestInfo,
+  RequestInit,
+  Response,
+  withImmutableHeaders,
+  withInputGating,
+} from "@miniflare/core";
+import {
+  Context,
+  InputGate,
+  MaybePromise,
+  OutputGate,
+} from "@miniflare/shared";
 import { DurableObjectStorage } from "./storage";
 
-export function hexEncode(value: Uint8Array): string {
+function hexEncode(value: Uint8Array): string {
   return Array.from(value)
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
 }
 
-const kObjectName = Symbol("kObjectName");
+export const kObjectName = Symbol("kObjectName");
 
 export class DurableObjectId {
   readonly [kObjectName]: string;
@@ -21,29 +34,13 @@ export class DurableObjectId {
   }
 
   equals(other: DurableObjectId): boolean {
+    // noinspection SuspiciousTypeOfGuard
+    if (!(other instanceof DurableObjectId)) return false;
     return this.#hexId === other.#hexId;
   }
 
   toString(): string {
     return this.#hexId;
-  }
-}
-
-export function objectNameFromId(id: DurableObjectId): string {
-  return id[kObjectName];
-}
-
-export class DurableObjectState {
-  constructor(
-    readonly id: DurableObjectId,
-    readonly storage: DurableObjectStorage
-  ) {}
-
-  waitUntil(_promise: Promise<void>): void {}
-
-  blockConcurrencyWhile<T>(closure: () => Promise<T>): Promise<T> {
-    // TODO: add support with input gates
-    return closure();
   }
 }
 
@@ -55,26 +52,37 @@ export interface DurableObject {
   fetch(request: Request): MaybePromise<Response>;
 }
 
-export class DurableObjectInternals {
-  // private inputGate = new InputGate();
+export const kInstance = Symbol("kInstance");
+const kFetch = Symbol("kFetch");
+
+export class DurableObjectState {
+  #inputGate = new InputGate();
+  [kInstance]?: DurableObject;
 
   constructor(
-    readonly state: DurableObjectState,
-    private readonly instance: DurableObject
+    readonly id: DurableObjectId,
+    readonly storage: DurableObjectStorage
   ) {}
 
-  fetch(request: Request): Promise<Response> {
-    // return this.inputGate.runGatedEvent(() => {
-    return Promise.resolve(this.instance.fetch(request));
-    // });
+  waitUntil(_promise: Promise<void>): void {}
+
+  blockConcurrencyWhile<T>(closure: () => Promise<T>): Promise<T> {
+    // TODO: catch, reset object on error
+    return this.#inputGate.runWithClosed(closure);
   }
 
-  // TODO: input gates, blockConcurrencyWhile
+  [kFetch](request: Request): Promise<Response> {
+    // TODO: catch, reset object on error
+    const outputGate = new OutputGate();
+    return outputGate.runWith(() =>
+      this.#inputGate.runWith(() => this[kInstance]!.fetch(request))
+    );
+  }
 }
 
 export type DurableObjectFactory = (
   id: DurableObjectId
-) => Promise<DurableObjectInternals>;
+) => Promise<DurableObjectState>;
 
 export class DurableObjectStub {
   readonly #factory: DurableObjectFactory;
@@ -89,14 +97,19 @@ export class DurableObjectStub {
 
   // TODO: check websocket requests work here
   async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-    const internals = await this.#factory(this.id);
-    // TODO: add fake-host
-    return internals.fetch(new Request(input, init));
+    // Get object
+    const state = await this.#factory(this.id);
+
+    // Make sure relative URLs prefixed with https://fake-host
+    if (typeof input === "string") input = new URL(input, "https://fake-host");
+    const request =
+      input instanceof Request && !init ? input : new Request(input, init);
+    return state[kFetch](withInputGating(withImmutableHeaders(request)));
   }
 }
 
 export interface NewUniqueIdOptions {
-  jurisdiction?: "eu";
+  jurisdiction?: string; // Ignored
 }
 
 const HEX_ID_REGEXP = /^[A-Za-z0-9]{64}$/; // 64 hex digits
@@ -156,10 +169,10 @@ export class DurableObjectNamespace {
     // might be used in a call to `Miniflare#getDurableObjectStorage` which
     // doesn't check this. Other ways of creating an ID (apart from using the
     // constructor) will always have the correct hash.
-    // TODO: maybe move the check anyways, this isn't where this check happens
-    //  in real workers
     if (!hexId.endsWith(this.#objectNameHashHex)) {
-      throw new TypeError("ID is not for this Durable Object class.");
+      throw new TypeError(
+        "Invalid Durable Object ID. The ID does not match this Durable Object class."
+      );
     }
     return new DurableObjectId(this.#objectName, hexId.toLowerCase());
   }
@@ -169,7 +182,6 @@ export class DurableObjectNamespace {
       id[kObjectName] !== this.#objectName ||
       !id.toString().endsWith(this.#objectNameHashHex)
     ) {
-      // TODO: check this shouldn't be "Invalid Durable Object ID. The ID does not match this Durable Object class."
       throw new TypeError("ID is not for this Durable Object class.");
     }
     return new DurableObjectStub(this.#factory, id);

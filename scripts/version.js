@@ -22,7 +22,7 @@ function updateDependencyVersions(newVersion, dependencies) {
   for (const dependency in dependencies) {
     if (
       dependencies.hasOwnProperty(dependency) &&
-      dependency.startsWith(scope)
+      (dependency.startsWith(scope) || dependency === "miniflare")
     ) {
       dependencies[dependency] = newVersion;
     }

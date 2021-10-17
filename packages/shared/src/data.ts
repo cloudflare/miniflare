@@ -4,6 +4,10 @@ export function nonCircularClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
 
+export function addAll<T>(set: Set<T>, values: Iterable<T>): void {
+  for (const value of values) set.add(value);
+}
+
 export function viewToArray(view: ArrayBufferView): Uint8Array {
   return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
 }
