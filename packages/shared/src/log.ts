@@ -71,9 +71,6 @@ export class Log {
     this.logWithLevel(LogLevel.WARN, message);
   }
 
-  // TODO: implement
-  // warnOnce(message: string): void {}
-
   info(message: string): void {
     this.logWithLevel(LogLevel.INFO, message);
   }

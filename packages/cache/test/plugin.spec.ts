@@ -6,10 +6,11 @@ import {
   CachedMeta,
   NoOpCache,
 } from "@miniflare/cache";
-import { StoredValueMeta } from "@miniflare/shared";
+import { LogLevel, StoredValueMeta } from "@miniflare/shared";
 import {
   MemoryStorageFactory,
   NoOpLog,
+  TestLog,
   getObjectProperties,
   logPluginOptions,
   parsePluginArgv,
@@ -19,16 +20,18 @@ import {
 import test from "ava";
 import { testResponse } from "./helpers";
 
+const log = new NoOpLog();
+
 test("CacheStorage: provides default cache", async (t) => {
   const factory = new MemoryStorageFactory();
-  const caches = new CacheStorage({}, factory);
+  const caches = new CacheStorage({}, log, factory);
   await caches.default.put("http://localhost:8787/", testResponse());
   const cached = await caches.default.match("http://localhost:8787/");
   t.is(await cached?.text(), "value");
 });
 test("CacheStorage: namespaced caches are separate from default cache and each other", async (t) => {
   const factory = new MemoryStorageFactory();
-  const caches = new CacheStorage({}, factory);
+  const caches = new CacheStorage({}, log, factory);
   const cache2 = await caches.open("cache2");
   const cache3 = await caches.open("cache3");
 
@@ -45,7 +48,7 @@ test("CacheStorage: namespaced caches are separate from default cache and each o
 });
 test("CacheStorage: cannot create namespaced cache named default", async (t) => {
   const factory = new MemoryStorageFactory();
-  const caches = new CacheStorage({}, factory);
+  const caches = new CacheStorage({}, log, factory);
   await t.throwsAsync(caches.open("default"), {
     instanceOf: CacheError,
     code: "ERR_RESERVED",
@@ -55,7 +58,7 @@ test("CacheStorage: cannot create namespaced cache named default", async (t) => 
 test("CacheStorage: persists cached data", async (t) => {
   const map = new Map<string, StoredValueMeta<CachedMeta>>();
   const factory = new MemoryStorageFactory({ ["map:default"]: map });
-  const caches = new CacheStorage({ cachePersist: "map" }, factory);
+  const caches = new CacheStorage({ cachePersist: "map" }, log, factory);
   await caches.default.put("http://localhost:8787/", testResponse());
   const cached = map.get("http://localhost:8787/");
   t.is(cached?.metadata?.status, 200);
@@ -67,14 +70,34 @@ test("CacheStorage: persists cached data", async (t) => {
 });
 test("CacheStorage: disables caching", async (t) => {
   const factory = new MemoryStorageFactory();
-  const caches = new CacheStorage({ disableCache: true }, factory);
+  const caches = new CacheStorage({ disableCache: true }, log, factory);
   await caches.default.put("http://localhost:8787/", testResponse());
   const cached = await caches.default.match("http://localhost:8787/");
   t.is(cached, undefined);
 });
+test("CacheStorage: warns once if caching disabled when deploying", async (t) => {
+  const factory = new MemoryStorageFactory();
+  const log = new TestLog();
+  const warning =
+    "Cache operations will have no impact if you deploy to a workers.dev subdomain!";
+
+  let caches = new CacheStorage({ cacheWarnUsage: true }, log, factory);
+  caches.default;
+  t.deepEqual(log.logs, [[LogLevel.WARN, warning]]);
+  log.logs = [];
+  await caches.open("test");
+  t.deepEqual(log.logs, []);
+
+  caches = new CacheStorage({ cacheWarnUsage: true }, log, factory);
+  await caches.open("test");
+  t.deepEqual(log.logs, [[LogLevel.WARN, warning]]);
+  log.logs = [];
+  caches.default;
+  t.deepEqual(log.logs, []);
+});
 test("CacheStorage: hides implementation details", (t) => {
   const factory = new MemoryStorageFactory();
-  const caches = new CacheStorage({}, factory);
+  const caches = new CacheStorage({}, log, factory);
   t.deepEqual(getObjectProperties(caches), ["default", "open"]);
 });
 
@@ -90,9 +113,14 @@ test("CachePlugin: parses options from argv", (t) => {
 });
 test("CachePlugin: parses options from wrangler config", (t) => {
   const options = parsePluginWranglerConfig(CachePlugin, {
+    workers_dev: true,
     miniflare: { cache_persist: "path", disable_cache: true },
   });
-  t.deepEqual(options, { cachePersist: "path", disableCache: true });
+  t.deepEqual(options, {
+    cachePersist: "path",
+    disableCache: true,
+    cacheWarnUsage: true,
+  });
 });
 test("CachePlugin: logs options", (t) => {
   const logs = logPluginOptions(CachePlugin, {
