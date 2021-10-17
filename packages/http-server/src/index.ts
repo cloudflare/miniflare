@@ -5,6 +5,7 @@ import { arrayBuffer } from "stream/consumers";
 import { URL } from "url";
 import {
   CorePluginSignatures,
+  IncomingRequestCfProperties,
   MiniflareCore,
   Request,
   Response,
@@ -46,6 +47,8 @@ export async function convertNodeRequest(
     headers.append(name, Array.isArray(value) ? value.join(", ") : value);
   }
 
+  // TODO: get from https://workers.cloudflare.com/cf.json
+
   // Add additional Cloudflare specific headers:
   // https://support.cloudflare.com/hc/en-us/articles/200170986-How-does-Cloudflare-handle-HTTP-Request-headers-
   let ip = req.socket.remoteAddress;
@@ -59,7 +62,7 @@ export async function convertNodeRequest(
 
   // Create Request with additional Cloudflare specific properties:
   // https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties
-  const cf = {
+  const cf: IncomingRequestCfProperties = {
     asn: 395747,
 
     colo: "DFW",
@@ -79,6 +82,18 @@ export async function convertNodeRequest(
     requestPriority: "weight=192;exclusive=0",
     tlsCipher: "AEAD-AES128-GCM-SHA256",
     tlsVersion: "TLSv1.3",
+    tlsClientAuth: {
+      certIssuerDNLegacy: "",
+      certIssuerDN: "",
+      certPresented: "0",
+      certSubjectDNLegacy: "",
+      certSubjectDN: "",
+      certNotBefore: "",
+      certNotAfter: "",
+      certSerial: "",
+      certFingerprintSHA1: "",
+      certVerified: "NONE",
+    },
   };
 
   const request = new Request(url, { method: req.method, headers, body, cf });

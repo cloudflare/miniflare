@@ -13,6 +13,7 @@
 - [x] Make WebSocket implementation behave more like workers
 - [x] Restrict Durable Object IDs to objects they were created for
 - [x] Durable Object gates, `blockConcurrencyWhile`, etc
+- [ ] Live reload with HTMLRewriter, in http-server package
 - [ ] Wrangler compatibility flag support
 - [ ] Package descriptions & JSDocs (automatically include in READMEs?)
 
@@ -20,7 +21,7 @@
 
 - [ ] Unit testing for workers with Jest:
       https://jestjs.io/docs/configuration#testenvironment-string
-- [ ] Live reload with HTMLRewriter, in http-server package
 - [ ] Multiple workers & Durable Object `script_name` option
 - [ ] Make some error messages more helpful, suggest fixes
 - [ ] Add remote KV storage
+- [ ] Multiple Miniflare processes, Durable Object coordination

@@ -35,6 +35,7 @@ import {
   RequestRedirect,
   ResponseRedirectStatus,
 } from "undici/types/fetch";
+import { IncomingRequestCfProperties, RequestInitCfProperties } from "./cf";
 
 // Instead of subclassing our customised Request and Response classes from
 // BaseRequest and BaseResponse, we instead compose them and implement the same
@@ -147,7 +148,7 @@ export function withInputGating<Body extends InputGatedBody<BodyMixin>>(
 export type RequestInfo = BaseRequestInfo | Request;
 
 export interface RequestInit extends BaseRequestInit {
-  readonly cf?: any; // TODO: type properly
+  readonly cf?: IncomingRequestCfProperties | RequestInitCfProperties;
 }
 
 export class Request
@@ -155,9 +156,10 @@ export class Request
   implements BaseRequest
 {
   // noinspection TypeScriptFieldCanBeMadeReadonly
-  #cf?: any;
+  #cf?: IncomingRequestCfProperties | RequestInitCfProperties;
 
   constructor(input: RequestInfo, init?: RequestInit) {
+    const cf = input instanceof Request ? input.#cf : init?.cf;
     if (input instanceof BaseRequest && !init) {
       // For cloning
       super(input);
@@ -166,7 +168,6 @@ export class Request
       if (input instanceof Request) input = input[kInner];
       super(new BaseRequest(input, init));
     }
-    const cf = input instanceof Request ? input.#cf : init?.cf;
     this.#cf = cf ? nonCircularClone(cf) : undefined;
   }
 
@@ -177,7 +178,7 @@ export class Request
     return clone;
   }
 
-  get cf(): any | undefined {
+  get cf(): IncomingRequestCfProperties | RequestInitCfProperties | undefined {
     return this.#cf;
   }
 
