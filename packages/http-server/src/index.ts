@@ -21,9 +21,14 @@ import { HTTPPlugin } from "./plugin";
 export * from "./helpers";
 export * from "./plugin";
 
+export type HTTPPluginSignatures = CorePluginSignatures & {
+  HTTPPlugin: typeof HTTPPlugin;
+};
+
 export async function convertNodeRequest(
   req: http.IncomingMessage,
-  upstream?: string
+  upstream?: string,
+  cf?: IncomingRequestCfProperties
 ): Promise<{ request: Request; url: URL }> {
   // noinspection HttpUrlsUsage
   const url = new URL(req.url ?? "", upstream ?? `http://${req.headers.host}`);
@@ -55,47 +60,13 @@ export async function convertNodeRequest(
   // Remove IPv6 prefix for IPv4 addresses
   if (ip?.startsWith("::ffff:")) ip = ip?.substring("::ffff:".length);
   headers.set("cf-connecting-ip", ip ?? "");
-  headers.set("cf-ipcountry", "US");
+  headers.set("cf-ipcountry", cf?.country ?? "US");
   headers.set("cf-ray", "");
   headers.set("cf-request-id", "");
-  headers.set("cf-visitor", '{"scheme":"http"}');
+  headers.set("cf-visitor", '{"scheme":"https"}');
 
   // Create Request with additional Cloudflare specific properties:
   // https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties
-  const cf: IncomingRequestCfProperties = {
-    asn: 395747,
-
-    colo: "DFW",
-    city: "Austin",
-    region: "Texas",
-    regionCode: "TX",
-    metroCode: "635",
-    postalCode: "78701",
-    country: "US",
-    continent: "NA",
-    timezone: "America/Chicago",
-    latitude: "30.27130",
-    longitude: "-97.74260",
-
-    clientTcpRtt: 0,
-    httpProtocol: `HTTP/${req.httpVersion}`,
-    requestPriority: "weight=192;exclusive=0",
-    tlsCipher: "AEAD-AES128-GCM-SHA256",
-    tlsVersion: "TLSv1.3",
-    tlsClientAuth: {
-      certIssuerDNLegacy: "",
-      certIssuerDN: "",
-      certPresented: "0",
-      certSubjectDNLegacy: "",
-      certSubjectDN: "",
-      certNotBefore: "",
-      certNotAfter: "",
-      certSerial: "",
-      certFingerprintSHA1: "",
-      certVerified: "NONE",
-    },
-  };
-
   const request = new Request(url, { method: req.method, headers, body, cf });
   return { request, url };
 }
@@ -105,13 +76,17 @@ export type RequestListener = (
   res?: http.ServerResponse
 ) => Promise<Response | undefined>;
 
-export function createRequestListener<Plugins extends CorePluginSignatures>(
+export function createRequestListener<Plugins extends HTTPPluginSignatures>(
   mf: MiniflareCore<Plugins>
 ): RequestListener {
   return async (req, res) => {
-    const { CorePlugin } = await mf.getPlugins();
+    const { CorePlugin, HTTPPlugin } = await mf.getPlugins();
     const start = process.hrtime();
-    const { request, url } = await convertNodeRequest(req, CorePlugin.upstream);
+    const { request, url } = await convertNodeRequest(
+      req,
+      CorePlugin.upstream,
+      await HTTPPlugin.getCfForRequest(req)
+    );
 
     let response: Response | undefined;
     let waitUntil: Promise<unknown[]> | undefined;
@@ -232,10 +207,6 @@ export function createWebSocketUpgradeListener<
     await coupleWebSocket(ws, webSocket);
   };
 }
-
-export type HTTPPluginSignatures = CorePluginSignatures & {
-  HTTPPlugin: typeof HTTPPlugin;
-};
 
 export async function createServer<Plugins extends HTTPPluginSignatures>(
   mf: MiniflareCore<Plugins>,

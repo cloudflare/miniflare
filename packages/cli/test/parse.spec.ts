@@ -98,6 +98,13 @@ test("parseArgv: parses boolean/string", (t) => {
   options = parseArgv(plugins, ["--boolean-string-option", "42"]);
   t.deepEqual(options, { booleanStringOption: "42" });
 });
+test("parseArgv: parses negative boolean options", (t) => {
+  const options = parseArgv(plugins, [
+    "--no-boolean-option",
+    "--no-boolean-string-option",
+  ]);
+  t.deepEqual(options, { booleanOption: false, booleanStringOption: false });
+});
 
 test("parseArgv: throws on --help", (t) => {
   const expectation: ThrowsExpectation = {

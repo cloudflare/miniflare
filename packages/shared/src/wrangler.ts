@@ -59,6 +59,7 @@ export interface WranglerEnvironmentConfig {
     env_path?: string;
     host?: string;
     port?: number;
+    cf_fetch?: boolean | string;
     https?:
       | boolean
       | string

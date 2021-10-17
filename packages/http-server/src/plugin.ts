@@ -1,6 +1,8 @@
 import { promises as fs } from "fs";
+import http from "http";
 import path from "path";
 import { promisify } from "util";
+import { IncomingRequestCfProperties } from "@miniflare/core";
 import {
   Log,
   MaybePromise,
@@ -11,9 +13,48 @@ import {
   defaultClock,
 } from "@miniflare/shared";
 import type { Attributes, Options } from "selfsigned";
+import { fetch } from "undici";
 import { getAccessibleHosts } from "./helpers";
 
+// Milliseconds in 1 day
+const DAY = 86400000;
+// Max age of self-signed certificate
 const CERT_DAYS = 30;
+// Max age of cf.json
+const CF_DAYS = 30;
+
+const CF_ENDPOINT = "https://workers.cloudflare.com/cf.json";
+const CF_DEFAULT: IncomingRequestCfProperties = {
+  asn: 395747,
+  colo: "DFW",
+  city: "Austin",
+  region: "Texas",
+  regionCode: "TX",
+  metroCode: "635",
+  postalCode: "78701",
+  country: "US",
+  continent: "NA",
+  timezone: "America/Chicago",
+  latitude: "30.27130",
+  longitude: "-97.74260",
+  clientTcpRtt: 0,
+  httpProtocol: "HTTP/1.1",
+  requestPriority: "weight=192;exclusive=0",
+  tlsCipher: "AEAD-AES128-GCM-SHA256",
+  tlsVersion: "TLSv1.3",
+  tlsClientAuth: {
+    certIssuerDNLegacy: "",
+    certIssuerDN: "",
+    certPresented: "0",
+    certSubjectDNLegacy: "",
+    certSubjectDN: "",
+    certNotBefore: "",
+    certNotAfter: "",
+    certSerial: "",
+    certFingerprintSHA1: "",
+    certVerified: "NONE",
+  },
+};
 
 export interface ProcessedHTTPSOptions {
   key?: string;
@@ -37,6 +78,11 @@ export interface HTTPOptions {
   httpsPfx?: string;
   httpsPfxPath?: string;
   httpsPassphrase?: string;
+
+  cfFetch?: boolean | string;
+  cfProvider?: (
+    req: http.IncomingMessage
+  ) => MaybePromise<IncomingRequestCfProperties>;
 }
 
 function valueOrFile(
@@ -128,14 +174,29 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
   })
   httpsPassphrase?: string;
 
-  readonly httpsEnabled: boolean;
+  @Option({
+    type: OptionType.BOOLEAN_STRING,
+    description: "Path for cached Request cf object from Cloudflare",
+    logName: "Request cf Object Fetch",
+    fromWrangler: ({ miniflare }) => miniflare?.cf_fetch,
+  })
+  cfFetch?: boolean | string;
 
+  @Option({ type: OptionType.NONE })
+  cfProvider?: (
+    req: http.IncomingMessage
+  ) => MaybePromise<IncomingRequestCfProperties>;
+
+  readonly httpsEnabled: boolean;
   #httpsOptions?: ProcessedHTTPSOptions;
+
+  #cf = CF_DEFAULT;
 
   constructor(
     log: Log,
     options?: HTTPOptions,
     private readonly defaultCertRoot = path.resolve(".mf", "cert"),
+    private readonly defaultCfPath = path.resolve(".mf", "cf.json"),
     private readonly clock = defaultClock
   ) {
     super(log);
@@ -154,13 +215,54 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     );
   }
 
+  getCfForRequest(
+    req: http.IncomingMessage
+  ): MaybePromise<IncomingRequestCfProperties> {
+    if (this.cfProvider) return this.cfProvider(req);
+    return this.#cf;
+  }
+
   get httpsOptions(): ProcessedHTTPSOptions | undefined {
     return this.#httpsOptions;
   }
 
-  async setup(): Promise<SetupResult> {
+  async #setupCf(): Promise<void> {
+    // Default to enabling cfFetch
+    let cfPath = this.cfFetch ?? true;
+    // If cfFetch is disabled or we're using a custom provider, don't fetch the
+    // cf object
+    if (!cfPath || this.cfProvider) return;
+    if (cfPath === true) cfPath = this.defaultCfPath;
+    // Determine whether to refetch cf.json, should do this if doesn't exist
+    // or expired
+    let refetch = true;
+    try {
+      // Try load cfPath, if this fails, we'll catch the error and refetch.
+      // If this succeeds, and the file is stale, that's fine: it's very likely
+      // we'll be fetching the same data anyways.
+      this.#cf = JSON.parse(await fs.readFile(cfPath, "utf8"));
+      const cfStat = await fs.stat(cfPath);
+      refetch = this.clock() - cfStat.ctimeMs > CF_DAYS * DAY;
+    } catch {}
+
+    // If no need to refetch, stop here, otherwise fetch
+    if (!refetch) return;
+    try {
+      const res = await fetch(CF_ENDPOINT);
+      const cfText = await res.text();
+      this.#cf = JSON.parse(cfText);
+      // Write cf so we can reuse it later
+      await fs.mkdir(path.dirname(cfPath), { recursive: true });
+      await fs.writeFile(cfPath, cfText, "utf8");
+      this.log.info("Updated Request cf object cache!");
+    } catch (e: any) {
+      this.log.error(e);
+    }
+  }
+
+  async #setupHttps(): Promise<void> {
     // If options are falsy, don't use HTTPS, no other HTTP setup required
-    if (!this.httpsEnabled) return {};
+    if (!this.httpsEnabled) return;
 
     // If https is true, use a self-signed certificate at default location
     let https = this.https;
@@ -177,7 +279,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
         const keyStat = await fs.stat(keyPath);
         const certStat = await fs.stat(certPath);
         const created = Math.max(keyStat.ctimeMs, certStat.ctimeMs);
-        regenerate = this.clock() - created > (CERT_DAYS - 2) * 86400000;
+        regenerate = this.clock() - created > (CERT_DAYS - 2) * DAY;
       } catch {}
 
       // Generate self signed certificate if needed
@@ -242,6 +344,12 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
       pfx: await valueOrFile(this.httpsPfx, this.httpsPfxPath),
       passphrase: this.httpsPassphrase,
     };
+  }
+
+  async setup(): Promise<SetupResult> {
+    // noinspection ES6MissingAwait
+    void this.#setupCf();
+    await this.#setupHttps();
     return {};
   }
 }
