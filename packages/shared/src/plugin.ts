@@ -36,7 +36,7 @@ export interface OptionMetadataType<Type extends OptionType, Value> {
 }
 
 export type OptionMetadata =
-  | OptionMetadataType<OptionType.NONE, never>
+  | OptionMetadataType<OptionType.NONE, any>
   | OptionMetadataType<OptionType.BOOLEAN, boolean>
   | OptionMetadataType<OptionType.NUMBER, number>
   | OptionMetadataType<OptionType.STRING, string>

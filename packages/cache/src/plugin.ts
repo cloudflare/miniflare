@@ -21,12 +21,24 @@ export class CacheError extends MiniflareError<CacheErrorCode> {}
 
 export class CacheStorage {
   readonly #options: CacheOptions;
+  readonly #log: Log;
   readonly #storage: StorageFactory;
+  #warnUsage?: boolean;
   #defaultCache?: CacheInterface;
 
-  constructor(options: CacheOptions, storageFactory: StorageFactory) {
+  constructor(options: CacheOptions, log: Log, storageFactory: StorageFactory) {
     this.#options = options;
+    this.#log = log;
     this.#storage = storageFactory;
+    this.#warnUsage = options.cacheWarnUsage;
+  }
+
+  #maybeWarnUsage(): void {
+    if (!this.#warnUsage) return;
+    this.#warnUsage = false;
+    this.#log.warn(
+      "Cache operations will have no impact if you deploy to a workers.dev subdomain!"
+    );
   }
 
   get default(): CacheInterface {
@@ -42,7 +54,7 @@ export class CacheStorage {
     // included by default, we'd always load these if we didn't do it lazily.
     // There's a risk of an unhandled promise rejection here is the user
     // doesn't do anything with the cache immediately, but this is unlikely.
-    // TODO: log once if workers_dev = true
+    this.#maybeWarnUsage();
     return (this.#defaultCache = new Cache(
       this.#storage.operator(DEFAULT_CACHE_NAME, cachePersist)
     ));
@@ -62,7 +74,7 @@ export class CacheStorage {
     const { disableCache, cachePersist } = this.#options;
     if (disableCache) return NOOP_CACHE;
     // Return regular cache
-    // TODO: log once if workers_dev = true
+    this.#maybeWarnUsage();
     return new Cache(await this.#storage.operator(cacheName, cachePersist));
   }
 }
@@ -70,6 +82,7 @@ export class CacheStorage {
 export interface CacheOptions {
   cachePersist?: boolean | string;
   disableCache?: boolean;
+  cacheWarnUsage?: boolean;
 }
 
 export class CachePlugin extends Plugin<CacheOptions> implements CacheOptions {
@@ -89,7 +102,11 @@ export class CachePlugin extends Plugin<CacheOptions> implements CacheOptions {
   })
   disableCache?: boolean;
 
-  // TODO: would probably want warnOnCacheUsage option or something from workers_dev, OptionType.NONE
+  @Option({
+    type: OptionType.NONE,
+    fromWrangler: ({ workers_dev }) => workers_dev,
+  })
+  cacheWarnUsage?: boolean;
 
   constructor(log: Log, options?: CacheOptions) {
     super(log);
@@ -97,7 +114,7 @@ export class CachePlugin extends Plugin<CacheOptions> implements CacheOptions {
   }
 
   setup(storageFactory: StorageFactory): SetupResult {
-    const caches = new CacheStorage(this, storageFactory);
+    const caches = new CacheStorage(this, this.log, storageFactory);
     return { globals: { caches } };
   }
 }
