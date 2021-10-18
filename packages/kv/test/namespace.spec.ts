@@ -40,6 +40,53 @@ test.beforeEach((t) => {
   t.context = { storage, ns };
 });
 
+const validatesKeyMacro: Macro<
+  [method: string, func: (ns: KVNamespace, key: string) => Promise<void>],
+  Context
+> = async (t, method, func) => {
+  const { ns } = t.context;
+  await t.throwsAsync(func(ns, ""), {
+    instanceOf: TypeError,
+    message: "Key name cannot be empty.",
+  });
+  await t.throwsAsync(func(ns, "."), {
+    instanceOf: TypeError,
+    message: '"." is not allowed as a key name.',
+  });
+  await t.throwsAsync(func(ns, ".."), {
+    instanceOf: TypeError,
+    message: '".." is not allowed as a key name.',
+  });
+  await t.throwsAsync(func(ns, "".padStart(513, "x")), {
+    instanceOf: Error,
+    message: `KV ${method} failed: 414 UTF-8 encoded length of 513 exceeds key length limit of 512.`,
+  });
+};
+validatesKeyMacro.title = (providedTitle) => `${providedTitle}: validates key`;
+const validateGetMacro: Macro<
+  [func: (ns: KVNamespace, cacheTtl?: number, type?: string) => Promise<void>],
+  Context
+> = async (t, func) => {
+  const { ns } = t.context;
+  await t.throwsAsync(func(ns, "not a number" as any), {
+    instanceOf: Error,
+    message:
+      "KV GET failed: 400 Invalid cache_ttl of not a number. Cache TTL must be at least 60.",
+  });
+  await t.throwsAsync(func(ns, 10), {
+    instanceOf: Error,
+    message:
+      "KV GET failed: 400 Invalid cache_ttl of 10. Cache TTL must be at least 60.",
+  });
+  await t.throwsAsync(func(ns, 120, "map"), {
+    instanceOf: TypeError,
+    message:
+      'Unknown response type. Possible types are "text", "arrayBuffer", "json", and "stream".',
+  });
+};
+validateGetMacro.title = (providedTitle) =>
+  `${providedTitle}: validates get options`;
+
 const getMacro: Macro<
   [{ value: string; type?: KVGetValueType; expected: any }],
   Context
@@ -122,6 +169,12 @@ test("get: waits for input gate to open before returning stream chunk", async (t
   assert(stream);
   const chunk = await waitsForInputGate(t, () => stream.getReader().read());
   t.is(utf8Decode(chunk.value), "value");
+});
+test("get", validatesKeyMacro, "GET", async (ns, key) => {
+  await ns.get(key);
+});
+test("get", validateGetMacro, async (ns, cacheTtl, type) => {
+  await ns.get("key", { cacheTtl, type: type as any });
 });
 
 const getWithMetadataMacro: Macro<
@@ -236,6 +289,12 @@ test("getWithMetadata: waits for input gate to open before returning stream chun
   const chunk = await waitsForInputGate(t, () => value.getReader().read());
   t.is(utf8Decode(chunk.value), "value");
 });
+test("getWithMetadata", validatesKeyMacro, "GET", async (ns, key) => {
+  await ns.getWithMetadata(key);
+});
+test("getWithMetadata", validateGetMacro, async (ns, cacheTtl, type) => {
+  await ns.getWithMetadata("key", { cacheTtl, type: type as any });
+});
 
 const putMacro: Macro<
   [
@@ -268,6 +327,10 @@ test("streams", putMacro, {
 });
 test("array buffers", putMacro, {
   value: new Uint8Array([1, 2, 3]).buffer,
+  expected: { value: new Uint8Array([1, 2, 3]) },
+});
+test("array buffer views", putMacro, {
+  value: new DataView(new Uint8Array([1, 2, 3]).buffer),
   expected: { value: new Uint8Array([1, 2, 3]) },
 });
 test("text with expiration", putMacro, {
@@ -338,6 +401,80 @@ test("put: waits for input gate to open before returning", async (t) => {
   const { ns } = t.context;
   await waitsForInputGate(t, () => ns.put("key", "value"));
 });
+test("put", validatesKeyMacro, "PUT", async (ns, key) => {
+  await ns.put(key, "value");
+});
+test("put: validates value type", async (t) => {
+  const { ns } = t.context;
+  await t.throwsAsync(ns.put("key", new Map() as any), {
+    instanceOf: TypeError,
+    message:
+      "KV put() accepts only strings, ArrayBuffers, ArrayBufferViews, and ReadableStreams as values.",
+  });
+});
+test("put: validates expiration ttl", async (t) => {
+  const { ns } = t.context;
+  await t.throwsAsync(ns.put("key", "value", { expirationTtl: "nan" }), {
+    instanceOf: Error,
+    message:
+      "KV PUT failed: 400 Invalid expiration_ttl of nan. Please specify integer greater than 0.",
+  });
+  await t.throwsAsync(ns.put("key", "value", { expirationTtl: 0 }), {
+    instanceOf: Error,
+    message:
+      "KV PUT failed: 400 Invalid expiration_ttl of 0. Please specify integer greater than 0.",
+  });
+  await t.throwsAsync(ns.put("key", "value", { expirationTtl: 30 }), {
+    instanceOf: Error,
+    message:
+      "KV PUT failed: 400 Invalid expiration_ttl of 30. Expiration TTL must be at least 60.",
+  });
+});
+test("put: validates expiration", async (t) => {
+  const { ns } = t.context;
+  await t.throwsAsync(ns.put("key", "value", { expiration: "nan" }), {
+    instanceOf: Error,
+    message:
+      "KV PUT failed: 400 Invalid expiration of nan. Please specify integer greater than the current number of seconds since the UNIX epoch.",
+  });
+  // testClock sets current time to 750s since UNIX epoch
+  await t.throwsAsync(ns.put("key", "value", { expiration: 750 }), {
+    instanceOf: Error,
+    message:
+      "KV PUT failed: 400 Invalid expiration of 750. Please specify integer greater than the current number of seconds since the UNIX epoch.",
+  });
+  await t.throwsAsync(ns.put("key", "value", { expiration: 780 }), {
+    instanceOf: Error,
+    message:
+      "KV PUT failed: 400 Invalid expiration of 780. Expiration times must be at least 60 seconds in the future.",
+  });
+});
+test("put: validates value size", async (t) => {
+  const { ns } = t.context;
+  const maxValueSize = 25 * 1024 * 1024;
+  const byteLength = maxValueSize + 1;
+  await t.throwsAsync(ns.put("key", new Uint8Array(byteLength)), {
+    instanceOf: Error,
+    message: `KV PUT failed: 413 Value length of ${byteLength} exceeds limit of ${maxValueSize}.`,
+  });
+});
+test("put: validates metadata size", async (t) => {
+  const { ns } = t.context;
+  const maxMetadataSize = 1024;
+  await t.throwsAsync(
+    ns.put("key", "value", {
+      metadata: {
+        key: "".padStart(maxMetadataSize - `{\"key\":\"\"}`.length + 1, "x"),
+      },
+    }),
+    {
+      instanceOf: Error,
+      message: `KV PUT failed: 413 Metadata length of ${
+        maxMetadataSize + 1
+      } exceeds limit of ${maxMetadataSize}.`,
+    }
+  );
+});
 
 test("delete: deletes existing keys", async (t) => {
   const { storage, ns } = t.context;
@@ -364,6 +501,9 @@ test("delete: waits for input gate to open before returning", async (t) => {
   const { ns } = t.context;
   await ns.put("key", "value");
   await waitsForInputGate(t, () => ns.delete("key"));
+});
+test("delete", validatesKeyMacro, "DELETE", async (ns, key) => {
+  await ns.delete(key);
 });
 
 const listMacro: Macro<
@@ -600,6 +740,24 @@ test("list: waits for input gate to open before returning", async (t) => {
   const { ns } = t.context;
   await ns.put("key", "value");
   await waitsForInputGate(t, () => ns.list());
+});
+test("list: validates limit", async (t) => {
+  const { ns } = t.context;
+  await t.throwsAsync(ns.list({ limit: "nan" as any }), {
+    instanceOf: Error,
+    message:
+      "KV GET failed: 400 Invalid key_count_limit of nan. Please specify an integer greater than 0.",
+  });
+  await t.throwsAsync(ns.list({ limit: 0 }), {
+    instanceOf: Error,
+    message:
+      "KV GET failed: 400 Invalid key_count_limit of 0. Please specify an integer greater than 0.",
+  });
+  await t.throwsAsync(ns.list({ limit: 1001 }), {
+    instanceOf: Error,
+    message:
+      "KV GET failed: 400 Invalid key_count_limit of 1001. Please specify an integer less than 1000.",
+  });
 });
 
 test("hides implementation details", (t) => {
