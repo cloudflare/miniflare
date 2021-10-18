@@ -12,8 +12,6 @@ import {
   waitForOpenOutputGate,
 } from "@miniflare/shared";
 
-// TODO: test errors/validation
-
 const MIN_CACHE_TTL = 60; /* 60s */
 const MAX_LIST_KEYS = 1000;
 const MAX_KEY_SIZE = 512; /* 512B */
@@ -109,8 +107,7 @@ function validateGetOptions(
 function normaliseInt(value: string | number | undefined): number | undefined {
   switch (typeof value) {
     case "string":
-      const parsed = parseInt(value);
-      return isNaN(parsed) ? undefined : parsed;
+      return parseInt(value);
     case "number":
       return Math.round(value);
   }
@@ -230,7 +227,7 @@ export class KVNamespace {
     } else if (value instanceof ArrayBuffer) {
       stored = new Uint8Array(value);
     } else if (ArrayBuffer.isView(value)) {
-      stored = viewToArray(value); // TODO: add a test for this, in addition to all the errors
+      stored = viewToArray(value);
     } else {
       throw new TypeError(
         "KV put() accepts only strings, ArrayBuffers, ArrayBufferViews, and ReadableStreams as values."
@@ -257,19 +254,19 @@ export class KVNamespace {
         );
       }
       expiration = now + expirationTtl;
-    } else if (expiration) {
+    } else if (expiration !== undefined) {
       if (isNaN(expiration) || expiration <= now) {
         throwKVError(
           "PUT",
           400,
-          `Invalid expiration of ${options.expirationTtl}. Please specify integer greater than the current number of seconds since the UNIX epoch.`
+          `Invalid expiration of ${options.expiration}. Please specify integer greater than the current number of seconds since the UNIX epoch.`
         );
       }
       if (expiration < now + MIN_CACHE_TTL) {
         throwKVError(
           "PUT",
           400,
-          `Invalid expiration of ${options.expirationTtl}. Expiration times must be at least ${MIN_CACHE_TTL} seconds in the future.`
+          `Invalid expiration of ${options.expiration}. Expiration times must be at least ${MIN_CACHE_TTL} seconds in the future.`
         );
       }
     }
