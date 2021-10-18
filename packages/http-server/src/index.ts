@@ -1,5 +1,5 @@
 import assert from "assert";
-import http from "http";
+import http, { OutgoingHttpHeaders } from "http";
 import https from "https";
 import { arrayBuffer } from "stream/consumers";
 import { URL } from "url";
@@ -47,18 +47,29 @@ export async function convertNodeRequest(
 
   // Build Headers object from request
   const headers = new Headers();
-  for (const [name, value] of Object.entries(req.headers)) {
-    if (value === undefined) continue;
-    headers.append(name, Array.isArray(value) ? value.join(", ") : value);
+  for (const [name, values] of Object.entries(req.headers)) {
+    // These headers are unsupported in undici fetch requests, they're added
+    // automatically
+    if (
+      name === "transfer-encoding" ||
+      name === "connection" ||
+      name === "keep-alive" ||
+      name === "expect"
+    ) {
+      continue;
+    }
+    if (Array.isArray(values)) {
+      for (const value of values) headers.append(name, value);
+    } else if (values !== undefined) {
+      headers.append(name, values);
+    }
   }
-
-  // TODO: get from https://workers.cloudflare.com/cf.json
 
   // Add additional Cloudflare specific headers:
   // https://support.cloudflare.com/hc/en-us/articles/200170986-How-does-Cloudflare-handle-HTTP-Request-headers-
   let ip = req.socket.remoteAddress;
   // Remove IPv6 prefix for IPv4 addresses
-  if (ip?.startsWith("::ffff:")) ip = ip?.substring("::ffff:".length);
+  if (ip?.startsWith("::ffff:")) ip = ip.substring("::ffff:".length);
   headers.set("cf-connecting-ip", ip ?? "");
   headers.set("cf-ipcountry", cf?.country ?? "US");
   headers.set("cf-ray", "");
@@ -85,7 +96,7 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
     const { request, url } = await convertNodeRequest(
       req,
       CorePlugin.upstream,
-      await HTTPPlugin.getCfForRequest(req)
+      await HTTPPlugin.getCf(req)
     );
 
     let response: Response | undefined;
@@ -117,16 +128,26 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
         response = await mf.dispatchFetch(request);
         waitUntil = response.waitUntil();
         status = response.status;
-        res?.writeHead(response.status, [...response.headers].flat());
+        const headers: OutgoingHttpHeaders = {};
+        for (const [key, value] of response.headers) {
+          if (key.length === 10 && key.toLowerCase() === "set-cookie") {
+            // Multiple Set-Cookie headers should be treated as separate headers
+            headers["set-cookie"] = response.headers.getAll("set-cookie");
+          } else {
+            headers[key] = value;
+          }
+        }
+        res?.writeHead(response.status, headers);
         // Response body may be null if empty
         if (response.body) {
           for await (const chunk of response.body) {
-            res?.write(chunk);
+            if (chunk) res?.write(chunk);
           }
         }
         res?.end();
       } catch (e: any) {
-        const accept = req.headers.accept ?? "";
+        // MIME types aren't case sensitive
+        const accept = req.headers.accept?.toLowerCase() ?? "";
         if (
           accept.includes("text/html") ||
           accept.includes("*/*") ||

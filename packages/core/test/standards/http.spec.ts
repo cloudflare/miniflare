@@ -2,6 +2,7 @@ import assert from "assert";
 import { text } from "stream/consumers";
 import { ReadableStream, TransformStream, WritableStream } from "stream/web";
 import {
+  Headers,
   IncomingRequestCfProperties,
   InputGatedBody,
   Request,
@@ -22,6 +23,7 @@ import {
 import { WebSocketPair } from "@miniflare/web-sockets";
 import test, { Macro } from "ava";
 import {
+  Headers as BaseHeaders,
   Request as BaseRequest,
   Response as BaseResponse,
   BodyMixin,
@@ -29,6 +31,29 @@ import {
 
 // @ts-expect-error filling out all properties is annoying
 const cf: IncomingRequestCfProperties = { country: "GB" };
+
+test('Headers: getAll: throws if key not "Set-Cookie"', (t) => {
+  const headers = new Headers();
+  t.throws(() => headers.getAll("set-biscuit"), {
+    instanceOf: TypeError,
+    message: 'getAll() can only be used with the header name "Set-Cookie".',
+  });
+});
+test("Headers: getAll: returns empty array if no headers", (t) => {
+  const headers = new Headers();
+  t.deepEqual(headers.getAll("Set-Cookie"), []);
+});
+test("Headers: getAll: returns separated Set-Cookie values", (t) => {
+  const headers = new Headers();
+  const cookie1 = "key1=value1; Expires=Mon, 18 Oct 2021 17:45:00 GMT";
+  const cookie2 = "key2=value2";
+  const cookie3 = "key3=value3; Max-Age=3600";
+  headers.append("Set-Cookie", cookie1);
+  headers.append("Set-Cookie", cookie2);
+  headers.append("Set-Cookie", cookie3);
+  t.is(headers.get("set-Cookie"), [cookie1, cookie2, cookie3].join(", "));
+  t.deepEqual(headers.getAll("set-CoOkiE"), [cookie1, cookie2, cookie3]);
+});
 
 // These tests also implicitly test withInputGating
 test("InputGatedBody: body isn't input gated by default", async (t) => {
@@ -118,6 +143,19 @@ test(
 );
 test(inputGatedConsumerMacro, "json");
 test(inputGatedConsumerMacro, "text");
+test("InputGatedBody: reuses custom headers instance", (t) => {
+  const headers = new BaseHeaders();
+  headers.append("Set-Cookie", "key1=value1");
+  headers.append("Set-Cookie", "key2=value2");
+  const body = new InputGatedBody(new BaseResponse("body", { headers }));
+  const customHeaders = body.headers;
+  t.not(headers, customHeaders);
+  t.is(body.headers, customHeaders);
+  t.deepEqual(customHeaders.getAll("Set-Cookie"), [
+    "key1=value1",
+    "key2=value2",
+  ]);
+});
 
 test("Request: constructing from BaseRequest doesn't create new BaseRequest unless required", (t) => {
   // Check properties of Request are same as BaseRequest if not RequestInit passed
@@ -133,8 +171,8 @@ test("Request: constructing from BaseRequest doesn't create new BaseRequest unle
   });
   let req = new Request(base);
   // Wouldn't be the same instance if cloned
+  // @ts-expect-error our bodies are typed ReadableStream
   t.is(req.body, base.body);
-  t.is(req.headers, base.headers);
 
   t.is(req.cache, base.cache);
   t.is(req.credentials, base.credentials);
@@ -155,8 +193,8 @@ test("Request: constructing from BaseRequest doesn't create new BaseRequest unle
     method: "PATCH",
   });
   // Should be different as new instance created
+  // @ts-expect-error our bodies are typed ReadableStream
   t.not(req.body, base.body);
-  t.not(req.headers, base.headers);
   t.is(req.method, "PATCH");
 });
 test("Request: can construct new Request from existing Request", async (t) => {
@@ -239,8 +277,8 @@ test("Response: constructing from BaseResponse doesn't create new BaseResponse u
   });
   let res = new Response(base.body, base);
   // Wouldn't be the same if cloned
+  // @ts-expect-error our bodies are typed ReadableStream
   t.is(res.body, base.body);
-  t.is(res.headers, base.headers);
 
   t.is(res.status, base.status);
   t.is(res.ok, base.ok);
@@ -252,8 +290,8 @@ test("Response: constructing from BaseResponse doesn't create new BaseResponse u
   // Check new BaseResponse created if different body passed
   res = new Response("<p>new</p>", base);
   // Should be different as new instance created
+  // @ts-expect-error our bodies are typed ReadableStream
   t.not(res.body, base.body);
-  t.not(res.headers, base.headers);
   t.is(await res.text(), "<p>new</p>");
 });
 test("Response: can construct new Response from existing Response", async (t) => {

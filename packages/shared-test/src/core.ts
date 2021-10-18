@@ -31,13 +31,18 @@ export function useMiniflare<Plugins extends PluginSignatures>(
 export function useMiniflareWithHandler<Plugins extends PluginSignatures>(
   extraPlugins: Plugins,
   options: Options<{ CorePlugin: typeof CorePlugin } & Plugins>,
-  handler: (globals: Context, req: Request) => MaybePromise<Response>
+  handler: (globals: Context, req: Request) => MaybePromise<Response>,
+  log: Log = new NoOpLog()
 ): MiniflareCore<{ CorePlugin: typeof CorePlugin } & Plugins> {
-  return useMiniflare(extraPlugins, {
-    // @ts-expect-error options is an object type
-    ...options,
-    script: `addEventListener("fetch", (e) => {
+  return useMiniflare(
+    extraPlugins,
+    {
+      // @ts-expect-error options is an object type
+      ...options,
+      script: `addEventListener("fetch", (e) => {
       e.respondWith((${handler.toString()})(globalThis, e.request));
     })`,
-  });
+    },
+    log
+  );
 }
