@@ -12,6 +12,24 @@ import { CloseEvent, MessageEvent } from "@miniflare/web-sockets";
 import test from "ava";
 import StandardWebSocket from "ws";
 
+test("coupleWebSocket: throws if already coupled", async (t) => {
+  const server = await useServer(t, noop, (ws) => ws.send("test"));
+  const ws = new StandardWebSocket(server.ws);
+  const [client] = Object.values(new WebSocketPair());
+  await coupleWebSocket(ws, client);
+  await t.throwsAsync(coupleWebSocket({} as any, client), {
+    instanceOf: TypeError,
+    message: "Can't return WebSocket that was already used in a response.",
+  });
+});
+test("coupleWebSocket: throws if already accepted", async (t) => {
+  const [client] = Object.values(new WebSocketPair());
+  client.accept();
+  await t.throwsAsync(coupleWebSocket({} as any, client), {
+    instanceOf: TypeError,
+    message: "Can't return WebSocket in a Response after calling accept().",
+  });
+});
 test("coupleWebSocket: forwards messages from client to worker before coupling", async (t) => {
   const server = await useServer(t, noop, (ws) => ws.send("test"));
   const ws = new StandardWebSocket(server.ws);
