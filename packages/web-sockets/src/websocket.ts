@@ -20,7 +20,6 @@ export class CloseEvent extends Event {
   }
 }
 
-// TODO: doesn't look like this actually exists in the runtime
 export class ErrorEvent extends Event {
   constructor(readonly error?: Error) {
     super("error");
@@ -50,13 +49,12 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
 
   accept(): void {
     if (this[kCoupled]) {
-      // TODO: test error
       throw new TypeError(
         "Can't accept() WebSocket that was already used in a response."
       );
     }
 
-    if (this[kAccepted]) return; // TODO: check calling accept() multiple times is allowed
+    if (this[kAccepted]) return;
     this[kAccepted] = true;
 
     const sendQueue = this.#sendQueue;
@@ -68,7 +66,6 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
 
   send(message: ArrayBuffer | string): void {
     if (!this[kAccepted]) {
-      // TODO: test error
       throw new TypeError(
         "You must call accept() on this WebSocket before sending messages."
       );
@@ -95,7 +92,6 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
 
   close(code?: number, reason?: string): void {
     const pair = this[kPair];
-    // TODO: test errors
     if (!this[kAccepted]) {
       throw new TypeError(
         "You must call accept() on this WebSocket before sending messages."
@@ -103,6 +99,7 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
     }
     if (this[kClosed]) throw new TypeError("WebSocket already closed");
     if (code) {
+      // https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/code
       const validCode =
         code >= 1000 &&
         code < 5000 &&

@@ -3,7 +3,9 @@
 import { setImmediate } from "timers/promises";
 import {
   TestInputGate,
+  noop,
   triggerPromise,
+  useServer,
   waitsForOutputGate,
 } from "@miniflare/shared-test";
 import {
@@ -11,14 +13,26 @@ import {
   MessageEvent,
   WebSocket,
   WebSocketPair,
+  coupleWebSocket,
 } from "@miniflare/web-sockets";
 import test, { ExecutionContext } from "ava";
+import StandardWebSocket from "ws";
 
 test("WebSocket: can accept multiple times", (t) => {
   const webSocket = new WebSocket();
   webSocket.accept();
   webSocket.accept();
   t.pass();
+});
+test("WebSocket: cannot accept if already coupled", async (t) => {
+  const server = await useServer(t, noop, (ws) => ws.send("test"));
+  const ws = new StandardWebSocket(server.ws);
+  const [webSocket1] = Object.values(new WebSocketPair());
+  await coupleWebSocket(ws, webSocket1);
+  t.throws(() => webSocket1.accept(), {
+    instanceOf: TypeError,
+    message: "Can't accept() WebSocket that was already used in a response.",
+  });
 });
 test("WebSocket: sends message to pair", async (t) => {
   const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
@@ -38,6 +52,14 @@ test("WebSocket: sends message to pair", async (t) => {
   await setImmediate();
   t.deepEqual(messages1, ["from2"]);
   t.deepEqual(messages2, ["from1"]);
+});
+test("WebSocket: must accept before sending", (t) => {
+  const [webSocket1] = Object.values(new WebSocketPair());
+  t.throws(() => webSocket1.send("test"), {
+    instanceOf: TypeError,
+    message:
+      "You must call accept() on this WebSocket before sending messages.",
+  });
 });
 test("WebSocket: queues messages if pair not accepted", async (t) => {
   const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
@@ -121,6 +143,39 @@ test("WebSocket: waits for output gate to open before closing", async (t) => {
     () => event
   );
 });
+test("WebSocket: must accept before closing", (t) => {
+  const [webSocket1] = Object.values(new WebSocketPair());
+  t.throws(() => webSocket1.close(), {
+    instanceOf: TypeError,
+    message:
+      "You must call accept() on this WebSocket before sending messages.",
+  });
+});
+test("WebSocket: can only call close once", (t) => {
+  const [webSocket1] = Object.values(new WebSocketPair());
+  webSocket1.accept();
+  webSocket1.close(1000);
+  t.throws(() => webSocket1.close(1000), {
+    instanceOf: TypeError,
+    message: "WebSocket already closed",
+  });
+});
+test("WebSocket: validates close code", (t) => {
+  const [webSocket1] = Object.values(new WebSocketPair());
+  webSocket1.accept();
+  // Try close with invalid code
+  t.throws(() => webSocket1.close(1005 /*No Status Received*/), {
+    instanceOf: TypeError,
+    message: "Invalid WebSocket close code.",
+  });
+  // Try close with reason without code
+  t.throws(() => webSocket1.close(undefined, "Test Closure"), {
+    instanceOf: TypeError,
+    message:
+      "If you specify a WebSocket close reason, you must also specify a code.",
+  });
+});
+
 async function eventDispatchWaitsForInputGate(
   t: ExecutionContext,
   addEventListener: (listener: (event: unknown) => void) => void,

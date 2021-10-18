@@ -3,12 +3,14 @@ import { Log, Plugin, SetupResult } from "@miniflare/shared";
 import { upgradingFetch } from "./fetch";
 import {
   CloseEvent,
-  ErrorEvent,
   MessageEvent,
   WebSocket,
   WebSocketPair,
   kClosed,
 } from "./websocket";
+
+const constructError =
+  "Failed to construct 'WebSocket': the constructor is not implemented.";
 
 export class WebSocketPlugin extends Plugin {
   #webSockets = new Set<WebSocket>();
@@ -23,9 +25,15 @@ export class WebSocketPlugin extends Plugin {
       globals: {
         MessageEvent,
         CloseEvent,
-        ErrorEvent, // TODO: does this actually exist in the runtime?
         WebSocketPair,
-        WebSocket, // TODO: block construction, proxy?
+        WebSocket: new Proxy(WebSocket, {
+          construct() {
+            throw new Error(constructError);
+          },
+          apply() {
+            throw new Error(constructError);
+          },
+        }),
         // This plugin will always be loaded after CorePlugin, so this overrides
         // the standard non-upgrading fetch
         fetch: this.fetch,

@@ -42,7 +42,7 @@ export async function upgradingFetch(
     });
   }
 
-  // TODO: (low priority) support cache using fetch:
+  // TODO (someday): support cache using fetch:
   //  https://developers.cloudflare.com/workers/learning/how-the-cache-works#fetch
   //  https://developers.cloudflare.com/workers/examples/cache-using-fetch
 
