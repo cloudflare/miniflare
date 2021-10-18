@@ -41,12 +41,14 @@
     "dequal": "^2.0.2",
     "dotenv": "^10.0.0",
     "kleur": "^4.1.4",
+    "set-cookie-parser": "^2.4.8",
     "undici": "^4.5.1"
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.0.0",
     "@miniflare/watcher": "2.0.0",
-    "@miniflare/web-sockets": "2.0.0"
+    "@miniflare/web-sockets": "2.0.0",
+    "@types/set-cookie-parser": "^2.4.1"
   },
   "peerDependencies": {
     "@miniflare/watcher": "2.0.0"

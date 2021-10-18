@@ -4,6 +4,7 @@ export * from "./domexception";
 export * from "./encoding";
 export * from "./event";
 export {
+  Headers,
   InputGatedBody,
   withInputGating,
   Request,

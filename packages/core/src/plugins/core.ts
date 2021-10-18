@@ -31,10 +31,11 @@ import {
   SetupResult,
   globsToMatcher,
 } from "@miniflare/shared";
-import { File, FormData, Headers } from "undici";
+import { File, FormData } from "undici";
 import {
   DOMException,
   FetchEvent,
+  Headers,
   Request,
   Response,
   ScheduledEvent,

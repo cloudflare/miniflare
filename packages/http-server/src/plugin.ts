@@ -23,7 +23,7 @@ const CERT_DAYS = 30;
 // Max age of cf.json
 const CF_DAYS = 30;
 
-const CF_ENDPOINT = "https://workers.cloudflare.com/cf.json";
+const CF_FETCH_DEFAULT = path.resolve(".mf", "cf.json");
 const CF_DEFAULT: IncomingRequestCfProperties = {
   asn: 395747,
   colo: "DFW",
@@ -171,6 +171,10 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     description: "Passphrase to decrypt SSL files",
     logName: "HTTPS Passphrase",
     logValue: () => "**********",
+    fromWrangler: ({ miniflare }) =>
+      typeof miniflare?.https === "object"
+        ? miniflare.https?.passphrase
+        : undefined,
   })
   httpsPassphrase?: string;
 
@@ -178,10 +182,16 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     type: OptionType.BOOLEAN_STRING,
     description: "Path for cached Request cf object from Cloudflare",
     logName: "Request cf Object Fetch",
+    logValue(value: boolean | string) {
+      if (value === true) return path.relative("", CF_FETCH_DEFAULT);
+      if (value === false) return undefined;
+      return path.relative("", value);
+    },
     fromWrangler: ({ miniflare }) => miniflare?.cf_fetch,
   })
   cfFetch?: boolean | string;
 
+  // TODO: should maybe provide cf headers stuff too?
   @Option({ type: OptionType.NONE })
   cfProvider?: (
     req: http.IncomingMessage
@@ -196,7 +206,9 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     log: Log,
     options?: HTTPOptions,
     private readonly defaultCertRoot = path.resolve(".mf", "cert"),
-    private readonly defaultCfPath = path.resolve(".mf", "cf.json"),
+    private readonly defaultCfPath = CF_FETCH_DEFAULT,
+    private readonly defaultCfFetch = process.env.NODE_ENV !== "test",
+    private readonly cfFetchEndpoint = "https://workers.cloudflare.com/cf.json",
     private readonly clock = defaultClock
   ) {
     super(log);
@@ -215,9 +227,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     );
   }
 
-  getCfForRequest(
-    req: http.IncomingMessage
-  ): MaybePromise<IncomingRequestCfProperties> {
+  getCf(req: http.IncomingMessage): MaybePromise<IncomingRequestCfProperties> {
     if (this.cfProvider) return this.cfProvider(req);
     return this.#cf;
   }
@@ -226,9 +236,9 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     return this.#httpsOptions;
   }
 
-  async #setupCf(): Promise<void> {
-    // Default to enabling cfFetch
-    let cfPath = this.cfFetch ?? true;
+  async setupCf(): Promise<void> {
+    // Default to enabling cfFetch if we're not testing
+    let cfPath = this.cfFetch ?? this.defaultCfFetch;
     // If cfFetch is disabled or we're using a custom provider, don't fetch the
     // cf object
     if (!cfPath || this.cfProvider) return;
@@ -248,7 +258,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     // If no need to refetch, stop here, otherwise fetch
     if (!refetch) return;
     try {
-      const res = await fetch(CF_ENDPOINT);
+      const res = await fetch(this.cfFetchEndpoint);
       const cfText = await res.text();
       this.#cf = JSON.parse(cfText);
       // Write cf so we can reuse it later
@@ -256,11 +266,12 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
       await fs.writeFile(cfPath, cfText, "utf8");
       this.log.info("Updated Request cf object cache!");
     } catch (e: any) {
+      // TODO: don't log this error so loudly
       this.log.error(e);
     }
   }
 
-  async #setupHttps(): Promise<void> {
+  async setupHttps(): Promise<void> {
     // If options are falsy, don't use HTTPS, no other HTTP setup required
     if (!this.httpsEnabled) return;
 
@@ -348,8 +359,8 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
 
   async setup(): Promise<SetupResult> {
     // noinspection ES6MissingAwait
-    void this.#setupCf();
-    await this.#setupHttps();
+    void this.setupCf();
+    await this.setupHttps();
     return {};
   }
 }

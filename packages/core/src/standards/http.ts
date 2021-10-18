@@ -11,31 +11,40 @@ import {
 } from "@miniflare/shared";
 import type { WebSocket } from "@miniflare/web-sockets";
 import { Colorize, blue, bold, green, grey, red, yellow } from "kleur/colors";
+import { splitCookiesString } from "set-cookie-parser";
 import {
+  Headers as BaseHeaders,
   Request as BaseRequest,
   RequestInfo as BaseRequestInfo,
   RequestInit as BaseRequestInit,
   Response as BaseResponse,
   ResponseInit as BaseResponseInit,
   BodyInit,
-  BodyMixin,
-  ControlledAsyncIterable,
   FormData,
   RequestCache,
-  ResponseType,
-  fetch as baseFetch,
-} from "undici";
-// @ts-expect-error we need these for making Request's Headers immutable
-import fetchSymbols from "undici/lib/fetch/symbols.js";
-import {
-  Headers,
   RequestCredentials,
   RequestDestination,
   RequestMode,
   RequestRedirect,
   ResponseRedirectStatus,
-} from "undici/types/fetch";
+  ResponseType,
+  fetch as baseFetch,
+} from "undici";
+// @ts-expect-error we need these for making Request's Headers immutable
+import fetchSymbols from "undici/lib/fetch/symbols.js";
 import { IncomingRequestCfProperties, RequestInitCfProperties } from "./cf";
+
+export class Headers extends BaseHeaders {
+  getAll(key: string): string[] {
+    if (key.toLowerCase() !== "set-cookie") {
+      throw new TypeError(
+        'getAll() can only be used with the header name "Set-Cookie".'
+      );
+    }
+    const value = super.get("set-cookie");
+    return value ? splitCookiesString(value) : [];
+  }
+}
 
 // Instead of subclassing our customised Request and Response classes from
 // BaseRequest and BaseResponse, we instead compose them and implement the same
@@ -58,21 +67,22 @@ export const kInner = Symbol("kInner");
 
 const kInputGated = Symbol("kInputGated");
 
-export class InputGatedBody<Inner extends BodyMixin> {
+export class InputGatedBody<Inner extends BaseRequest | BaseResponse> {
   [kInner]: Inner;
   [kInputGated] = false;
   #inputGatedBody?: ReadableStream;
+  #headers?: Headers;
 
   constructor(inner: Inner) {
     this[kInner] = inner;
   }
 
-  get body(): ControlledAsyncIterable | null {
+  get body(): ReadableStream | null {
     const body = this[kInner].body;
+    // @ts-expect-error ReadableStreams are basically ControlledAsyncIterables.
     if (!this[kInputGated] || body === null) return body;
 
     // Only proxy body once
-    // @ts-expect-error ReadableStreams are basically ControlledAsyncIterables.
     //  Users' Workers code will also expect ReadableStreams.
     if (this.#inputGatedBody) return this.#inputGatedBody;
 
@@ -104,7 +114,6 @@ export class InputGatedBody<Inner extends BodyMixin> {
         return Reflect.get(bodyStream, propertyKey, receiver);
       },
     });
-    // @ts-expect-error see above @ts-expect-error comment
     return this.#inputGatedBody;
   }
   get bodyUsed(): boolean {
@@ -136,11 +145,19 @@ export class InputGatedBody<Inner extends BodyMixin> {
     this[kInputGated] && (await waitForOpenInputGate());
     return body;
   }
+
+  get headers(): Headers {
+    if (this.#headers) return this.#headers;
+    const headers = new Headers(this[kInner].headers);
+    // @ts-expect-error internal kGuard isn't included in type definitions
+    headers[fetchSymbols.kGuard] = this[kInner].headers[fetchSymbols.kGuard];
+    return (this.#headers = headers);
+  }
 }
 
-export function withInputGating<Body extends InputGatedBody<BodyMixin>>(
-  body: Body
-): Body {
+export function withInputGating<
+  Inner extends InputGatedBody<BaseRequest | BaseResponse>
+>(body: Inner): Inner {
   body[kInputGated] = true;
   return body;
 }
@@ -151,20 +168,19 @@ export interface RequestInit extends BaseRequestInit {
   readonly cf?: IncomingRequestCfProperties | RequestInitCfProperties;
 }
 
-export class Request
-  extends InputGatedBody<BaseRequest>
-  implements BaseRequest
-{
+export class Request extends InputGatedBody<BaseRequest> {
   // noinspection TypeScriptFieldCanBeMadeReadonly
   #cf?: IncomingRequestCfProperties | RequestInitCfProperties;
 
   constructor(input: RequestInfo, init?: RequestInit) {
+    // noinspection SuspiciousTypeOfGuard
     const cf = input instanceof Request ? input.#cf : init?.cf;
     if (input instanceof BaseRequest && !init) {
       // For cloning
       super(input);
     } else {
       // Don't pass our strange hybrid Request to undici
+      // noinspection SuspiciousTypeOfGuard
       if (input instanceof Request) input = input[kInner];
       super(new BaseRequest(input, init));
     }
@@ -191,9 +207,6 @@ export class Request
   }
   get destination(): RequestDestination {
     return this[kInner].destination;
-  }
-  get headers(): Headers {
-    return this[kInner].headers;
   }
   get integrity(): string {
     return this[kInner].integrity;
@@ -233,10 +246,9 @@ export interface ResponseInit extends BaseResponseInit {
 
 const kWaitUntil = Symbol("kWaitUntil");
 
-export class Response<WaitUntil extends any[] = unknown[]>
-  extends InputGatedBody<BaseResponse>
-  implements BaseResponse
-{
+export class Response<
+  WaitUntil extends any[] = unknown[]
+> extends InputGatedBody<BaseResponse> {
   // Note Workers don't implement Response.error()
 
   static redirect(url: string | URL, status: ResponseRedirectStatus): Response {
@@ -248,6 +260,8 @@ export class Response<WaitUntil extends any[] = unknown[]>
   #status?: number;
   readonly #webSocket?: WebSocket;
   [kWaitUntil]?: Promise<WaitUntil>;
+
+  // TODO: add encodeBody: https://developers.cloudflare.com/workers/runtime-apis/response#properties
 
   constructor(body?: BodyInit, init?: ResponseInit | Response | BaseResponse) {
     let status: number | undefined;
@@ -305,9 +319,6 @@ export class Response<WaitUntil extends any[] = unknown[]>
   }
 
   // Pass-through standard properties
-  get headers(): Headers {
-    return this[kInner].headers;
-  }
   get ok(): boolean {
     return this[kInner].ok;
   }

@@ -67,7 +67,9 @@ export class SitesPlugin extends Plugin<SitesOptions> implements SitesOptions {
 
     // No need to watch sitePath here, FileStorage will always serve latest
     // files
-    // TODO (someday): may want to if doing live reload?
+    // TODO (someday): may want to if doing live reload?, could create bindings
+    //  in constructor then just return those to avoid recreating namespace
+    //  on each file change
     return { bindings };
   }
 }

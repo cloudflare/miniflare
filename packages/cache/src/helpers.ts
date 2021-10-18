@@ -12,7 +12,7 @@ export interface CachedMeta {
 }
 
 export interface CacheInterface {
-  put(req: RequestInfo, res: BaseResponse): Promise<undefined>;
+  put(req: RequestInfo, res: BaseResponse | Response): Promise<undefined>;
   match(
     req: RequestInfo,
     options?: CacheMatchOptions

@@ -3,7 +3,10 @@ import { Response as BaseResponse } from "undici";
 import { CacheInterface, CacheMatchOptions } from "./helpers";
 
 export class NoOpCache implements CacheInterface {
-  async put(_req: RequestInfo, _res: BaseResponse): Promise<undefined> {
+  async put(
+    _req: RequestInfo,
+    _res: BaseResponse | Response
+  ): Promise<undefined> {
     return;
   }
 

@@ -36,4 +36,9 @@ export class TestLog extends Log {
 
 export class NoOpLog extends Log {
   log(): void {}
+
+  error(message: Error): void {
+    console.log(message);
+    throw message;
+  }
 }
