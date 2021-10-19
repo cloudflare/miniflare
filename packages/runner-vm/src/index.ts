@@ -10,6 +10,8 @@ import { VMScriptRunnerError } from "./error";
 import { ModuleLinker } from "./linker";
 import { proxiedGlobals } from "./proxied";
 
+export * from "./error";
+
 // noinspection JSMethodCanBeStatic
 export class VMScriptRunner implements ScriptRunner {
   private runAsScript(context: vm.Context, blueprint: ScriptBlueprint) {
@@ -52,7 +54,7 @@ export class VMScriptRunner implements ScriptRunner {
     // globalScope will be fresh for each call of run so it's fine to mutate it.
     Object.assign(globalScope, proxiedGlobals);
 
-    // Create a new shared context with eval/new Function/WASM compile disabled
+    // Create a new context with eval/new Function/WASM compile disabled
     const context = vm.createContext(globalScope, {
       codeGeneration: { strings: false, wasm: false },
     });
