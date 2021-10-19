@@ -1,7 +1,6 @@
 import vm from "vm";
 import {
   Context,
-  ModuleExports,
   ProcessedModuleRule,
   ScriptBlueprint,
   ScriptRunner,
@@ -36,7 +35,7 @@ export class VMScriptRunner implements ScriptRunner {
 
   async run(
     globalScope: Context,
-    blueprints: ScriptBlueprint[],
+    blueprint: ScriptBlueprint,
     modulesRules?: ProcessedModuleRule[]
   ): Promise<ScriptRunnerResult> {
     // If we're using modules, make sure --experimental-vm-modules is enabled
@@ -58,23 +57,16 @@ export class VMScriptRunner implements ScriptRunner {
       codeGeneration: { strings: false, wasm: false },
     });
     // Keep track of module namespaces and total script size
-    const exports: ModuleExports = new Map<string, Context>();
+    let exports: Context = {};
     let bundleSize = 0;
 
-    for (const blueprint of blueprints) {
-      bundleSize += Buffer.byteLength(blueprint.code);
-      if (linker) {
-        // If we have a linker, we must've passed module rules so run as module,
-        // storing exported namespace
-        const namespace = await this.runAsModule(
-          context,
-          blueprint,
-          linker.linker
-        );
-        exports.set(blueprint.filePath, namespace);
-      } else {
-        this.runAsScript(context, blueprint);
-      }
+    bundleSize += Buffer.byteLength(blueprint.code);
+    if (linker) {
+      // If we have a linker, we must've passed module rules so run as module,
+      // storing exported namespace
+      exports = await this.runAsModule(context, blueprint, linker.linker);
+    } else {
+      this.runAsScript(context, blueprint);
     }
 
     // Add referenced modules to total script size and watched paths

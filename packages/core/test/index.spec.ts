@@ -13,12 +13,7 @@ import {
   RequestInit,
 } from "@miniflare/core";
 import { VMScriptRunner } from "@miniflare/runner-vm";
-import {
-  LogLevel,
-  STRING_SCRIPT_PATH,
-  Storage,
-  TypedEventListener,
-} from "@miniflare/shared";
+import { LogLevel, Storage, TypedEventListener } from "@miniflare/shared";
 import {
   LogEntry,
   MemoryStorageFactory,
@@ -485,13 +480,21 @@ test("MiniflareCore: #reload: reloads worker on init", async (t) => {
   t.is(instances, reloadEvent.plugins);
 
   // Check reload hook parameters
-  const exports =
-    instances.TestPlugin1.reloadModuleExports?.get(STRING_SCRIPT_PATH);
+  const exports = instances.TestPlugin1.reloadModuleExports;
   t.deepEqual(exports?.default, { thing: 42 });
   t.is(instances.TestPlugin1.reloadBindings?.KEY, "value");
-  t.is(instances.TestPlugin1.reloadMainScriptPath, STRING_SCRIPT_PATH);
 });
-
+test("MiniflareCore: #reload: throws if multiple plugins return scripts", async (t) => {
+  const plugins = { CorePlugin1: CorePlugin, CorePlugin2: CorePlugin };
+  const mf = useMiniflare(plugins, {
+    script: "export default { thing: 42 };",
+    modules: true,
+  });
+  await t.throwsAsync(mf.getPlugins(), {
+    instanceOf: TypeError,
+    message: "Multiple plugins returned a script",
+  });
+});
 test("MiniflareCore: #reload: watches files", async (t) => {
   const log = new TestLog();
   const tmp = await useTmp(t);
@@ -622,7 +625,7 @@ test("MiniflareCore: #watcherCallback: re-runs setup for plugins' changed paths"
     [LogLevel.DEBUG, "Reloading worker..."],
     [LogLevel.INFO, "beforeReload"],
     [LogLevel.INFO, "reload"],
-    [LogLevel.INFO, "Worker reloaded! (0B)"],
+    [LogLevel.INFO, "Worker reloaded!"],
   ]);
 
   // Update test2 contents, expecting TestPlugin setup to run
@@ -636,7 +639,7 @@ test("MiniflareCore: #watcherCallback: re-runs setup for plugins' changed paths"
     [LogLevel.DEBUG, "Reloading worker..."],
     [LogLevel.INFO, "beforeReload"],
     [LogLevel.INFO, "reload"],
-    [LogLevel.INFO, "Worker reloaded! (0B)"],
+    [LogLevel.INFO, "Worker reloaded!"],
   ]);
 });
 test("MiniflareCore: #watcherCallback: re-runs setup for script-providing plugins if any beforeSetup ran", async (t) => {
@@ -752,7 +755,7 @@ test("MiniflareCore: setOptions: updates options and reloads worker", async (t) 
     [LogLevel.INFO, "beforeReload"],
     [LogLevel.VERBOSE, "- reload(TestPlugin)"],
     [LogLevel.INFO, "reload"],
-    [LogLevel.INFO, "Worker reloaded! (0B)"],
+    [LogLevel.INFO, "Worker reloaded!"],
   ];
   t.deepEqual(log.logs, expectedLogs);
 });

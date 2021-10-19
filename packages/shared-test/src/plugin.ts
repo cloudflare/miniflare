@@ -4,7 +4,6 @@ import {
   Context,
   ExtractOptions,
   Log,
-  ModuleExports,
   Option,
   OptionType,
   Plugin,
@@ -107,9 +106,8 @@ export class TestPlugin extends Plugin<TestOptions> implements TestOptions {
   setupWatch?: string[];
 
   readonly constructedOptions?: TestOptions;
-  reloadModuleExports?: ModuleExports;
+  reloadModuleExports?: Context;
   reloadBindings?: Context;
-  reloadMainScriptPath?: string;
 
   constructor(log: Log, options?: TestOptions) {
     super(log);
@@ -143,15 +141,10 @@ export class TestPlugin extends Plugin<TestOptions> implements TestOptions {
     this.log.info("beforeReload");
   }
 
-  reload(
-    moduleExports: ModuleExports,
-    bindings: Context,
-    mainScriptPath?: string
-  ): void {
+  reload(moduleExports: Context, bindings: Context): void {
     this.log.info("reload");
     this.reloadModuleExports = moduleExports;
     this.reloadBindings = bindings;
-    this.reloadMainScriptPath = mainScriptPath;
   }
 
   dispose(): void {

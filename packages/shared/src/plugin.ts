@@ -60,10 +60,8 @@ export interface BeforeSetupResult {
 export interface SetupResult extends BeforeSetupResult {
   globals?: Context;
   bindings?: Context;
-  scripts?: ScriptBlueprint[];
+  script?: ScriptBlueprint;
 }
-
-export type ModuleExports = Map<string, Context>;
 
 export abstract class Plugin<Options extends Context = never> {
   // Required for PluginOptions type to be correct, no idea why
@@ -92,11 +90,7 @@ export abstract class Plugin<Options extends Context = never> {
   beforeReload?(): MaybePromise<void>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  reload?(
-    moduleExports: ModuleExports,
-    bindings: Context,
-    mainScriptPath?: string
-  ): MaybePromise<void>;
+  reload?(moduleExports: Context, bindings: Context): MaybePromise<void>;
 
   // Called when a new instance of the plugin is about to be created,
   // likely delegates to beforeReload or reload
