@@ -16,10 +16,16 @@ export type SchedulerPluginSignatures = CorePluginSignatures & {
 const kReload = Symbol("kReload");
 
 export class Scheduler<Plugins extends SchedulerPluginSignatures> {
+  // noinspection JSMismatchedCollectionQueryUpdate
   private previousValidatedCrons?: string[];
   private scheduledTasks?: ScheduledTask[];
 
-  constructor(private readonly mf: MiniflareCore<Plugins>) {
+  constructor(
+    private readonly mf: MiniflareCore<Plugins>,
+    private readonly cron: Promise<{
+      default: typeof import("node-cron");
+    }> = import("node-cron")
+  ) {
     this[kReload] = this[kReload].bind(this);
     mf.addEventListener("reload", this[kReload]);
   }
@@ -34,7 +40,7 @@ export class Scheduler<Plugins extends SchedulerPluginSignatures> {
     // Schedule tasks, stopping all current ones first
     this.scheduledTasks?.forEach((task) => task.destroy());
     if (!validatedCrons.length) return;
-    const cron = await import("node-cron");
+    const cron = await this.cron;
     this.scheduledTasks = validatedCrons?.map((expression) =>
       cron.default.schedule(expression, async () => {
         const start = process.hrtime();
@@ -57,9 +63,10 @@ export class Scheduler<Plugins extends SchedulerPluginSignatures> {
 }
 
 export async function startScheduler<Plugins extends SchedulerPluginSignatures>(
-  mf: MiniflareCore<Plugins>
+  mf: MiniflareCore<Plugins>,
+  cron?: Promise<{ default: typeof import("node-cron") }>
 ): Promise<Scheduler<Plugins>> {
-  const scheduler = new Scheduler(mf);
+  const scheduler = new Scheduler(mf, cron);
   await scheduler[kReload](new ReloadEvent(await mf.getPlugins()));
   return scheduler;
 }

@@ -58,7 +58,7 @@ export class SchedulerPlugin
       } catch (e) {
         throw new SchedulerError(
           "ERR_INVALID_CRON",
-          `Unable to parse cron "${spec}": ${e}`
+          `Unable to parse CRON "${spec}": ${e}`
         );
       }
     }
