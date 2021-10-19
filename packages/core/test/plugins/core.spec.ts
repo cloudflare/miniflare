@@ -235,6 +235,8 @@ test("CorePlugin: setup: includes web standards", async (t) => {
   t.true(typeof globals.WeakMap === "function");
   t.true(typeof globals.WeakSet === "function");
   t.true(typeof globals.WebAssembly === "object");
+
+  t.true(globals.MINIFLARE);
 });
 
 test("CorePlugin: processedModuleRules: processes rules includes default module rules", (t) => {

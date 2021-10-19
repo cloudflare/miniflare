@@ -107,6 +107,21 @@ test("BuildPlugin: beforeSetup: runs build successfully", async (t) => {
   const test = await fs.readFile(path.join(tmp, "test.txt"), "utf8");
   t.is(test.trim(), "test");
 });
+test("BuildPlugin: beforeSetup: includes MINIFLARE environment variable", async (t) => {
+  const tmp = await useTmp(t);
+  const log = new NoOpLog();
+  const plugin = new BuildPlugin(log, {
+    // Cross-platform get environment variable
+    buildCommand: `${process.execPath} -e "console.log(JSON.stringify(process.env))" > env.json`,
+    buildBasePath: tmp,
+  });
+  await plugin.beforeSetup();
+  const env = JSON.parse(await fs.readFile(path.join(tmp, "env.json"), "utf8"));
+  t.like(env, {
+    NODE_ENV: "test", // Includes existing environment variables
+    MINIFLARE: "1", // Includes MINIFLARE
+  });
+});
 test("BuildPlugin: beforeSetup: throws with exit code if build fails", async (t) => {
   const log = new NoOpLog();
   const plugin = new BuildPlugin(log, {
