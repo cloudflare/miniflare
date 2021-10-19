@@ -4,6 +4,7 @@ import path from "path";
 import { promisify } from "util";
 import { IncomingRequestCfProperties } from "@miniflare/core";
 import {
+  Clock,
   Log,
   MaybePromise,
   Option,
@@ -13,18 +14,29 @@ import {
   defaultClock,
 } from "@miniflare/shared";
 import type { Attributes, Options } from "selfsigned";
-import { fetch } from "undici";
+import { RequestInfo, fetch } from "undici";
 import { getAccessibleHosts } from "./helpers";
 
 // Milliseconds in 1 day
 const DAY = 86400000;
-// Max age of self-signed certificate
+// Max age in days of self-signed certificate
 const CERT_DAYS = 30;
-// Max age of cf.json
+// Max age in days of cf.json
 const CF_DAYS = 30;
 
-const CF_FETCH_DEFAULT = path.resolve(".mf", "cf.json");
-const CF_DEFAULT: IncomingRequestCfProperties = {
+export interface HTTPPluginDefaults {
+  certRoot?: string;
+  cfPath?: string;
+  cfFetch?: boolean;
+  cfFetchEndpoint?: RequestInfo;
+  clock?: Clock;
+}
+
+const defaultCertRoot = path.resolve(".mf", "cert");
+const defaultCfPath = path.resolve(".mf", "cf.json");
+const defaultCfFetch = process.env.NODE_ENV !== "test";
+const defaultCfFetchEndpoint = "https://workers.cloudflare.com/cf.json";
+const defaultCf: IncomingRequestCfProperties = {
   asn: 395747,
   colo: "DFW",
   city: "Austin",
@@ -183,7 +195,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     description: "Path for cached Request cf object from Cloudflare",
     logName: "Request cf Object Fetch",
     logValue(value: boolean | string) {
-      if (value === true) return path.relative("", CF_FETCH_DEFAULT);
+      if (value === true) return path.relative("", defaultCfPath);
       if (value === false) return undefined;
       return path.relative("", value);
     },
@@ -197,22 +209,30 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     req: http.IncomingMessage
   ) => MaybePromise<IncomingRequestCfProperties>;
 
+  private readonly defaultCertRoot: string;
+  private readonly defaultCfPath: string;
+  private readonly defaultCfFetch: boolean;
+  private readonly cfFetchEndpoint: RequestInfo;
+  private readonly clock: Clock;
+
+  #cf = defaultCf;
+
   readonly httpsEnabled: boolean;
   #httpsOptions?: ProcessedHTTPSOptions;
-
-  #cf = CF_DEFAULT;
 
   constructor(
     log: Log,
     options?: HTTPOptions,
-    private readonly defaultCertRoot = path.resolve(".mf", "cert"),
-    private readonly defaultCfPath = CF_FETCH_DEFAULT,
-    private readonly defaultCfFetch = process.env.NODE_ENV !== "test",
-    private readonly cfFetchEndpoint = "https://workers.cloudflare.com/cf.json",
-    private readonly clock = defaultClock
+    private readonly defaults: HTTPPluginDefaults = {}
   ) {
     super(log);
     this.assignOptions(options);
+
+    this.defaultCertRoot = defaults.certRoot ?? defaultCertRoot;
+    this.defaultCfPath = defaults.cfPath ?? defaultCfPath;
+    this.defaultCfFetch = defaults.cfFetch ?? defaultCfFetch;
+    this.cfFetchEndpoint = defaults.cfFetchEndpoint ?? defaultCfFetchEndpoint;
+    this.clock = defaults.clock ?? defaultClock;
 
     this.httpsEnabled = !!(
       this.https ||
