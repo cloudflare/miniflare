@@ -55,7 +55,7 @@ export class Log {
   }
 
   error(message: Error): void {
-    if (LogLevel.ERROR > this.level) {
+    if (this.level < LogLevel.ERROR) {
       // Rethrow message if it won't get logged
       throw message;
     } else if (message.stack) {
