@@ -131,7 +131,7 @@ export class ModuleLinker {
     // If we've already seen a module with the same identifier, return it, to
     // handle import cycles
     const cached = this.#cjsModuleCache.get(identifier);
-    if (cached) return cached;
+    if (cached) return cached.exports;
 
     // Find first matching module rule ("ignore" requires relative paths)
     const relativeIdentifier = path.relative("", identifier);
@@ -171,15 +171,14 @@ export class ModuleLinker {
         const require = this.createRequire(identifier, context);
         moduleWrapper(module.exports, require, module);
         break;
-      // TODO: check we can actually import these other types from CJS
       case "Text":
-        module.exports = data.toString("utf8");
+        module.exports.default = data.toString("utf8");
         break;
       case "Data":
-        module.exports = viewToBuffer(data);
+        module.exports.default = viewToBuffer(data);
         break;
       case "CompiledWasm":
-        module.exports = new WebAssembly.Module(data);
+        module.exports.default = new WebAssembly.Module(data);
         break;
       default:
         throw new VMScriptRunnerError(
