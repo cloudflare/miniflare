@@ -1,10 +1,31 @@
 #!/usr/bin/env node
-import { ParseError, buildHelp, parseArgv } from "@miniflare/cli";
-import { Options } from "@miniflare/shared";
+import type { Options } from "@miniflare/shared";
 import { red } from "kleur/colors";
-import { Miniflare, PLUGINS } from "./api";
+
+function suppressWarnings() {
+  // Suppress experimental warnings
+  const originalEmitWarning = process.emitWarning;
+  // @ts-expect-error this works, but overloads are funky in typescript
+  process.emitWarning = (warning, ctorTypeOptions, ctorCode, ctor) => {
+    if (ctorTypeOptions === "ExperimentalWarning") {
+      const warningString = warning.toString();
+      if (
+        warningString.startsWith("VM Modules") ||
+        warningString.startsWith("stream/web") ||
+        warningString.startsWith("buffer.Blob")
+      ) {
+        return;
+      }
+    }
+    originalEmitWarning(warning, ctorTypeOptions, ctorCode, ctor);
+  };
+}
 
 async function main() {
+  // Need to import these after warnings have been suppressed
+  const [{ ParseError, buildHelp, parseArgv }, { Miniflare, PLUGINS }] =
+    await Promise.all([import("@miniflare/cli"), import("miniflare")]);
+
   // Parse command line options
   let options: Options<typeof PLUGINS>;
   try {
@@ -47,4 +68,5 @@ async function main() {
   // TODO: update checker
 }
 
+suppressWarnings();
 void main();
