@@ -63,6 +63,7 @@ export class BuildPlugin extends Plugin<BuildOptions> implements BuildOptions {
         shell: true,
         // Pass-through stdin/stdout
         stdio: "inherit",
+        env: { ...process.env, MINIFLARE: "1" },
       });
       build.on("exit", (exitCode) => {
         if (exitCode !== 0) {
