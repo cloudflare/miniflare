@@ -1,8 +1,16 @@
+import { TextDecoder } from "util";
 import {
+  addAll,
   base64Decode,
   base64Encode,
+  globsToMatcher,
+  kebabCase,
   nonCircularClone,
   sanitisePath,
+  spaceCase,
+  titleCase,
+  viewToArray,
+  viewToBuffer,
 } from "@miniflare/shared";
 import test from "ava";
 
@@ -14,11 +22,56 @@ test("nonCircularClone: creates copy of data", (t) => {
   t.deepEqual(original, clone);
 });
 
+test("addAll: adds all elements to set", (t) => {
+  const set = new Set<string>();
+  addAll(set, ["a", "b", "c"]);
+  t.true(set.has("a"));
+  t.true(set.has("b"));
+  t.true(set.has("c"));
+});
+
+test("viewToArray: converts ArrayBufferView to Uint8Array", (t) => {
+  const array = viewToArray(Buffer.from("test"));
+  t.is(new TextDecoder().decode(array), "test");
+});
+test("viewToBuffer: converts ArrayBufferView to ArrayBuffer", (t) => {
+  const buffer = viewToBuffer(Buffer.from("test"));
+  t.is(new TextDecoder().decode(buffer), "test");
+});
+
 test("base64Encode: encodes base64 string", (t) => {
   t.is(base64Encode("test ✅"), "dGVzdCDinIU=");
 });
 test("base64Decode: decodes base64 string", (t) => {
   t.is(base64Decode("dGVzdCDinIU="), "test ✅");
+});
+
+test("globsToMatcher: converts globs to string matcher", (t) => {
+  const globs = ["*.txt", "src/**/*.js", "!src/bad.js"];
+  const matcher = globsToMatcher(globs);
+  t.true(matcher.test("test.txt"));
+  t.true(matcher.test("dist/test.txt"));
+  t.true(matcher.test("src/index.js"));
+  t.true(matcher.test("src/lib/add.js"));
+  t.false(matcher.test("src/bad.js"));
+  t.is(matcher.toString(), globs.join(", "));
+});
+test("globsToMatcher: returns matcher that matches nothing on undefined globs", (t) => {
+  const matcher = globsToMatcher();
+  t.false(matcher.test("test.txt"));
+  t.is(matcher.toString(), "");
+});
+
+test("kebabCase: converts string from camelCase to kebab-case", (t) => {
+  t.is(kebabCase("optionOneName"), "option-one-name");
+});
+test("spaceCase: converts string from PascalCase or camelCase to space case", (t) => {
+  t.is(spaceCase("HTTPPlugin"), "HTTP Plugin");
+  t.is(spaceCase("optionOneName"), "option One Name");
+});
+test("titleCase: converts string from PascalCase or camelCase to Title Case", (t) => {
+  t.is(titleCase("HTTPPlugin"), "HTTP Plugin");
+  t.is(titleCase("optionOneName"), "Option One Name");
 });
 
 test("sanitisePath: doesn't change safe paths", (t) => {

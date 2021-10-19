@@ -11,12 +11,10 @@ export function addAll<T>(set: Set<T>, values: Iterable<T>): void {
 export function viewToArray(view: ArrayBufferView): Uint8Array {
   return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
 }
-
 export function viewToBuffer(view: ArrayBufferView): ArrayBuffer {
   return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
 }
 
-// TODO: replace with functions not using Buffer, see MDN base64
 export function base64Encode(value: string): string {
   return Buffer.from(value, "utf8").toString("base64");
 }
@@ -42,12 +40,10 @@ export function globsToMatcher(globs?: string[]): Matcher {
 export function kebabCase(s: string): string {
   return s.replace(/[A-Z]/g, (sub) => `-${sub.toLowerCase()}`);
 }
-
 export function spaceCase(s: string): string {
   s = s.replace(/(.)([A-Z][a-z]+)/g, "$1 $2");
   return s.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
 }
-
 export function titleCase(s: string): string {
   return spaceCase(s)
     .split(" ")
