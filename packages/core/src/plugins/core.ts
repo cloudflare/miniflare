@@ -184,7 +184,6 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
   readonly processedModuleRules: ProcessedModuleRule[] = [];
 
   readonly #globals: Context;
-  #mainScriptPath?: string;
 
   constructor(
     log: Log,
@@ -290,20 +289,14 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     }
   }
 
-  get mainScriptPath(): string | undefined {
-    return this.#mainScriptPath;
-  }
-
   async setup(): Promise<SetupResult> {
     const globals = this.#globals;
-    this.#mainScriptPath = undefined;
 
     // First, try to load script from string, no need to watch any files
     if (this.script !== undefined) {
-      this.#mainScriptPath = STRING_SCRIPT_PATH;
       return {
         globals,
-        scripts: [{ filePath: STRING_SCRIPT_PATH, code: this.script }],
+        script: { filePath: STRING_SCRIPT_PATH, code: this.script },
       };
     }
 
@@ -334,8 +327,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       scriptPath = path.resolve(scriptPath);
       const code = await fs.readFile(scriptPath, "utf8");
       watch.push(scriptPath);
-      this.#mainScriptPath = scriptPath;
-      return { globals, scripts: [{ filePath: scriptPath, code }], watch };
+      return { globals, script: { filePath: scriptPath, code }, watch };
     }
 
     // If we couldn't load a script yet, keep watching package.json anyways, it

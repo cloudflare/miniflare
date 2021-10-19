@@ -289,8 +289,7 @@ test("CorePlugin: setup: loads no script if none defined", async (t) => {
   const plugin = new CorePlugin(new NoOpLog());
   const result = await plugin.setup();
   t.deepEqual(result.watch, []);
-  t.is(result.scripts, undefined);
-  t.is(plugin.mainScriptPath, undefined);
+  t.is(result.script, undefined);
 });
 test("CorePlugin: setup: loads script from string", async (t) => {
   const plugin = new CorePlugin(new NoOpLog(), {
@@ -298,10 +297,10 @@ test("CorePlugin: setup: loads script from string", async (t) => {
   });
   const result = await plugin.setup();
   t.deepEqual(result.watch, undefined);
-  t.deepEqual(result.scripts, [
-    { filePath: STRING_SCRIPT_PATH, code: "console.log('Hello!')" },
-  ]);
-  t.is(plugin.mainScriptPath, STRING_SCRIPT_PATH);
+  t.deepEqual(result.script, {
+    filePath: STRING_SCRIPT_PATH,
+    code: "console.log('Hello!')",
+  });
 });
 test("CorePlugin: setup: loads script from package.json in default location", async (t) => {
   const tmp = await useTmp(t);
@@ -318,24 +317,19 @@ test("CorePlugin: setup: loads script from package.json in default location", as
   let result = await plugin.setup();
   // ...but should still watch package.json
   t.deepEqual(result.watch, [defaultPackagePath]);
-  t.is(result.scripts, undefined);
-  t.is(plugin.mainScriptPath, undefined);
+  t.is(result.script, undefined);
 
   // Should still watch package.json if missing main field
   await fs.writeFile(defaultPackagePath, "{}");
   result = await plugin.setup();
   t.deepEqual(result.watch, [defaultPackagePath]);
-  t.is(result.scripts, undefined);
-  t.is(plugin.mainScriptPath, undefined);
+  t.is(result.script, undefined);
 
   // Add main field and try setup again
   await fs.writeFile(defaultPackagePath, `{"main": "script.js"}`);
   result = await plugin.setup();
   t.deepEqual(result.watch, [defaultPackagePath, scriptPath]);
-  t.deepEqual(result.scripts, [
-    { filePath: scriptPath, code: "console.log(42)" },
-  ]);
-  t.is(plugin.mainScriptPath, scriptPath);
+  t.deepEqual(result.script, { filePath: scriptPath, code: "console.log(42)" });
 });
 test("CorePlugin: setup: loads script from package.json in custom location", async (t) => {
   const tmp = await useTmp(t);
@@ -360,10 +354,10 @@ test("CorePlugin: setup: loads script from package.json in custom location", asy
   await fs.writeFile(customPackagePath, `{"main": "script.js"}`);
   const result = await plugin.setup();
   t.deepEqual(result.watch, [customPackagePath, scriptPath]);
-  t.deepEqual(result.scripts, [
-    { filePath: scriptPath, code: "console.log('custom')" },
-  ]);
-  t.is(plugin.mainScriptPath, scriptPath);
+  t.deepEqual(result.script, {
+    filePath: scriptPath,
+    code: "console.log('custom')",
+  });
 });
 test("CorePlugin: setup: loads module from package.json", async (t) => {
   const tmp = await useTmp(t);
@@ -374,10 +368,10 @@ test("CorePlugin: setup: loads module from package.json", async (t) => {
   const plugin = new CorePlugin(new NoOpLog(), { modules: true, packagePath });
   const result = await plugin.setup();
   t.deepEqual(result.watch, [packagePath, scriptPath]);
-  t.deepEqual(result.scripts, [
-    { filePath: scriptPath, code: "export default 42" },
-  ]);
-  t.is(plugin.mainScriptPath, scriptPath);
+  t.deepEqual(result.script, {
+    filePath: scriptPath,
+    code: "export default 42",
+  });
 });
 test("CorePlugin: setup: loads script from explicit path", async (t) => {
   const tmp = await useTmp(t);
@@ -389,8 +383,5 @@ test("CorePlugin: setup: loads script from explicit path", async (t) => {
   // packagePath should be ignored if an explicit scriptPath is set
   const result = await plugin.setup();
   t.deepEqual(result.watch, [scriptPath]); // No packagePath
-  t.deepEqual(result.scripts, [
-    { filePath: scriptPath, code: "console.log(42)" },
-  ]);
-  t.is(plugin.mainScriptPath, scriptPath);
+  t.deepEqual(result.script, { filePath: scriptPath, code: "console.log(42)" });
 });

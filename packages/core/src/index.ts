@@ -246,7 +246,7 @@ export class MiniflareCore<
     this.#setupResults!.set(name, {
       globals: result?.globals,
       bindings: result?.bindings,
-      scripts: result?.scripts,
+      script: result?.script,
     });
     return true;
   }
@@ -332,7 +332,7 @@ export class MiniflareCore<
         dequal(previous[name], options[name]) &&
         // Make sure if we ran any beforeSetups and this plugin previously
         // returned scripts, that we rerun its setup
-        !(ranBeforeSetup && this.#setupResults.get(name)?.scripts?.length)
+        !(ranBeforeSetup && this.#setupResults.get(name)?.script)
       ) {
         continue;
       }
@@ -345,7 +345,7 @@ export class MiniflareCore<
     this.#previousOptions = options;
 
     // Make sure we've got a script if it's required
-    if (this.#scriptRequired && !this.#instances.CorePlugin.mainScriptPath) {
+    if (this.#scriptRequired && !this.#setupResults.get("CorePlugin")?.script) {
       throwNoScriptError(options.CorePlugin.modules);
     }
 
@@ -358,11 +358,11 @@ export class MiniflareCore<
 
     const globals: Context = {};
     const bindings: Context = {};
-    const blueprints: ScriptBlueprint[] = [];
 
     const newWatchPaths = new Set<string>();
     if (this.#wranglerConfigPath) newWatchPaths.add(this.#wranglerConfigPath);
 
+    let script: ScriptBlueprint | undefined;
     for (const [name] of this.#plugins) {
       // Run beforeReload hook
       const instance = this.#instances![name];
@@ -375,7 +375,10 @@ export class MiniflareCore<
       const result = this.#setupResults!.get(name);
       Object.assign(globals, result?.globals);
       Object.assign(bindings, result?.bindings);
-      if (result?.scripts) blueprints.push(...result.scripts);
+      if (result?.script) {
+        if (script) throw new TypeError("Multiple plugins returned a script");
+        script = result.script;
+      }
 
       // Extract watch paths
       const beforeSetupWatch = this.#beforeSetupWatch!.get(name);
@@ -383,8 +386,7 @@ export class MiniflareCore<
       const setupWatch = this.#setupWatch!.get(name);
       if (setupWatch) addAll(newWatchPaths, setupWatch);
     }
-    const { modules, processedModuleRules, mainScriptPath } =
-      this.#instances!.CorePlugin;
+    const { modules, processedModuleRules } = this.#instances!.CorePlugin;
     const globalScope = new ServiceWorkerGlobalScope(
       this.log,
       globals,
@@ -395,18 +397,18 @@ export class MiniflareCore<
 
     // Run script blueprints, with modules rules if in modules mode
     const rules = modules ? processedModuleRules : undefined;
-    const res = await this.#scriptRunner.run(globalScope, blueprints, rules);
-    if (res.watch) addAll(newWatchPaths, res.watch);
+    const res =
+      script && (await this.#scriptRunner.run(globalScope, script, rules));
+    if (res?.watch) addAll(newWatchPaths, res.watch);
 
     // Add module event listeners if any
-    const mainExports = mainScriptPath && res.exports.get(mainScriptPath);
-    if (mainExports) {
-      const fetchListener = mainExports.default?.fetch;
+    if (res?.exports) {
+      const fetchListener = res.exports.default?.fetch;
       if (fetchListener) {
         globalScope[kAddModuleFetchListener](fetchListener);
       }
 
-      const scheduledListener = mainExports.default?.scheduled;
+      const scheduledListener = res.exports.default?.scheduled;
       if (scheduledListener) {
         globalScope[kAddModuleScheduledListener](scheduledListener);
       }
@@ -417,7 +419,7 @@ export class MiniflareCore<
       const instance = this.#instances![name];
       if (instance.reload) {
         this.log.verbose(`- reload(${name})`);
-        await instance.reload(res.exports, bindings, mainScriptPath);
+        await instance.reload(res?.exports ?? {}, bindings);
       }
     }
     // Dispatch reload event
@@ -426,11 +428,11 @@ export class MiniflareCore<
     // Log bundle size and warning if too big
     this.log.info(
       `Worker reloaded!${
-        res.bundleSize !== undefined ? ` (${formatSize(res.bundleSize)})` : ""
+        res?.bundleSize !== undefined ? ` (${formatSize(res.bundleSize)})` : ""
       }`
     );
     // TODO: compress asynchronously
-    if (res.bundleSize !== undefined && res.bundleSize > 1_048_576) {
+    if (res?.bundleSize !== undefined && res.bundleSize > 1_048_576) {
       this.log.warn(
         "Worker's uncompressed size exceeds the 1MiB limit! " +
           "Note that your worker will be compressed during upload " +
@@ -501,7 +503,7 @@ export class MiniflareCore<
         // If we ran any beforeSetup hooks, rerun setup hooks for any plugins
         // that returned scripts
         for (const [name] of this.#plugins) {
-          if (this.#setupResults!.get(name)?.scripts?.length) {
+          if (this.#setupResults!.get(name)?.script) {
             await this.#runSetup(name);
           }
         }
@@ -559,6 +561,7 @@ export class MiniflareCore<
     await this.#initPromise;
     const corePlugin = this.#instances!.CorePlugin;
     const globalScope = this.#globalScope;
+    // noinspection SuspiciousTypeOfGuard
     const request =
       input instanceof Request && !init ? input : new Request(input, init);
     return globalScope![kDispatchFetch]<WaitUntil>(
