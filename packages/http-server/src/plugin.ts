@@ -272,7 +272,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
       // we'll be fetching the same data anyways.
       this.#cf = JSON.parse(await fs.readFile(cfPath, "utf8"));
       const cfStat = await fs.stat(cfPath);
-      refetch = this.clock() - cfStat.ctimeMs > CF_DAYS * DAY;
+      refetch = this.clock() - cfStat.mtimeMs > CF_DAYS * DAY;
     } catch {}
 
     // If no need to refetch, stop here, otherwise fetch
@@ -309,7 +309,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
       try {
         const keyStat = await fs.stat(keyPath);
         const certStat = await fs.stat(certPath);
-        const created = Math.max(keyStat.ctimeMs, certStat.ctimeMs);
+        const created = Math.max(keyStat.mtimeMs, certStat.mtimeMs);
         regenerate = this.clock() - created > (CERT_DAYS - 2) * DAY;
       } catch {}
 
