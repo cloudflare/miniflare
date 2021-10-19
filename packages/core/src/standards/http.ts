@@ -190,6 +190,7 @@ export class Request extends InputGatedBody<BaseRequest> {
   clone(): Request {
     const innerClone = this[kInner].clone();
     const clone = new Request(innerClone);
+    clone[kInputGated] = this[kInputGated];
     clone.#cf = this.cf ? nonCircularClone(this.cf) : undefined;
     return clone;
   }
@@ -299,6 +300,7 @@ export class Response<
     }
     const innerClone = this[kInner].clone();
     const clone = new Response(innerClone.body, innerClone);
+    clone[kInputGated] = this[kInputGated];
     // Technically don't need to copy status, as it should only be set for
     // WebSocket handshake responses
     clone.#status = this.#status;

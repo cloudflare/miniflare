@@ -242,14 +242,18 @@ test("Request: clones non-standard properties", (t) => {
 });
 test("Request: can be input gated", async (t) => {
   const req = withInputGating(
-    new Request("http://localhost", {
-      method: "POST",
-      body: "body",
-    })
+    new Request("http://localhost", { method: "POST", body: "body" })
   );
   // noinspection SuspiciousTypeOfGuard
   t.true(req instanceof InputGatedBody);
   await waitsForInputGate(t, () => req.text());
+});
+test("Request: clone retains input gated option", async (t) => {
+  const req = withInputGating(
+    new Request("http://localhost", { method: "POST", body: "body" })
+  );
+  const clone = req.clone();
+  await waitsForInputGate(t, () => clone.text());
 });
 
 test("withImmutableHeaders: makes Request's headers immutable", (t) => {
@@ -357,6 +361,17 @@ test("Response: fails to clone WebSocket response", (t) => {
     instanceOf: TypeError,
     message: "Cannot clone a response to a WebSocket handshake.",
   });
+});
+test("Response: can be input gated", async (t) => {
+  const res = withInputGating(new Response("body"));
+  // noinspection SuspiciousTypeOfGuard
+  t.true(res instanceof InputGatedBody);
+  await waitsForInputGate(t, () => res.text());
+});
+test("Response: clone retains input gated option", async (t) => {
+  const res = withInputGating(new Response("body"));
+  const clone = res.clone();
+  await waitsForInputGate(t, () => clone.text());
 });
 
 test("withWaitUntil: adds wait until to (Base)Response", async (t) => {
