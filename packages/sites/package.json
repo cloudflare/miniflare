@@ -37,7 +37,8 @@
   ],
   "dependencies": {
     "@miniflare/kv": "2.0.0",
-    "@miniflare/shared": "2.0.0"
+    "@miniflare/shared": "2.0.0",
+    "@miniflare/storage-file": "2.0.0"
   },
   "devDependencies": {
     "@cloudflare/kv-asset-handler": "^0.1.3",

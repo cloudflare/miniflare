@@ -67,10 +67,13 @@ test("SitesPlugin: setup: returns empty result if no site", async (t) => {
   const result = await plugin.setup();
   t.deepEqual(result, {});
 });
-test("SitesPlugin: setup: content namespace is read-only", async (t) => {
+test("SitesPlugin: setup: includes read-only content namespace and watches files", async (t) => {
   const tmp = await useTmp(t);
   const plugin = new SitesPlugin(new NoOpLog(), { sitePath: tmp });
-  const bindings = (await plugin.setup()).bindings;
+  const result = await plugin.setup();
+
+  // Check namespace is read-only
+  const bindings = result.bindings;
   await t.throwsAsync(() => bindings?.__STATIC_CONTENT.put("key", "value"), {
     instanceOf: TypeError,
     message: "Unable to put into read-only namespace",
@@ -79,6 +82,12 @@ test("SitesPlugin: setup: content namespace is read-only", async (t) => {
     instanceOf: TypeError,
     message: "Unable to delete from read-only namespace",
   });
+
+  // Check files watched
+  t.deepEqual(result.watch, [tmp]);
+
+  // Check same setup result is always returned
+  t.is(await plugin.setup(), result);
 });
 
 // Path to worker script with @cloudflare/kv-asset-handler bundled

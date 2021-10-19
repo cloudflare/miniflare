@@ -42,12 +42,18 @@ export class SitesPlugin extends Plugin<SitesOptions> implements SitesOptions {
   })
   siteExclude?: string[];
 
+  readonly #setupResult: Promise<SetupResult>;
+
   constructor(log: Log, options?: SitesOptions) {
     super(log);
     this.assignOptions(options);
+
+    // setup() will be called each time a site file changes, but there's no need
+    // to recreate the namespace each time, so create it once and then return it
+    this.#setupResult = this.#setup();
   }
 
-  async setup(): Promise<SetupResult> {
+  async #setup(): Promise<SetupResult> {
     if (!this.sitePath) return {};
 
     // Create file KV storage with sanitisation DISABLED so paths containing
@@ -65,11 +71,12 @@ export class SitesPlugin extends Plugin<SitesOptions> implements SitesOptions {
       __STATIC_CONTENT_MANIFEST: {},
     };
 
-    // No need to watch sitePath here, FileStorage will always serve latest
-    // files
-    // TODO (someday): may want to if doing live reload?, could create bindings
-    //  in constructor then just return those to avoid recreating namespace
-    //  on each file change
-    return { bindings };
+    // Whilst FileStorage will always serve the latest files, we want to
+    // force a reload when these files change for live reload.
+    return { bindings, watch: [this.sitePath] };
+  }
+
+  async setup(): Promise<SetupResult> {
+    return this.#setupResult;
   }
 }
