@@ -174,20 +174,14 @@ test("HTTPPlugin: setupCf: cf fetch disabled if explicitly disabled or cfProvide
   let plugin = new HTTPPlugin(
     new NoOpLog(),
     { cfFetch: false },
-    undefined,
-    undefined,
-    true,
-    upstream.toString()
+    { cfFetch: true, cfFetchEndpoint: upstream }
   );
   await plugin.setupCf();
   // Define cfProvider
   plugin = new HTTPPlugin(
     new NoOpLog(),
     { cfProvider: () => ({} as any) },
-    undefined,
-    undefined,
-    true,
-    upstream.toString()
+    { cfFetch: true, cfFetchEndpoint: upstream }
   );
   await plugin.setupCf();
   t.pass();
@@ -202,10 +196,7 @@ test("HTTPPlugin: setupCf: cf fetch caches cf.json at default location", async (
   const plugin = new HTTPPlugin(
     log,
     {},
-    undefined,
-    cfPath,
-    true,
-    upstream.toString()
+    { cfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );
   await plugin.setupCf();
   t.deepEqual(await plugin.getCf({} as any), { colo: "LHR" } as any);
@@ -224,10 +215,7 @@ test("HTTPPlugin: setupCf: cf fetch caches cf.json at custom location", async (t
   const plugin = new HTTPPlugin(
     log,
     { cfFetch: customCfPath },
-    undefined,
-    defaultCfPath,
-    true,
-    upstream.toString()
+    { cfPath: defaultCfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );
   await plugin.setupCf();
   t.deepEqual(await plugin.getCf({} as any), { colo: "LHR" } as any);
@@ -248,10 +236,7 @@ test("HTTPPlugin: setupCf: cf fetch reuses cf.json", async (t) => {
   const plugin = new HTTPPlugin(
     log,
     {},
-    undefined,
-    cfPath,
-    true,
-    upstream.toString()
+    { cfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );
   await plugin.setupCf();
   t.deepEqual(await plugin.getCf({} as any), { colo: "LHR" } as any);
@@ -269,11 +254,7 @@ test("HTTPPlugin: setupCf: cf fetch refetches cf.json if stale", async (t) => {
   const plugin = new HTTPPlugin(
     log,
     {},
-    undefined,
-    cfPath,
-    true,
-    upstream.toString(),
-    clock
+    { cfPath, cfFetch: true, cfFetchEndpoint: upstream, clock }
   );
   await plugin.setupCf();
   t.deepEqual(await plugin.getCf({} as any), { colo: "MAN" } as any);
@@ -360,7 +341,7 @@ test("HTTPPlugin: setupHttps: throws errors if cannot load option files path", a
 test("HTTPPlugin: setupHttps: generates self-signed certificate at default location", async (t) => {
   const log = new TestLog();
   const tmp = await useTmp(t);
-  const plugin = new HTTPPlugin(log, { https: true }, tmp);
+  const plugin = new HTTPPlugin(log, { https: true }, { certRoot: tmp });
   await plugin.setupHttps();
   t.deepEqual(log.logsAtLevel(LogLevel.INFO), [
     "Generating new self-signed certificate...",
@@ -381,7 +362,11 @@ test("HTTPPlugin: setupHttps: generates self-signed certificate at custom locati
   const log = new TestLog();
   const tmpDefault = await useTmp(t);
   const tmpCustom = await useTmp(t);
-  const plugin = new HTTPPlugin(log, { https: tmpCustom }, tmpDefault);
+  const plugin = new HTTPPlugin(
+    log,
+    { https: tmpCustom },
+    { certRoot: tmpDefault }
+  );
   await plugin.setupHttps();
   t.deepEqual(log.logsAtLevel(LogLevel.INFO), [
     "Generating new self-signed certificate...",
@@ -405,7 +390,7 @@ test("HTTPPlugin: setupHttps: reuses existing non-expired certificates", async (
   const tmp = await useTmp(t);
   await fs.writeFile(path.join(tmp, "key.pem"), "existing_key", "utf8");
   await fs.writeFile(path.join(tmp, "cert.pem"), "existing_cert", "utf8");
-  const plugin = new HTTPPlugin(log, { https: true }, tmp);
+  const plugin = new HTTPPlugin(log, { https: true }, { certRoot: tmp });
   await plugin.setupHttps();
   t.is(log.logsAtLevel(LogLevel.INFO).length, 0); // Doesn't generate new certificate
   const https = plugin.httpsOptions;
@@ -423,15 +408,7 @@ test("HTTPPlugin: setupHttps: regenerates self-signed certificate if expired", a
   await fs.writeFile(path.join(tmp, "key.pem"), "expired_key", "utf8");
   await fs.writeFile(path.join(tmp, "cert.pem"), "expired_cert", "utf8");
   const clock: Clock = () => Date.now() + 86400000 * 30; // now + 30 days
-  const plugin = new HTTPPlugin(
-    log,
-    { https: true },
-    tmp,
-    undefined,
-    false,
-    undefined,
-    clock
-  );
+  const plugin = new HTTPPlugin(log, { https: true }, { certRoot: tmp, clock });
   await plugin.setupHttps();
   t.deepEqual(log.logsAtLevel(LogLevel.INFO), [
     "Generating new self-signed certificate...",
@@ -458,10 +435,7 @@ test("HTTPPlugin: setup: sets up cf and https", async (t) => {
   const plugin = new HTTPPlugin(
     new NoOpLog(),
     { cfFetch: true, https: true },
-    tmp,
-    cfPath,
-    true,
-    upstream.toString()
+    { certRoot: tmp, cfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );
   await plugin.setup();
   t.deepEqual(await plugin.getCf({} as any), { colo: "LHR" } as any);
