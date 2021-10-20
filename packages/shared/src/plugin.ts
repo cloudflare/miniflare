@@ -2,7 +2,7 @@ import { titleCase } from "./data";
 import { Log } from "./log";
 import { ScriptBlueprint } from "./runner";
 import { StorageFactory } from "./storage";
-import { MaybePromise } from "./sync";
+import { Awaitable } from "./sync";
 import { WranglerConfig } from "./wrangler";
 
 export type Context = { [key: string]: any };
@@ -82,19 +82,19 @@ export abstract class Plugin<Options extends Context = never> {
     }
   }
 
-  beforeSetup?(): MaybePromise<BeforeSetupResult | void>;
+  beforeSetup?(): Awaitable<BeforeSetupResult | void>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  setup?(storageFactory: StorageFactory): MaybePromise<SetupResult | void>;
+  setup?(storageFactory: StorageFactory): Awaitable<SetupResult | void>;
 
-  beforeReload?(): MaybePromise<void>;
+  beforeReload?(): Awaitable<void>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  reload?(moduleExports: Context, bindings: Context): MaybePromise<void>;
+  reload?(moduleExports: Context, bindings: Context): Awaitable<void>;
 
   // Called when a new instance of the plugin is about to be created,
   // likely delegates to beforeReload or reload
-  dispose?(): MaybePromise<void>;
+  dispose?(): Awaitable<void>;
 }
 
 export type PluginSignature = {

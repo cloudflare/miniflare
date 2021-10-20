@@ -1,6 +1,6 @@
 import path from "path";
 import {
-  MaybePromise,
+  Awaitable,
   Storage,
   StorageFactory,
   StorageOperator,
@@ -43,14 +43,11 @@ export class PluginStorageFactory extends StorageFactory {
   operator(
     namespace: string,
     persist?: boolean | string
-  ): MaybePromise<StorageOperator> {
+  ): Awaitable<StorageOperator> {
     return this.inner.operator(...this.transformOptions(namespace, persist));
   }
 
-  storage(
-    namespace: string,
-    persist?: boolean | string
-  ): MaybePromise<Storage> {
+  storage(namespace: string, persist?: boolean | string): Awaitable<Storage> {
     return this.inner.storage(...this.transformOptions(namespace, persist));
   }
 }

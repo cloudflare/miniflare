@@ -8,12 +8,7 @@ import {
   withImmutableHeaders,
   withInputGating,
 } from "@miniflare/core";
-import {
-  Context,
-  InputGate,
-  MaybePromise,
-  OutputGate,
-} from "@miniflare/shared";
+import { Awaitable, Context, InputGate, OutputGate } from "@miniflare/shared";
 import { DurableObjectStorage } from "./storage";
 
 function hexEncode(value: Uint8Array): string {
@@ -49,7 +44,7 @@ export interface DurableObjectConstructor {
 }
 
 export interface DurableObject {
-  fetch(request: Request): MaybePromise<Response>;
+  fetch(request: Request): Awaitable<Response>;
 }
 
 export const kInstance = Symbol("kInstance");
@@ -102,6 +97,7 @@ export class DurableObjectStub {
 
     // Make sure relative URLs prefixed with https://fake-host
     if (typeof input === "string") input = new URL(input, "https://fake-host");
+    // noinspection SuspiciousTypeOfGuard
     const request =
       input instanceof Request && !init ? input : new Request(input, init);
     return state[kFetch](withInputGating(withImmutableHeaders(request)));

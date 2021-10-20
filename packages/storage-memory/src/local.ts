@@ -1,5 +1,5 @@
 import {
-  MaybePromise,
+  Awaitable,
   StorageListOptions,
   StorageListResult,
   StorageOperator,
@@ -16,12 +16,12 @@ export abstract class LocalStorageOperator extends StorageOperator {
     super();
   }
 
-  abstract hasMaybeExpired(key: string): MaybePromise<StoredMeta | undefined>;
+  abstract hasMaybeExpired(key: string): Awaitable<StoredMeta | undefined>;
   abstract getMaybeExpired<Meta>(
     key: string
-  ): MaybePromise<StoredValueMeta<Meta> | undefined>;
-  abstract deleteMaybeExpired(key: string): MaybePromise<boolean>;
-  abstract listAllMaybeExpired<Meta>(): MaybePromise<StoredKeyMeta<Meta>[]>;
+  ): Awaitable<StoredValueMeta<Meta> | undefined>;
+  abstract deleteMaybeExpired(key: string): Awaitable<boolean>;
+  abstract listAllMaybeExpired<Meta>(): Awaitable<StoredKeyMeta<Meta>[]>;
 
   private expired({ expiration }: StoredMeta, time = this.clock()): boolean {
     return expiration !== undefined && expiration <= millisToSeconds(time);
@@ -63,7 +63,7 @@ export abstract class LocalStorageOperator extends StorageOperator {
     options?: StorageListOptions
   ): Promise<StorageListResult<StoredKeyMeta<Meta>>> {
     const time = this.clock();
-    const deletePromises: MaybePromise<boolean>[] = [];
+    const deletePromises: Awaitable<boolean>[] = [];
 
     // Fetch all keys
     let keys = await this.listAllMaybeExpired<Meta>();

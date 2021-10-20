@@ -1,4 +1,4 @@
-import { InputGate, MaybePromise, OutputGate } from "@miniflare/shared";
+import { Awaitable, InputGate, OutputGate } from "@miniflare/shared";
 import { ExecutionContext } from "ava";
 
 export function triggerPromise<T>(): [
@@ -81,8 +81,8 @@ class TestOutputGate extends OutputGate {
 
 export async function waitsForOutputGate<T>(
   t: ExecutionContext,
-  closure: () => MaybePromise<T>,
-  observed: () => MaybePromise<any>
+  closure: () => Awaitable<T>,
+  observed: () => Awaitable<any>
 ): Promise<T> {
   // Create and close output gate
   const outputGate = new TestOutputGate();

@@ -1,11 +1,11 @@
 import assert from "assert";
-import { MaybePromise } from "@miniflare/shared";
+import { Awaitable } from "@miniflare/shared";
 
 export class Mutex {
   private locked = false;
   private resolveQueue: (() => void)[] = [];
 
-  private lock(): MaybePromise<void> {
+  private lock(): Awaitable<void> {
     if (!this.locked) {
       this.locked = true;
       return;

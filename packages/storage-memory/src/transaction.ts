@@ -1,6 +1,6 @@
 import assert from "assert";
 import {
-  MaybePromise,
+  Awaitable,
   StorageListOptions,
   StorageListResult,
   StorageOperator,
@@ -25,7 +25,7 @@ export class ShadowStorageTransaction<
     super();
   }
 
-  protected markRead(...keys: string[]): MaybePromise<void> {
+  protected markRead(...keys: string[]): Awaitable<void> {
     for (const key of keys) this.readSet.add(key);
   }
 
@@ -36,8 +36,8 @@ export class ShadowStorageTransaction<
   get<Meta = unknown>(
     key: string,
     skipMetadata?: false
-  ): MaybePromise<StoredValueMeta<Meta> | undefined>;
-  get(key: string, skipMetadata: true): MaybePromise<StoredValue | undefined>;
+  ): Awaitable<StoredValueMeta<Meta> | undefined>;
+  get(key: string, skipMetadata: true): Awaitable<StoredValue | undefined>;
   async get<Meta = unknown>(
     key: string,
     skipMetadata?: boolean
@@ -144,11 +144,11 @@ export class ShadowStorageTransaction<
   list<Meta = unknown>(
     options?: StorageListOptions,
     skipMetadata?: false
-  ): MaybePromise<StorageListResult<StoredKeyMeta<Meta>>>;
+  ): Awaitable<StorageListResult<StoredKeyMeta<Meta>>>;
   list(
     options: StorageListOptions,
     skipMetadata: true
-  ): MaybePromise<StorageListResult<StoredKey>>;
+  ): Awaitable<StorageListResult<StoredKey>>;
   async list<Meta = unknown>(
     options?: StorageListOptions,
     skipMetadata?: boolean
@@ -243,13 +243,13 @@ export abstract class OptimisticTransactionManager {
   constructor(private readonly storage: StorageOperator) {}
 
   abstract runExclusive<T>(closure: () => Promise<T>): Promise<T>;
-  abstract getTxnCount(): MaybePromise<number>;
-  abstract setTxnCount(value: number): MaybePromise<void>;
-  abstract getTxnWriteSet(id: number): MaybePromise<Set<string> | undefined>;
+  abstract getTxnCount(): Awaitable<number>;
+  abstract setTxnCount(value: number): Awaitable<void>;
+  abstract getTxnWriteSet(id: number): Awaitable<Set<string> | undefined>;
   abstract setTxnWriteSet(
     id: number,
     value: Set<string> | undefined
-  ): MaybePromise<void>;
+  ): Awaitable<void>;
 
   private async read<T>(
     closure: (txn: StorageTransaction) => Promise<T>

@@ -5,7 +5,7 @@ import {
   SchedulerPlugin,
   startScheduler,
 } from "@miniflare/scheduler";
-import { MaybePromise } from "@miniflare/shared";
+import { Awaitable } from "@miniflare/shared";
 import { TestLog, useMiniflare } from "@miniflare/shared-test";
 import test from "ava";
 
@@ -14,7 +14,7 @@ function createCronIsh(): [
   dispatch: (cron: string) => Promise<void>,
   cron: Promise<{ default: typeof import("node-cron") }>
 ] {
-  const crons = new Map<string, Set<() => MaybePromise<void>>>();
+  const crons = new Map<string, Set<() => Awaitable<void>>>();
   const cronIsh: typeof import("node-cron") = {
     validate() {
       return false;

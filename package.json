@@ -23,6 +23,7 @@
     "dev": "node scripts/build.js watch",
     "test": "npm run build && ava",
     "lint": "eslint 'packages/*/{src,test}/**/*.ts' 'scripts/**/*.{js,mjs}' 'types/**/*.ts'",
+    "lint:fix": "npm run lint -- --fix",
     "prepublishOnly": "npm run lint && npm run test",
     "helpers:scaffold": "node scripts/scaffold.js",
     "helpers:version": "node scripts/version.js",

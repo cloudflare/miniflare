@@ -1,4 +1,4 @@
-import { MaybePromise } from "./sync";
+import { Awaitable } from "./sync";
 
 export interface StoredMeta<Meta = unknown> {
   /** Unix timestamp in seconds when this key expires */
@@ -56,28 +56,28 @@ export interface StorageListResult<Key extends StoredKey = StoredKeyMeta> {
  * - Key expiry within transactions is unspecified behaviour
  */
 export abstract class StorageOperator {
-  abstract has(key: string): MaybePromise<boolean>;
+  abstract has(key: string): Awaitable<boolean>;
   abstract get<Meta = unknown>(
     key: string,
     skipMetadata?: false
-  ): MaybePromise<StoredValueMeta<Meta> | undefined>;
+  ): Awaitable<StoredValueMeta<Meta> | undefined>;
   abstract get(
     key: string,
     skipMetadata: true
-  ): MaybePromise<StoredValue | undefined>;
+  ): Awaitable<StoredValue | undefined>;
   abstract put<Meta = unknown>(
     key: string,
     value: StoredValueMeta<Meta>
-  ): MaybePromise<void>;
-  abstract delete(key: string): MaybePromise<boolean>;
+  ): Awaitable<void>;
+  abstract delete(key: string): Awaitable<boolean>;
   abstract list<Meta = unknown>(
     options?: StorageListOptions,
     skipMetadata?: false
-  ): MaybePromise<StorageListResult<StoredKeyMeta<Meta>>>;
+  ): Awaitable<StorageListResult<StoredKeyMeta<Meta>>>;
   abstract list(
     options: StorageListOptions,
     skipMetadata: true
-  ): MaybePromise<StorageListResult<StoredKey>>;
+  ): Awaitable<StorageListResult<StoredKey>>;
 
   // Batch functions, default implementations may be overridden to optimise
 
@@ -131,14 +131,14 @@ export abstract class StorageFactory {
   operator(
     namespace: string,
     persist?: boolean | string
-  ): MaybePromise<StorageOperator> {
+  ): Awaitable<StorageOperator> {
     return this.storage(namespace, persist);
   }
 
   abstract storage(
     namespace: string,
     persist?: boolean | string
-  ): MaybePromise<Storage>;
+  ): Awaitable<Storage>;
 
-  dispose?(): MaybePromise<void>;
+  dispose?(): Awaitable<void>;
 }

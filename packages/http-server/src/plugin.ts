@@ -4,9 +4,9 @@ import path from "path";
 import { promisify } from "util";
 import { IncomingRequestCfProperties } from "@miniflare/core";
 import {
+  Awaitable,
   Clock,
   Log,
-  MaybePromise,
   Option,
   OptionType,
   Plugin,
@@ -98,13 +98,13 @@ export interface HTTPOptions {
   httpsPassphrase?: string;
 
   cfFetch?: boolean | string;
-  metaProvider?: (req: http.IncomingMessage) => MaybePromise<RequestMeta>;
+  metaProvider?: (req: http.IncomingMessage) => Awaitable<RequestMeta>;
 }
 
 function valueOrFile(
   value?: string,
   filePath?: string
-): MaybePromise<string | undefined> {
+): Awaitable<string | undefined> {
   return value ?? (filePath && fs.readFile(filePath, "utf8"));
 }
 
@@ -208,7 +208,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
   cfFetch?: boolean | string;
 
   @Option({ type: OptionType.NONE })
-  metaProvider?: (req: http.IncomingMessage) => MaybePromise<RequestMeta>;
+  metaProvider?: (req: http.IncomingMessage) => Awaitable<RequestMeta>;
 
   private readonly defaultCertRoot: string;
   private readonly defaultCfPath: string;
@@ -248,7 +248,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     );
   }
 
-  getRequestMeta(req: http.IncomingMessage): MaybePromise<RequestMeta> {
+  getRequestMeta(req: http.IncomingMessage): Awaitable<RequestMeta> {
     if (this.metaProvider) return this.metaProvider(req);
     return { cf: this.#cf };
   }
