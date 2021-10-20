@@ -15,8 +15,7 @@ import {
 } from "html-rewriter-wasm";
 import { Response } from "undici";
 
-// TODO: (low priority) remove most of these tests, they're now in html-rewriter-wasm
-// TODO: (low priority) debug why removing .serial breaks some of these async tests
+// TODO (someday): debug why removing .serial breaks some of these async tests
 
 // region: ELEMENT HANDLERS
 
@@ -543,7 +542,6 @@ test("HTMLRewriter: handles document end class handler", async (t) => {
 test("HTMLRewriter: handles streaming responses", async (t) => {
   const inputStream = new ReadableStream({
     async start(controller) {
-      // TODO: test this and next test on cf workers
       const chunks = [
         '<html lang="en">',
         "<bo",

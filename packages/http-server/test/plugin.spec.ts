@@ -116,7 +116,7 @@ test("HTTPPlugin: logs options", (t) => {
     httpsPfxPath: "cert.pfx",
     httpsPassphrase: "the passphrase is passphrase",
     cfFetch: "./cf.json",
-    cfProvider: () => ({} as any),
+    metaProvider: () => ({} as any),
   });
   t.deepEqual(logs, [
     "Host: 127.0.0.1",
@@ -150,17 +150,22 @@ test("HTTPPlugin: httpsEnabled: true iff any https option set", (t) => {
   t.true(new HTTPPlugin(log, { httpsPfxPath: "cert.pfx" }).httpsEnabled);
 });
 
-test("HTTPPlugin: getCf: uses cfProvider if defined", async (t) => {
+test("HTTPPlugin: getRequestMeta: uses cfProvider if defined", async (t) => {
   const plugin = new HTTPPlugin(new NoOpLog(), {
-    cfProvider: async (req) =>
-      ({ httpProtocol: `HTTP/${req.httpVersion}` } as any),
+    metaProvider: async (req) => ({
+      forwardedProto: "http",
+      realIp: "127.0.0.1",
+      cf: { httpProtocol: `HTTP/${req.httpVersion}` } as any,
+    }),
   });
-  const cf = await plugin.getCf({ httpVersion: "1.1" } as any);
-  t.is(cf.httpProtocol, "HTTP/1.1");
+  const cf = await plugin.getRequestMeta({ httpVersion: "1.1" } as any);
+  t.is(cf.forwardedProto, "http");
+  t.is(cf.realIp, "127.0.0.1");
+  t.is(cf.cf?.httpProtocol, "HTTP/1.1");
 });
-test("HTTPPlugin: getCf: defaults to placeholder value", async (t) => {
+test("HTTPPlugin: getRequestMeta: defaults to placeholder value", async (t) => {
   const plugin = new HTTPPlugin(new NoOpLog());
-  const cf = await plugin.getCf({} as any);
+  const { cf } = await plugin.getRequestMeta({} as any);
   t.like(cf, { colo: "DFW", country: "US", httpProtocol: "HTTP/1.1" });
 });
 
@@ -180,7 +185,7 @@ test("HTTPPlugin: setupCf: cf fetch disabled if explicitly disabled or cfProvide
   // Define cfProvider
   plugin = new HTTPPlugin(
     new NoOpLog(),
-    { cfProvider: () => ({} as any) },
+    { metaProvider: () => ({} as any) },
     { cfFetch: true, cfFetchEndpoint: upstream }
   );
   await plugin.setupCf();
@@ -199,7 +204,9 @@ test("HTTPPlugin: setupCf: cf fetch caches cf.json at default location", async (
     { cfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );
   await plugin.setupCf();
-  t.deepEqual(await plugin.getCf({} as any), { colo: "LHR" } as any);
+  t.deepEqual(await plugin.getRequestMeta({} as any), {
+    cf: { colo: "LHR" } as any,
+  });
   const cf = await fs.readFile(cfPath, "utf8");
   t.is(cf, '{"colo": "LHR"}');
   t.is(log.logsAtLevel(LogLevel.INFO)[0], "Updated Request cf object cache!");
@@ -218,7 +225,9 @@ test("HTTPPlugin: setupCf: cf fetch caches cf.json at custom location", async (t
     { cfPath: defaultCfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );
   await plugin.setupCf();
-  t.deepEqual(await plugin.getCf({} as any), { colo: "LHR" } as any);
+  t.deepEqual(await plugin.getRequestMeta({} as any), {
+    cf: { colo: "LHR" } as any,
+  });
   t.false(existsSync(defaultCfPath));
   const cf = await fs.readFile(customCfPath, "utf8");
   t.is(cf, '{"colo": "LHR"}');
@@ -239,7 +248,9 @@ test("HTTPPlugin: setupCf: cf fetch reuses cf.json", async (t) => {
     { cfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );
   await plugin.setupCf();
-  t.deepEqual(await plugin.getCf({} as any), { colo: "LHR" } as any);
+  t.deepEqual(await plugin.getRequestMeta({} as any), {
+    cf: { colo: "LHR" } as any,
+  });
   t.is(log.logsAtLevel(LogLevel.INFO).length, 0);
 });
 test("HTTPPlugin: setupCf: cf fetch refetches cf.json if stale", async (t) => {
@@ -257,7 +268,9 @@ test("HTTPPlugin: setupCf: cf fetch refetches cf.json if stale", async (t) => {
     { cfPath, cfFetch: true, cfFetchEndpoint: upstream, clock }
   );
   await plugin.setupCf();
-  t.deepEqual(await plugin.getCf({} as any), { colo: "MAN" } as any);
+  t.deepEqual(await plugin.getRequestMeta({} as any), {
+    cf: { colo: "MAN" } as any,
+  });
   const cf = await fs.readFile(cfPath, "utf8");
   t.is(cf, '{"colo": "MAN"}');
   t.is(log.logsAtLevel(LogLevel.INFO)[0], "Updated Request cf object cache!");
@@ -438,7 +451,9 @@ test("HTTPPlugin: setup: sets up cf and https", async (t) => {
     { certRoot: tmp, cfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );
   await plugin.setup();
-  t.deepEqual(await plugin.getCf({} as any), { colo: "LHR" } as any);
+  t.deepEqual(await plugin.getRequestMeta({} as any), {
+    cf: { colo: "LHR" } as any,
+  });
   const https = plugin.httpsOptions;
   assert(https?.key && https?.cert);
   t.regex(https.key, /^-----BEGIN RSA PRIVATE KEY-----/);

@@ -38,7 +38,6 @@ import {
 } from "./standards";
 import { PluginStorageFactory } from "./storage";
 
-// TODO: don't export as much
 export * from "./plugins";
 export * from "./standards";
 export * from "./storage";
@@ -299,7 +298,6 @@ export class MiniflareCore<
     // watching if the user changes the watch option in wrangler config mid-way
     // through execution. (NOTE: ??= will only assign on undefined, not false)
     this.#watching ??= options.CorePlugin.watch ?? false;
-    // TODO: maybe throw exception if watch changes?
 
     // Create plugin instances and run beforeSetup hooks, recreating any plugins
     // with changed options

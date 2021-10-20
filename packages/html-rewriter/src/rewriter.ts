@@ -4,6 +4,7 @@ import { Response } from "@miniflare/core";
 import type { DocumentHandlers, ElementHandlers } from "html-rewriter-wasm";
 import { Response as BaseResponse } from "undici";
 
+// TODO: remove this function and these conversions, Workers only allows byte streams for Responses
 // Based on https://developer.mozilla.org/en-US/docs/Web/API/TransformStream#anything-to-uint8array_stream
 const encoder = new TextEncoder();
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types

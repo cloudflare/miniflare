@@ -1,11 +1,15 @@
 import assert from "assert";
-import { Storage, StoredValueMeta, sanitisePath } from "@miniflare/shared";
+import {
+  Storage,
+  StoredValueMeta,
+  randomHex,
+  sanitisePath,
+} from "@miniflare/shared";
 import {
   TIME_EXPIRED,
   TIME_EXPIRING,
   TestStorageFactory,
   operatorMacros,
-  randomHex,
   txnMacros,
 } from "@miniflare/shared-test";
 import {

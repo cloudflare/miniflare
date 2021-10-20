@@ -22,6 +22,12 @@ export function base64Decode(encoded: string): string {
   return Buffer.from(encoded, "base64").toString("utf8");
 }
 
+export function randomHex(digits = 8): string {
+  return Array.from(Array(digits))
+    .map(() => Math.floor(Math.random() * 16).toString(16))
+    .join("");
+}
+
 // Arbitrary string matcher, note RegExp adheres to this interface
 export interface Matcher {
   test(string: string): boolean;

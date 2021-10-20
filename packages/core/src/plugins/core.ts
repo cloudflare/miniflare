@@ -269,7 +269,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       Uint32Array,
       WeakMap,
       WeakSet,
-      WebAssembly, // TODO: check WebAssembly compilation still disabled even if this is passed into sandbox
+      WebAssembly,
 
       // Add a global variable to signal the worker is running in Miniflare,
       // could be used as an escape hatch if behaviour needs to be different

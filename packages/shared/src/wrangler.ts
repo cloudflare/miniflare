@@ -1,53 +1,39 @@
 import { ModuleRuleType } from "./runner";
 
+// See https://developers.cloudflare.com/workers/cli-wrangler/configuration#keys
+
 export interface WranglerEnvironmentConfig {
-  name?: string;
-  zone_id?: string;
-  account_id?: string;
-  workers_dev?: boolean;
-  route?: string;
-  routes?: string[];
-  webpack_config?: string;
-  vars?: Record<string, any>;
+  name?: string; // inherited
+  zone_id?: string; // inherited
+  account_id?: string; // inherited
+  workers_dev?: boolean; // inherited
+  route?: string; // NOT inherited
+  routes?: string[]; // NOT inherited
+  webpack_config?: string; // inherited
+  vars?: Record<string, any>; // NOT inherited
   kv_namespaces?: {
     binding: string;
     id?: string;
     preview_id?: string;
-  }[];
+  }[]; // NOT inherited
   site?: {
     bucket: string;
     "entry-point"?: string;
     include?: string[];
     exclude?: string[];
-  };
+  }; // inherited
   durable_objects?: {
     bindings?: {
       name: string;
       class_name: string;
-      // TODO: interpret this properly, it's not a path, it's the name of the worker
-      //  (maybe have additional map of script_name => script_path in [miniflare] section?)
       script_name?: string;
     }[];
-  };
+  }; // (probably) NOT inherited
   triggers?: {
     crons?: string[];
-  };
-  build?: {
-    command?: string;
-    cwd?: string;
-    watch_dir?: string;
-    upload?: {
-      format?: "service-worker" | "modules";
-      dir?: string;
-      main?: string;
-      rules?: {
-        type: ModuleRuleType;
-        globs: string[];
-        fallthrough?: boolean;
-      }[];
-    };
-  };
-  wasm_modules?: Record<string, string>;
+  }; // inherited
+  usage_model?: "bundled" | "unbound"; // inherited
+  wasm_modules?: Record<string, string>; // (probably) inherited
   miniflare?: {
     globals?: Record<string, any>;
     upstream?: string;
@@ -71,11 +57,25 @@ export interface WranglerEnvironmentConfig {
           passphrase?: string;
         };
     disable_updater?: boolean;
-  };
+  }; // inherited
 }
 
 export interface WranglerConfig extends WranglerEnvironmentConfig {
-  type?: "javascript" | "webpack" | "rust";
-  usage_model?: "bundled" | "unbound";
+  type?: "javascript" | "webpack" | "rust"; // top level
+  build?: {
+    command?: string;
+    cwd?: string;
+    watch_dir?: string;
+    upload?: {
+      format?: "service-worker" | "modules";
+      dir?: string;
+      main?: string;
+      rules?: {
+        type: ModuleRuleType;
+        globs: string[];
+        fallthrough?: boolean;
+      }[];
+    };
+  }; // top level
   env?: Record<string, WranglerEnvironmentConfig>;
 }

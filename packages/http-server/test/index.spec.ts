@@ -13,6 +13,7 @@ import {
 } from "@miniflare/core";
 import {
   HTTPPlugin,
+  RequestMeta,
   convertNodeRequest,
   createRequestListener,
   createServer,
@@ -47,7 +48,7 @@ function buildConvertNodeRequest(
   t: ExecutionContext,
   options: http.RequestOptions & {
     upstream?: string;
-    cf?: IncomingRequestCfProperties;
+    meta?: RequestMeta;
     body?: NodeJS.ReadableStream;
   } = {}
 ): Promise<[Request, URL]> {
@@ -56,7 +57,7 @@ function buildConvertNodeRequest(
       const { request, url } = await convertNodeRequest(
         req,
         options.upstream,
-        options.cf
+        options.meta
       );
       resolve([request, url]);
       res.end();
@@ -157,21 +158,43 @@ test("convertNodeRequest: builds headers with multiple values", async (t) => {
   t.is(req.headers.get("authorization"), "Bearer token");
   t.is(req.headers.get("x-key"), "value1, value2");
 });
+test("convertNodeRequest: removes unsupported fetch headers", async (t) => {
+  const body = new Readable({ read() {} });
+  body.push("a");
+  body.push("b");
+  body.push(null);
+  const [req] = await buildConvertNodeRequest(t, { method: "POST", body });
+  t.false(req.headers.has("transfer-encoding"));
+  t.false(req.headers.has("connection"));
+  t.false(req.headers.has("keep-alive"));
+  t.false(req.headers.has("expect"));
+});
 test("convertNodeRequest: includes cf headers on request", async (t) => {
   let [req] = await buildConvertNodeRequest(t);
+  t.is(req.headers.get("x-forwarded-proto"), "https");
+  t.is(req.headers.get("x-real-ip"), "127.0.0.1");
   t.is(req.headers.get("cf-connecting-ip"), "127.0.0.1");
   t.is(req.headers.get("cf-ipcountry"), "US");
-  t.is(req.headers.get("cf-ray"), "");
-  t.is(req.headers.get("cf-request-id"), "");
+  t.regex(req.headers.get("cf-ray") ?? "", /^[a-z0-9]{16}$/);
   t.is(req.headers.get("cf-visitor"), '{"scheme":"https"}');
 
-  // Check IP country overridden by cf object
-  [req] = await buildConvertNodeRequest(t, { cf: { country: "GB" } as any });
+  // Check overridden by meta object
+  [req] = await buildConvertNodeRequest(t, {
+    meta: {
+      forwardedProto: "http",
+      realIp: "1.1.1.1",
+      cf: { country: "GB" } as any,
+    },
+  });
+  t.is(req.headers.get("x-forwarded-proto"), "http");
+  t.is(req.headers.get("x-real-ip"), "1.1.1.1");
+  t.is(req.headers.get("cf-connecting-ip"), "1.1.1.1");
   t.is(req.headers.get("cf-ipcountry"), "GB");
+  t.is(req.headers.get("cf-visitor"), '{"scheme":"http"}');
 });
 test("convertNodeRequest: includes cf object on request", async (t) => {
   const cf: IncomingRequestCfProperties = { colo: "LHR", country: "GB" } as any;
-  const [req] = await buildConvertNodeRequest(t, { cf });
+  const [req] = await buildConvertNodeRequest(t, { meta: { cf } });
   t.not(req.cf, cf);
   t.deepEqual(req.cf, cf);
 });
@@ -180,7 +203,9 @@ test("createRequestListener: gets cf object from custom provider", async (t) => 
   const mf = useMiniflareWithHandler(
     { HTTPPlugin },
     {
-      cfProvider: (req) => ({ httpProtocol: `HTTP/${req.httpVersion}` } as any),
+      metaProvider: (req) => ({
+        cf: { httpProtocol: `HTTP/${req.httpVersion}` } as any,
+      }),
     },
     (globals, req) => {
       return new globals.Response(JSON.stringify(req.cf), {
