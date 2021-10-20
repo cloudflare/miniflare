@@ -76,6 +76,12 @@ export interface ProcessedHTTPSOptions {
   passphrase?: string;
 }
 
+export interface RequestMeta {
+  forwardedProto?: string;
+  realIp?: string;
+  cf?: IncomingRequestCfProperties;
+}
+
 export interface HTTPOptions {
   host?: string;
   port?: number;
@@ -92,9 +98,7 @@ export interface HTTPOptions {
   httpsPassphrase?: string;
 
   cfFetch?: boolean | string;
-  cfProvider?: (
-    req: http.IncomingMessage
-  ) => MaybePromise<IncomingRequestCfProperties>;
+  metaProvider?: (req: http.IncomingMessage) => MaybePromise<RequestMeta>;
 }
 
 function valueOrFile(
@@ -203,11 +207,8 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
   })
   cfFetch?: boolean | string;
 
-  // TODO: should maybe provide cf headers stuff too?
   @Option({ type: OptionType.NONE })
-  cfProvider?: (
-    req: http.IncomingMessage
-  ) => MaybePromise<IncomingRequestCfProperties>;
+  metaProvider?: (req: http.IncomingMessage) => MaybePromise<RequestMeta>;
 
   private readonly defaultCertRoot: string;
   private readonly defaultCfPath: string;
@@ -247,9 +248,9 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     );
   }
 
-  getCf(req: http.IncomingMessage): MaybePromise<IncomingRequestCfProperties> {
-    if (this.cfProvider) return this.cfProvider(req);
-    return this.#cf;
+  getRequestMeta(req: http.IncomingMessage): MaybePromise<RequestMeta> {
+    if (this.metaProvider) return this.metaProvider(req);
+    return { cf: this.#cf };
   }
 
   get httpsOptions(): ProcessedHTTPSOptions | undefined {
@@ -261,7 +262,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     let cfPath = this.cfFetch ?? this.defaultCfFetch;
     // If cfFetch is disabled or we're using a custom provider, don't fetch the
     // cf object
-    if (!cfPath || this.cfProvider) return;
+    if (!cfPath || this.metaProvider) return;
     if (cfPath === true) cfPath = this.defaultCfPath;
     // Determine whether to refetch cf.json, should do this if doesn't exist
     // or expired
@@ -286,7 +287,6 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
       await fs.writeFile(cfPath, cfText, "utf8");
       this.log.info("Updated Request cf object cache!");
     } catch (e: any) {
-      // TODO: don't log this error so loudly
       this.log.error(e);
     }
   }

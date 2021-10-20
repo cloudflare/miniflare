@@ -5,18 +5,18 @@ import { arrayBuffer } from "stream/consumers";
 import { URL } from "url";
 import {
   CorePluginSignatures,
-  IncomingRequestCfProperties,
   MiniflareCore,
   Request,
   Response,
   logResponse,
 } from "@miniflare/core";
+import { randomHex } from "@miniflare/shared";
 import { coupleWebSocket } from "@miniflare/web-sockets";
 import { BodyInit, Headers } from "undici";
 // @ts-expect-error ws's type definitions haven't been updated yet
 import StandardWebSocket, { WebSocketServer } from "ws";
 import { getAccessibleHosts } from "./helpers";
-import { HTTPPlugin } from "./plugin";
+import { HTTPPlugin, RequestMeta } from "./plugin";
 
 export * from "./helpers";
 export * from "./plugin";
@@ -28,7 +28,7 @@ export type HTTPPluginSignatures = CorePluginSignatures & {
 export async function convertNodeRequest(
   req: http.IncomingMessage,
   upstream?: string,
-  cf?: IncomingRequestCfProperties
+  meta?: RequestMeta
 ): Promise<{ request: Request; url: URL }> {
   // noinspection HttpUrlsUsage
   const url = new URL(req.url ?? "", upstream ?? `http://${req.headers.host}`);
@@ -67,18 +67,25 @@ export async function convertNodeRequest(
 
   // Add additional Cloudflare specific headers:
   // https://support.cloudflare.com/hc/en-us/articles/200170986-How-does-Cloudflare-handle-HTTP-Request-headers-
-  let ip = req.socket.remoteAddress;
+  const proto = meta?.forwardedProto ?? "https";
+  let ip = meta?.realIp ?? req.socket.remoteAddress ?? "";
   // Remove IPv6 prefix for IPv4 addresses
-  if (ip?.startsWith("::ffff:")) ip = ip.substring("::ffff:".length);
-  headers.set("cf-connecting-ip", ip ?? "");
-  headers.set("cf-ipcountry", cf?.country ?? "US");
-  headers.set("cf-ray", "");
-  headers.set("cf-request-id", "");
-  headers.set("cf-visitor", '{"scheme":"https"}');
+  if (ip.startsWith("::ffff:")) ip = ip.substring("::ffff:".length);
+  headers.set("x-forwarded-proto", proto);
+  headers.set("x-real-ip", ip);
+  headers.set("cf-connecting-ip", ip);
+  headers.set("cf-ipcountry", meta?.cf?.country ?? "US");
+  headers.set("cf-ray", randomHex(16));
+  headers.set("cf-visitor", `{"scheme":"${proto}"}`);
 
   // Create Request with additional Cloudflare specific properties:
   // https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties
-  const request = new Request(url, { method: req.method, headers, body, cf });
+  const request = new Request(url, {
+    method: req.method,
+    headers,
+    body,
+    cf: meta?.cf,
+  });
   return { request, url };
 }
 
@@ -96,7 +103,7 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
     const { request, url } = await convertNodeRequest(
       req,
       CorePlugin.upstream,
-      await HTTPPlugin.getCf(req)
+      await HTTPPlugin.getRequestMeta(req)
     );
 
     let response: Response | undefined;
