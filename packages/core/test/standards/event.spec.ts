@@ -1,10 +1,15 @@
 import {
   BindingsPlugin,
+  DOMException,
+  ExecutionContext,
+  FetchError,
   FetchEvent,
   Request,
   Response,
+  ScheduledController,
   ScheduledEvent,
   ServiceWorkerGlobalScope,
+  kAddModuleFetchListener,
   kDispatchFetch,
   kDispatchScheduled,
 } from "@miniflare/core";
@@ -13,10 +18,11 @@ import {
   TestLog,
   getObjectProperties,
   isWithin,
+  triggerPromise,
   useMiniflare,
   useServer,
 } from "@miniflare/shared-test";
-import anyTest, { TestInterface } from "ava";
+import anyTest, { TestInterface, ThrowsExpectation } from "ava";
 
 interface Context {
   log: TestLog;
@@ -61,6 +67,34 @@ test("ServiceWorkerGlobalScope: includes global self-references", async (t) => {
   t.is(globalScope.global, globalScope);
   t.is(globalScope.globalThis, globalScope);
   t.is(globalScope.self, globalScope);
+});
+test("ServiceWorkerGlobalScope: addEventListener: disabled if modules enabled", async (t) => {
+  const globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
+  t.throws(() => globalScope.addEventListener("fetch", () => {}), {
+    instanceOf: TypeError,
+    message:
+      "Global addEventListener() cannot be used in modules. Instead, event " +
+      "handlers should be declared as exports on the root module.",
+  });
+});
+test("ServiceWorkerGlobalScope: removeEventListener: disabled if modules enabled", async (t) => {
+  const globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
+  t.throws(() => globalScope.removeEventListener("fetch", () => {}), {
+    instanceOf: TypeError,
+    message:
+      "Global removeEventListener() cannot be used in modules. Instead, event " +
+      "handlers should be declared as exports on the root module.",
+  });
+});
+test("ServiceWorkerGlobalScope: dispatchEvent: disabled if modules enabled", async (t) => {
+  const globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
+  const event = new FetchEvent(new Request("http://localhost"));
+  t.throws(() => globalScope.dispatchEvent(event), {
+    instanceOf: TypeError,
+    message:
+      "Global dispatchEvent() cannot be used in modules. Instead, event " +
+      "handlers should be declared as exports on the root module.",
+  });
 });
 test("ServiceWorkerGlobalScope: hides implementation details", async (t) => {
   const { globalScope } = t.context;
@@ -245,9 +279,132 @@ test("kDispatchFetch: throws error if pass through with no upstream", async (t) 
   await t.throwsAsync(
     () => globalScope[kDispatchFetch](new Request("http://localhost:8787/")),
     {
-      instanceOf: TypeError,
+      instanceOf: FetchError,
+      code: "ERR_NO_UPSTREAM",
       message:
-        /^No fetch handler responded and no upstream to proxy to specified/,
+        "No upstream to pass-through to specified.\nMake sure you've set the `upstream` option.",
+    }
+  );
+});
+test("kDispatchFetch: throws error if respondWith called multiple times", async (t) => {
+  const { globalScope } = t.context;
+  globalScope.addEventListener("fetch", (e) => {
+    e.respondWith(new Response("body1"));
+    e.respondWith(new Response("body2"));
+  });
+  await t.throwsAsync(
+    () => globalScope[kDispatchFetch](new Request("http://localhost:8787/")),
+    {
+      instanceOf: DOMException,
+      name: "InvalidStateError",
+      message:
+        "FetchEvent.respondWith() has already been called; it can only be called once.",
+    }
+  );
+});
+test("kDispatchFetch: throws error if respondWith called after response sent", async (t) => {
+  t.plan(2);
+  const { globalScope } = t.context;
+  const [trigger, promise] = triggerPromise<void>();
+  globalScope.addEventListener("fetch", async (e) => {
+    await promise;
+    t.throws(() => e.respondWith(new Response("body")), {
+      instanceOf: DOMException,
+      name: "InvalidStateError",
+      message:
+        "Too late to call FetchEvent.respondWith(). It must be called synchronously in the event handler.",
+    });
+  });
+  await t.throwsAsync(
+    () => globalScope[kDispatchFetch](new Request("http://localhost:8787/")),
+    { instanceOf: FetchError, code: "ERR_NO_RESPONSE" }
+  );
+  trigger();
+});
+test("kDispatchFetch: throws error if response is not a Response", async (t) => {
+  // Check suggestion with regular service worker handler
+  let globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {});
+  globalScope.addEventListener("fetch", (e) => {
+    e.respondWith(Promise.resolve({} as any));
+  });
+  await t.throwsAsync(
+    () => globalScope[kDispatchFetch](new Request("http://localhost:8787/")),
+    {
+      instanceOf: FetchError,
+      code: "ERR_RESPONSE_TYPE",
+      message:
+        "Fetch handler didn't respond with a Response object.\n" +
+        "Make sure you're calling `event.respondWith()` with a `Response` or " +
+        "`Promise<Response>` in your handler.",
+    }
+  );
+  // Check suggestion with module handler
+  globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
+  globalScope[kAddModuleFetchListener](async () => ({} as any));
+  await t.throwsAsync(
+    () => globalScope[kDispatchFetch](new Request("http://localhost:8787/")),
+    {
+      instanceOf: FetchError,
+      code: "ERR_RESPONSE_TYPE",
+      message:
+        "Fetch handler didn't respond with a Response object.\n" +
+        "Make sure you're returning a `Response` in your handler.",
+    }
+  );
+});
+test("kDispatchFetch: throws error if fetch handler doesn't respond", async (t) => {
+  // Check suggestion with regular service worker handler
+  let globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {});
+  globalScope.addEventListener("fetch", () => {});
+  await t.throwsAsync(
+    () => globalScope[kDispatchFetch](new Request("http://localhost:8787/")),
+    {
+      instanceOf: FetchError,
+      code: "ERR_NO_RESPONSE",
+      message:
+        "No fetch handler responded and no upstream to proxy to specified.\n" +
+        "Make sure you're calling `event.respondWith()` with a `Response` or " +
+        "`Promise<Response>` in your handler.",
+    }
+  );
+  // Check suggestion with module handler
+  globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
+  globalScope[kAddModuleFetchListener]((async () => {}) as any);
+  await t.throwsAsync(
+    () => globalScope[kDispatchFetch](new Request("http://localhost:8787/")),
+    {
+      instanceOf: FetchError,
+      code: "ERR_NO_RESPONSE",
+      message:
+        "No fetch handler responded and no upstream to proxy to specified.\n" +
+        "Make sure you're returning a `Response` in your handler.",
+    }
+  );
+});
+test("kDispatchFetch: throws error if fetch handler undefined", async (t) => {
+  // Check suggestion with regular service worker handler
+  let globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {});
+  await t.throwsAsync(
+    () => globalScope[kDispatchFetch](new Request("http://localhost:8787/")),
+    {
+      instanceOf: FetchError,
+      code: "ERR_NO_HANDLER",
+      message:
+        "No fetch handler defined and no upstream to proxy to specified.\n" +
+        'Make sure you\'re calling addEventListener("fetch", ...).',
+    }
+  );
+  // Check suggestion with module handler
+  globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
+  await t.throwsAsync(
+    () => globalScope[kDispatchFetch](new Request("http://localhost:8787/")),
+    {
+      instanceOf: FetchError,
+      code: "ERR_NO_HANDLER",
+      message:
+        "No fetch handler defined and no upstream to proxy to specified.\n" +
+        "Make sure you're exporting a default object containing a `fetch` " +
+        "function property.",
     }
   );
 });
@@ -295,6 +452,11 @@ test("kDispatchScheduled: stops calling listeners after first error", async (t) 
   });
 });
 
+const illegalInvocationExpectation: ThrowsExpectation = {
+  instanceOf: TypeError,
+  message: "Illegal invocation",
+};
+
 test("FetchEvent: hides implementation details", (t) => {
   const event = new FetchEvent(new Request("http://localhost:8787"));
   t.deepEqual(getObjectProperties(event), [
@@ -305,6 +467,14 @@ test("FetchEvent: hides implementation details", (t) => {
     "waitUntil",
   ]);
 });
+test("FetchEvent: methods throw if this is incorrectly bound", (t) => {
+  const { respondWith, passThroughOnException, waitUntil } = new FetchEvent(
+    new Request("http://localhost:8787")
+  );
+  t.throws(() => respondWith(new Response()), illegalInvocationExpectation);
+  t.throws(() => passThroughOnException(), illegalInvocationExpectation);
+  t.throws(() => waitUntil(Promise.resolve()), illegalInvocationExpectation);
+});
 test("ScheduledEvent: hides implementation details", (t) => {
   const event = new ScheduledEvent(1000, "30 * * * *");
   t.deepEqual(getObjectProperties(event), [
@@ -313,4 +483,26 @@ test("ScheduledEvent: hides implementation details", (t) => {
     "scheduledTime",
     "waitUntil",
   ]);
+});
+test("ScheduledEvent: methods throw if this is incorrectly bound", (t) => {
+  const { waitUntil } = new ScheduledEvent(1000, "30 * * * *");
+  t.throws(() => waitUntil(Promise.resolve()), illegalInvocationExpectation);
+});
+test("ExecutionContext: hides implementation details", (t) => {
+  const event = new FetchEvent(new Request("http://localhost:8787"));
+  const ctx = new ExecutionContext(event);
+  t.deepEqual(getObjectProperties(ctx), [
+    "passThroughOnException",
+    "waitUntil",
+  ]);
+});
+test("ExecutionContext: methods throw if this is incorrectly bound", (t) => {
+  const event = new FetchEvent(new Request("http://localhost:8787"));
+  const { passThroughOnException, waitUntil } = new ExecutionContext(event);
+  t.throws(() => passThroughOnException(), illegalInvocationExpectation);
+  t.throws(() => waitUntil(Promise.resolve()), illegalInvocationExpectation);
+});
+test("ScheduledController: hides implementation details", (t) => {
+  const controller = new ScheduledController(1000, "30 * * * *");
+  t.deepEqual(getObjectProperties(controller), ["cron", "scheduledTime"]);
 });
