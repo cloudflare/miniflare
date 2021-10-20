@@ -3,9 +3,9 @@ import childProcess from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 import {
+  Awaitable,
   BeforeSetupResult,
   Log,
-  MaybePromise,
   MiniflareError,
   Option,
   OptionType,
@@ -52,7 +52,7 @@ export class BuildPlugin extends Plugin<BuildOptions> implements BuildOptions {
     this.assignOptions(options);
   }
 
-  beforeSetup(): MaybePromise<BeforeSetupResult> {
+  beforeSetup(): Awaitable<BeforeSetupResult> {
     const buildCommand = this.buildCommand;
     if (!buildCommand) return {};
 

@@ -1,9 +1,9 @@
 import { CorePlugin, MiniflareCore, Request, Response } from "@miniflare/core";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
+  Awaitable,
   Context,
   Log,
-  MaybePromise,
   Options,
   PluginSignatures,
 } from "@miniflare/shared";
@@ -31,7 +31,7 @@ export function useMiniflare<Plugins extends PluginSignatures>(
 export function useMiniflareWithHandler<Plugins extends PluginSignatures>(
   extraPlugins: Plugins,
   options: Options<{ CorePlugin: typeof CorePlugin } & Plugins>,
-  handler: (globals: Context, req: Request) => MaybePromise<Response>,
+  handler: (globals: Context, req: Request) => Awaitable<Response>,
   log: Log = new NoOpLog()
 ): MiniflareCore<{ CorePlugin: typeof CorePlugin } & Plugins> {
   return useMiniflare(

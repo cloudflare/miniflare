@@ -1,7 +1,7 @@
 import {
+  Awaitable,
   Context,
   Log,
-  MaybePromise,
   MiniflareError,
   ThrowingEventTarget,
   TypedEventListener,
@@ -41,7 +41,7 @@ export class FetchEvent extends Event {
     super("fetch");
   }
 
-  respondWith(response: MaybePromise<Response | BaseResponse>): void {
+  respondWith(response: Awaitable<Response | BaseResponse>): void {
     if (!(this instanceof FetchEvent)) {
       throw new TypeError("Illegal invocation");
     }
@@ -69,7 +69,7 @@ export class FetchEvent extends Event {
     this[kPassThrough] = true;
   }
 
-  waitUntil(promise: MaybePromise<any>): void {
+  waitUntil(promise: Awaitable<any>): void {
     if (!(this instanceof FetchEvent)) {
       throw new TypeError("Illegal invocation");
     }
@@ -109,7 +109,7 @@ export class ExecutionContext {
     if (this.#event instanceof FetchEvent) this.#event.passThroughOnException();
   }
 
-  waitUntil(promise: MaybePromise<any>): void {
+  waitUntil(promise: Awaitable<any>): void {
     if (!(this instanceof ExecutionContext)) {
       throw new TypeError("Illegal invocation");
     }

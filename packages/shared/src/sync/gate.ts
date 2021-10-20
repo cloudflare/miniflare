@@ -7,7 +7,7 @@ import {
   WrappedEventTarget,
   kWrapListener,
 } from "../event";
-import { MaybePromise } from "./awaitable";
+import { Awaitable } from "./awaitable";
 
 const inputGateStorage = new AsyncLocalStorage<InputGate>();
 const outputGateStorage = new AsyncLocalStorage<OutputGate>();
@@ -16,7 +16,7 @@ const outputGateStorage = new AsyncLocalStorage<OutputGate>();
  * Waits for the context's input gate (if any) to be open before returning.
  * Should be called before returning result of async I/O (e.g. setTimeout, KV).
  */
-export function waitForOpenInputGate(): MaybePromise<void> {
+export function waitForOpenInputGate(): Awaitable<void> {
   const inputGate = inputGateStorage.getStore();
   return inputGate?.waitForOpen();
 }
@@ -41,7 +41,7 @@ export function runWithInputGateClosed<T>(
  * Should be called before making async I/O requests (e.g. fetch, KV put)
  * which may be using unconfirmed values.
  */
-export function waitForOpenOutputGate(): MaybePromise<void> {
+export function waitForOpenOutputGate(): Awaitable<void> {
   const outputGate = outputGateStorage.getStore();
   return outputGate?.waitForOpen();
 }
@@ -71,7 +71,7 @@ export class InputGate {
   }
 
   /** Waits for input gate to open, then runs closure under the input gate */
-  async runWith<T>(closure: () => MaybePromise<T>): Promise<T> {
+  async runWith<T>(closure: () => Awaitable<T>): Promise<T> {
     await this.waitForOpen();
     return inputGateStorage.run(this, closure);
   }
@@ -145,7 +145,7 @@ export class OutputGate {
   readonly #waitUntil: Promise<unknown>[] = [];
 
   /** Runs closure under the output gate, then waits for output gate to open */
-  async runWith<T>(closure: () => MaybePromise<T>): Promise<T> {
+  async runWith<T>(closure: () => Awaitable<T>): Promise<T> {
     try {
       return await outputGateStorage.run(this, closure);
     } finally {

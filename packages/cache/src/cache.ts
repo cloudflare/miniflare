@@ -6,8 +6,8 @@ import {
   Response,
 } from "@miniflare/core";
 import {
+  Awaitable,
   Clock,
-  MaybePromise,
   StorageOperator,
   defaultClock,
   millisToSeconds,
@@ -23,6 +23,7 @@ import {
 import { CacheInterface, CacheMatchOptions, CachedMeta } from "./helpers";
 
 function normaliseRequest(req: RequestInfo): BaseRequest | Request {
+  // noinspection SuspiciousTypeOfGuard
   return req instanceof Request || req instanceof BaseRequest
     ? req
     : new Request(req);
@@ -130,10 +131,10 @@ function getExpirationTtl(
 }
 
 export class Cache implements CacheInterface {
-  readonly #storage: MaybePromise<StorageOperator>;
+  readonly #storage: Awaitable<StorageOperator>;
   readonly #clock: Clock;
 
-  constructor(storage: MaybePromise<StorageOperator>, clock = defaultClock) {
+  constructor(storage: Awaitable<StorageOperator>, clock = defaultClock) {
     this.#storage = storage;
     this.#clock = clock;
   }
