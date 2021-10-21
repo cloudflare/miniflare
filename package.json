@@ -21,7 +21,7 @@
     "types:build": "tsc",
     "types:bundle": "npm run types:build && node scripts/types.js",
     "dev": "node scripts/build.js watch",
-    "test": "npm run build && ava",
+    "test": "npm run build && ava && rimraf ./.tmp",
     "lint": "eslint 'packages/*/{src,test}/**/*.ts' 'scripts/**/*.{js,mjs}' 'types/**/*.ts'",
     "lint:fix": "npm run lint -- --fix",
     "prepublishOnly": "npm run lint && npm run test",

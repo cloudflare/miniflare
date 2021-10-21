@@ -899,3 +899,30 @@ test("MiniflareCore: dispose: runs dispose for all plugins", async (t) => {
     [LogLevel.INFO, "dispose"], // from TestPlugin
   ]);
 });
+test("MiniflareCore: dispose: cleans up watcher", async (t) => {
+  const tmp = await useTmp(t);
+  const log = new TestLog();
+  const testPath = path.join(tmp, "test.txt");
+  await fs.writeFile(testPath, "1");
+
+  const mf = useMiniflare(
+    { TestPlugin },
+    { watch: true, setupWatch: [testPath] },
+    log
+  );
+  await mf.getPlugins();
+
+  // Check file is being watched
+  const reloadPromise = waitForReload(mf);
+  log.logs = [];
+  await fs.writeFile(testPath, "2");
+  await reloadPromise;
+  t.not(log.logsAtLevel(LogLevel.DEBUG).length, 0);
+
+  // Dispose and check file stopped being watched
+  await mf.dispose();
+  log.logs = [];
+  await fs.writeFile(testPath, "3");
+  await setTimeout(100); // Shouldn't reload here
+  t.is(log.logsAtLevel(LogLevel.DEBUG).length, 0);
+});
