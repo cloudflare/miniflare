@@ -2,11 +2,9 @@ import vm from "vm";
 import test, { Macro } from "ava";
 import { proxiedGlobals } from "../src/proxied";
 
-const instanceOfMacro: Macro<[type: string, create: () => any]> = (
-  t,
-  type,
-  create
-) => {
+const instanceOfMacro: Macro<
+  [type: string, create: () => any, invert?: boolean]
+> = (t, type, create, invert) => {
   const ctx = vm.createContext({ ...proxiedGlobals, outside: create() });
   const result = vm.runInContext(
     `({
@@ -15,11 +13,15 @@ const instanceOfMacro: Macro<[type: string, create: () => any]> = (
     })`,
     ctx
   );
-  t.true(result.outsideInstanceOf, "outside not instanceof");
-  t.true(result.insideInstanceOf, "inside not instanceof");
+  const assert = invert ? t.false : t.true;
+  const message = invert ? "instanceof" : "not instanceof";
+  assert(result.outsideInstanceOf, "outside " + message);
+  assert(result.insideInstanceOf, "inside " + message);
 };
 instanceOfMacro.title = (providedTitle, type) =>
-  `proxiedGlobals: ${type}: supports cross-realm instanceof`;
+  `proxiedGlobals: ${type}: ${
+    providedTitle ?? "supports cross-realm instanceof"
+  }`;
 test(instanceOfMacro, "Object", () => ({ a: 1 }));
 test(instanceOfMacro, "Array", () => [1]);
 test(instanceOfMacro, "Function", () => () => {});
@@ -32,3 +34,17 @@ test(instanceOfMacro, "ReferenceError", () => new ReferenceError());
 test(instanceOfMacro, "SyntaxError", () => new SyntaxError());
 test(instanceOfMacro, "TypeError", () => new TypeError());
 test(instanceOfMacro, "URIError", () => new URIError());
+
+test(
+  "supports subclass cross-realm instanceof",
+  instanceOfMacro,
+  "Error",
+  () => new RangeError()
+);
+test(
+  "supports not instanceof",
+  instanceOfMacro,
+  "EvalError",
+  () => new TypeError(),
+  true
+);
