@@ -401,12 +401,14 @@ export class MiniflareCore<
 
     // Add module event listeners if any
     if (res?.exports) {
-      const fetchListener = res.exports.default?.fetch;
+      const defaults = res.exports.default;
+
+      const fetchListener = defaults?.fetch?.bind(defaults);
       if (fetchListener) {
         globalScope[kAddModuleFetchListener](fetchListener);
       }
 
-      const scheduledListener = res.exports.default?.scheduled;
+      const scheduledListener = defaults?.scheduled?.bind(defaults);
       if (scheduledListener) {
         globalScope[kAddModuleScheduledListener](scheduledListener);
       }

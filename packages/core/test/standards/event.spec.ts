@@ -139,8 +139,10 @@ test("MiniflareCore: adds scheduled event listener", async (t) => {
 });
 test("MiniflareCore: adds module fetch event listener", async (t) => {
   const script = `export default {
+    thisTest: "that",
     fetch(request, env, ctx) {
       ctx.waitUntil(Promise.resolve(env.KEY));
+      ctx.waitUntil(this.thisTest);
       return new Response(request.url);
     }
   }`;
@@ -150,14 +152,17 @@ test("MiniflareCore: adds module fetch event listener", async (t) => {
   );
   const res = await mf.dispatchFetch(new Request("http://localhost:8787/"));
   t.is(await res.text(), "http://localhost:8787/");
-  t.deepEqual(await res.waitUntil(), ["value"]);
+  t.deepEqual(await res.waitUntil(), ["value", "that"]);
 });
 test("MiniflareCore: adds module scheduled event listener", async (t) => {
   const script = `export default {
+    thisTest: "that",
     scheduled(controller, env, ctx) {
       ctx.waitUntil(Promise.resolve(controller.scheduledTime));
       ctx.waitUntil(Promise.resolve(controller.cron));
       ctx.waitUntil(Promise.resolve(env.KEY));
+      ctx.waitUntil(this.thisTest);
+      return "returned";
     }
   }`;
   const mf = useMiniflare(
@@ -165,9 +170,7 @@ test("MiniflareCore: adds module scheduled event listener", async (t) => {
     { modules: true, script, bindings: { KEY: "value" } }
   );
   const res = await mf.dispatchScheduled(1000, "30 * * * *");
-  t.is(res[0], 1000);
-  t.is(res[1], "30 * * * *");
-  t.is(res[2], "value");
+  t.deepEqual(res, [1000, "30 * * * *", "value", "that", "returned"]);
 });
 
 test("kDispatchFetch: dispatches event", async (t) => {
