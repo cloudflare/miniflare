@@ -12,11 +12,15 @@ function isFunction(value: any): value is Function {
 }
 
 function isError<Ctor extends ErrorConstructor>(errorCtor: Ctor) {
+  const name = errorCtor.prototype.name;
   return function (value: any): value is InstanceType<Ctor> {
-    return (
-      types.isNativeError(value) &&
-      Object.getPrototypeOf(value).name === errorCtor.prototype.name
-    );
+    if (!types.isNativeError(value)) return false;
+    // Traverse up prototype chain and check for matching name
+    let prototype = value;
+    while ((prototype = Object.getPrototypeOf(prototype)) !== null) {
+      if (prototype.name === name) return true;
+    }
+    return false;
   };
 }
 
