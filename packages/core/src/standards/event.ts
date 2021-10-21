@@ -25,6 +25,10 @@ const SUGGEST_HANDLER_MODULES =
 const SUGGEST_RES =
   "calling `event.respondWith()` with a `Response` or `Promise<Response>` in your handler";
 const SUGGEST_RES_MODULES = "returning a `Response` in your handler";
+const SUGGEST_GLOBAL_BINDING_MODULES =
+  "Attempted to access binding using global in modules mode." +
+  "\nYou must use the 2nd `env` parameter passed to exported " +
+  "handlers or Durable Object constructors.";
 
 const kResponse = Symbol("kResponse");
 const kPassThrough = Symbol("kPassThrough");
@@ -177,7 +181,20 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
 
     // Only including bindings in global scope if not using modules
     Object.assign(this, globals);
-    if (!modules) Object.assign(this, bindings);
+    if (modules) {
+      // Error when trying to access bindings using the global in modules mode
+      for (const key of Object.keys(bindings)) {
+        Object.defineProperty(this, key, {
+          get() {
+            throw new ReferenceError(
+              `${key} is not defined.\n${SUGGEST_GLOBAL_BINDING_MODULES}`
+            );
+          },
+        });
+      }
+    } else {
+      Object.assign(this, bindings);
+    }
 
     // Make sure this remains bound when creating VM context
     this.addEventListener = this.addEventListener.bind(this);

@@ -37,7 +37,7 @@ test.beforeEach((t) => {
   t.context = { log, globalScope };
 });
 
-test("ServiceWorkerGlobalScope: includes sandbox in globals", async (t) => {
+test("ServiceWorkerGlobalScope: includes sandbox in globals", (t) => {
   const globalScope = new ServiceWorkerGlobalScope(
     new NoOpLog(),
     { sand: "box" },
@@ -46,7 +46,7 @@ test("ServiceWorkerGlobalScope: includes sandbox in globals", async (t) => {
   );
   t.is((globalScope as any).sand, "box");
 });
-test("ServiceWorkerGlobalScope: includes environment in globals if modules disabled", async (t) => {
+test("ServiceWorkerGlobalScope: includes environment in globals if modules disabled", (t) => {
   let globalScope = new ServiceWorkerGlobalScope(
     new NoOpLog(),
     {},
@@ -60,15 +60,19 @@ test("ServiceWorkerGlobalScope: includes environment in globals if modules disab
     { env: "ironment" },
     true
   );
-  t.is((globalScope as any).env, undefined);
+  t.throws(() => (globalScope as any).env, {
+    instanceOf: ReferenceError,
+    message:
+      /^env is not defined\.\nAttempted to access binding using global in modules mode/,
+  });
 });
-test("ServiceWorkerGlobalScope: includes global self-references", async (t) => {
+test("ServiceWorkerGlobalScope: includes global self-references", (t) => {
   const { globalScope } = t.context;
   t.is(globalScope.global, globalScope);
   t.is(globalScope.globalThis, globalScope);
   t.is(globalScope.self, globalScope);
 });
-test("ServiceWorkerGlobalScope: addEventListener: disabled if modules enabled", async (t) => {
+test("ServiceWorkerGlobalScope: addEventListener: disabled if modules enabled", (t) => {
   const globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
   t.throws(() => globalScope.addEventListener("fetch", () => {}), {
     instanceOf: TypeError,
@@ -77,7 +81,7 @@ test("ServiceWorkerGlobalScope: addEventListener: disabled if modules enabled", 
       "handlers should be declared as exports on the root module.",
   });
 });
-test("ServiceWorkerGlobalScope: removeEventListener: disabled if modules enabled", async (t) => {
+test("ServiceWorkerGlobalScope: removeEventListener: disabled if modules enabled", (t) => {
   const globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
   t.throws(() => globalScope.removeEventListener("fetch", () => {}), {
     instanceOf: TypeError,
@@ -86,7 +90,7 @@ test("ServiceWorkerGlobalScope: removeEventListener: disabled if modules enabled
       "handlers should be declared as exports on the root module.",
   });
 });
-test("ServiceWorkerGlobalScope: dispatchEvent: disabled if modules enabled", async (t) => {
+test("ServiceWorkerGlobalScope: dispatchEvent: disabled if modules enabled", (t) => {
   const globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
   const event = new FetchEvent(new Request("http://localhost"));
   t.throws(() => globalScope.dispatchEvent(event), {
@@ -96,7 +100,7 @@ test("ServiceWorkerGlobalScope: dispatchEvent: disabled if modules enabled", asy
       "handlers should be declared as exports on the root module.",
   });
 });
-test("ServiceWorkerGlobalScope: hides implementation details", async (t) => {
+test("ServiceWorkerGlobalScope: hides implementation details", (t) => {
   const { globalScope } = t.context;
   t.deepEqual(getObjectProperties(globalScope), [
     "KEY", // binding
