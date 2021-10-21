@@ -588,5 +588,7 @@ export class MiniflareCore<
         await instance.dispose();
       }
     }
+    // Dispose of watcher
+    this.#watcher?.dispose();
   }
 }
