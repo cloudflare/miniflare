@@ -1,3 +1,4 @@
+import { CompatibilityFlag } from "./compat";
 import { ModuleRuleType } from "./runner";
 
 // See https://developers.cloudflare.com/workers/cli-wrangler/configuration#keys
@@ -62,6 +63,8 @@ export interface WranglerEnvironmentConfig {
 
 export interface WranglerConfig extends WranglerEnvironmentConfig {
   type?: "javascript" | "webpack" | "rust"; // top level
+  compatibility_date?: string;
+  compatibility_flags?: CompatibilityFlag[];
   build?: {
     command?: string;
     cwd?: string;

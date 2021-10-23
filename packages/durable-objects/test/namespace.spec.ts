@@ -10,6 +10,7 @@ import {
   DurableObjectStub,
   DurableObjectsPlugin,
 } from "@miniflare/durable-objects";
+import { Compatibility } from "@miniflare/shared";
 import {
   MemoryStorageFactory,
   NoOpLog,
@@ -22,6 +23,7 @@ import test, { ThrowsExpectation } from "ava";
 import { TestObject, testId, testIdHex } from "./object";
 
 const log = new NoOpLog();
+const compat = new Compatibility();
 
 const throws = (): never => {
   throw new Error("Function should not be called!");
@@ -33,7 +35,7 @@ function getTestObjectNamespace(): [
   MemoryStorageFactory
 ] {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(log, {
+  const plugin = new DurableObjectsPlugin(log, compat, {
     durableObjects: { TEST: "TestObject" },
   });
   plugin.beforeReload();
@@ -67,7 +69,7 @@ test("DurableObjectState: waitUntil: does nothing", (t) => {
 });
 test("DurableObjectState: blockConcurrencyWhile: prevents fetch events dispatch to object", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(log, {
+  const plugin = new DurableObjectsPlugin(log, compat, {
     durableObjects: { TEST: "TestObject" },
   });
   const [trigger, promise] = triggerPromise<void>();
@@ -98,7 +100,7 @@ test("DurableObjectState: blockConcurrencyWhile: prevents fetch events dispatch 
 });
 test("DurableObjectState: kFetch: waits for writes to be confirmed before returning", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(log, {
+  const plugin = new DurableObjectsPlugin(log, compat, {
     durableObjects: { TEST: "TestObject" },
   });
 
@@ -157,7 +159,7 @@ test("DurableObjectStub: fetch: resolves relative urls with respect to https://f
 });
 test("DurableObjectStub: fetch: passes through web socket requests", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(log, {
+  const plugin = new DurableObjectsPlugin(log, compat, {
     durableObjects: { TEST: "TestObject" },
   });
 

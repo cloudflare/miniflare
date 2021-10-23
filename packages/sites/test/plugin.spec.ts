@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { CachePlugin } from "@miniflare/cache";
 import { Request } from "@miniflare/core";
+import { Compatibility } from "@miniflare/shared";
 import {
   NoOpLog,
   logPluginOptions,
@@ -16,6 +17,8 @@ import test, { Macro } from "ava";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const compat = new Compatibility();
 
 test("SitesPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(SitesPlugin, [
@@ -63,13 +66,13 @@ test("SitesPlugin: logs options", (t) => {
   ]);
 });
 test("SitesPlugin: setup: returns empty result if no site", async (t) => {
-  const plugin = new SitesPlugin(new NoOpLog());
+  const plugin = new SitesPlugin(new NoOpLog(), compat);
   const result = await plugin.setup();
   t.deepEqual(result, {});
 });
 test("SitesPlugin: setup: includes read-only content namespace and watches files", async (t) => {
   const tmp = await useTmp(t);
-  const plugin = new SitesPlugin(new NoOpLog(), { sitePath: tmp });
+  const plugin = new SitesPlugin(new NoOpLog(), compat, { sitePath: tmp });
   const result = await plugin.setup();
 
   // Check namespace is read-only

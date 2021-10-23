@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import {
   BeforeSetupResult,
+  Compatibility,
   Context,
   Log,
   Mutex,
@@ -182,6 +183,7 @@ export class MiniflareCore<
   readonly #scriptRequired?: boolean;
   readonly #defaultConfigPath: string;
 
+  #compat?: Compatibility;
   #instances?: PluginInstances<Plugins>;
 
   #wranglerConfigPath?: string;
@@ -299,13 +301,27 @@ export class MiniflareCore<
     // through execution. (NOTE: ??= will only assign on undefined, not false)
     this.#watching ??= options.CorePlugin.watch ?? false;
 
+    // Build compatibility manager, rebuild all plugins if compatibility data
+    // has changed
+    const { compatibilityDate, compatibilityFlags } = options.CorePlugin;
+    let compatUpdate = false;
+    if (this.#compat) {
+      compatUpdate = this.#compat.update(compatibilityDate, compatibilityFlags);
+    } else {
+      this.#compat = new Compatibility(compatibilityDate, compatibilityFlags);
+    }
+
     // Create plugin instances and run beforeSetup hooks, recreating any plugins
     // with changed options
     this.#instances ??= {} as PluginInstances<Plugins>;
     this.#beforeSetupWatch ??= new Map<keyof Plugins, Set<string>>();
     let ranBeforeSetup = false;
     for (const [name, plugin] of this.#plugins) {
-      if (previous !== undefined && dequal(previous[name], options[name])) {
+      if (
+        previous !== undefined &&
+        !compatUpdate &&
+        dequal(previous[name], options[name])
+      ) {
         continue;
       }
 
@@ -316,7 +332,7 @@ export class MiniflareCore<
         await existingInstance.dispose();
       }
 
-      const instance = new plugin(this.log, options[name]);
+      const instance = new plugin(this.log, this.#compat, options[name]);
       this.#instances[name] = instance as any;
       if (await this.#runBeforeSetup(name)) ranBeforeSetup = true;
     }
@@ -327,6 +343,7 @@ export class MiniflareCore<
     for (const [name] of this.#plugins) {
       if (
         previous !== undefined &&
+        !compatUpdate &&
         dequal(previous[name], options[name]) &&
         // Make sure if we ran any beforeSetups and this plugin previously
         // returned scripts, that we rerun its setup

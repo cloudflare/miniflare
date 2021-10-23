@@ -6,6 +6,7 @@ import { IncomingRequestCfProperties } from "@miniflare/core";
 import {
   Awaitable,
   Clock,
+  Compatibility,
   Log,
   Option,
   OptionType,
@@ -224,10 +225,11 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
 
   constructor(
     log: Log,
+    compat: Compatibility,
     options?: HTTPOptions,
     private readonly defaults: HTTPPluginDefaults = {}
   ) {
-    super(log);
+    super(log, compat);
     this.assignOptions(options);
 
     this.defaultCertRoot = defaults.certRoot ?? defaultCertRoot;

@@ -42,9 +42,5 @@ export async function upgradingFetch(
     });
   }
 
-  // TODO (someday): support cache using fetch:
-  //  https://developers.cloudflare.com/workers/learning/how-the-cache-works#fetch
-  //  https://developers.cloudflare.com/workers/examples/cache-using-fetch
-
   return gatedFetch(request);
 }

@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import {
   Awaitable,
   BeforeSetupResult,
+  Compatibility,
   Log,
   MiniflareError,
   Option,
@@ -47,8 +48,8 @@ export class BuildPlugin extends Plugin<BuildOptions> implements BuildOptions {
   })
   buildWatchPaths?: string[];
 
-  constructor(log: Log, options?: BuildOptions) {
-    super(log);
+  constructor(log: Log, compat: Compatibility, options?: BuildOptions) {
+    super(log, compat);
     this.assignOptions(options);
   }
 

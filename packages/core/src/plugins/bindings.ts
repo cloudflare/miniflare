@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import {
+  Compatibility,
   Context,
   Log,
   Option,
@@ -70,10 +71,11 @@ export class BindingsPlugin
 
   constructor(
     log: Log,
+    compat: Compatibility,
     options?: BindingsOptions,
     private readonly defaultEnvPath: string = ".env"
   ) {
-    super(log);
+    super(log, compat);
     this.assignOptions(options);
   }
 

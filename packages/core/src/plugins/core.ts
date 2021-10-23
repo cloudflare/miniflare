@@ -19,6 +19,8 @@ import {
 import { URL, URLSearchParams } from "url";
 import { TextEncoder } from "util";
 import {
+  Compatibility,
+  CompatibilityFlag,
   Context,
   Log,
   ModuleRule,
@@ -60,6 +62,8 @@ export interface CoreOptions {
   wranglerConfigEnv?: string;
   modules?: boolean;
   modulesRules?: ModuleRule[];
+  compatibilityDate?: string;
+  compatibilityFlags?: CompatibilityFlag[];
   upstream?: string;
   watch?: boolean;
   debug?: boolean;
@@ -154,6 +158,20 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   @Option({
     type: OptionType.STRING,
+    description: "Opt into backwards-incompatible changes from",
+    fromWrangler: ({ compatibility_date }) => compatibility_date,
+  })
+  compatibilityDate?: string;
+
+  @Option({
+    type: OptionType.ARRAY,
+    description: "Control specific backwards-incompatible changes",
+    fromWrangler: ({ compatibility_flags }) => compatibility_flags,
+  })
+  compatibilityFlags?: CompatibilityFlag[];
+
+  @Option({
+    type: OptionType.STRING,
     alias: "u",
     description: "URL of upstream origin",
     fromWrangler: ({ miniflare }) => miniflare?.upstream,
@@ -196,10 +214,11 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   constructor(
     log: Log,
+    compat: Compatibility,
     options?: CoreOptions,
     private readonly defaultPackagePath = "package.json"
   ) {
-    super(log);
+    super(log, compat);
     this.assignOptions(options);
 
     // Build globals object

@@ -1,6 +1,7 @@
 import { parseArgv } from "@miniflare/cli-parser";
 import {
   BeforeSetupResult,
+  Compatibility,
   Context,
   ExtractOptions,
   Log,
@@ -109,8 +110,8 @@ export class TestPlugin extends Plugin<TestOptions> implements TestOptions {
   reloadModuleExports?: Context;
   reloadBindings?: Context;
 
-  constructor(log: Log, options?: TestOptions) {
-    super(log);
+  constructor(log: Log, compat: Compatibility, options?: TestOptions) {
+    super(log, compat);
     this.constructedOptions = options;
     this.assignOptions(options);
   }

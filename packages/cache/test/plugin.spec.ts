@@ -6,7 +6,7 @@ import {
   CachedMeta,
   NoOpCache,
 } from "@miniflare/cache";
-import { LogLevel, StoredValueMeta } from "@miniflare/shared";
+import { Compatibility, LogLevel, StoredValueMeta } from "@miniflare/shared";
 import {
   MemoryStorageFactory,
   NoOpLog,
@@ -21,6 +21,7 @@ import test from "ava";
 import { testResponse } from "./helpers";
 
 const log = new NoOpLog();
+const compat = new Compatibility();
 
 test("CacheStorage: provides default cache", async (t) => {
   const factory = new MemoryStorageFactory();
@@ -135,7 +136,7 @@ test("CachePlugin: setup: includes CacheStorage in globals", async (t) => {
   const map = new Map<string, StoredValueMeta<CachedMeta>>();
   const factory = new MemoryStorageFactory({ ["map:default"]: map });
 
-  let plugin = new CachePlugin(log, { cachePersist: "map" });
+  let plugin = new CachePlugin(log, compat, { cachePersist: "map" });
   let result = plugin.setup(factory);
   let caches = result.globals?.caches;
   t.true(caches instanceof CacheStorage);
@@ -143,7 +144,7 @@ test("CachePlugin: setup: includes CacheStorage in globals", async (t) => {
   await caches.default.put("http://localhost:8787/", testResponse());
   t.true(map.has("http://localhost:8787/"));
 
-  plugin = new CachePlugin(log, { cache: false });
+  plugin = new CachePlugin(log, compat, { cache: false });
   result = plugin.setup(factory);
   caches = result.globals?.caches;
   t.true(caches instanceof CacheStorage);

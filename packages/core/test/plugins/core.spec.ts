@@ -2,7 +2,7 @@ import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
 import { CorePlugin } from "@miniflare/core";
-import { STRING_SCRIPT_PATH } from "@miniflare/shared";
+import { Compatibility, STRING_SCRIPT_PATH } from "@miniflare/shared";
 import {
   NoOpLog,
   logPluginOptions,
@@ -11,6 +11,8 @@ import {
   useTmp,
 } from "@miniflare/shared-test";
 import test from "ava";
+
+const compat = new Compatibility();
 
 test("CorePlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(CorePlugin, [
@@ -26,6 +28,12 @@ test("CorePlugin: parses options from argv", (t) => {
     "Text=*.txt",
     "--modules-rule",
     "Data=*.png",
+    "--compatibility-date",
+    "2021-10-23",
+    "--compatibility-flag",
+    "fetch_refuses_unknown_protocols",
+    "--compatibility-flag",
+    "durable_object_fetch_allows_relative_url",
     "--upstream",
     "https://github.com/mrbbot",
     "--watch",
@@ -41,6 +49,11 @@ test("CorePlugin: parses options from argv", (t) => {
     modulesRules: [
       { type: "Text", include: ["*.txt"], fallthrough: true },
       { type: "Data", include: ["*.png"], fallthrough: true },
+    ],
+    compatibilityDate: "2021-10-23",
+    compatibilityFlags: [
+      "fetch_refuses_unknown_protocols",
+      "durable_object_fetch_allows_relative_url",
     ],
     upstream: "https://github.com/mrbbot",
     watch: true,
@@ -69,6 +82,11 @@ test("CorePlugin: parses options from wrangler config", (t) => {
   let options = parsePluginWranglerConfig(
     CorePlugin,
     {
+      compatibility_date: "2021-10-23",
+      compatibility_flags: [
+        "fetch_refuses_unknown_protocols",
+        "durable_object_fetch_allows_relative_url",
+      ],
       build: {
         upload: {
           format: "modules",
@@ -98,6 +116,11 @@ test("CorePlugin: parses options from wrangler config", (t) => {
     modulesRules: [
       { type: "Text", include: ["*.txt"], fallthrough: true },
       { type: "Data", include: ["*.png"], fallthrough: undefined },
+    ],
+    compatibilityDate: "2021-10-23",
+    compatibilityFlags: [
+      "fetch_refuses_unknown_protocols",
+      "durable_object_fetch_allows_relative_url",
     ],
     upstream: "https://miniflare.dev",
     watch: true,
@@ -163,7 +186,7 @@ test("CorePlugin: logs options", (t) => {
 });
 
 test("CorePlugin: setup: includes web standards", async (t) => {
-  const plugin = new CorePlugin(new NoOpLog());
+  const plugin = new CorePlugin(new NoOpLog(), compat);
   const { globals } = await plugin.setup();
   assert(globals);
 
@@ -242,7 +265,7 @@ test("CorePlugin: setup: includes web standards", async (t) => {
 });
 
 test("CorePlugin: processedModuleRules: processes rules includes default module rules", (t) => {
-  const plugin = new CorePlugin(new NoOpLog(), {
+  const plugin = new CorePlugin(new NoOpLog(), compat, {
     modules: true,
     modulesRules: [
       { type: "Text", include: ["**/*.txt"], fallthrough: true },
@@ -262,7 +285,7 @@ test("CorePlugin: processedModuleRules: processes rules includes default module 
   t.true(rules[3].include.test("test.cjs"));
 });
 test("CorePlugin: processedModuleRules: ignores rules with same type if no fallthrough", (t) => {
-  const plugin = new CorePlugin(new NoOpLog(), {
+  const plugin = new CorePlugin(new NoOpLog(), compat, {
     modules: true,
     modulesRules: [{ type: "CommonJS", include: ["**/*.js"] }],
   });
@@ -274,7 +297,7 @@ test("CorePlugin: processedModuleRules: ignores rules with same type if no fallt
   t.true(rules[1].include.test("test.mjs"));
 });
 test("CorePlugin: processedModuleRules: defaults to default module rules", (t) => {
-  const plugin = new CorePlugin(new NoOpLog(), { modules: true });
+  const plugin = new CorePlugin(new NoOpLog(), compat, { modules: true });
   const rules = plugin.processedModuleRules;
   t.is(rules.length, 2);
   t.is(rules[0].type, "ESModule");
@@ -284,19 +307,19 @@ test("CorePlugin: processedModuleRules: defaults to default module rules", (t) =
   t.true(rules[1].include.test("test.cjs"));
 });
 test("CorePlugin: processedModuleRules: empty if modules disabled", (t) => {
-  const plugin = new CorePlugin(new NoOpLog());
+  const plugin = new CorePlugin(new NoOpLog(), compat);
   const rules = plugin.processedModuleRules;
   t.is(rules.length, 0);
 });
 
 test("CorePlugin: setup: loads no script if none defined", async (t) => {
-  const plugin = new CorePlugin(new NoOpLog());
+  const plugin = new CorePlugin(new NoOpLog(), compat);
   const result = await plugin.setup();
   t.deepEqual(result.watch, []);
   t.is(result.script, undefined);
 });
 test("CorePlugin: setup: loads script from string", async (t) => {
-  const plugin = new CorePlugin(new NoOpLog(), {
+  const plugin = new CorePlugin(new NoOpLog(), compat, {
     script: "console.log('Hello!')",
   });
   const result = await plugin.setup();
@@ -313,6 +336,7 @@ test("CorePlugin: setup: loads script from package.json in default location", as
   await fs.writeFile(scriptPath, "console.log(42)");
   const plugin = new CorePlugin(
     new NoOpLog(),
+    compat,
     { packagePath: true },
     defaultPackagePath
   );
@@ -345,6 +369,7 @@ test("CorePlugin: setup: loads script from package.json in custom location", asy
 
   const plugin = new CorePlugin(
     new NoOpLog(),
+    compat,
     { packagePath: customPackagePath },
     defaultPackagePath
   );
@@ -369,7 +394,10 @@ test("CorePlugin: setup: loads module from package.json", async (t) => {
   await fs.writeFile(packagePath, `{"module": "script.mjs"}`);
   const scriptPath = path.join(tmp, "script.mjs");
   await fs.writeFile(scriptPath, "export default 42");
-  const plugin = new CorePlugin(new NoOpLog(), { modules: true, packagePath });
+  const plugin = new CorePlugin(new NoOpLog(), compat, {
+    modules: true,
+    packagePath,
+  });
   const result = await plugin.setup();
   t.deepEqual(result.watch, [packagePath, scriptPath]);
   t.deepEqual(result.script, {
@@ -383,7 +411,10 @@ test("CorePlugin: setup: loads script from explicit path", async (t) => {
   await fs.writeFile(packagePath, `{"main": "bad.js"}`);
   const scriptPath = path.join(tmp, "script.js");
   await fs.writeFile(scriptPath, "console.log(42)");
-  const plugin = new CorePlugin(new NoOpLog(), { scriptPath, packagePath });
+  const plugin = new CorePlugin(new NoOpLog(), compat, {
+    scriptPath,
+    packagePath,
+  });
   // packagePath should be ignored if an explicit scriptPath is set
   const result = await plugin.setup();
   t.deepEqual(result.watch, [scriptPath]); // No packagePath

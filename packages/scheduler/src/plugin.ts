@@ -1,4 +1,5 @@
 import {
+  Compatibility,
   Log,
   MiniflareError,
   Option,
@@ -31,8 +32,8 @@ export class SchedulerPlugin
 
   #validatedCrons: string[] = [];
 
-  constructor(log: Log, options?: SchedulerOptions) {
-    super(log);
+  constructor(log: Log, compat: Compatibility, options?: SchedulerOptions) {
+    super(log, compat);
     this.assignOptions(options);
   }
 
