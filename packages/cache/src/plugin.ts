@@ -46,8 +46,8 @@ export class CacheStorage {
     const defaultCache = this.#defaultCache;
     if (defaultCache) return defaultCache;
     // Return noop cache is caching disabled
-    const { disableCache, cachePersist } = this.#options;
-    if (disableCache) return NOOP_CACHE;
+    const { cache, cachePersist } = this.#options;
+    if (cache === false) return NOOP_CACHE;
     // Return cache, deferring storage await to Cache, since this needs to
     // return synchronously. We want to avoid loading @miniflare/storage-*
     // packages unless the user is actually using storage. Since Cache is
@@ -71,8 +71,8 @@ export class CacheStorage {
       throw new TypeError("Cache name is too long.");
     }
     // Return noop cache is caching disabled
-    const { disableCache, cachePersist } = this.#options;
-    if (disableCache) return NOOP_CACHE;
+    const { cache, cachePersist } = this.#options;
+    if (cache === false) return NOOP_CACHE;
     // Return regular cache
     this.#maybeWarnUsage();
     return new Cache(await this.#storage.storage(cacheName, cachePersist));
@@ -80,12 +80,21 @@ export class CacheStorage {
 }
 
 export interface CacheOptions {
+  cache?: boolean;
   cachePersist?: boolean | string;
-  disableCache?: boolean;
   cacheWarnUsage?: boolean;
 }
 
 export class CachePlugin extends Plugin<CacheOptions> implements CacheOptions {
+  @Option({
+    type: OptionType.BOOLEAN,
+    description: "Enable default/named caches (enabled by default)",
+    negatable: true,
+    logName: "Cache",
+    fromWrangler: ({ miniflare }) => miniflare?.cache,
+  })
+  cache?: boolean;
+
   @Option({
     type: OptionType.BOOLEAN_STRING,
     description: "Persist cached data (to optional path)",
@@ -93,14 +102,6 @@ export class CachePlugin extends Plugin<CacheOptions> implements CacheOptions {
     fromWrangler: ({ miniflare }) => miniflare?.cache_persist,
   })
   cachePersist?: boolean | string;
-
-  @Option({
-    type: OptionType.BOOLEAN,
-    description: "Disable default/named caches",
-    logName: "Cache Disabled",
-    fromWrangler: ({ miniflare }) => miniflare?.disable_cache,
-  })
-  disableCache?: boolean;
 
   @Option({
     type: OptionType.NONE,

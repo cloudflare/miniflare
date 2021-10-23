@@ -49,11 +49,12 @@ export function buildHelp<Plugins extends PluginSignatures>(
     }
 
     for (const [key, meta] of entries) {
-      const { type, typeFormat, alias, description = "" } = meta;
+      const { type, typeFormat, alias, description = "", negatable } = meta;
       // Ignore API-only options (e.g. string script)
       if (type === OptionType.NONE) continue;
 
-      const name = argName(key, meta);
+      let name = argName(key, meta);
+      if (negatable) name = `(no-)${name}`;
       if (type === OptionType.STRING_POSITIONAL) {
         positionalName = name;
         // Positional arguments shouldn't appear in options list

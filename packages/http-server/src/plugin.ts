@@ -197,6 +197,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
   @Option({
     type: OptionType.BOOLEAN_STRING,
     description: "Path for cached Request cf object from Cloudflare",
+    negatable: true,
     logName: "Request cf Object Fetch",
     logValue(value: boolean | string) {
       if (value === true) return path.relative("", defaultCfPath);

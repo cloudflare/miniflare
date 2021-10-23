@@ -64,6 +64,7 @@ export interface CoreOptions {
   watch?: boolean;
   debug?: boolean;
   verbose?: boolean;
+  updateCheck?: boolean;
 }
 
 export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
@@ -180,6 +181,14 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     description: "Enable verbose logging",
   })
   verbose?: boolean;
+
+  @Option({
+    type: OptionType.BOOLEAN,
+    description: "Enable update checker (enabled by default)",
+    negatable: true,
+    fromWrangler: ({ miniflare }) => miniflare?.update_check,
+  })
+  updateCheck?: boolean;
 
   readonly processedModuleRules: ProcessedModuleRule[] = [];
 

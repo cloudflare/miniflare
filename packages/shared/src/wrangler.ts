@@ -39,8 +39,8 @@ export interface WranglerEnvironmentConfig {
     upstream?: string;
     watch?: boolean;
     kv_persist?: boolean | string;
+    cache?: boolean;
     cache_persist?: boolean | string;
-    disable_cache?: boolean;
     durable_objects_persist?: boolean | string;
     env_path?: string;
     host?: string;
@@ -56,7 +56,7 @@ export interface WranglerEnvironmentConfig {
           pfx?: string;
           passphrase?: string;
         };
-    disable_updater?: boolean;
+    update_check?: boolean;
   }; // inherited
 }
 

@@ -83,6 +83,7 @@ test("CorePlugin: parses options from wrangler config", (t) => {
       miniflare: {
         upstream: "https://miniflare.dev",
         watch: true,
+        update_check: false,
       },
     },
     configDir
@@ -102,6 +103,7 @@ test("CorePlugin: parses options from wrangler config", (t) => {
     watch: true,
     debug: undefined,
     verbose: undefined,
+    updateCheck: false,
   });
   // Check build upload dir defaults to dist
   options = parsePluginWranglerConfig(
