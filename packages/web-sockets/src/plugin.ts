@@ -1,5 +1,5 @@
 import { RequestInfo, RequestInit, Response } from "@miniflare/core";
-import { Log, Plugin, SetupResult } from "@miniflare/shared";
+import { Compatibility, Log, Plugin, SetupResult } from "@miniflare/shared";
 import { upgradingFetch } from "./fetch";
 import {
   CloseEvent,
@@ -15,8 +15,8 @@ const constructError =
 export class WebSocketPlugin extends Plugin {
   #webSockets = new Set<WebSocket>();
 
-  constructor(log: Log) {
-    super(log);
+  constructor(log: Log, compat: Compatibility) {
+    super(log, compat);
     this.fetch = this.fetch.bind(this);
   }
 

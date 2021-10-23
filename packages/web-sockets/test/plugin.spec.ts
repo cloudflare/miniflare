@@ -1,5 +1,6 @@
 import assert from "assert";
 import { Request } from "@miniflare/core";
+import { Compatibility } from "@miniflare/shared";
 import {
   NoOpLog,
   noop,
@@ -16,8 +17,10 @@ import {
 } from "@miniflare/web-sockets";
 import test from "ava";
 
+const compat = new Compatibility();
+
 test("WebSocketPlugin: setup: includes WebSocket stuff in globals", (t) => {
-  const plugin = new WebSocketPlugin(new NoOpLog());
+  const plugin = new WebSocketPlugin(new NoOpLog(), compat);
   const globals = plugin.setup().globals!;
   t.is(globals.MessageEvent, MessageEvent);
   t.is(globals.CloseEvent, CloseEvent);
@@ -26,7 +29,7 @@ test("WebSocketPlugin: setup: includes WebSocket stuff in globals", (t) => {
   t.is(globals.fetch, plugin.fetch);
 });
 test("WebSocketPlugin: setup: blocks direct WebSocket construction", (t) => {
-  const plugin = new WebSocketPlugin(new NoOpLog());
+  const plugin = new WebSocketPlugin(new NoOpLog(), compat);
   const WebSocketProxy: typeof WebSocket = plugin.setup().globals!.WebSocket;
   t.throws(() => new WebSocketProxy(), {
     instanceOf: Error,
@@ -45,7 +48,7 @@ test("WebSocketPlugin: setup: blocks direct WebSocket construction", (t) => {
 });
 
 test("WebSocketPlugin: fetch, reload, dispose: closes WebSockets", async (t) => {
-  const plugin = new WebSocketPlugin(new NoOpLog());
+  const plugin = new WebSocketPlugin(new NoOpLog(), compat);
   let [eventTrigger, eventPromise] =
     triggerPromise<{ code: number; reason: string }>();
   const server = await useServer(t, noop, (ws) => {
@@ -80,7 +83,7 @@ test("WebSocketPlugin: fetch, reload, dispose: closes WebSockets", async (t) => 
   t.is(event.reason, "Service Restart");
 });
 test("WebSocketPlugin: fetch, reload: ignores already closed WebSockets", async (t) => {
-  const plugin = new WebSocketPlugin(new NoOpLog());
+  const plugin = new WebSocketPlugin(new NoOpLog(), compat);
   const [eventTrigger, eventPromise] =
     triggerPromise<{ code: number; reason: string }>();
   const server = await useServer(t, noop, (ws) => {

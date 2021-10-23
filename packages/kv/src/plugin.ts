@@ -1,4 +1,5 @@
 import {
+  Compatibility,
   Context,
   Log,
   Option,
@@ -34,8 +35,8 @@ export class KVPlugin extends Plugin<KVOptions> implements KVOptions {
   })
   kvPersist?: boolean | string;
 
-  constructor(log: Log, options?: KVOptions) {
-    super(log);
+  constructor(log: Log, compat: Compatibility, options?: KVOptions) {
+    super(log, compat);
     this.assignOptions(options);
   }
 

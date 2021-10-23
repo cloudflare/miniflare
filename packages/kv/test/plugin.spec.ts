@@ -1,6 +1,6 @@
 import assert from "assert";
 import { KVNamespace, KVPlugin } from "@miniflare/kv";
-import { StoredValueMeta } from "@miniflare/shared";
+import { Compatibility, StoredValueMeta } from "@miniflare/shared";
 import {
   MemoryStorageFactory,
   NoOpLog,
@@ -9,6 +9,8 @@ import {
   parsePluginWranglerConfig,
 } from "@miniflare/shared-test";
 import test from "ava";
+
+const compat = new Compatibility();
 
 test("KVPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(KVPlugin, [
@@ -60,7 +62,7 @@ test("KVPlugin: getNamespace: creates namespace", async (t) => {
   const map = new Map<string, StoredValueMeta>();
   const factory = new MemoryStorageFactory({ ["map:NAMESPACE"]: map });
 
-  const plugin = new KVPlugin(log, { kvPersist: "map" });
+  const plugin = new KVPlugin(log, compat, { kvPersist: "map" });
   const namespace = await plugin.getNamespace(factory, "NAMESPACE");
   await namespace.put("key", "value");
   t.true(map.has("key"));
@@ -74,7 +76,7 @@ test("KVPlugin: setup: includes namespaces in bindings", async (t) => {
     ["map:NAMESPACE2"]: map2,
   });
 
-  const plugin = new KVPlugin(log, {
+  const plugin = new KVPlugin(log, compat, {
     kvPersist: "map",
     kvNamespaces: ["NAMESPACE1", "NAMESPACE2"],
   });

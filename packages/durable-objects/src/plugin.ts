@@ -1,5 +1,6 @@
 import assert from "assert";
 import {
+  Compatibility,
   Context,
   Log,
   MiniflareError,
@@ -79,8 +80,12 @@ export class DurableObjectsPlugin
 
   readonly #objects = new Map<string, Promise<DurableObjectState>>();
 
-  constructor(log: Log, options?: DurableObjectsOptions) {
-    super(log);
+  constructor(
+    log: Log,
+    compat: Compatibility,
+    options?: DurableObjectsOptions
+  ) {
+    super(log, compat);
     this.assignOptions(options);
 
     this.#processedObjects = Object.entries(this.durableObjects ?? {}).map(

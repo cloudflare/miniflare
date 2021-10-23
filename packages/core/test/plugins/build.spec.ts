@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 import { BindingsPlugin, BuildError, BuildPlugin } from "@miniflare/core";
-import { LogLevel } from "@miniflare/shared";
+import { Compatibility, LogLevel } from "@miniflare/shared";
 import {
   NoOpLog,
   TestLog,
@@ -17,6 +17,8 @@ import {
 import test from "ava";
 import rimraf from "rimraf";
 import which from "which";
+
+const compat = new Compatibility();
 
 const rimrafPromise = promisify(rimraf);
 
@@ -91,13 +93,13 @@ test("BuildPlugin: logs options", (t) => {
 
 test("BuildPlugin: beforeSetup: does nothing without build command", async (t) => {
   const log = new NoOpLog();
-  const plugin = new BuildPlugin(log);
+  const plugin = new BuildPlugin(log, compat);
   t.deepEqual(await plugin.beforeSetup(), {});
 });
 test("BuildPlugin: beforeSetup: runs build successfully", async (t) => {
   const tmp = await useTmp(t);
   const log = new TestLog();
-  const plugin = new BuildPlugin(log, {
+  const plugin = new BuildPlugin(log, compat, {
     buildCommand: "echo test > test.txt",
     buildBasePath: tmp,
     buildWatchPaths: ["src1", "src2"],
@@ -111,7 +113,7 @@ test("BuildPlugin: beforeSetup: runs build successfully", async (t) => {
 test("BuildPlugin: beforeSetup: includes MINIFLARE environment variable", async (t) => {
   const tmp = await useTmp(t);
   const log = new NoOpLog();
-  const plugin = new BuildPlugin(log, {
+  const plugin = new BuildPlugin(log, compat, {
     // Cross-platform get environment variable
     buildCommand: `${process.execPath} -e "console.log(JSON.stringify(process.env))" > env.json`,
     buildBasePath: tmp,
@@ -125,7 +127,7 @@ test("BuildPlugin: beforeSetup: includes MINIFLARE environment variable", async 
 });
 test("BuildPlugin: beforeSetup: throws with exit code if build fails", async (t) => {
   const log = new NoOpLog();
-  const plugin = new BuildPlugin(log, {
+  const plugin = new BuildPlugin(log, compat, {
     buildCommand: "exit 42",
   });
   await t.throwsAsync(Promise.resolve(plugin.beforeSetup()), {

@@ -356,6 +356,45 @@ test("MiniflareCore: #init: re-runs setup for script-providing plugins if any be
     "- reload(TestPlugin)",
   ]);
 });
+test("MiniflareCore: #init: re-creates all plugins if compatibility data changed", async (t) => {
+  const log = new TestLog();
+  const mf = useMiniflare(
+    { TestPlugin, BindingsPlugin },
+    { script: "//", compatibilityDate: "1970-01-01" },
+    log
+  );
+  await mf.getPlugins();
+
+  // Update compatibility date
+  log.logs = [];
+  await mf.setOptions({ script: "//", compatibilityDate: "2021-01-01" });
+  t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), [
+    "- dispose(TestPlugin)",
+    "- beforeSetup(TestPlugin)",
+    "- setup(CorePlugin)",
+    "- setup(TestPlugin)",
+    "- setup(BindingsPlugin)",
+    "- beforeReload(TestPlugin)",
+    "- reload(TestPlugin)",
+  ]);
+
+  // Update compatibility flags
+  log.logs = [];
+  await mf.setOptions({
+    script: "//",
+    compatibilityDate: "2021-01-01",
+    compatibilityFlags: ["fetch_refuses_unknown_protocols"],
+  });
+  t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), [
+    "- dispose(TestPlugin)",
+    "- beforeSetup(TestPlugin)",
+    "- setup(CorePlugin)",
+    "- setup(TestPlugin)",
+    "- setup(BindingsPlugin)",
+    "- beforeReload(TestPlugin)",
+    "- reload(TestPlugin)",
+  ]);
+});
 test("MiniflareCore: #init: throws if script required but not provided", async (t) => {
   const log = new NoOpLog();
   const ctx: MiniflareCoreContext = {

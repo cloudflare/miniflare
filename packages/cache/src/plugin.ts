@@ -1,4 +1,5 @@
 import {
+  Compatibility,
   Log,
   MiniflareError,
   Option,
@@ -109,8 +110,8 @@ export class CachePlugin extends Plugin<CacheOptions> implements CacheOptions {
   })
   cacheWarnUsage?: boolean;
 
-  constructor(log: Log, options?: CacheOptions) {
-    super(log);
+  constructor(log: Log, compat: Compatibility, options?: CacheOptions) {
+    super(log, compat);
     this.assignOptions(options);
   }
 

@@ -1,3 +1,4 @@
+import { Compatibility } from "./compat";
 import { titleCase } from "./data";
 import { Log } from "./log";
 import { ScriptBlueprint } from "./runner";
@@ -73,7 +74,10 @@ export abstract class Plugin<Options extends Context = never> {
   // Metadata added by @Option decorator
   opts?: Map<string, OptionMetadata>;
 
-  protected constructor(protected readonly log: Log) {
+  protected constructor(
+    protected readonly log: Log,
+    protected readonly compat: Compatibility
+  ) {
     // Make sure this.optionMetadata isn't undefined and has the prototype's value
     this.opts = new.target.prototype.opts;
   }
@@ -101,7 +105,7 @@ export abstract class Plugin<Options extends Context = never> {
 }
 
 export type PluginSignature = {
-  new (log: Log, options?: Context): Plugin<Context>;
+  new (log: Log, compat: Compatibility, options?: Context): Plugin<Context>;
   prototype: { opts?: Map<string, OptionMetadata> };
 };
 export type PluginSignatures = { [pluginName: string]: PluginSignature };

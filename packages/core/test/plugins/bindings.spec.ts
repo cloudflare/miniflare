@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { BindingsPlugin } from "@miniflare/core";
+import { Compatibility } from "@miniflare/shared";
 import {
   NoOpLog,
   logPluginOptions,
@@ -11,6 +12,8 @@ import {
   useTmp,
 } from "@miniflare/shared-test";
 import test from "ava";
+
+const compat = new Compatibility();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -101,7 +104,12 @@ test("BindingsPlugin: setup: loads .env bindings from default location", async (
   const tmp = await useTmp(t);
   const defaultEnvPath = path.join(tmp, ".env");
 
-  let plugin = new BindingsPlugin(log, { envPath: true }, defaultEnvPath);
+  let plugin = new BindingsPlugin(
+    log,
+    compat,
+    { envPath: true },
+    defaultEnvPath
+  );
   // Shouldn't throw if file doesn't exist...
   let result = await plugin.setup();
   // ...but should still watch file
@@ -121,7 +129,7 @@ test("BindingsPlugin: setup: loads .env bindings from default location", async (
   });
 
   // Check default .env only loaded when envPath set to true
-  plugin = new BindingsPlugin(log, {}, defaultEnvPath);
+  plugin = new BindingsPlugin(log, compat, {}, defaultEnvPath);
   result = await plugin.setup();
   t.deepEqual(result, { globals: undefined, bindings: {}, watch: [] });
 });
@@ -134,6 +142,7 @@ test("BindingsPlugin: setup: loads .env bindings from custom location", async (t
 
   const plugin = new BindingsPlugin(
     log,
+    compat,
     { envPath: customEnvPath },
     defaultEnvPath
   );
@@ -155,14 +164,14 @@ test("BindingsPlugin: setup: loads .env bindings from custom location", async (t
 test("BindingsPlugin: setup: includes custom bindings", async (t) => {
   const log = new NoOpLog();
   const obj = { a: 1 };
-  const plugin = new BindingsPlugin(log, { bindings: { obj } });
+  const plugin = new BindingsPlugin(log, compat, { bindings: { obj } });
   const result = await plugin.setup();
   t.is(result.bindings?.obj, obj);
   t.deepEqual(result.watch, []);
 });
 test("BindingsPlugin: setup: loads WebAssembly bindings", async (t) => {
   const log = new NoOpLog();
-  const plugin = new BindingsPlugin(log, {
+  const plugin = new BindingsPlugin(log, compat, {
     wasmBindings: { ADD: addModulePath },
   });
   const result = await plugin.setup();
@@ -178,7 +187,7 @@ test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
   const envPath = path.join(tmp, ".env");
   await fs.writeFile(envPath, "A=a\nB=b\nC=c");
   const obj = { c: 3 };
-  const plugin = new BindingsPlugin(log, {
+  const plugin = new BindingsPlugin(log, compat, {
     envPath,
     wasmBindings: {
       B: addModulePath,

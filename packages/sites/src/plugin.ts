@@ -1,5 +1,6 @@
 import path from "path";
 import {
+  Compatibility,
   Log,
   Option,
   OptionType,
@@ -44,8 +45,8 @@ export class SitesPlugin extends Plugin<SitesOptions> implements SitesOptions {
 
   readonly #setupResult: Promise<SetupResult>;
 
-  constructor(log: Log, options?: SitesOptions) {
-    super(log);
+  constructor(log: Log, compat: Compatibility, options?: SitesOptions) {
+    super(log, compat);
     this.assignOptions(options);
 
     // setup() will be called each time a site file changes, but there's no need

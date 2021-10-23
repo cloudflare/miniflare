@@ -355,6 +355,10 @@ export async function gatedFetch(
   input: RequestInfo,
   init?: RequestInit
 ): Promise<Response> {
+  // TODO (someday): support cache using fetch:
+  //  https://developers.cloudflare.com/workers/learning/how-the-cache-works#fetch
+  //  https://developers.cloudflare.com/workers/examples/cache-using-fetch
+
   // Don't pass our strange hybrid Request to undici
   // noinspection SuspiciousTypeOfGuard
   if (input instanceof Request) input = input[kInner];
