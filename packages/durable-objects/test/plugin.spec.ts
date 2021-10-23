@@ -6,10 +6,9 @@ import {
   DurableObjectNamespace,
   DurableObjectsPlugin,
 } from "@miniflare/durable-objects";
-import { Compatibility, StoredValue } from "@miniflare/shared";
+import { Compatibility, NoOpLog, StoredValue } from "@miniflare/shared";
 import {
   MemoryStorageFactory,
-  NoOpLog,
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,

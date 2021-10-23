@@ -1,8 +1,7 @@
 import assert from "assert";
 import { Request } from "@miniflare/core";
-import { Compatibility } from "@miniflare/shared";
+import { Compatibility, NoOpLog } from "@miniflare/shared";
 import {
-  NoOpLog,
   noop,
   triggerPromise,
   useMiniflare,

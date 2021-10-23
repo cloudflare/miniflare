@@ -2,9 +2,8 @@ import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
 import { CorePlugin } from "@miniflare/core";
-import { Compatibility, STRING_SCRIPT_PATH } from "@miniflare/shared";
+import { Compatibility, NoOpLog, STRING_SCRIPT_PATH } from "@miniflare/shared";
 import {
-  NoOpLog,
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,

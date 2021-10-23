@@ -1,14 +1,6 @@
 import { Log, LogLevel } from "@miniflare/shared";
-import test, { ExecutionContext } from "ava";
-
-// .serial required for intercepting console.log
-function interceptConsoleLogs(t: ExecutionContext): string[] {
-  const logs: string[] = [];
-  const originalLog = console.log;
-  t.teardown(() => (console.log = originalLog));
-  console.log = (...args: string[]) => logs.push(args.join(" "));
-  return logs;
-}
+import { interceptConsoleLogs } from "@miniflare/shared-test";
+import test from "ava";
 
 test.serial("Log: logs at all levels", (t) => {
   const logs = interceptConsoleLogs(t);

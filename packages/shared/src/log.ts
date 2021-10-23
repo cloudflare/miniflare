@@ -83,3 +83,11 @@ export class Log {
     this.logWithLevel(LogLevel.VERBOSE, message);
   }
 }
+
+export class NoOpLog extends Log {
+  log(): void {}
+
+  error(message: Error): void {
+    throw message;
+  }
+}

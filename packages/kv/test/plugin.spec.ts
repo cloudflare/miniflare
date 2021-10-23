@@ -1,9 +1,8 @@
 import assert from "assert";
 import { KVNamespace, KVPlugin } from "@miniflare/kv";
-import { Compatibility, StoredValueMeta } from "@miniflare/shared";
+import { Compatibility, NoOpLog, StoredValueMeta } from "@miniflare/shared";
 import {
   MemoryStorageFactory,
-  NoOpLog,
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,

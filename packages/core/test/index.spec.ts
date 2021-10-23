@@ -13,11 +13,15 @@ import {
   RequestInit,
 } from "@miniflare/core";
 import { VMScriptRunner } from "@miniflare/runner-vm";
-import { LogLevel, Storage, TypedEventListener } from "@miniflare/shared";
+import {
+  LogLevel,
+  NoOpLog,
+  Storage,
+  TypedEventListener,
+} from "@miniflare/shared";
 import {
   LogEntry,
   MemoryStorageFactory,
-  NoOpLog,
   TestLog,
   TestPlugin,
   endsWith,

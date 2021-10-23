@@ -3,9 +3,8 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { BindingsPlugin } from "@miniflare/core";
-import { Compatibility } from "@miniflare/shared";
+import { Compatibility, NoOpLog } from "@miniflare/shared";
 import {
-  NoOpLog,
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,

@@ -13,8 +13,8 @@ import {
   kDispatchFetch,
   kDispatchScheduled,
 } from "@miniflare/core";
+import { NoOpLog } from "@miniflare/shared";
 import {
-  NoOpLog,
   TestLog,
   getObjectProperties,
   isWithin,

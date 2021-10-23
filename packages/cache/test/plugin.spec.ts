@@ -6,10 +6,14 @@ import {
   CachedMeta,
   NoOpCache,
 } from "@miniflare/cache";
-import { Compatibility, LogLevel, StoredValueMeta } from "@miniflare/shared";
+import {
+  Compatibility,
+  LogLevel,
+  NoOpLog,
+  StoredValueMeta,
+} from "@miniflare/shared";
 import {
   MemoryStorageFactory,
-  NoOpLog,
   TestLog,
   getObjectProperties,
   logPluginOptions,

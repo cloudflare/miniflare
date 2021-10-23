@@ -4,11 +4,11 @@ import {
   Awaitable,
   Context,
   Log,
+  NoOpLog,
   Options,
   PluginSignatures,
 } from "@miniflare/shared";
 import { Response as BaseResponse } from "undici";
-import { NoOpLog } from "./log";
 import { MemoryStorageFactory } from "./storage";
 
 const scriptRunner = new VMScriptRunner();
