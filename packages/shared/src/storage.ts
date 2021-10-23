@@ -118,11 +118,7 @@ export abstract class Storage {
   }
 }
 
-export abstract class StorageFactory {
-  abstract storage(
-    namespace: string,
-    persist?: boolean | string
-  ): Awaitable<Storage>;
-
+export interface StorageFactory {
+  storage(namespace: string, persist?: boolean | string): Awaitable<Storage>;
   dispose?(): Awaitable<void>;
 }

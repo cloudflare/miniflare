@@ -6,13 +6,11 @@ import type IORedis from "ioredis";
 
 const redisConnectionStringRegexp = /^rediss?:\/\//;
 
-export class VariedStorageFactory extends StorageFactory {
+export class VariedStorageFactory implements StorageFactory {
   constructor(
     private readonly memoryStorages = new Map<string, MemoryStorage>(),
     private readonly redisConnections = new Map<string, IORedis.Redis>()
-  ) {
-    super();
-  }
+  ) {}
 
   // TODO (someday): override storage for storage-kv-remote
 

@@ -1,6 +1,6 @@
 import assert from "assert";
 import { deserialize } from "v8";
-import { Request, Response } from "@miniflare/core";
+import { Request, Response, fetch } from "@miniflare/core";
 import {
   DurableObject,
   DurableObjectId,
@@ -10,11 +10,13 @@ import {
   DurableObjectStub,
   DurableObjectsPlugin,
 } from "@miniflare/durable-objects";
-import { Compatibility, NoOpLog } from "@miniflare/shared";
+import { Compatibility, NoOpLog, StorageFactory } from "@miniflare/shared";
 import {
   MemoryStorageFactory,
+  RecorderStorage,
   getObjectProperties,
   triggerPromise,
+  useServer,
 } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
 import { WebSocketPair } from "@miniflare/web-sockets";
@@ -329,4 +331,105 @@ test("DurableObjectNamespace: hides implementation details", (t) => {
     "idFromString",
     "newUniqueId",
   ]);
+});
+
+// Examples below adapted from:
+// https://blog.cloudflare.com/durable-objects-easy-fast-correct-choose-three/
+
+class ExampleDurableObject implements DurableObject {
+  constructor(private readonly state: DurableObjectState) {}
+
+  async getUniqueNumber(): Promise<number> {
+    const val = (await this.state.storage.get<number>("counter")) ?? 0;
+    await this.state.storage.put("counter", val + 1);
+    return val;
+  }
+
+  async task(upstream: string): Promise<number> {
+    await fetch(upstream);
+    return await this.getUniqueNumber();
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname === "/unique") {
+      return new Response((await this.getUniqueNumber()).toString());
+    }
+    if (url.pathname === "/tasks") {
+      const upstream = await request.text();
+      const promise1 = this.task(upstream);
+      const promise2 = this.task(upstream);
+      const val1 = await promise1;
+      const val2 = await promise2;
+      return new Response(JSON.stringify([val1, val2]));
+    }
+    if (url.pathname === "/coalesce") {
+      // noinspection ES6MissingAwait
+      void this.state.storage.put("foo", "value");
+      // noinspection ES6MissingAwait
+      void this.state.storage.delete("foo");
+    }
+    return new Response(null, { status: 404 });
+  }
+}
+
+function getExampleObjectStub(): DurableObjectStub {
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(log, compat, {
+    durableObjects: { EXAMPLE: "ExampleDurableObject" },
+  });
+  plugin.beforeReload();
+  plugin.reload({ ExampleDurableObject }, {});
+  const ns = plugin.getNamespace(factory, "EXAMPLE");
+  return ns.get(ns.newUniqueId());
+}
+
+test("gets unique numbers", async (t) => {
+  const stub = getExampleObjectStub();
+  const [res1, res2, res3] = await Promise.all([
+    stub.fetch("/unique"),
+    stub.fetch("/unique"),
+    stub.fetch("/unique"),
+  ]);
+  const [val1, val2, val3] = await Promise.all([
+    res1.text(),
+    res2.text(),
+    res3.text(),
+  ]);
+  t.is(val1, "0");
+  t.is(val2, "1");
+  t.is(val3, "2");
+});
+test("gets unique numbers with fetch", async (t) => {
+  // Return both fetches at the same time, once they've both been sent
+  let remaining = 2;
+  const [trigger, promise] = triggerPromise<void>();
+  const { http: upstream } = await useServer(t, async (req, res) => {
+    if (--remaining === 0) trigger();
+    await promise;
+    res.end("upstream");
+  });
+  const stub = getExampleObjectStub();
+  const res = await stub.fetch("/tasks", {
+    method: "POST",
+    body: upstream.toString(),
+  });
+  const numbers = JSON.parse(await res.text()).sort();
+  t.deepEqual(numbers, [0, 1]);
+});
+test("writes are coalesced", async (t) => {
+  const storage = new RecorderStorage(new MemoryStorage());
+  const storageFactory: StorageFactory = { storage: () => storage };
+
+  const plugin = new DurableObjectsPlugin(log, compat, {
+    durableObjects: { EXAMPLE: "ExampleDurableObject" },
+  });
+  plugin.beforeReload();
+  plugin.reload({ ExampleDurableObject }, {});
+  const ns = plugin.getNamespace(storageFactory, "EXAMPLE");
+
+  const stub = ns.get(ns.newUniqueId());
+  await stub.fetch("/coalesce");
+  // delete and put should coalesce
+  t.deepEqual(storage.events, [{ type: "deleteMany", keys: ["foo"] }]);
 });
