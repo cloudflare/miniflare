@@ -18,6 +18,9 @@ const MAX_KEY_SIZE = 512; /* 512B */
 const MAX_VALUE_SIZE = 25 * 1024 * 1024; /* 25MiB */
 const MAX_METADATA_SIZE = 1024; /* 1KiB */
 
+const undefinedKeyError =
+  " on 'KvNamespace': parameter 1 is not of type 'string'. (key is undefined)";
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -63,7 +66,6 @@ function throwKVError(method: Method, status: number, message: string) {
 }
 
 function validateKey(method: Method, key: string): void {
-  // TODO: check key not undefined
   // Check key name is allowed
   if (key === "") throw new TypeError("Key name cannot be empty.");
   if (key === ".") throw new TypeError('"." is not allowed as a key name.');
@@ -165,6 +167,10 @@ export class KVNamespace {
     key: string,
     options?: KVGetValueType | Partial<KVGetOptions>
   ): KVValue<KVPutValueType | Value> {
+    if (key === undefined) {
+      throw new TypeError("Failed to execute 'get'" + undefinedKeyError);
+    }
+
     // Validate key and options
     validateKey("GET", key);
     const type = validateGetOptions(options);
@@ -198,6 +204,12 @@ export class KVNamespace {
     key: string,
     options?: KVGetValueType | Partial<KVGetOptions>
   ): KVValueMeta<KVPutValueType | Value, Metadata> {
+    if (key === undefined) {
+      throw new TypeError(
+        "Failed to execute 'getWithMetadata'" + undefinedKeyError
+      );
+    }
+
     // Validate key and options
     validateKey("GET", key);
     const type = validateGetOptions(options);
@@ -217,6 +229,10 @@ export class KVNamespace {
     value: KVPutValueType,
     options: KVPutOptions<Meta> = {}
   ): Promise<void> {
+    if (key === undefined) {
+      throw new TypeError("Failed to execute 'put'" + undefinedKeyError);
+    }
+
     validateKey("PUT", key);
 
     // Convert value to Uint8Array
@@ -302,6 +318,10 @@ export class KVNamespace {
   }
 
   async delete(key: string): Promise<void> {
+    if (key === undefined) {
+      throw new TypeError("Failed to execute 'delete'" + undefinedKeyError);
+    }
+
     validateKey("DELETE", key);
     await waitForOpenOutputGate();
     await this.#storage.delete(key);
