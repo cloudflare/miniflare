@@ -7,6 +7,7 @@ import {
   Options,
   PluginSignatures,
 } from "@miniflare/shared";
+import { Response as BaseResponse } from "undici";
 import { NoOpLog } from "./log";
 import { MemoryStorageFactory } from "./storage";
 
@@ -31,7 +32,10 @@ export function useMiniflare<Plugins extends PluginSignatures>(
 export function useMiniflareWithHandler<Plugins extends PluginSignatures>(
   extraPlugins: Plugins,
   options: Options<{ CorePlugin: typeof CorePlugin } & Plugins>,
-  handler: (globals: Context, req: Request) => Awaitable<Response>,
+  handler: (
+    globals: Context,
+    req: Request
+  ) => Awaitable<Response | BaseResponse>,
   log: Log = new NoOpLog()
 ): MiniflareCore<{ CorePlugin: typeof CorePlugin } & Plugins> {
   return useMiniflare(

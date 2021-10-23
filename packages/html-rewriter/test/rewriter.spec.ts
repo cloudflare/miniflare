@@ -3,8 +3,11 @@ import { ReadableStream } from "stream/web";
 import { setTimeout } from "timers/promises";
 import { URLSearchParams } from "url";
 import { TextDecoder, TextEncoder } from "util";
-import { HTMLRewriter } from "@miniflare/html-rewriter";
-import { getObjectProperties } from "@miniflare/shared-test";
+import { HTMLRewriter, HTMLRewriterPlugin } from "@miniflare/html-rewriter";
+import {
+  getObjectProperties,
+  useMiniflareWithHandler,
+} from "@miniflare/shared-test";
 import test, { Macro } from "ava";
 import {
   Comment,
@@ -698,7 +701,20 @@ test.serial(
     t.deepEqual(texts, ["<p>new 3</p>", "<p>new 4</p>"]);
   }
 );
-// TODO: test rewriter in workers sansdbox
+test.serial("HTMLRewriter: handles async handlers in sandbox", async (t) => {
+  const mf = useMiniflareWithHandler({ HTMLRewriterPlugin }, {}, (globals) => {
+    return new globals.HTMLRewriter()
+      .on("p", {
+        async element(element: Element) {
+          await new Promise((resolve) => globals.setTimeout(resolve, 50));
+          element.append(" append");
+        },
+      })
+      .transform(new Response("<p>test</p>"));
+  });
+  const res = await mf.dispatchFetch("http://localhost");
+  t.is(await res.text(), "<p>test append</p>");
+});
 test("HTMLRewriter: hides implementation details", (t) => {
   const rewriter = new HTMLRewriter();
   t.deepEqual(getObjectProperties(rewriter), ["on", "onDocument", "transform"]);
