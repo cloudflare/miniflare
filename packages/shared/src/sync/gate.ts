@@ -2,11 +2,7 @@ import assert from "assert";
 import { AsyncLocalStorage } from "async_hooks";
 import { TransformStream } from "stream/web";
 import { setImmediate as setImmediatePromise } from "timers/promises";
-import {
-  TypedEventListener,
-  WrappedEventTarget,
-  kWrapListener,
-} from "../event";
+import { TypedEventListener, TypedEventTarget, kWrapListener } from "../event";
 import { Awaitable } from "./awaitable";
 
 const inputGateStorage = new AsyncLocalStorage<InputGate>();
@@ -180,7 +176,7 @@ export class InputGatedTransformStream<T = any> extends TransformStream<T, T> {
 
 export class InputGatedEventTarget<
   EventMap extends Record<string, Event>
-> extends WrappedEventTarget<EventMap> {
+> extends TypedEventTarget<EventMap> {
   protected [kWrapListener]<Type extends keyof EventMap>(
     listener: (event: EventMap[Type]) => void
   ): TypedEventListener<EventMap[Type]> {
