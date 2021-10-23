@@ -1,7 +1,7 @@
 import path from "path";
 import { Awaitable, Storage, StorageFactory } from "@miniflare/shared";
 
-export class PluginStorageFactory extends StorageFactory {
+export class PluginStorageFactory implements StorageFactory {
   private readonly pluginName: string;
 
   constructor(
@@ -9,7 +9,6 @@ export class PluginStorageFactory extends StorageFactory {
     pluginName: string,
     private readonly defaultPersistRoot = ".mf"
   ) {
-    super();
     // Remove "Plugin" suffix and convert to lower-case
     this.pluginName = pluginName
       .substring(0, pluginName.length - 6)
