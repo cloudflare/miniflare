@@ -1,4 +1,4 @@
-import { promises as fs } from "fs";
+import fs from "fs/promises";
 import path from "path";
 import { TransformStream } from "stream/web";
 import { setImmediate, setTimeout } from "timers/promises";

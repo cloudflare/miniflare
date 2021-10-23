@@ -1,5 +1,5 @@
 import assert from "assert";
-import { promises as fs } from "fs";
+import fs from "fs/promises";
 import path from "path";
 import { CorePlugin } from "@miniflare/core";
 import { STRING_SCRIPT_PATH } from "@miniflare/shared";

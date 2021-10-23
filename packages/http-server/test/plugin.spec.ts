@@ -1,5 +1,6 @@
 import assert from "assert";
-import { existsSync, promises as fs } from "fs";
+import { existsSync } from "fs";
+import fs from "fs/promises";
 import path from "path";
 import { HTTPPlugin } from "@miniflare/http-server";
 import { Clock, LogLevel } from "@miniflare/shared";

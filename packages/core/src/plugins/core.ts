@@ -1,5 +1,5 @@
 import { Blob } from "buffer";
-import { promises as fs } from "fs";
+import fs from "fs/promises";
 import path from "path";
 import {
   ByteLengthQueuingStrategy,

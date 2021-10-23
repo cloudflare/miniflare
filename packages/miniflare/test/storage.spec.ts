@@ -1,4 +1,4 @@
-import { promises as fs } from "fs";
+import fs from "fs/promises";
 import path from "path";
 import { useTmp, utf8Decode, utf8Encode } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";

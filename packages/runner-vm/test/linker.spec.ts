@@ -1,4 +1,5 @@
-import { promises as fs, readFileSync } from "fs";
+import { readFileSync } from "fs";
+import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { TextDecoder } from "util";
