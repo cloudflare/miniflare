@@ -78,7 +78,6 @@ export class Compatibility {
   ): boolean {
     if (
       this.compatibilityDate === compatibilityDate &&
-      this.compatibilityFlags &&
       this.compatibilityFlags.length === compatibilityFlags.length &&
       this.compatibilityFlags.every((flag, i) => compatibilityFlags[i] === flag)
     ) {

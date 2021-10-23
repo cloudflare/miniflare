@@ -4,6 +4,7 @@ import http from "http";
 import { ReadableStream } from "stream/web";
 import { URL } from "url";
 import {
+  Compatibility,
   InputGatedTransformStream,
   Log,
   nonCircularClone,
@@ -351,7 +352,7 @@ export function withWaitUntil<WaitUntil extends any[]>(
   return resWaitUntil;
 }
 
-export async function gatedFetch(
+export async function fetch(
   input: RequestInfo,
   init?: RequestInit
 ): Promise<Response> {
@@ -367,6 +368,60 @@ export async function gatedFetch(
   const res = new Response(baseRes.body, baseRes);
   await waitForOpenInputGate();
   return withInputGating(res);
+}
+
+const requestInitKeys: (keyof BaseRequestInit)[] = [
+  "method",
+  "keepalive",
+  "headers",
+  "body",
+  "redirect",
+  "integrity",
+  "signal",
+];
+
+export function createCompatFetch(
+  compat: Compatibility,
+  inner: typeof fetch = fetch
+): typeof fetch {
+  const refusesUnknown = compat.isEnabled("fetch_refuses_unknown_protocols");
+  return (input, init) => {
+    // noinspection SuspiciousTypeOfGuard
+    const url = new URL(
+      input instanceof Request || input instanceof BaseRequest
+        ? input.url
+        : input.toString()
+    );
+    if (
+      url.protocol !== "http:" &&
+      url.protocol !== "https:" &&
+      url.protocol !== "ws:" &&
+      url.protocol !== "wss:"
+    ) {
+      if (refusesUnknown) {
+        throw new TypeError(`Fetch API cannot load: ${url.toString()}`);
+      } else {
+        // Undici doesn't let you pass a Request as the init prop, without
+        // losing the headers, so if we need to rewrite the URL, we have to
+        // manually build a RequestInit dict so we don't lose those properties.
+        // noinspection SuspiciousTypeOfGuard
+        if (input instanceof Request) input = input[kInner];
+        if (input instanceof BaseRequest) {
+          const newInit: RequestInit = {};
+          for (const key of requestInitKeys) {
+            const value = init?.[key] ?? input[key];
+            // @ts-expect-error RequestInit is defined as read-only
+            if (value) newInit[key] = value;
+          }
+          init = newInit;
+        }
+        // Free to mutate this as we created url at the start of the function
+        url.protocol = "http:";
+        input = url;
+      }
+    }
+    return inner(input, init);
+  };
 }
 
 export type HRTime = [seconds: number, nanoseconds: number];

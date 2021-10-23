@@ -9,7 +9,7 @@ import {
   IncomingRequestCfProperties,
   Request,
   ScheduledEvent,
-  gatedFetch,
+  fetch,
 } from "@miniflare/core";
 import {
   HTTPPlugin,
@@ -132,7 +132,7 @@ test("convertNodeRequest: buffers non-chunked request bodies", async (t) => {
     upstream: `http://localhost:${port}`,
     body,
   });
-  await (await gatedFetch(req)).text();
+  await (await fetch(req)).text();
   t.is(headers?.["transfer-encoding"], "chunked");
   t.deepEqual(chunks, ["a", "b"]);
 
@@ -147,7 +147,7 @@ test("convertNodeRequest: buffers non-chunked request bodies", async (t) => {
     upstream: `http://localhost:${port}`,
     body,
   });
-  await (await gatedFetch(req)).text();
+  await (await fetch(req)).text();
   t.not(headers?.["transfer-encoding"], "chunked");
   t.deepEqual(chunks, ["ab"]);
 });

@@ -28,6 +28,19 @@ test("WebSocketPlugin: setup: includes WebSocket stuff in globals", (t) => {
   t.true(typeof globals.WebSocket === "function");
   t.is(globals.fetch, plugin.fetch);
 });
+test("WebSocketPlugin: setup: fetch refuses unknown protocols if compatibility flag enabled", async (t) => {
+  const compat = new Compatibility(undefined, [
+    "fetch_refuses_unknown_protocols",
+  ]);
+  const plugin = new WebSocketPlugin(new NoOpLog(), compat);
+  const { globals } = await plugin.setup();
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  upstream.protocol = "ftp:";
+  await t.throwsAsync(async () => globals?.fetch(upstream), {
+    instanceOf: TypeError,
+    message: `Fetch API cannot load: ${upstream.toString()}`,
+  });
+});
 test("WebSocketPlugin: setup: blocks direct WebSocket construction", (t) => {
   const plugin = new WebSocketPlugin(new NoOpLog(), compat);
   const WebSocketProxy: typeof WebSocket = plugin.setup().globals!.WebSocket;
