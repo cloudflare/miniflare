@@ -1,4 +1,9 @@
-import { RequestInfo, RequestInit, Response } from "@miniflare/core";
+import {
+  RequestInfo,
+  RequestInit,
+  Response,
+  createCompatFetch,
+} from "@miniflare/core";
 import { Compatibility, Log, Plugin, SetupResult } from "@miniflare/shared";
 import { upgradingFetch } from "./fetch";
 import {
@@ -14,10 +19,11 @@ const constructError =
 
 export class WebSocketPlugin extends Plugin {
   #webSockets = new Set<WebSocket>();
+  readonly #upgradingFetch: typeof upgradingFetch;
 
   constructor(log: Log, compat: Compatibility) {
     super(log, compat);
-    this.fetch = this.fetch.bind(this);
+    this.#upgradingFetch = createCompatFetch(compat, upgradingFetch);
   }
 
   setup(): SetupResult {
@@ -41,11 +47,11 @@ export class WebSocketPlugin extends Plugin {
     };
   }
 
-  async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-    const response = await upgradingFetch(input, init);
+  fetch = async (input: RequestInfo, init?: RequestInit): Promise<Response> => {
+    const response = await this.#upgradingFetch(input, init);
     if (response.webSocket) this.#webSockets.add(response.webSocket);
     return response;
-  }
+  };
 
   reload(): void {
     // Ensure all fetched web sockets are closed

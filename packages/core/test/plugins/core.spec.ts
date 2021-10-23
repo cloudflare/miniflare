@@ -8,6 +8,7 @@ import {
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  useServer,
   useTmp,
 } from "@miniflare/shared-test";
 import test from "ava";
@@ -262,6 +263,19 @@ test("CorePlugin: setup: includes web standards", async (t) => {
   t.true(typeof globals.WebAssembly === "object");
 
   t.true(globals.MINIFLARE);
+});
+test("CorePlugin: setup: fetch refuses unknown protocols if compatibility flag enabled", async (t) => {
+  const compat = new Compatibility(undefined, [
+    "fetch_refuses_unknown_protocols",
+  ]);
+  const plugin = new CorePlugin(new NoOpLog(), compat);
+  const { globals } = await plugin.setup();
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  upstream.protocol = "ftp:";
+  await t.throwsAsync(async () => globals?.fetch(upstream), {
+    instanceOf: TypeError,
+    message: `Fetch API cannot load: ${upstream.toString()}`,
+  });
 });
 
 test("CorePlugin: processedModuleRules: processes rules includes default module rules", (t) => {

@@ -3,7 +3,7 @@ import {
   RequestInfo,
   RequestInit,
   Response,
-  gatedFetch,
+  fetch,
 } from "@miniflare/core";
 import StandardWebSocket from "ws";
 import { coupleWebSocket } from "./couple";
@@ -42,5 +42,5 @@ export async function upgradingFetch(
     });
   }
 
-  return gatedFetch(request);
+  return fetch(request);
 }

@@ -7,13 +7,14 @@ import {
   InputGatedBody,
   Request,
   Response,
-  gatedFetch,
+  createCompatFetch,
+  fetch,
   logResponse,
   withImmutableHeaders,
   withInputGating,
   withWaitUntil,
 } from "@miniflare/core";
-import { InputGate, LogLevel } from "@miniflare/shared";
+import { Compatibility, InputGate, LogLevel } from "@miniflare/shared";
 import {
   TestLog,
   triggerPromise,
@@ -387,13 +388,13 @@ test("withWaitUntil: adds wait until to (Base)Response", async (t) => {
   t.is(await res.waitUntil(), baseWaitUntil);
 });
 
-test("gatedFetch: can fetch from existing Request", async (t) => {
+test("fetch: can fetch from existing Request", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   const req = new Request(upstream);
-  const res = await gatedFetch(req);
+  const res = await fetch(req);
   t.is(await res.text(), "upstream");
 });
-test("gatedFetch: waits for output gate to open before fetching", async (t) => {
+test("fetch: waits for output gate to open before fetching", async (t) => {
   let fetched = false;
   const upstream = (
     await useServer(t, (req, res) => {
@@ -403,21 +404,115 @@ test("gatedFetch: waits for output gate to open before fetching", async (t) => {
   ).http;
   await waitsForOutputGate(
     t,
-    () => gatedFetch(upstream),
+    () => fetch(upstream),
     () => fetched
   );
 });
-test("gatedFetch: waits for input gate to open before returning", async (t) => {
+test("fetch: waits for input gate to open before returning", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
-  await waitsForInputGate(t, () => gatedFetch(upstream));
+  await waitsForInputGate(t, () => fetch(upstream));
 });
-test("gatedFetch: Response body is input gated", async (t) => {
+test("fetch: Response body is input gated", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
-  const res = await gatedFetch(upstream);
+  const res = await fetch(upstream);
   // noinspection SuspiciousTypeOfGuard
   t.true(res instanceof InputGatedBody);
   const body = await waitsForInputGate(t, () => res.text());
   t.is(body, "upstream");
+});
+
+test("createCompatFetch: refuses unknown protocols if compatibility flag enabled", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  upstream.protocol = "ftp:";
+  // Check with flag disabled first
+  let fetch = createCompatFetch(
+    new Compatibility(undefined, ["fetch_treats_unknown_protocols_as_http"])
+  );
+  const res = await fetch(upstream);
+  t.is(await res.text(), "upstream");
+  // Check original URL copied and protocol not mutated
+  t.is(upstream.protocol, "ftp:");
+
+  // Check with flag enabled
+  fetch = createCompatFetch(
+    new Compatibility(undefined, ["fetch_refuses_unknown_protocols"])
+  );
+  await t.throwsAsync(async () => fetch(upstream), {
+    instanceOf: TypeError,
+    message: `Fetch API cannot load: ${upstream.toString()}`,
+  });
+});
+test("createCompatFetch: recognises https as known protocol", async (t) => {
+  const fetch = createCompatFetch(
+    new Compatibility(undefined, ["fetch_refuses_unknown_protocols"]),
+    async () => new Response("secure upstream")
+  );
+  const res = await fetch(`https://miniflare.dev/`);
+  t.is(await res.text(), "secure upstream");
+});
+test("createCompatFetch: rewrites urls of all types of fetch inputs", async (t) => {
+  const { http: upstream } = await useServer(t, (req, res) => {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () =>
+      res.end(`${req.method}:${req.headers["x-key"] ?? ""}:${body}`)
+    );
+  });
+  upstream.protocol = "ftp:";
+  const fetch = createCompatFetch(
+    new Compatibility(undefined, ["fetch_treats_unknown_protocols_as_http"])
+  );
+
+  let res = await fetch(upstream.toString(), {
+    method: "POST",
+    headers: { "x-key": "value" },
+    body: "body",
+  });
+  t.is(await res.text(), "POST:value:body");
+
+  res = await fetch(upstream, {
+    method: "POST",
+    headers: { "x-key": "value" },
+    body: "body",
+  });
+  t.is(await res.text(), "POST:value:body");
+
+  res = await fetch(
+    new Request(upstream, {
+      method: "POST",
+      headers: { "x-key": "value" },
+      body: "body",
+    })
+  );
+  t.is(await res.text(), "POST:value:body");
+
+  res = await fetch(
+    new BaseRequest(upstream, {
+      method: "POST",
+      headers: { "x-key": "value" },
+      body: "body",
+    })
+  );
+  t.is(await res.text(), "POST:value:body");
+
+  res = await fetch(
+    new Request(upstream, {
+      method: "POST",
+      headers: { "x-key": "value" },
+      body: "body",
+    }),
+    { body: "body2" }
+  );
+  t.is(await res.text(), "POST:value:body2");
+
+  res = await fetch(
+    new BaseRequest(upstream, {
+      method: "POST",
+      headers: { "x-key": "value", body: "body" },
+    }),
+    { body: "body2" }
+  );
+  t.is(await res.text(), "POST:value:body2");
 });
 
 test("logResponse: logs HTTP response with waitUntil", async (t) => {

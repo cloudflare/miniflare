@@ -43,8 +43,8 @@ import {
   ScheduledEvent,
   TextDecoder,
   WorkerGlobalScope,
+  createCompatFetch,
   crypto,
-  gatedFetch,
   inputGatedSetInterval,
   inputGatedSetTimeout,
 } from "../standards";
@@ -238,7 +238,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       TextDecoder,
       TextEncoder,
 
-      fetch: gatedFetch,
+      fetch: createCompatFetch(compat),
       Headers,
       Request,
       Response,
