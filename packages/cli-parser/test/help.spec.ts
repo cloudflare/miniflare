@@ -1,4 +1,4 @@
-import { buildHelp } from "@miniflare/cli";
+import { buildHelp } from "@miniflare/cli-parser";
 import { CorePlugin } from "@miniflare/core";
 import { TestPlugin } from "@miniflare/shared-test";
 import test from "ava";

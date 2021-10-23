@@ -1,4 +1,4 @@
-import { ParseError, parseArgv } from "@miniflare/cli";
+import { ParseError, parseArgv } from "@miniflare/cli-parser";
 import { CorePlugin } from "@miniflare/core";
 import { TestPlugin } from "@miniflare/shared-test";
 import test, { ThrowsExpectation } from "ava";
