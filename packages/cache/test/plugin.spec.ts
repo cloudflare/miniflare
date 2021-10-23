@@ -70,7 +70,7 @@ test("CacheStorage: persists cached data", async (t) => {
 });
 test("CacheStorage: disables caching", async (t) => {
   const factory = new MemoryStorageFactory();
-  const caches = new CacheStorage({ disableCache: true }, log, factory);
+  const caches = new CacheStorage({ cache: false }, log, factory);
   await caches.default.put("http://localhost:8787/", testResponse());
   const cached = await caches.default.match("http://localhost:8787/");
   t.is(cached, undefined);
@@ -105,29 +105,29 @@ test("CachePlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(CachePlugin, [
     "--cache-persist",
     "path",
-    "--disable-cache",
+    "--no-cache",
   ]);
-  t.deepEqual(options, { cachePersist: "path", disableCache: true });
+  t.deepEqual(options, { cachePersist: "path", cache: false });
   options = parsePluginArgv(CachePlugin, ["--cache-persist"]);
   t.deepEqual(options, { cachePersist: true });
 });
 test("CachePlugin: parses options from wrangler config", (t) => {
   const options = parsePluginWranglerConfig(CachePlugin, {
     workers_dev: true,
-    miniflare: { cache_persist: "path", disable_cache: true },
+    miniflare: { cache: false, cache_persist: "path" },
   });
   t.deepEqual(options, {
+    cache: false,
     cachePersist: "path",
-    disableCache: true,
     cacheWarnUsage: true,
   });
 });
 test("CachePlugin: logs options", (t) => {
   const logs = logPluginOptions(CachePlugin, {
+    cache: false,
     cachePersist: "path",
-    disableCache: true,
   });
-  t.deepEqual(logs, ["Cache Persistence: path", "Cache Disabled: true"]);
+  t.deepEqual(logs, ["Cache: false", "Cache Persistence: path"]);
 });
 
 test("CachePlugin: setup: includes CacheStorage in globals", async (t) => {
@@ -143,7 +143,7 @@ test("CachePlugin: setup: includes CacheStorage in globals", async (t) => {
   await caches.default.put("http://localhost:8787/", testResponse());
   t.true(map.has("http://localhost:8787/"));
 
-  plugin = new CachePlugin(log, { disableCache: true });
+  plugin = new CachePlugin(log, { cache: false });
   result = plugin.setup(factory);
   caches = result.globals?.caches;
   t.true(caches instanceof CacheStorage);

@@ -14,7 +14,7 @@ export class VariedStorageFactory extends StorageFactory {
     super();
   }
 
-  // TODO: override storage for storage-kv-remote
+  // TODO (someday): override storage for storage-kv-remote
 
   async storage(
     namespace: string,
@@ -36,7 +36,7 @@ export class VariedStorageFactory extends StorageFactory {
     // If the persist option is a redis connection string, use Redis storage,
     // caching connections so we can reuse them
     if (redisConnectionStringRegexp.test(persist)) {
-      // TODO: display nicer error if @miniflare/storage-redis not installed
+      // TODO (someday): display nicer error if @miniflare/storage-redis not installed
       const { RedisStorage } = await import("@miniflare/storage-redis");
       const IORedis = await import("ioredis");
       let connection = this.redisConnections.get(persist);

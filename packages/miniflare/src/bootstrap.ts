@@ -20,9 +20,8 @@ const __dirname = path.dirname(__filename);
 childProcess
   .spawn(
     process.execPath,
-    // TODO: maybe pass original execPath as env variable
     [
-      "--enable-source-maps", // TODO: this caches source maps, check these get flushed properly
+      "--enable-source-maps", // TODO: this caches source maps, check these get flushed properly, and they work with the webpack example
       "--experimental-vm-modules",
       ...process.execArgv,
       path.join(__dirname, "cli.js"),

@@ -24,6 +24,9 @@ export interface OptionMetadataType<Type extends OptionType, Value> {
   name?: string;
   alias?: string;
   description?: string;
+  negatable?: Type extends OptionType.BOOLEAN | OptionType.BOOLEAN_STRING
+    ? boolean
+    : undefined;
   logName?: string;
   logValue?: (value: Value) => string | undefined;
   fromEntries?: Type extends OptionType.OBJECT

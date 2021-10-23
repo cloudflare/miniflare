@@ -431,7 +431,7 @@ export class MiniflareCore<
         res?.bundleSize !== undefined ? ` (${formatSize(res.bundleSize)})` : ""
       }`
     );
-    // TODO: compress asynchronously
+    // TODO (someday): compress asynchronously
     if (res?.bundleSize !== undefined && res.bundleSize > 1_048_576) {
       this.log.warn(
         "Worker's uncompressed size exceeds the 1MiB limit! " +

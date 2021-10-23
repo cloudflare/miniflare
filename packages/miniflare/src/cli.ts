@@ -1,6 +1,13 @@
 #!/usr/bin/env node
+import fs from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
 import type { Options } from "@miniflare/shared";
 import { red } from "kleur/colors";
+import { updateCheck } from "./updater";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function suppressWarnings() {
   // Suppress experimental warnings
@@ -65,7 +72,21 @@ async function main() {
     return;
   }
 
-  // TODO: update checker
+  const plugins = await mf.getPlugins();
+  // Check for updates, ignoring errors (it's not that important)
+  // Explicitly checking === false as undefined (default) should be true
+  if (plugins.CorePlugin.updateCheck === false) return;
+  try {
+    // Get currently installed package metadata
+    const pkgFile = path.join(__dirname, "..", "..", "package.json");
+    const pkg = JSON.parse(await fs.readFile(pkgFile, "utf8"));
+    const mfDir = path.resolve(".mf");
+    await fs.mkdir(mfDir, { recursive: true });
+    const lastCheckFile = path.join(mfDir, "update-check");
+    await updateCheck({ pkg, lastCheckFile, log: mf.log });
+  } catch (e: any) {
+    mf.log.debug("Unable to check for updates: " + e.stack);
+  }
 }
 
 suppressWarnings();
