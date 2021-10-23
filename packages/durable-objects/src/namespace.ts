@@ -81,9 +81,15 @@ export type DurableObjectFactory = (
 
 export class DurableObjectStub {
   readonly #factory: DurableObjectFactory;
+  readonly #requireFullUrl?: boolean;
 
-  constructor(factory: DurableObjectFactory, readonly id: DurableObjectId) {
+  constructor(
+    factory: DurableObjectFactory,
+    readonly id: DurableObjectId,
+    requireFullUrl?: boolean
+  ) {
     this.#factory = factory;
+    this.#requireFullUrl = requireFullUrl;
   }
 
   get name(): string | undefined {
@@ -95,7 +101,9 @@ export class DurableObjectStub {
     const state = await this.#factory(this.id);
 
     // Make sure relative URLs prefixed with https://fake-host
-    if (typeof input === "string") input = new URL(input, "https://fake-host");
+    if (!this.#requireFullUrl && typeof input === "string") {
+      input = new URL(input, "https://fake-host");
+    }
     // noinspection SuspiciousTypeOfGuard
     const request =
       input instanceof Request && !init ? input : new Request(input, init);
@@ -114,8 +122,13 @@ export class DurableObjectNamespace {
   readonly #factory: DurableObjectFactory;
   readonly #objectNameHash: Uint8Array;
   readonly #objectNameHashHex: string;
+  readonly #requireFullUrl?: boolean;
 
-  constructor(objectName: string, factory: DurableObjectFactory) {
+  constructor(
+    objectName: string,
+    factory: DurableObjectFactory,
+    requireFullUrl?: boolean
+  ) {
     this.#objectName = objectName;
     this.#factory = factory;
 
@@ -126,6 +139,8 @@ export class DurableObjectNamespace {
       .digest()
       .slice(0, 8);
     this.#objectNameHashHex = hexEncode(this.#objectNameHash);
+
+    this.#requireFullUrl = requireFullUrl;
   }
 
   newUniqueId(_options?: NewUniqueIdOptions): DurableObjectId {
@@ -179,6 +194,6 @@ export class DurableObjectNamespace {
     ) {
       throw new TypeError("ID is not for this Durable Object class.");
     }
-    return new DurableObjectStub(this.#factory, id);
+    return new DurableObjectStub(this.#factory, id, this.#requireFullUrl);
   }
 }
