@@ -27,7 +27,7 @@ export type DurableObjectsObjectsOptions = Record<
 
 export interface DurableObjectsOptions {
   durableObjects?: DurableObjectsObjectsOptions;
-  durableObjectsPersist?: boolean;
+  durableObjectsPersist?: boolean | string;
 }
 
 interface ProcessedDurableObject {
@@ -68,11 +68,11 @@ export class DurableObjectsPlugin
     logName: "Durable Objects Persistence",
     fromWrangler: ({ miniflare }) => miniflare?.durable_objects_persist,
   })
-  durableObjectsPersist?: boolean;
+  durableObjectsPersist?: boolean | string;
 
   readonly #processedObjects: ProcessedDurableObject[];
 
-  #contextPromise: Promise<void>;
+  #contextPromise?: Promise<void>;
   #contextResolve?: () => void;
   #constructors = new Map<string, DurableObjectConstructor>();
   #bindings: Context = {};
@@ -95,10 +95,6 @@ export class DurableObjectsPlugin
         return { name, className, scriptName };
       }
     );
-
-    this.#contextPromise = new Promise(
-      (resolve) => (this.#contextResolve = resolve)
-    );
   }
 
   async getObject(
@@ -106,6 +102,10 @@ export class DurableObjectsPlugin
     id: DurableObjectId
   ): Promise<DurableObjectState> {
     // Wait for constructors and bindings
+    assert(
+      this.#contextPromise,
+      "beforeReload() must be called before getObject()"
+    );
     await this.#contextPromise;
 
     // Reuse existing instances
@@ -148,12 +148,11 @@ export class DurableObjectsPlugin
 
   setup(storageFactory: StorageFactory): SetupResult {
     const bindings: Context = {};
-    const watch: string[] = [];
     for (const { name } of this.#processedObjects) {
       // TODO: get namespace from scriptName instance, maybe watch it?
       bindings[name] = this.getNamespace(storageFactory, name);
     }
-    return { bindings, watch };
+    return { bindings };
   }
 
   beforeReload(): void {
@@ -167,7 +166,7 @@ export class DurableObjectsPlugin
   reload(moduleExports: Context, bindings: Context): void {
     this.#constructors.clear();
     for (const { name, className, scriptName } of this.#processedObjects) {
-      if (scriptName !== undefined) continue;
+      assert(scriptName === undefined);
       const constructor = moduleExports[className];
       if (constructor) {
         this.#constructors.set(name, constructor);
@@ -179,7 +178,11 @@ export class DurableObjectsPlugin
       }
     }
     this.#bindings = bindings;
-    this.#contextResolve?.();
+    assert(
+      this.#contextResolve,
+      "beforeReload() must be called before reload()"
+    );
+    this.#contextResolve();
   }
 
   dispose(): void {
