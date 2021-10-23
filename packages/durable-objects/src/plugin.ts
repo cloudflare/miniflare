@@ -72,6 +72,7 @@ export class DurableObjectsPlugin
   durableObjectsPersist?: boolean | string;
 
   readonly #processedObjects: ProcessedDurableObject[];
+  readonly #requireFullUrl: boolean;
 
   #contextPromise?: Promise<void>;
   #contextResolve?: () => void;
@@ -99,6 +100,9 @@ export class DurableObjectsPlugin
         }
         return { name, className, scriptName };
       }
+    );
+    this.#requireFullUrl = compat.isEnabled(
+      "durable_object_fetch_requires_full_url"
     );
   }
 
@@ -148,7 +152,11 @@ export class DurableObjectsPlugin
     objectName: string
   ): DurableObjectNamespace {
     const factory: DurableObjectFactory = (id) => this.getObject(storage, id);
-    return new DurableObjectNamespace(objectName, factory);
+    return new DurableObjectNamespace(
+      objectName,
+      factory,
+      this.#requireFullUrl
+    );
   }
 
   setup(storageFactory: StorageFactory): SetupResult {

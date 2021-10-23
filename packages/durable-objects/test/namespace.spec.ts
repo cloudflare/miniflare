@@ -151,10 +151,30 @@ test("DurableObjectStub: fetch: creates and dispatches request to instance", asy
   );
   t.is(await res.text(), `${testId}:request2:PUT:http://localhost:8787/path`);
 });
-test("DurableObjectStub: fetch: resolves relative urls with respect to https://fake-host", async (t) => {
+test("DurableObjectStub: fetch: resolves relative urls with respect to https://fake-host by default", async (t) => {
   const [ns] = getTestObjectNamespace();
   const stub = ns.get(testId);
   const res = await stub.fetch("test");
+  t.is(await res.text(), `${testId}:request1:GET:https://fake-host/test`);
+});
+test("DurableObjectStub: fetch: throws with relative urls if compatibility flag enabled", async (t) => {
+  const compat = new Compatibility(undefined, [
+    "durable_object_fetch_requires_full_url",
+  ]);
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(log, compat, {
+    durableObjects: { TEST: "TestObject" },
+  });
+  plugin.beforeReload();
+  plugin.reload({ TestObject }, {});
+  const ns = plugin.getNamespace(factory, "TEST");
+  const stub = ns.get(testId);
+  await t.throwsAsync(stub.fetch("test"), {
+    instanceOf: TypeError,
+    message: "Failed to parse URL from test",
+  });
+  // Check can still fetch with full urls
+  const res = await stub.fetch("https://fake-host/test");
   t.is(await res.text(), `${testId}:request1:GET:https://fake-host/test`);
 });
 test("DurableObjectStub: fetch: passes through web socket requests", async (t) => {
