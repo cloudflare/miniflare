@@ -1,4 +1,4 @@
-import { promises as fs } from "fs";
+import fs from "fs/promises";
 import path from "path";
 
 function onNotFound<T, V>(promise: Promise<T>, value: V): Promise<T | V> {

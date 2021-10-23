@@ -1,4 +1,4 @@
-import { promises as fs } from "fs";
+import fs from "fs/promises";
 import path from "path";
 import esbuild from "esbuild";
 import { getPackage, pkgsDir, pkgsList, projectRoot } from "./common.js";

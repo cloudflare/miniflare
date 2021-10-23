@@ -1,4 +1,5 @@
-import { existsSync, promises as fs } from "fs";
+import { existsSync } from "fs";
+import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
