@@ -42,7 +42,7 @@ import {
   TextDecoder,
   WorkerGlobalScope,
   crypto,
-  inputGatedFetch,
+  gatedFetch,
   inputGatedSetInterval,
   inputGatedSetTimeout,
 } from "../standards";
@@ -210,7 +210,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       TextDecoder,
       TextEncoder,
 
-      fetch: inputGatedFetch,
+      fetch: gatedFetch,
       Headers,
       Request,
       Response,

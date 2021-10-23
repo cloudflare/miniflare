@@ -2,8 +2,8 @@ import { promises as fs } from "fs";
 import path from "path";
 import { useTmp, utf8Decode, utf8Encode } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
-import { RedisPool } from "@miniflare/storage-redis";
 import test from "ava";
+import type IORedis from "ioredis";
 import { VariedStorageFactory } from "miniflare";
 
 test("VariedStorageFactory: creates and reuses in-memory-storage", async (t) => {
@@ -18,22 +18,24 @@ test("VariedStorageFactory: creates and reuses in-memory-storage", async (t) => 
   t.is(utf8Decode((await storage2.get("key"))?.value), "memory");
 });
 
-class TestRedisPool {
+class TestRedis {
   constructor(private readonly map: Record<string, Buffer>) {}
 
-  readonly shared = { getBuffer: (key: string) => this.map[key] };
+  getBuffer(key: string) {
+    return this.map[key];
+  }
 }
 
 test("VariedStorageFactory: creates redis storage", async (t) => {
   const redisUrl = "redis://mystery";
-  const redisPools = new Map<string, RedisPool>();
+  const redisConnections = new Map<string, IORedis.Redis>();
   // @ts-expect-error we just want something with a similar signature
-  const redisPool: RedisPool = new TestRedisPool({
+  const redisConnection: IORedis.Redis = new TestRedis({
     ["ns:value:key"]: Buffer.from("redis", "utf8"),
   });
-  redisPools.set("redis://mystery", redisPool);
+  redisConnections.set("redis://mystery", redisConnection);
 
-  const factory = new VariedStorageFactory(undefined, redisPools);
+  const factory = new VariedStorageFactory(undefined, redisConnections);
   const storage = await factory.storage("ns", redisUrl);
   t.is(utf8Decode((await storage.get("key", true))?.value), "redis");
 });

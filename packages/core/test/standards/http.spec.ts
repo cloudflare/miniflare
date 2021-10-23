@@ -7,7 +7,7 @@ import {
   InputGatedBody,
   Request,
   Response,
-  inputGatedFetch,
+  gatedFetch,
   logResponse,
   withImmutableHeaders,
   withInputGating,
@@ -19,6 +19,7 @@ import {
   triggerPromise,
   useServer,
   waitsForInputGate,
+  waitsForOutputGate,
 } from "@miniflare/shared-test";
 import { WebSocketPair } from "@miniflare/web-sockets";
 import test, { Macro } from "ava";
@@ -386,19 +387,33 @@ test("withWaitUntil: adds wait until to (Base)Response", async (t) => {
   t.is(await res.waitUntil(), baseWaitUntil);
 });
 
-test("inputGatedFetch: can fetch from existing Request", async (t) => {
+test("gatedFetch: can fetch from existing Request", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   const req = new Request(upstream);
-  const res = await inputGatedFetch(req);
+  const res = await gatedFetch(req);
   t.is(await res.text(), "upstream");
 });
-test("inputGatedFetch: waits for input gate to open before returning", async (t) => {
-  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
-  await waitsForInputGate(t, () => inputGatedFetch(upstream));
+test("gatedFetch: waits for output gate to open before fetching", async (t) => {
+  let fetched = false;
+  const upstream = (
+    await useServer(t, (req, res) => {
+      fetched = true;
+      res.end("upstream");
+    })
+  ).http;
+  await waitsForOutputGate(
+    t,
+    () => gatedFetch(upstream),
+    () => fetched
+  );
 });
-test("inputGatedFetch: Response body is input gated", async (t) => {
+test("gatedFetch: waits for input gate to open before returning", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
-  const res = await inputGatedFetch(upstream);
+  await waitsForInputGate(t, () => gatedFetch(upstream));
+});
+test("gatedFetch: Response body is input gated", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  const res = await gatedFetch(upstream);
   // noinspection SuspiciousTypeOfGuard
   t.true(res instanceof InputGatedBody);
   const body = await waitsForInputGate(t, () => res.text());

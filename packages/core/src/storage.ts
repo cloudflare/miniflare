@@ -1,10 +1,5 @@
 import path from "path";
-import {
-  Awaitable,
-  Storage,
-  StorageFactory,
-  StorageOperator,
-} from "@miniflare/shared";
+import { Awaitable, Storage, StorageFactory } from "@miniflare/shared";
 
 export class PluginStorageFactory extends StorageFactory {
   private readonly pluginName: string;
@@ -21,33 +16,26 @@ export class PluginStorageFactory extends StorageFactory {
       .toLowerCase();
   }
 
-  private transformOptions(
-    namespace: string,
-    persist?: boolean | string
-  ): [namespace: string, persist?: string] {
+  storage(namespace: string, persist?: boolean | string): Awaitable<Storage> {
     // After transformation, persist will NEVER be a boolean
     if (persist === undefined || persist === false) {
       // If persist is falsy, we'll be using memory storage. We want to make
       // sure the same namespace from different plugins resolves to different
       // storages though, so prefix with the plugin name.
-      return [`${this.pluginName}:` + namespace];
+      return this.inner.storage(`${this.pluginName}:` + namespace);
     } else if (persist === true) {
       // If persist is true, we want to use the default file storage location.
-      return [namespace, path.join(this.defaultPersistRoot, this.pluginName)];
+      return this.inner.storage(
+        namespace,
+        path.join(this.defaultPersistRoot, this.pluginName)
+      );
     } else {
       // Otherwise, use custom location/database
-      return [namespace, persist];
+      return this.inner.storage(namespace, persist);
     }
   }
 
-  operator(
-    namespace: string,
-    persist?: boolean | string
-  ): Awaitable<StorageOperator> {
-    return this.inner.operator(...this.transformOptions(namespace, persist));
-  }
-
-  storage(namespace: string, persist?: boolean | string): Awaitable<Storage> {
-    return this.inner.storage(...this.transformOptions(namespace, persist));
+  dispose(): Awaitable<void> {
+    return this.inner.dispose?.();
   }
 }

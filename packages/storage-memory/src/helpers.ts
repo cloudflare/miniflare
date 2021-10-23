@@ -11,11 +11,6 @@ export function cloneMetadata<Meta>(metadata?: unknown): Meta | undefined {
   return (metadata && nonCircularClone(metadata)) as Meta | undefined;
 }
 
-export function intersects<T>(a: Set<T>, b: Set<T>): boolean {
-  for (const value of a) if (b.has(value)) return true;
-  return false;
-}
-
 const collator = new Intl.Collator();
 
 export function listFilterMatch(

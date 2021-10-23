@@ -45,12 +45,15 @@ export class HTMLRewriter {
     return this;
   }
 
-  transform(response: BaseResponse): Response {
-    const transformedStream = new ReadableStream({
+  transform(response: BaseResponse | Response): Response {
+    const transformedStream = new ReadableStream<Uint8Array>({
       type: "bytes",
       start: async (controller) => {
         // Create a rewriter instance for this transformation that writes its
-        // output to the transformed response's stream
+        // output to the transformed response's stream. Note that each
+        // BaseHTMLRewriter can only be used once. Importing html-rewriter-wasm
+        // will also synchronously compile a WebAssembly module, so delay doing
+        // this until we really need it.
         const { HTMLRewriter: BaseHTMLRewriter } = await import(
           "html-rewriter-wasm"
         );

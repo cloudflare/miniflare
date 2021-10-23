@@ -53,9 +53,8 @@ export interface StorageListResult<Key extends StoredKey = StoredKeyMeta> {
  * Common class for key-value storage:
  * - Methods should always return fresh copies of data (safe to mutate returned)
  * - Methods shouldn't return expired keys
- * - Key expiry within transactions is unspecified behaviour
  */
-export abstract class StorageOperator {
+export abstract class Storage {
   abstract has(key: string): Awaitable<boolean>;
   abstract get<Meta = unknown>(
     key: string,
@@ -119,22 +118,7 @@ export abstract class StorageOperator {
   }
 }
 
-export abstract class StorageTransaction extends StorageOperator {
-  abstract rollback(): void;
-}
-
-export interface Storage extends StorageOperator {
-  transaction<T>(closure: (txn: StorageTransaction) => Promise<T>): Promise<T>;
-}
-
 export abstract class StorageFactory {
-  operator(
-    namespace: string,
-    persist?: boolean | string
-  ): Awaitable<StorageOperator> {
-    return this.storage(namespace, persist);
-  }
-
   abstract storage(
     namespace: string,
     persist?: boolean | string

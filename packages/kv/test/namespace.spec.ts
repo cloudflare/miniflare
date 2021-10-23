@@ -8,7 +8,7 @@ import {
   KVPutValueType,
 } from "@miniflare/kv";
 import {
-  StorageOperator,
+  Storage,
   StoredKeyMeta,
   StoredValueMeta,
   base64Encode,
@@ -24,18 +24,18 @@ import {
   waitsForInputGate,
   waitsForOutputGate,
 } from "@miniflare/shared-test";
-import { MemoryStorageOperator } from "@miniflare/storage-memory";
+import { MemoryStorage } from "@miniflare/storage-memory";
 import anyTest, { Macro, TestInterface } from "ava";
 
 interface Context {
-  storage: StorageOperator;
+  storage: Storage;
   ns: KVNamespace;
 }
 
 const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
-  const storage = new MemoryStorageOperator(undefined, testClock);
+  const storage = new MemoryStorage(undefined, testClock);
   const ns = new KVNamespace(storage, testClock);
   t.context = { storage, ns };
 });

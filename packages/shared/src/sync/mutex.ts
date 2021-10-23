@@ -26,10 +26,13 @@ export class Mutex {
     return this.resolveQueue.length > 0;
   }
 
-  async runWith<T>(closure: () => Promise<T>): Promise<T> {
-    await this.lock();
+  async runWith<T>(closure: () => Awaitable<T>): Promise<T> {
+    const acquireAwaitable = this.lock();
+    if (acquireAwaitable instanceof Promise) await acquireAwaitable;
     try {
-      return await closure();
+      const awaitable = closure();
+      if (awaitable instanceof Promise) return await awaitable;
+      return awaitable;
     } finally {
       this.unlock();
     }

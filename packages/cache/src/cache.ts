@@ -8,7 +8,7 @@ import {
 import {
   Awaitable,
   Clock,
-  StorageOperator,
+  Storage,
   defaultClock,
   millisToSeconds,
   waitForOpenInputGate,
@@ -131,10 +131,10 @@ function getExpirationTtl(
 }
 
 export class Cache implements CacheInterface {
-  readonly #storage: Awaitable<StorageOperator>;
+  readonly #storage: Awaitable<Storage>;
   readonly #clock: Clock;
 
-  constructor(storage: Awaitable<StorageOperator>, clock = defaultClock) {
+  constructor(storage: Awaitable<Storage>, clock = defaultClock) {
     this.#storage = storage;
     this.#clock = clock;
   }

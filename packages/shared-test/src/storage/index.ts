@@ -3,9 +3,8 @@ import * as getMacrosObject from "./get";
 import * as hasMacrosObject from "./has";
 import * as listMacrosObject from "./list";
 import * as putMacrosObject from "./put";
-import * as txnMacrosObject from "./transaction";
 
-export const operatorMacros = [
+export const storageMacros = [
   ...Object.values(deleteMacrosObject),
   ...Object.values(getMacrosObject),
   ...Object.values(hasMacrosObject),
@@ -13,7 +12,6 @@ export const operatorMacros = [
   ...Object.values(putMacrosObject),
 ];
 
-export const txnMacros = Object.values(txnMacrosObject);
-
 export * from "./factory";
+export * from "./recorder";
 export * from "./shared";

@@ -1,13 +1,13 @@
 import assert from "assert";
 import { Macro } from "ava";
 import { utf8Decode, utf8Encode } from "../data";
-import { MIXED_SEED, TestOperatorFactory, assertExpiring } from "./shared";
+import { MIXED_SEED, TestStorageFactory, assertExpiring } from "./shared";
 
-export const getExistingMacro: Macro<[TestOperatorFactory]> = async (
+export const getExistingMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, MIXED_SEED);
+  const storage = await factory(t, MIXED_SEED);
   const value = await storage.get("key1");
   t.is(utf8Decode(value?.value), "value1");
   t.is(value?.expiration, undefined);
@@ -16,48 +16,50 @@ export const getExistingMacro: Macro<[TestOperatorFactory]> = async (
 getExistingMacro.title = (providedTitle, { name }) =>
   `${name}: get: gets existing key`;
 
-export const getExistingWithMetadataMacro: Macro<[TestOperatorFactory]> =
-  async (t, { usesActualTime, operatorFactory }) => {
-    const storage = await operatorFactory(t, MIXED_SEED);
-    const value = await storage.get("key2");
-    t.is(utf8Decode(value?.value), "value2");
-    assertExpiring(t, usesActualTime, value?.expiration);
-    t.deepEqual(value?.metadata, { testing: true });
-  };
+export const getExistingWithMetadataMacro: Macro<[TestStorageFactory]> = async (
+  t,
+  { usesActualTime, factory }
+) => {
+  const storage = await factory(t, MIXED_SEED);
+  const value = await storage.get("key2");
+  t.is(utf8Decode(value?.value), "value2");
+  assertExpiring(t, usesActualTime, value?.expiration);
+  t.deepEqual(value?.metadata, { testing: true });
+};
 getExistingWithMetadataMacro.title = (providedTitle, { name }) =>
   `${name}: get: gets existing key with metadata`;
 
-export const getNonExistentMacro: Macro<[TestOperatorFactory]> = async (
+export const getNonExistentMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, MIXED_SEED);
+  const storage = await factory(t, MIXED_SEED);
   const value = await storage.get("key5");
   t.is(value, undefined);
 };
 getNonExistentMacro.title = (providedTitle, { name }) =>
   `${name}: get: returns undefined for non-existent key`;
 
-export const getExpiredMacro: Macro<[TestOperatorFactory]> = async (
+export const getExpiredMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, MIXED_SEED);
+  const storage = await factory(t, MIXED_SEED);
   const value = await storage.get("key3");
   t.is(value, undefined);
 };
 getExpiredMacro.title = (providedTitle, { name }) =>
   `${name}: get: respects expiration`;
 
-export const getSkipsMetadataMacro: Macro<[TestOperatorFactory]> = async (
+export const getSkipsMetadataMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { usesSkipMetadata, operatorFactory }
+  { usesSkipMetadata, factory }
 ) => {
   if (!usesSkipMetadata) {
     t.pass("skipped as doesn't respect skipMetadata");
     return;
   }
-  const storage = await operatorFactory(t, MIXED_SEED);
+  const storage = await factory(t, MIXED_SEED);
   const value = await storage.get("key2", true);
   t.is(utf8Decode(value?.value), "value2");
   // @ts-expect-error we're checking this is undefined
@@ -68,11 +70,11 @@ export const getSkipsMetadataMacro: Macro<[TestOperatorFactory]> = async (
 getSkipsMetadataMacro.title = (providedTitle, { name }) =>
   `${name}: get: skips metadata`;
 
-export const getCopyMacro: Macro<[TestOperatorFactory]> = async (
+export const getCopyMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, MIXED_SEED);
+  const storage = await factory(t, MIXED_SEED);
   const result1 = await storage.get("key1");
   t.not(result1, undefined);
   assert(result1);
@@ -90,11 +92,11 @@ export const getCopyMacro: Macro<[TestOperatorFactory]> = async (
 getCopyMacro.title = (providedTitle, { name }) =>
   `${name}: get: returns copy of data`;
 
-export const getManyMacro: Macro<[TestOperatorFactory]> = async (
+export const getManyMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { usesActualTime, operatorFactory }
+  { usesActualTime, factory }
 ) => {
-  const storage = await operatorFactory(t, MIXED_SEED);
+  const storage = await factory(t, MIXED_SEED);
   const values = await storage.getMany(["key1", "key2", "key3", "key5"]);
   t.is(values.length, 4);
 
@@ -112,25 +114,25 @@ export const getManyMacro: Macro<[TestOperatorFactory]> = async (
 getManyMacro.title = (providedTitle, { name }) =>
   `${name}: get: gets many keys`;
 
-export const getManyEmptyMacro: Macro<[TestOperatorFactory]> = async (
+export const getManyEmptyMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, MIXED_SEED);
+  const storage = await factory(t, MIXED_SEED);
   t.deepEqual(await storage.getMany([]), []);
 };
 getManyEmptyMacro.title = (providedTitle, { name }) =>
   `${name}: getMany: returns nothing for empty keys`;
 
-export const getManySkipsMetadataMacro: Macro<[TestOperatorFactory]> = async (
+export const getManySkipsMetadataMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { usesSkipMetadata, operatorFactory }
+  { usesSkipMetadata, factory }
 ) => {
   if (!usesSkipMetadata) {
     t.pass("skipped as doesn't respect skipMetadata");
     return;
   }
-  const storage = await operatorFactory(t, MIXED_SEED);
+  const storage = await factory(t, MIXED_SEED);
   const values = await storage.getMany(["key2"], true);
   t.is(values.length, 1);
   t.is(utf8Decode(values[0]?.value), "value2");

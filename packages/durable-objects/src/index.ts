@@ -11,4 +11,5 @@ export type {
   NewUniqueIdOptions,
 } from "./namespace";
 export * from "./plugin";
+export * from "./rwmutex";
 export * from "./storage";

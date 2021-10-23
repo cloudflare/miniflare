@@ -4,16 +4,16 @@ import { utf8Decode, utf8Encode } from "../data";
 import {
   MIXED_SEED,
   TIME_EXPIRING,
-  TestOperatorFactory,
+  TestStorageFactory,
   assertExpiring,
   expectedActualExpiring,
 } from "./shared";
 
-export const putNewMacro: Macro<[TestOperatorFactory]> = async (
+export const putNewMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, {});
+  const storage = await factory(t, {});
   await storage.put("newkey", { value: utf8Encode("newvalue") });
   const value = await storage.get("newkey");
   t.is(utf8Decode(value?.value), "newvalue");
@@ -22,11 +22,11 @@ export const putNewMacro: Macro<[TestOperatorFactory]> = async (
 };
 putNewMacro.title = (providedTitle, { name }) => `${name}: put: puts new key`;
 
-export const putNewDirectoryMacro: Macro<[TestOperatorFactory]> = async (
+export const putNewDirectoryMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, {});
+  const storage = await factory(t, {});
   await storage.put("dir/newkey", { value: utf8Encode("newvalue") });
   const value = await storage.get("dir/newkey");
   t.is(utf8Decode(value?.value), "newvalue");
@@ -41,11 +41,11 @@ export const putNewDirectoryMacro: Macro<[TestOperatorFactory]> = async (
 putNewDirectoryMacro.title = (providedTitle, { name }) =>
   `${name}: put: puts new key in new directory`;
 
-export const putNewWithMetadataMacro: Macro<[TestOperatorFactory]> = async (
+export const putNewWithMetadataMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { usesActualTime, operatorFactory }
+  { usesActualTime, factory }
 ) => {
-  const storage = await operatorFactory(t, {});
+  const storage = await factory(t, {});
   await storage.put("newkey", {
     value: utf8Encode("newvalue"),
     expiration: usesActualTime ? expectedActualExpiring : 1000,
@@ -59,11 +59,11 @@ export const putNewWithMetadataMacro: Macro<[TestOperatorFactory]> = async (
 putNewWithMetadataMacro.title = (providedTitle, { name }) =>
   `${name}: put: puts new key with metadata`;
 
-export const putOverrideMacro: Macro<[TestOperatorFactory]> = async (
+export const putOverrideMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, MIXED_SEED);
+  const storage = await factory(t, MIXED_SEED);
   await storage.put("key1", { value: utf8Encode("newvalue") });
   const value = await storage.get("key1");
   t.is(utf8Decode(value?.value), "newvalue");
@@ -73,11 +73,11 @@ export const putOverrideMacro: Macro<[TestOperatorFactory]> = async (
 putOverrideMacro.title = (providedTitle, { name }) =>
   `${name}: put: overrides existing key`;
 
-export const putCopyMacro: Macro<[TestOperatorFactory]> = async (
+export const putCopyMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, {});
+  const storage = await factory(t, {});
   const value: StoredValueMeta = {
     value: utf8Encode("value"),
     metadata: { testing: true },
@@ -97,11 +97,11 @@ export const putCopyMacro: Macro<[TestOperatorFactory]> = async (
 putCopyMacro.title = (providedTitle, { name }) =>
   `${name}: put: puts copy of data`;
 
-export const putManyMacro: Macro<[TestOperatorFactory]> = async (
+export const putManyMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { usesActualTime, operatorFactory }
+  { usesActualTime, factory }
 ) => {
-  const storage = await operatorFactory(t, {});
+  const storage = await factory(t, {});
   await storage.putMany([
     ["key1", { value: utf8Encode("value1") }],
     [
@@ -127,11 +127,11 @@ export const putManyMacro: Macro<[TestOperatorFactory]> = async (
 putManyMacro.title = (providedTitle, { name }) =>
   `${name}: put: puts many keys`;
 
-export const putManyEmptyMacro: Macro<[TestOperatorFactory]> = async (
+export const putManyEmptyMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, {});
+  const storage = await factory(t, {});
   await storage.putMany([]);
   t.pass();
 };

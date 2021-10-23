@@ -2,7 +2,7 @@ import { arrayBuffer } from "stream/consumers";
 import { ReadableByteStream, ReadableStream } from "stream/web";
 import {
   Clock,
-  StorageOperator,
+  Storage,
   StoredKeyMeta,
   defaultClock,
   millisToSeconds,
@@ -63,6 +63,7 @@ function throwKVError(method: Method, status: number, message: string) {
 }
 
 function validateKey(method: Method, key: string): void {
+  // TODO: check key not undefined
   // Check key name is allowed
   if (key === "") throw new TypeError("Key name cannot be empty.");
   if (key === ".") throw new TypeError('"." is not allowed as a key name.');
@@ -136,10 +137,10 @@ function convertStoredToGetValue(stored: Uint8Array, type: KVGetValueType) {
 }
 
 export class KVNamespace {
-  readonly #storage: StorageOperator;
+  readonly #storage: Storage;
   readonly #clock: Clock;
 
-  constructor(storage: StorageOperator, clock = defaultClock) {
+  constructor(storage: Storage, clock = defaultClock) {
     this.#storage = storage;
     this.#clock = clock;
   }

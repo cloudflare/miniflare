@@ -1,11 +1,10 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { Storage, StorageOperator, StoredValueMeta } from "@miniflare/shared";
+import { Storage, StoredValueMeta } from "@miniflare/shared";
 import {
   TestStorageFactory,
-  operatorMacros,
+  storageMacros,
   testClock,
-  txnMacros,
   useTmp,
   utf8Decode,
   utf8Encode,
@@ -37,18 +36,12 @@ class FileStorageFactory extends TestStorageFactory {
 }
 
 const storageFactory = new FileStorageFactory();
-const transactionOperatorFactory = storageFactory.transactionOperatorFactory();
-
-for (const macro of operatorMacros) {
-  test(macro, storageFactory);
-  test(macro, transactionOperatorFactory);
-}
-for (const macro of txnMacros) {
+for (const macro of storageMacros) {
   test(macro, storageFactory);
 }
 
 test("FileStorage: list: returns original keys if sanitised", async (t) => {
-  const storage = await storageFactory.operatorFactory(t, {});
+  const storage = await storageFactory.factory(t, {});
   const unsafeKey = "namespace:<a>/../c?   ";
   await storage.put(unsafeKey, { value: utf8Encode("value") });
 
@@ -62,9 +55,9 @@ test("FileStorage: list: returns original keys if sanitised", async (t) => {
   });
 });
 
-async function unsanitisedOperatorFactory(
+async function unsanitisedStorageFactory(
   t: ExecutionContext
-): Promise<StorageOperator> {
+): Promise<Storage> {
   const tmp = await useTmp(t);
   await fs.writeFile(path.join(tmp, "secrets.txt"), "strong password", "utf8");
   const rootPath = path.join(tmp, "root");
@@ -73,17 +66,17 @@ async function unsanitisedOperatorFactory(
   return new FileStorage(rootPath, false, testClock);
 }
 test("FileStorage: has: ignores files outside root", async (t) => {
-  const storage = await unsanitisedOperatorFactory(t);
+  const storage = await unsanitisedStorageFactory(t);
   t.true(await storage.has("dir/../key"));
   t.false(await storage.has("../secrets.txt"));
 });
 test("FileStorage: get: ignores files outside root", async (t) => {
-  const storage = await unsanitisedOperatorFactory(t);
+  const storage = await unsanitisedStorageFactory(t);
   t.is(utf8Decode((await storage.get("dir/../key"))?.value), "value");
   t.is(await storage.get("../secrets.txt"), undefined);
 });
 test("FileStorage: put: throws on files outside root", async (t) => {
-  const storage = await unsanitisedOperatorFactory(t);
+  const storage = await unsanitisedStorageFactory(t);
   await t.throwsAsync(
     async () =>
       storage.put("../secrets.txt", { value: utf8Encode("weak password") }),
@@ -94,7 +87,7 @@ test("FileStorage: put: throws on files outside root", async (t) => {
   );
 });
 test("FileStorage: delete: ignores files outside root", async (t) => {
-  const storage = await unsanitisedOperatorFactory(t);
+  const storage = await unsanitisedStorageFactory(t);
   t.true(await storage.delete("dir/../key"));
   t.false(await storage.delete("../secrets.txt"));
 });

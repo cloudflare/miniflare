@@ -43,7 +43,7 @@ export class KVPlugin extends Plugin<KVOptions> implements KVOptions {
     storage: StorageFactory,
     namespace: string
   ): Promise<KVNamespace> {
-    return new KVNamespace(await storage.operator(namespace, this.kvPersist));
+    return new KVNamespace(await storage.storage(namespace, this.kvPersist));
   }
 
   async setup(storageFactory: StorageFactory): Promise<SetupResult> {

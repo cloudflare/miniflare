@@ -11,7 +11,7 @@ export {
   withImmutableHeaders,
   Response,
   withWaitUntil,
-  inputGatedFetch,
+  gatedFetch,
   logResponse,
 } from "./http";
 export type { RequestInfo, RequestInit, ResponseInit, HRTime } from "./http";

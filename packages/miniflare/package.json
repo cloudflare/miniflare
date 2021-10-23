@@ -61,10 +61,14 @@
     "@miniflare/shared-test": "2.0.0"
   },
   "peerDependencies": {
-    "@miniflare/storage-redis": "2.0.0"
+    "@miniflare/storage-redis": "2.0.0",
+    "ioredis": "^4.27.9"
   },
   "peerDependenciesMeta": {
     "@miniflare/storage-redis": {
+      "optional": true
+    },
+    "ioredis": {
       "optional": true
     }
   }
