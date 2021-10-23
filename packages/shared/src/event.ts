@@ -4,41 +4,17 @@ export type TypedEventListener<E extends Event> =
   | ((e: E) => void)
   | { handleEvent(e: E): void };
 
+export const kWrapListener = Symbol("kWrapListener");
+
 export class TypedEventTarget<
   EventMap extends Record<string, Event>
 > extends EventTarget {
-  addEventListener<Type extends keyof EventMap>(
-    type: Type,
-    listener: TypedEventListener<EventMap[Type]> | null,
-    options?: AddEventListenerOptions | boolean
-  ): void {
-    super.addEventListener(type as string, listener as any, options);
-  }
-
-  removeEventListener<Type extends keyof EventMap>(
-    type: Type,
-    listener: TypedEventListener<EventMap[Type]> | null,
-    options?: EventListenerOptions | boolean
-  ): void {
-    super.removeEventListener(type as string, listener as any, options);
-  }
-
-  dispatchEvent(event: ValueOf<EventMap>): boolean {
-    return super.dispatchEvent(event);
-  }
-}
-
-export const kWrapListener = Symbol("kWrapListener");
-
-export abstract class WrappedEventTarget<
-  EventMap extends Record<string, Event>
-> extends TypedEventTarget<EventMap> {
   readonly #wrappedListeners = new WeakMap<
     TypedEventListener<ValueOf<EventMap>>,
     TypedEventListener<ValueOf<EventMap>>
   >();
 
-  protected abstract [kWrapListener]<Type extends keyof EventMap>(
+  protected [kWrapListener]?<Type extends keyof EventMap>(
     listener: (event: EventMap[Type]) => void
   ): TypedEventListener<EventMap[Type]>;
 
@@ -48,7 +24,7 @@ export abstract class WrappedEventTarget<
     if (!listener) return null;
     let wrappedListener = this.#wrappedListeners.get(listener as any);
     if (wrappedListener) return wrappedListener;
-    wrappedListener = this[kWrapListener]((event) => {
+    wrappedListener = this[kWrapListener]!((event) => {
       if (typeof listener === "function") {
         listener(event as EventMap[Type]);
       } else {
@@ -64,7 +40,11 @@ export abstract class WrappedEventTarget<
     listener: TypedEventListener<EventMap[Type]> | null,
     options?: AddEventListenerOptions | boolean
   ): void {
-    super.addEventListener(type, this.#wrap(listener), options);
+    super.addEventListener(
+      type as string,
+      this[kWrapListener] ? (this.#wrap(listener) as any) : listener,
+      options
+    );
   }
 
   removeEventListener<Type extends keyof EventMap>(
@@ -72,13 +52,21 @@ export abstract class WrappedEventTarget<
     listener: TypedEventListener<EventMap[Type]> | null,
     options?: EventListenerOptions | boolean
   ): void {
-    super.removeEventListener(type, this.#wrap(listener), options);
+    super.removeEventListener(
+      type as string,
+      this[kWrapListener] ? (this.#wrap(listener) as any) : listener,
+      options
+    );
+  }
+
+  dispatchEvent(event: ValueOf<EventMap>): boolean {
+    return super.dispatchEvent(event);
   }
 }
 
 export class ThrowingEventTarget<
   EventMap extends Record<string, Event>
-> extends WrappedEventTarget<EventMap> {
+> extends TypedEventTarget<EventMap> {
   #wrappedError?: Error;
 
   protected [kWrapListener]<Type extends keyof EventMap>(
