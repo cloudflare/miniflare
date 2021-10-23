@@ -1,7 +1,6 @@
 import { SchedulerError, SchedulerPlugin } from "@miniflare/scheduler";
-import { Compatibility } from "@miniflare/shared";
+import { Compatibility, NoOpLog } from "@miniflare/shared";
 import {
-  NoOpLog,
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,

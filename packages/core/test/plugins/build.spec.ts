@@ -4,9 +4,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 import { BindingsPlugin, BuildError, BuildPlugin } from "@miniflare/core";
-import { Compatibility, LogLevel } from "@miniflare/shared";
+import { Compatibility, LogLevel, NoOpLog } from "@miniflare/shared";
 import {
-  NoOpLog,
   TestLog,
   logPluginOptions,
   parsePluginArgv,

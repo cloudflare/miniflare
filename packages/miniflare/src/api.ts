@@ -22,7 +22,7 @@ import {
   SchedulerPlugin,
   startScheduler,
 } from "@miniflare/scheduler";
-import { Log, LogLevel, Options } from "@miniflare/shared";
+import { Log, LogLevel, NoOpLog, Options } from "@miniflare/shared";
 import { SitesPlugin } from "@miniflare/sites";
 import { WebSocketPlugin } from "@miniflare/web-sockets";
 import { VariedStorageFactory } from "./storage";
@@ -51,20 +51,20 @@ export const PLUGINS = {
 
 export type Plugins = typeof PLUGINS;
 
+export type MiniflareOptions = Omit<Options<Plugins>, "debug" | "verbose"> & {
+  logLevel?: LogLevel;
+};
+
 export class Miniflare extends MiniflareCore<Plugins> {
   #storageFactory: VariedStorageFactory;
 
-  constructor(options?: Options<Plugins>) {
-    const logLevel = options?.verbose
-      ? LogLevel.VERBOSE
-      : options?.debug
-      ? LogLevel.DEBUG
-      : LogLevel.INFO;
+  constructor(options?: MiniflareOptions) {
     const storageFactory = new VariedStorageFactory();
+    const logLevel = options?.logLevel ?? LogLevel.NONE;
     super(
       PLUGINS,
       {
-        log: new Log(logLevel),
+        log: logLevel === LogLevel.NONE ? new NoOpLog() : new Log(logLevel),
         storageFactory,
         scriptRunner: new VMScriptRunner(),
         scriptRequired: true,

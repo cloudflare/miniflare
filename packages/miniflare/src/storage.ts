@@ -57,8 +57,8 @@ export class VariedStorageFactory extends StorageFactory {
   }
 
   async dispose(): Promise<void> {
-    for (const redisPool of this.redisConnections.values()) {
-      redisPool.disconnect();
+    for (const redisConnection of this.redisConnections.values()) {
+      redisConnection.disconnect();
     }
   }
 }

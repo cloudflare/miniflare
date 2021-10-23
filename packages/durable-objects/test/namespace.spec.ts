@@ -10,10 +10,9 @@ import {
   DurableObjectStub,
   DurableObjectsPlugin,
 } from "@miniflare/durable-objects";
-import { Compatibility } from "@miniflare/shared";
+import { Compatibility, NoOpLog } from "@miniflare/shared";
 import {
   MemoryStorageFactory,
-  NoOpLog,
   getObjectProperties,
   triggerPromise,
 } from "@miniflare/shared-test";

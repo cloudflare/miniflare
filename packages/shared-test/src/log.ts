@@ -1,6 +1,5 @@
-import { Log, LogLevel, MiniflareError } from "@miniflare/shared";
-
-export class TestLogError extends MiniflareError<"ERR_ERROR"> {}
+import { Log, LogLevel } from "@miniflare/shared";
+import { ExecutionContext } from "ava";
 
 export type LogEntry = [level: LogLevel, message: string];
 
@@ -34,11 +33,11 @@ export class TestLog extends Log {
   }
 }
 
-export class NoOpLog extends Log {
-  log(): void {}
-
-  error(message: Error): void {
-    console.log(message);
-    throw message;
-  }
+// .serial required for intercepting console.log
+export function interceptConsoleLogs(t: ExecutionContext): string[] {
+  const logs: string[] = [];
+  const originalLog = console.log;
+  t.teardown(() => (console.log = originalLog));
+  console.log = (...args: string[]) => logs.push(args.join(" "));
+  return logs;
 }

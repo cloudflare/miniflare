@@ -3,9 +3,8 @@ import { existsSync } from "fs";
 import fs from "fs/promises";
 import path from "path";
 import { HTTPPlugin } from "@miniflare/http-server";
-import { Clock, Compatibility, LogLevel } from "@miniflare/shared";
+import { Clock, Compatibility, LogLevel, NoOpLog } from "@miniflare/shared";
 import {
-  NoOpLog,
   TestLog,
   logPluginOptions,
   parsePluginArgv,

@@ -3,7 +3,9 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import type { Options } from "@miniflare/shared";
+import { LogLevel } from "@miniflare/shared";
 import { red } from "kleur/colors";
+import { MiniflareOptions } from "./api";
 import { updateCheck } from "./updater";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -61,7 +63,13 @@ async function main() {
 
   // TODO: warn if script path is src/... but dist/... exists, or build command set, or type webpack/rust
 
-  const mf = new Miniflare(options);
+  const mfOptions: MiniflareOptions = options;
+  mfOptions.logLevel = options?.verbose
+    ? LogLevel.VERBOSE
+    : options?.debug
+    ? LogLevel.DEBUG
+    : LogLevel.INFO;
+  const mf = new Miniflare(mfOptions);
   try {
     // Start Miniflare development server
     await mf.startServer();

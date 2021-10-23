@@ -1,6 +1,5 @@
 import { HTMLRewriter, HTMLRewriterPlugin } from "@miniflare/html-rewriter";
-import { Compatibility } from "@miniflare/shared";
-import { NoOpLog } from "@miniflare/shared-test";
+import { Compatibility, NoOpLog } from "@miniflare/shared";
 import test from "ava";
 
 test("HTMLRewriterPlugin: setup: includes HTMLRewriter in globals", (t) => {
