@@ -35,7 +35,6 @@
   "dependencies": {
     "@miniflare/shared": "2.0.0",
     "@miniflare/storage-memory": "2.0.0",
-    "generic-pool": "^3.8.2",
     "ioredis": "^4.27.9"
   },
   "devDependencies": {

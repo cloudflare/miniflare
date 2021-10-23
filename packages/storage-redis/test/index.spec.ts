@@ -9,25 +9,21 @@ import {
   TIME_EXPIRED,
   TIME_EXPIRING,
   TestStorageFactory,
-  operatorMacros,
-  txnMacros,
+  storageMacros,
 } from "@miniflare/shared-test";
-import {
-  RedisPool,
-  RedisStorage,
-  bufferFromArray,
-} from "@miniflare/storage-redis";
+import { RedisStorage, bufferFromArray } from "@miniflare/storage-redis";
 import test, { ExecutionContext } from "ava";
+import IORedis from "ioredis";
 
 // Only test Redis if a server URL has been set
 // (WARNING: database will be flushed)
 const redisUrl = process.env.MINIFLARE_TEST_REDIS_URL;
 // Tests will run in isolated namespaces, so can run in parallel
 const redisTest = redisUrl ? test.serial : test.skip;
-const redis = redisUrl ? new RedisPool(redisUrl) : undefined;
+const redis = redisUrl ? new IORedis(redisUrl) : undefined;
 
 test.before(async () => {
-  await redis?.shared.flushdb();
+  await redis?.flushdb();
 });
 
 class RedisStorageFactory extends TestStorageFactory {
@@ -48,12 +44,12 @@ class RedisStorageFactory extends TestStorageFactory {
       else if (expiration !== undefined) assert.fail();
 
       const redisKey = `${ns}:value:${key}`;
-      await redis.shared.setBuffer(redisKey, bufferFromArray(value));
-      if (ttl !== undefined) await redis.shared.expire(redisKey, ttl);
+      await redis.setBuffer(redisKey, bufferFromArray(value));
+      if (ttl !== undefined) await redis.expire(redisKey, ttl);
       if (metadata) {
         const redisMetaKey = `${ns}:meta:${key}`;
-        await redis.shared.set(redisMetaKey, JSON.stringify(metadata));
-        if (ttl !== undefined) await redis.shared.expire(redisMetaKey, ttl);
+        await redis.set(redisMetaKey, JSON.stringify(metadata));
+        if (ttl !== undefined) await redis.expire(redisMetaKey, ttl);
       }
     }
     return new RedisStorage(redis, ns);
@@ -61,12 +57,6 @@ class RedisStorageFactory extends TestStorageFactory {
 }
 
 const storageFactory = new RedisStorageFactory();
-const transactionOperatorFactory = storageFactory.transactionOperatorFactory();
-
-for (const macro of operatorMacros) {
-  redisTest(macro, storageFactory);
-  redisTest(macro, transactionOperatorFactory);
-}
-for (const macro of txnMacros) {
+for (const macro of storageMacros) {
   redisTest(macro, storageFactory);
 }

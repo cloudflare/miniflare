@@ -1,8 +1,6 @@
 import {
   Clock,
   Storage,
-  StorageOperator,
-  StorageTransaction,
   StoredKey,
   StoredValueMeta,
   millisToSeconds,
@@ -10,7 +8,6 @@ import {
 import { ExecutionContext } from "ava";
 import { isWithin } from "../asserts";
 import { utf8Encode } from "../data";
-import { triggerPromise } from "../sync";
 
 // Stored expiration value to signal an expired key. Storages using actual
 // time should interpret this as the current time.
@@ -47,52 +44,11 @@ export function keyNames(keys: StoredKey[]): string[] {
 
 export type Seed = Record<string, StoredValueMeta>;
 
-export interface TestOperatorFactory {
-  name: string;
-  usesActualTime: boolean;
-  usesSkipMetadata: boolean;
-  usesListCursor: boolean;
-  operatorFactory(t: ExecutionContext, seed: Seed): Promise<StorageOperator>;
-}
-
-export abstract class TestStorageFactory implements TestOperatorFactory {
+export abstract class TestStorageFactory {
   abstract name: string;
   usesActualTime = false;
   usesSkipMetadata = false;
-  usesListCursor = true;
-  operatorFactory = (
-    t: ExecutionContext,
-    seed: Seed
-  ): Promise<StorageOperator> => this.factory(t, seed);
-
   abstract factory(t: ExecutionContext, seed: Seed): Promise<Storage>;
-
-  transactionOperatorFactory(): TestOperatorFactory {
-    return {
-      name: `${this.name}.transaction`,
-      usesActualTime: this.usesActualTime,
-      usesSkipMetadata: this.usesSkipMetadata,
-      usesListCursor: false,
-      operatorFactory: async (t, seed) => {
-        const storage = await this.factory(t, seed);
-        const [setupTrigger, setupPromise] = triggerPromise();
-        const [teardownTrigger, teardownPromise] = triggerPromise();
-        let result: StorageTransaction;
-        // noinspection ES6MissingAwait
-        storage.transaction(async (txn) => {
-          result = txn;
-          setupTrigger(undefined);
-          await teardownPromise;
-          txn.rollback();
-        });
-        await setupPromise;
-        t.teardown(() => teardownTrigger(undefined));
-        // @ts-expect-error passed setupPromise so result must've been assigned
-        // noinspection JSUnusedAssignment
-        return result;
-      },
-    };
-  }
 }
 
 export const MIXED_SEED: Seed = {

@@ -1,8 +1,8 @@
 import {
   Awaitable,
+  Storage,
   StorageListOptions,
   StorageListResult,
-  StorageOperator,
   StoredKeyMeta,
   StoredMeta,
   StoredValueMeta,
@@ -11,7 +11,7 @@ import {
 } from "@miniflare/shared";
 import { listFilterMatch, listPaginate } from "./helpers";
 
-export abstract class LocalStorageOperator extends StorageOperator {
+export abstract class LocalStorage extends Storage {
   protected constructor(private readonly clock = defaultClock) {
     super();
   }

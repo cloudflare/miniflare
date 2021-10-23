@@ -2,14 +2,14 @@ import assert from "assert";
 import { URL } from "url";
 import { Cache, CachedMeta } from "@miniflare/cache";
 import { Request, RequestInitCfProperties, Response } from "@miniflare/core";
-import { StorageOperator } from "@miniflare/shared";
+import { Storage } from "@miniflare/shared";
 import {
   getObjectProperties,
   utf8Decode,
   waitsForInputGate,
   waitsForOutputGate,
 } from "@miniflare/shared-test";
-import { MemoryStorageOperator } from "@miniflare/storage-memory";
+import { MemoryStorage } from "@miniflare/storage-memory";
 import { WebSocketPair } from "@miniflare/web-sockets";
 import anyTest, { Macro, TestInterface } from "ava";
 import {
@@ -21,7 +21,7 @@ import {
 import { testResponse } from "./helpers";
 
 interface Context {
-  storage: StorageOperator;
+  storage: Storage;
   clock: { timestamp: number };
   cache: Cache;
 }
@@ -31,7 +31,7 @@ const test = anyTest as TestInterface<Context>;
 test.beforeEach((t) => {
   const clock = { timestamp: 1_000_000 }; // 1000s
   const clockFunction = () => clock.timestamp;
-  const storage = new MemoryStorageOperator(undefined, clockFunction);
+  const storage = new MemoryStorage(undefined, clockFunction);
   const cache = new Cache(storage, clockFunction);
   t.context = { storage, clock, cache };
 });

@@ -1,21 +1,21 @@
-import { StorageOperator } from "@miniflare/shared";
+import { Storage } from "@miniflare/shared";
 import {
   getObjectProperties,
   testClock,
   utf8Encode,
 } from "@miniflare/shared-test";
 import { FilteredKVNamespace } from "@miniflare/sites";
-import { MemoryStorageOperator } from "@miniflare/storage-memory";
+import { MemoryStorage } from "@miniflare/storage-memory";
 import anyTest, { TestInterface } from "ava";
 
 interface Context {
-  storage: StorageOperator;
+  storage: Storage;
 }
 
 const test = anyTest as TestInterface<Context>;
 
 test.beforeEach(async (t) => {
-  const storage = new MemoryStorageOperator(undefined, testClock);
+  const storage = new MemoryStorage(undefined, testClock);
   for (let i = 1; i <= 3; i++) {
     for (let j = 1; j <= 2; j++) {
       await storage.put(`section${i}key${j}`, {

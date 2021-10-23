@@ -48,7 +48,7 @@ export class CacheStorage {
     // Return noop cache is caching disabled
     const { disableCache, cachePersist } = this.#options;
     if (disableCache) return NOOP_CACHE;
-    // Return cache, deferring operator await to Cache, since this needs to
+    // Return cache, deferring storage await to Cache, since this needs to
     // return synchronously. We want to avoid loading @miniflare/storage-*
     // packages unless the user is actually using storage. Since Cache is
     // included by default, we'd always load these if we didn't do it lazily.
@@ -56,7 +56,7 @@ export class CacheStorage {
     // doesn't do anything with the cache immediately, but this is unlikely.
     this.#maybeWarnUsage();
     return (this.#defaultCache = new Cache(
-      this.#storage.operator(DEFAULT_CACHE_NAME, cachePersist)
+      this.#storage.storage(DEFAULT_CACHE_NAME, cachePersist)
     ));
   }
 
@@ -75,7 +75,7 @@ export class CacheStorage {
     if (disableCache) return NOOP_CACHE;
     // Return regular cache
     this.#maybeWarnUsage();
-    return new Cache(await this.#storage.operator(cacheName, cachePersist));
+    return new Cache(await this.#storage.storage(cacheName, cachePersist));
   }
 }
 

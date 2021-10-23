@@ -3,7 +3,7 @@ import {
   RequestInfo,
   RequestInit,
   Response,
-  inputGatedFetch,
+  gatedFetch,
 } from "@miniflare/core";
 import StandardWebSocket from "ws";
 import { coupleWebSocket } from "./couple";
@@ -46,5 +46,5 @@ export async function upgradingFetch(
   //  https://developers.cloudflare.com/workers/learning/how-the-cache-works#fetch
   //  https://developers.cloudflare.com/workers/examples/cache-using-fetch
 
-  return inputGatedFetch(request);
+  return gatedFetch(request);
 }

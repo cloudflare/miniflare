@@ -2,19 +2,19 @@ import assert from "assert";
 import path from "path";
 import { Storage, StorageFactory, sanitisePath } from "@miniflare/shared";
 import type { MemoryStorage } from "@miniflare/storage-memory";
-import type { RedisPool } from "@miniflare/storage-redis";
+import type IORedis from "ioredis";
 
 const redisConnectionStringRegexp = /^rediss?:\/\//;
 
 export class VariedStorageFactory extends StorageFactory {
   constructor(
     private readonly memoryStorages = new Map<string, MemoryStorage>(),
-    private readonly redisPools = new Map<string, RedisPool>()
+    private readonly redisConnections = new Map<string, IORedis.Redis>()
   ) {
     super();
   }
 
-  // TODO: override operator for storage-kv-remote
+  // TODO: override storage for storage-kv-remote
 
   async storage(
     namespace: string,
@@ -37,12 +37,16 @@ export class VariedStorageFactory extends StorageFactory {
     // caching connections so we can reuse them
     if (redisConnectionStringRegexp.test(persist)) {
       // TODO: display nicer error if @miniflare/storage-redis not installed
-      const { RedisPool, RedisStorage } = await import(
-        "@miniflare/storage-redis"
-      );
-      let pool = this.redisPools.get(persist);
-      if (!pool) this.redisPools.set(persist, (pool = new RedisPool(persist)));
-      return new RedisStorage(pool, namespace);
+      const { RedisStorage } = await import("@miniflare/storage-redis");
+      const IORedis = await import("ioredis");
+      let connection = this.redisConnections.get(persist);
+      if (!connection) {
+        this.redisConnections.set(
+          persist,
+          (connection = new IORedis.default(persist))
+        );
+      }
+      return new RedisStorage(connection, namespace);
     }
 
     // Otherwise, use file-system storage
@@ -53,6 +57,8 @@ export class VariedStorageFactory extends StorageFactory {
   }
 
   async dispose(): Promise<void> {
-    for (const redisPool of this.redisPools.values()) await redisPool.dispose();
+    for (const redisPool of this.redisConnections.values()) {
+      redisPool.disconnect();
+    }
   }
 }

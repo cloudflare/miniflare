@@ -8,6 +8,7 @@ import {
   Log,
   nonCircularClone,
   waitForOpenInputGate,
+  waitForOpenOutputGate,
 } from "@miniflare/shared";
 import type { WebSocket } from "@miniflare/web-sockets";
 import { Colorize, blue, bold, green, grey, red, yellow } from "kleur/colors";
@@ -350,13 +351,14 @@ export function withWaitUntil<WaitUntil extends any[]>(
   return resWaitUntil;
 }
 
-export async function inputGatedFetch(
+export async function gatedFetch(
   input: RequestInfo,
   init?: RequestInit
 ): Promise<Response> {
   // Don't pass our strange hybrid Request to undici
   // noinspection SuspiciousTypeOfGuard
   if (input instanceof Request) input = input[kInner];
+  await waitForOpenOutputGate();
   const baseRes = await baseFetch(input, init);
   const res = new Response(baseRes.body, baseRes);
   await waitForOpenInputGate();

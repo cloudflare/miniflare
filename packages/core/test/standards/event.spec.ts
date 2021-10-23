@@ -63,7 +63,7 @@ test("ServiceWorkerGlobalScope: includes environment in globals if modules disab
   t.throws(() => (globalScope as any).env, {
     instanceOf: ReferenceError,
     message:
-      /^env is not defined\.\nAttempted to access binding using global in modules mode/,
+      /^env is not defined\.\nAttempted to access binding using global in modules/,
   });
 });
 test("ServiceWorkerGlobalScope: includes global self-references", (t) => {

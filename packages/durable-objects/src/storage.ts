@@ -2,17 +2,30 @@ import assert from "assert";
 import { deserialize, serialize } from "v8";
 import {
   Storage,
-  StorageTransaction,
   StoredValue,
+  addAll,
   runWithInputGateClosed,
   viewToArray,
   waitUntilOnOutputGate,
 } from "@miniflare/shared";
+import { ReadWriteMutex } from "./rwmutex";
+import { ShadowStorage } from "./shadow";
 
 const MAX_KEYS = 128;
 const MAX_KEY_SIZE = 2048; /* 2KiB */
 const MAX_VALUE_SIZE = 32 * 1024; /* 32KiB */
+// As V8 serialisation adds some tagging information, Workers actually allows
+// values to be 32 bytes greater than the advertised limit. This allows 32KiB
+// byte arrays to be stored for example.
 const ENFORCED_MAX_VALUE_SIZE = MAX_VALUE_SIZE + 32;
+
+const undefinedKeyError =
+  ": parameter 1 is not of type 'variant'. (key is undefined)";
+
+function intersects<T>(a: Set<T>, b: Set<T>): boolean {
+  for (const value of a) if (b.has(value)) return true;
+  return false;
+}
 
 export interface DurableObjectGetOptions {
   allowConcurrency?: boolean;
@@ -79,21 +92,128 @@ function assertValueSize(value: Buffer, key?: string) {
   throw new RangeError(`Values cannot be larger than ${MAX_VALUE_SIZE} bytes.`);
 }
 
-const kTxn = Symbol("kTxn");
+async function get<Value = unknown>(
+  storage: Storage,
+  key: string
+): Promise<Value | undefined>;
+// noinspection JSUnusedLocalSymbols
+async function get<Value = unknown>(
+  storage: Storage,
+  keys: string[]
+): Promise<Map<string, Value>>;
+async function get<Value = unknown>(
+  storage: Storage,
+  keys: string | string[]
+): Promise<Value | undefined | Map<string, Value>> {
+  if (Array.isArray(keys)) {
+    if (keys.length > MAX_KEYS) {
+      throw new RangeError(`Maximum number of keys is ${MAX_KEYS}.`);
+    }
+    // Filter out undefined keys
+    const defined: string[] = [];
+    for (const key of keys) {
+      if (key === undefined) continue;
+      defined.push(key);
+      assertKeySize(key, true);
+    }
+    // If array of keys passed, build map of results
+    const res = new Map<string, Value>();
+    const values = await storage.getMany(defined);
+    assert.strictEqual(defined.length, values.length);
+    for (let i = 0; i < defined.length; i++) {
+      const value = values[i];
+      if (value !== undefined) res.set(defined[i], deserialize(value.value));
+    }
+    return res;
+  }
+
+  // Otherwise, return a single result
+  assertKeySize(keys);
+  const value = await storage.get(keys);
+  return value && deserialize(value.value);
+}
+
+async function list<Value = unknown>(
+  storage: Storage,
+  options: DurableObjectListOptions = {}
+): Promise<Map<string, Value>> {
+  if (options.limit !== undefined && options.limit <= 0) {
+    throw new TypeError("List limit must be positive.");
+  }
+  const { keys } = await storage.list(options);
+  return get(
+    storage,
+    keys.map(({ name }) => name)
+  );
+}
+
+function normalisePutEntries<Value = unknown>(
+  keyEntries: string | Record<string, Value>,
+  valueOptions?: Value
+): [key: string, value: StoredValue][] {
+  if (typeof keyEntries === "string") {
+    assertKeySize(keyEntries);
+    if (valueOptions === undefined) {
+      throw new TypeError("put() called with undefined value.");
+    }
+    const serialized = serialize(valueOptions);
+    assertValueSize(serialized);
+    return [[keyEntries, { value: viewToArray(serialized) }]];
+  }
+
+  const entries = Object.entries(keyEntries);
+  if (entries.length > MAX_KEYS) {
+    throw new RangeError(`Maximum number of pairs is ${MAX_KEYS}.`);
+  }
+  const result: [key: string, value: StoredValue][] = [];
+  for (const [key, rawValue] of entries) {
+    assertKeySize(key, true);
+    if (rawValue === undefined) continue;
+    const serialized = serialize(rawValue);
+    assertValueSize(serialized, key);
+    result.push([key, { value: viewToArray(serialized) }]);
+  }
+  return result;
+}
+
+function normaliseDeleteKeys(keys: string | string[]): string[] {
+  if (Array.isArray(keys)) {
+    if (keys.length > MAX_KEYS) {
+      throw new RangeError(`Maximum number of keys is ${MAX_KEYS}.`);
+    }
+    const defined: string[] = [];
+    for (const key of keys) {
+      if (key === undefined) continue;
+      assertKeySize(key, true);
+      defined.push(key);
+    }
+    return defined;
+  } else {
+    assertKeySize(keys);
+    return [keys];
+  }
+}
+
+const kInner = Symbol("kInner");
+const kStartTxnCount = Symbol("kStartTxnCount");
+const kRolledback = Symbol("kRolledback");
 const kCommitted = Symbol("kCommitted");
+const kWriteSet = Symbol("kWriteSet");
 
 export class DurableObjectTransaction implements DurableObjectOperator {
-  readonly [kTxn]: StorageTransaction;
-  #rolledback = false;
+  readonly [kInner]: ShadowStorage;
+  readonly [kStartTxnCount]: number;
+  [kRolledback] = false;
   [kCommitted] = false;
-  readonly #writeKeys = new Set<string>();
+  readonly [kWriteSet] = new Set<string>();
 
-  constructor(txn: StorageTransaction) {
-    this[kTxn] = txn;
+  constructor(inner: Storage, startTxnCount: number) {
+    this[kInner] = new ShadowStorage(inner);
+    this[kStartTxnCount] = startTxnCount;
   }
 
   #check(op: string): void {
-    if (this.#rolledback) {
+    if (this[kRolledback]) {
       throw new Error(`Cannot ${op}() on rolled back transaction`);
     }
     if (this[kCommitted]) {
@@ -104,35 +224,12 @@ export class DurableObjectTransaction implements DurableObjectOperator {
   }
 
   #markWritten(...keys: string[]): void {
-    for (const key of keys) this.#writeKeys.add(key);
-    if (this.#writeKeys.size > MAX_KEYS) {
+    addAll(this[kWriteSet], keys);
+    if (this[kWriteSet].size > MAX_KEYS) {
       throw new Error(
         `Maximum number of keys modified in a transaction is ${MAX_KEYS}.`
       );
     }
-  }
-
-  async #get<Value = unknown>(
-    keys: string | string[]
-  ): Promise<Value | undefined | Map<string, Value>> {
-    if (Array.isArray(keys)) {
-      if (keys.length > MAX_KEYS) {
-        throw new RangeError(`Maximum number of keys is ${MAX_KEYS}.`);
-      }
-      // If array of keys passed, build map of results
-      const res = new Map<string, Value>();
-      const values = await this[kTxn].getMany(keys, true);
-      assert.strictEqual(keys.length, values.length);
-      for (let i = 0; i < keys.length; i++) {
-        const value = values[i];
-        if (value !== undefined) res.set(keys[i], deserialize(value.value));
-      }
-      return res;
-    }
-
-    // Otherwise, return a single result
-    const value = await this[kTxn].get(keys, true);
-    return value && deserialize(value.value);
   }
 
   get<Value = unknown>(
@@ -147,9 +244,15 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     keys: string | string[],
     options?: DurableObjectGetOptions
   ): Promise<Value | undefined | Map<string, Value>> {
+    if (keys === undefined) {
+      throw new TypeError(
+        "Failed to execute 'get' on 'DurableObjectTransaction'" +
+          undefinedKeyError
+      );
+    }
     this.#check("get");
     return runWithInputGateClosed(
-      () => this.#get(keys as any),
+      () => get(this[kInner], keys as any),
       options?.allowConcurrency
     );
   }
@@ -158,33 +261,9 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     keyEntries: string | Record<string, Value>,
     valueOptions?: Value
   ): Promise<void> {
-    if (typeof keyEntries === "string") {
-      if (valueOptions === undefined) {
-        throw new TypeError("put() called with undefined value.");
-      }
-      assertKeySize(keyEntries);
-      const serialized = serialize(valueOptions);
-      assertValueSize(serialized);
-      const value = viewToArray(serialized);
-      this.#markWritten(keyEntries);
-      return Promise.resolve(this[kTxn].put(keyEntries, { value }));
-    }
-
-    const entries = Object.entries(keyEntries);
-    if (entries.length > MAX_KEYS) {
-      throw new RangeError(`Maximum number of pairs is ${MAX_KEYS}.`);
-    }
-    const mapped = entries.map<[key: string, value: StoredValue]>(
-      ([key, rawValue]) => {
-        assertKeySize(key, true);
-        const serialized = serialize(rawValue);
-        assertValueSize(serialized, key);
-        const value = viewToArray(serialized);
-        return [key, { value }];
-      }
-    );
-    this.#markWritten(...mapped.map(([key]) => key));
-    return this[kTxn].putMany(mapped);
+    const entries = normalisePutEntries(keyEntries, valueOptions);
+    this.#markWritten(...entries.map(([key]) => key));
+    return this[kInner].putMany(entries);
   }
 
   put<Value = unknown>(
@@ -201,6 +280,12 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     valueOptions?: Value | DurableObjectPutOptions,
     options?: DurableObjectPutOptions
   ): Promise<void> {
+    if (keyEntries === undefined) {
+      throw new TypeError(
+        "Failed to execute 'put' on 'DurableObjectTransaction'" +
+          undefinedKeyError
+      );
+    }
     this.#check("put");
     if (!options && typeof keyEntries !== "string") options = valueOptions;
     return waitUntilOnOutputGate(
@@ -213,15 +298,12 @@ export class DurableObjectTransaction implements DurableObjectOperator {
   }
 
   #delete(keys: string | string[]): Promise<boolean | number> {
-    if (Array.isArray(keys)) {
-      if (keys.length > MAX_KEYS) {
-        throw new RangeError(`Maximum number of keys is ${MAX_KEYS}.`);
-      }
-      this.#markWritten(...keys);
-      return this[kTxn].deleteMany(keys);
-    }
-    this.#markWritten(keys);
-    return Promise.resolve(this[kTxn].delete(keys));
+    const keysIsArray = Array.isArray(keys);
+    keys = normaliseDeleteKeys(keys);
+    this.#markWritten(...keys);
+    return keysIsArray
+      ? this[kInner].deleteMany(keys)
+      : Promise.resolve(this[kInner].delete(keys[0]));
   }
 
   delete(key: string, options?: DurableObjectPutOptions): Promise<boolean>;
@@ -230,6 +312,12 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     keys: string | string[],
     options?: DurableObjectPutOptions
   ): Promise<boolean | number> {
+    if (keys === undefined) {
+      throw new TypeError(
+        "Failed to execute 'delete' on 'DurableObjectTransaction'" +
+          undefinedKeyError
+      );
+    }
     this.#check("delete");
     return waitUntilOnOutputGate(
       runWithInputGateClosed(
@@ -247,39 +335,120 @@ export class DurableObjectTransaction implements DurableObjectOperator {
   list<Value = unknown>(
     options: DurableObjectListOptions = {}
   ): Promise<Map<string, Value>> {
-    // TODO: should there be a maximum limit of MAX_KEYS here?
     this.#check("list");
-    if (options.limit !== undefined && options.limit <= 0) {
-      throw new TypeError("List limit must be positive.");
-    }
-    return runWithInputGateClosed(async () => {
-      const { keys } = await this[kTxn].list(options, true);
-      return this.get(keys.map(({ name }) => name));
-    }, options.allowConcurrency);
+    return runWithInputGateClosed(
+      () => list(this[kInner], options),
+      options.allowConcurrency
+    );
   }
 
   rollback(): void {
-    if (this.#rolledback) return; // Allow multiple rollback() calls
+    if (this[kRolledback]) return; // Allow multiple rollback() calls
     this.#check("rollback");
-    this.#rolledback = true;
-    this[kTxn].rollback();
+    this[kRolledback] = true;
   }
 }
 
-// When using implicit transactions for storage operations, there's no need
-// to close gates when performing the actual storage operations as this will
-// be done with the transaction itself, and the storage operation is the only
-// thing these transactions do. These options disable any gates.
-const bypassGatesOptions: DurableObjectPutOptions = {
-  allowConcurrency: true,
-  allowUnconfirmed: true,
-};
+// Maximum size of txnWriteSets map for validation, this is basically the
+// maximum number of concurrent transactions we expect to be running on a single
+// storage instance
+const txnWriteSetsMaxSize = 16;
+
+function runWithGatesClosed<T>(
+  closure: () => Promise<T>,
+  options?: DurableObjectPutOptions
+): Promise<T> {
+  return waitUntilOnOutputGate(
+    runWithInputGateClosed(closure, options?.allowConcurrency),
+    options?.allowUnconfirmed
+  );
+}
 
 export class DurableObjectStorage implements DurableObjectOperator {
-  readonly #storage: Storage;
+  readonly #mutex = new ReadWriteMutex();
 
-  constructor(storage: Storage) {
-    this.#storage = storage;
+  #txnCount = 0;
+  readonly #txnWriteSets = new Map<number, Set<string>>();
+
+  // Ordered array of keys deleted in delete calls
+  #deletedKeySets: string[][] = [];
+  // Map array reference to number of keys deleted from that array
+  readonly #deletedKeyResults = new Map<string[], number>();
+
+  readonly #inner: Storage;
+  // Shadow copies only used for write coalescing, not caching. Caching might
+  // be added in the future, but it seemed redundant since most users will be
+  // using in-memory storage anyways, and the file system isn't *too* slow.
+  readonly #shadow: ShadowStorage;
+
+  constructor(inner: Storage) {
+    this.#inner = inner;
+    // false disables recording readSet, only needed for transactions
+    this.#shadow = new ShadowStorage(inner, false);
+  }
+
+  async #txnRead<T>(
+    closure: (txn: DurableObjectTransaction) => Promise<T>
+  ): Promise<{ txn: DurableObjectTransaction; result: T }> {
+    // 1. Read Phase
+    const startTxnCount = this.#txnCount;
+    // Note txn uses #shadow as its inner storage, so in-progress non-durable
+    // puts/deletes are visible
+    const txn = new DurableObjectTransaction(this.#shadow, startTxnCount);
+    const result = await closure(txn);
+    // Might not actually commit, this is just for #check()
+    txn[kCommitted] = true;
+    return { txn, result };
+  }
+
+  async #txnValidateWrite(txn: DurableObjectTransaction): Promise<boolean> {
+    // This function returns false iff the transaction should be retried
+
+    // Don't commit if rolledback
+    if (txn[kRolledback]) return true;
+
+    // Mutex needed as these phases need to be performed as a critical section
+    return this.#mutex.runWithWrite(async () => {
+      // 2. Validate Phase
+      const finishTxnCount = this.#txnCount;
+      const readSet = txn[kInner].readSet!;
+      for (let t = txn[kStartTxnCount] + 1; t <= finishTxnCount; t++) {
+        const otherWriteSet = await this.#txnWriteSets.get(t);
+        if (!otherWriteSet || intersects(otherWriteSet, readSet)) {
+          return false;
+        }
+      }
+
+      // 3. Write Phase
+      this.#txnRecordWriteSet(txn[kWriteSet]);
+      for (const [key, value] of txn[kInner].copies.entries()) {
+        this.#shadow.copies.set(key, value);
+      }
+      await this.#flush();
+
+      return true;
+    });
+  }
+
+  #txnRecordWriteSet(writeSet: Set<string>): void {
+    this.#txnCount++;
+    this.#txnWriteSets.set(this.#txnCount, writeSet);
+    // Keep txnWriteSets.size <= txnMapSize: deleted ID may be negative
+    // (i.e. transaction never existed), but delete on non-existent key is noop
+    this.#txnWriteSets.delete(this.#txnCount - txnWriteSetsMaxSize);
+  }
+
+  transaction<T>(
+    closure: (txn: DurableObjectTransaction) => Promise<T>
+  ): Promise<T> {
+    // Close input and output gate, we don't know what this transaction will do
+    return runWithGatesClosed(async () => {
+      // TODO (someday): maybe throw exception after n retries?
+      while (true) {
+        const { txn, result } = await this.#txnRead(closure);
+        if (await this.#txnValidateWrite(txn)) return result;
+      }
+    });
   }
 
   get<Value = unknown>(
@@ -294,12 +463,83 @@ export class DurableObjectStorage implements DurableObjectOperator {
     keys: string | string[],
     options?: DurableObjectGetOptions
   ): Promise<Value | undefined | Map<string, Value>> {
-    return this.#transaction(
-      (txn) => txn.get(keys as any, bypassGatesOptions),
-      // Reading so no need for output gate, hence allowUnconfirmed: true
-      { allowConcurrency: options?.allowConcurrency, allowUnconfirmed: true }
+    if (keys === undefined) {
+      throw new TypeError(
+        "Failed to execute 'get' on 'DurableObjectStorage'" + undefinedKeyError
+      );
+    }
+    return runWithInputGateClosed(
+      () => this.#mutex.runWithRead(() => get(this.#shadow, keys as any)),
+      options?.allowConcurrency
     );
   }
+
+  #flush = async (): Promise<void> => {
+    // Must be called with #mutex's write lock held
+
+    // If already flushed everything, don't flush again
+    if (this.#shadow.copies.size === 0) {
+      assert.strictEqual(this.#deletedKeySets.length, 0);
+      return;
+    }
+
+    // Copy deletedKeySets and entries at the start of the flush, as more values
+    // may be added mid-way through. These will be handled on the next flush.
+    const deletedKeySets = this.#deletedKeySets;
+    this.#deletedKeySets = [];
+    const entries = [...this.#shadow.copies.entries()];
+    // Keep non-durable data in shadow copies whilst writing, in case it's read
+
+    // Try to delete everything before putting, so we don't delete data put
+    // after call to delete. We still need to check with the database to see
+    // if the keys were deleted, as the user might await the promise afterwards:
+    //
+    // ```js
+    // // storage includes "key"
+    // const promise = storage.delete("key");
+    // storage.put("key", "value");
+    // await promise; // should be true
+    // ```
+    //
+    // ```js
+    // // storage doesn't include "key"
+    // const promise = storage.delete("key");
+    // storage.put("key", "value");
+    // await promise; // should be false
+    // ```
+    //
+    // Record allDeletedKeys so we can record keys that aren't in deletedKeySets
+    // (because they existed as shadow copies before hand so we know they would
+    // be deleted), but still need to be deleted anyways.
+    const allDeletedKeys = new Set<string>();
+    for (const deleteKeySet of deletedKeySets) {
+      const result = await this.#inner.deleteMany(deleteKeySet);
+      this.#deletedKeyResults.set(deleteKeySet, result);
+      addAll(allDeletedKeys, deleteKeySet);
+    }
+
+    const putEntries: [key: string, value: StoredValue][] = [];
+    const deleteKeys: string[] = [];
+    for (const [key, value] of entries) {
+      if (value) putEntries.push([key, value]);
+      else if (!allDeletedKeys.has(key)) deleteKeys.push(key);
+    }
+    if (putEntries.length > 0) await this.#inner.putMany(putEntries);
+    if (deleteKeys.length > 0) await this.#inner.deleteMany(deleteKeys);
+
+    // TODO: can probably just clear the map here: as flush must be run with
+    //  the write mutex held and shadow copies are only mutated with that held,
+    //  we know the map won't be mutated during the flush
+    //  (check this is the only case copies #shadow.copies mutated)
+    for (const [key, value] of entries) {
+      // If shadow copy unchanged during flush, delete it as it's now durable,
+      // otherwise, there must've been another call to put/delete which
+      // will flush again with the now changed value.
+      if (this.#shadow.copies.get(key) === value) {
+        this.#shadow.copies.delete(key);
+      }
+    }
+  };
 
   put<Value = unknown>(
     key: string,
@@ -310,69 +550,116 @@ export class DurableObjectStorage implements DurableObjectOperator {
     entries: Record<string, Value>,
     options?: DurableObjectPutOptions
   ): Promise<void>;
-  async put<Value = unknown>(
+  put<Value = unknown>(
     keyEntries: string | Record<string, Value>,
     valueOptions?: Value | DurableObjectPutOptions,
     options?: DurableObjectPutOptions
   ): Promise<void> {
-    return this.#transaction(
-      (txn) => txn.put(keyEntries as any, valueOptions, bypassGatesOptions),
-      options
-    );
+    if (keyEntries === undefined) {
+      throw new TypeError(
+        "Failed to execute 'put' on 'DurableObjectStorage'" + undefinedKeyError
+      );
+    }
+
+    const entries = normalisePutEntries(keyEntries, valueOptions);
+    if (!options && typeof keyEntries !== "string") options = valueOptions;
+    return runWithGatesClosed(async () => {
+      await this.#mutex.runWithWrite(() => {
+        for (const [key, value] of entries) this.#shadow.put(key, value);
+        // "Commit" write
+        this.#txnRecordWriteSet(new Set(entries.map(([key]) => key)));
+      });
+      // Promise.resolve() allows other puts/deletes (coalescing) before flush
+      await Promise.resolve();
+      return this.#mutex.runWithWrite(this.#flush);
+    }, options);
   }
 
   delete(key: string, options?: DurableObjectPutOptions): Promise<boolean>;
   delete(keys: string[], options?: DurableObjectPutOptions): Promise<number>;
-  async delete(
+  delete(
     keys: string | string[],
     options?: DurableObjectPutOptions
   ): Promise<boolean | number> {
-    return this.#transaction(
-      (txn) => txn.delete(keys as any, bypassGatesOptions),
-      options
-    );
+    if (keys === undefined) {
+      throw new TypeError(
+        "Failed to execute 'delete' on 'DurableObjectStorage'" +
+          undefinedKeyError
+      );
+    }
+
+    // Record this so we know whether to return a boolean or number at the end
+    const keysIsArray = Array.isArray(keys);
+    keys = normaliseDeleteKeys(keys);
+    let deleted = 0;
+    const deletedKeySet: string[] = [];
+
+    return runWithGatesClosed(async () => {
+      await this.#mutex.runWithWrite(() => {
+        for (const key of keys) {
+          // Filter out undefined keys
+          if (key === undefined) continue;
+
+          if (this.#shadow.copies.has(key)) {
+            if (this.#shadow.copies.get(key) !== undefined) {
+              // Previously called put with this key, no need to check if it got
+              // deleted, we know it will
+              deleted++;
+            }
+            // ...else, previously called delete with this key, no need to check if
+            // it got deleted, we know it already has
+          } else {
+            // If we haven't done anything with this key yet, we need to check with
+            // the database whether it's deleted
+            deletedKeySet.push(key);
+          }
+          // Not using this.#shadow.delete as we need this to be synchronous
+          this.#shadow.copies.set(key, undefined);
+        }
+        // If there are keys we need to check if deleted, record them, we'll do this
+        // when we flush
+        if (deletedKeySet.length) this.#deletedKeySets.push(deletedKeySet);
+
+        // "Commit" delete
+        this.#txnRecordWriteSet(new Set(keys));
+      });
+
+      // Promise.resolve() allows other puts/deletes (coalescing) before flush
+      await Promise.resolve();
+      return this.#mutex.runWithWrite(async () => {
+        await this.#flush();
+        if (deletedKeySet.length) {
+          assert(!this.#deletedKeySets.includes(deletedKeySet));
+          const result = this.#deletedKeyResults.get(deletedKeySet);
+          this.#deletedKeyResults.delete(deletedKeySet);
+          assert(result !== undefined);
+          deleted += result;
+        }
+        return keysIsArray ? deleted : deleted > 0;
+      });
+    }, options);
   }
 
   async deleteAll(options?: DurableObjectPutOptions): Promise<void> {
-    return this.#transaction(async (txn) => {
-      // Bypassing max key checks, and actually getting keys' values too
-      const { keys } = await txn[kTxn].list();
-      await txn[kTxn].deleteMany(keys.map(({ name }) => name));
-    }, options);
+    return runWithGatesClosed(
+      () =>
+        this.#mutex.runWithWrite(async () => {
+          const { keys } = await this.#shadow.list();
+          const names = keys.map(({ name }) => name);
+          for (const key of names) this.#shadow.copies.set(key, undefined);
+          this.#txnRecordWriteSet(new Set(names));
+          await this.#flush();
+        }),
+      options
+    );
   }
 
   async list<Value = unknown>(
     options?: DurableObjectListOptions
   ): Promise<Map<string, Value>> {
-    return this.#transaction(
-      (txn) => txn.list({ ...options, ...bypassGatesOptions }),
-      // Reading so no need for output gate, hence allowUnconfirmed: true
-      { allowConcurrency: options?.allowConcurrency, allowUnconfirmed: true }
+    return runWithInputGateClosed(
+      () => this.#mutex.runWithRead(() => list(this.#shadow, options)),
+      options?.allowConcurrency
     );
-  }
-
-  #transaction<T>(
-    closure: (txn: DurableObjectTransaction) => Promise<T>,
-    options?: DurableObjectPutOptions
-  ): Promise<T> {
-    return waitUntilOnOutputGate(
-      runWithInputGateClosed(() => {
-        return this.#storage.transaction(async (txn) => {
-          const durableObjectTxn = new DurableObjectTransaction(txn);
-          const result = await closure(durableObjectTxn);
-          // Might not actually commit, this is just for #check()
-          durableObjectTxn[kCommitted] = true;
-          return result;
-        });
-      }, options?.allowConcurrency),
-      options?.allowUnconfirmed
-    );
-  }
-
-  transaction<T>(
-    closure: (txn: DurableObjectTransaction) => Promise<T>
-  ): Promise<T> {
-    // Close input and output gate, we don't know what this transaction will do
-    return this.#transaction(closure);
   }
 }

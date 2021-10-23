@@ -4,7 +4,7 @@ import { utf8Encode } from "../data";
 import {
   MIXED_SEED,
   SECTION_SEED,
-  TestOperatorFactory,
+  TestStorageFactory,
   assertExpiring,
   keyNames,
 } from "./shared";
@@ -13,16 +13,9 @@ const listMacro = function (
   description: string,
   expectedPages: string[][],
   options?: StorageListOptions
-): Macro<[TestOperatorFactory]> {
-  const macro: Macro<[TestOperatorFactory]> = async (
-    t,
-    { operatorFactory, usesListCursor }
-  ) => {
-    if (options?.cursor && !usesListCursor) {
-      t.pass("skipped as doesn't support list cursor");
-      return;
-    }
-    const storage = await operatorFactory(t, SECTION_SEED);
+): Macro<[TestStorageFactory]> {
+  const macro: Macro<[TestStorageFactory]> = async (t, { factory }) => {
+    const storage = await factory(t, SECTION_SEED);
     let lastCursor = "";
     for (let i = 0; i < expectedPages.length; i++) {
       const { keys, cursor } = await storage.list({
@@ -30,13 +23,12 @@ const listMacro = function (
         cursor: options?.cursor ?? lastCursor,
       });
       t.deepEqual(keyNames(keys), expectedPages[i]);
-      if (i === expectedPages.length - 1 || !usesListCursor) {
+      if (i === expectedPages.length - 1) {
         // Last Page
         t.is(cursor, "");
       } else {
         t.not(cursor, "");
       }
-      if (!usesListCursor) break;
       lastCursor = cursor;
     }
   };
@@ -145,19 +137,15 @@ export const listInvalidCursor = listMacro(
   { cursor: "not a cursor" }
 );
 
-export const listPaginateVariableMacro: Macro<[TestOperatorFactory]> = async (
+export const listPaginateVariableMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory, usesListCursor }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, SECTION_SEED);
+  const storage = await factory(t, SECTION_SEED);
 
   // Get first page
   let page = await storage.list({ limit: 1 });
   t.deepEqual(keyNames(page.keys), ["section1key1"]);
-  if (!usesListCursor) {
-    t.is(page.cursor, "");
-    return;
-  }
   t.not(page.cursor, "");
 
   // Get second page with different limit
@@ -177,11 +165,11 @@ export const listPaginateVariableMacro: Macro<[TestOperatorFactory]> = async (
 listPaginateVariableMacro.title = (providedTitle, { name }) =>
   `${name}: list: paginates with variable limit`;
 
-export const listInsertPaginateMacro: Macro<[TestOperatorFactory]> = async (
+export const listInsertPaginateMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory, usesListCursor }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, {
+  const storage = await factory(t, {
     key1: { value: utf8Encode("value1") },
     key3: { value: utf8Encode("value3") },
     key5: { value: utf8Encode("value5") },
@@ -190,10 +178,6 @@ export const listInsertPaginateMacro: Macro<[TestOperatorFactory]> = async (
   // Get first page
   let page = await storage.list({ limit: 2 });
   t.deepEqual(keyNames(page.keys), ["key1", "key3"]);
-  if (!usesListCursor) {
-    t.is(page.cursor, "");
-    return;
-  }
   t.not(page.cursor, "");
 
   // Insert key2 and key4
@@ -210,11 +194,11 @@ export const listInsertPaginateMacro: Macro<[TestOperatorFactory]> = async (
 listInsertPaginateMacro.title = (providedTitle, { name }) =>
   `${name}: list: returns keys inserted whilst paginating`;
 
-export const listEmptyMacro: Macro<[TestOperatorFactory]> = async (
+export const listEmptyMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, {});
+  const storage = await factory(t, {});
   const { keys, cursor } = await storage.list();
   t.deepEqual(keys, []);
   t.is(cursor, "");
@@ -222,9 +206,9 @@ export const listEmptyMacro: Macro<[TestOperatorFactory]> = async (
 listEmptyMacro.title = (providedTitle, { name }) =>
   `${name}: list: returns empty list with no keys`;
 
-export const listExistingWithMetadataMacro: Macro<[TestOperatorFactory]> =
-  async (t, { usesActualTime, operatorFactory }) => {
-    const storage = await operatorFactory(t, MIXED_SEED);
+export const listExistingWithMetadataMacro: Macro<[TestStorageFactory]> =
+  async (t, { usesActualTime, factory }) => {
+    const storage = await factory(t, MIXED_SEED);
     const { keys, cursor } = await storage.list();
     // Note expired key key3 shouldn't be returned
     const key2Expiration = assertExpiring(
@@ -242,15 +226,15 @@ export const listExistingWithMetadataMacro: Macro<[TestOperatorFactory]> =
 listExistingWithMetadataMacro.title = (providedTitle, { name }) =>
   `${name}: list: lists existing keys with metadata`;
 
-export const listSkipsMetadataMacro: Macro<[TestOperatorFactory]> = async (
+export const listSkipsMetadataMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { usesSkipMetadata, operatorFactory }
+  { usesSkipMetadata, factory }
 ) => {
   if (!usesSkipMetadata) {
     t.pass("skipped as doesn't respect skipMetadata");
     return;
   }
-  const storage = await operatorFactory(t, MIXED_SEED);
+  const storage = await factory(t, MIXED_SEED);
   const { keys, cursor } = await storage.list(
     { prefix: "key", start: "key2", limit: 1 },
     true
@@ -266,11 +250,11 @@ export const listSkipsMetadataMacro: Macro<[TestOperatorFactory]> = async (
 listSkipsMetadataMacro.title = (providedTitle, { name }) =>
   `${name}: list: skips metadata`;
 
-export const listCopyMacro: Macro<[TestOperatorFactory]> = async (
+export const listCopyMacro: Macro<[TestStorageFactory]> = async (
   t,
-  { operatorFactory }
+  { factory }
 ) => {
-  const storage = await operatorFactory(t, MIXED_SEED);
+  const storage = await factory(t, MIXED_SEED);
   const result1 = await storage.list({ start: "key1", limit: 1 });
   // Mutate data and check updates not stored
   result1.keys[0].name = "random";

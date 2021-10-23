@@ -1,9 +1,8 @@
 import { Storage, StoredValueMeta } from "@miniflare/shared";
 import {
   TestStorageFactory,
-  operatorMacros,
+  storageMacros,
   testClock,
-  txnMacros,
 } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
 import test, { ExecutionContext } from "ava";
@@ -21,12 +20,6 @@ class MemoryStorageFactory extends TestStorageFactory {
 }
 
 const storageFactory = new MemoryStorageFactory();
-const transactionOperatorFactory = storageFactory.transactionOperatorFactory();
-
-for (const macro of operatorMacros) {
-  test(macro, storageFactory);
-  test(macro, transactionOperatorFactory);
-}
-for (const macro of txnMacros) {
+for (const macro of storageMacros) {
   test(macro, storageFactory);
 }

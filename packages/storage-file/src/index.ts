@@ -1,11 +1,7 @@
-import assert from "assert";
-import { existsSync, promises as fs } from "fs";
+import { existsSync } from "fs";
 import path from "path";
 import {
   MiniflareError,
-  Storage,
-  StorageOperator,
-  StorageTransaction,
   StoredKeyMeta,
   StoredMeta,
   StoredValueMeta,
@@ -13,14 +9,8 @@ import {
   sanitisePath,
   viewToArray,
 } from "@miniflare/shared";
-import {
-  LocalStorageOperator,
-  OptimisticTransactionManager,
-} from "@miniflare/storage-memory";
+import { LocalStorage } from "@miniflare/storage-memory";
 import { deleteFile, readFile, walk, writeFile } from "./helpers";
-import { FileMutex } from "./sync";
-
-export * from "./sync";
 
 const metaSuffix = ".meta.json";
 
@@ -32,7 +22,7 @@ interface FileMeta<Meta = unknown> extends StoredMeta<Meta> {
   key?: string;
 }
 
-export class FileStorageOperator extends LocalStorageOperator {
+export class FileStorage extends LocalStorage {
   protected readonly root: string;
 
   constructor(
@@ -142,66 +132,5 @@ export class FileStorageOperator extends LocalStorageOperator {
       });
     }
     return keys;
-  }
-}
-
-export class FileTransactionManager extends OptimisticTransactionManager {
-  private readonly rootMkdir: Promise<unknown>;
-  private readonly mutex: FileMutex;
-  private readonly txnCountPath: string;
-  private readonly txnWriteSetPathPrefix: string;
-
-  constructor(storage: StorageOperator, root: string) {
-    super(storage);
-    root = path.resolve(root + ".txn");
-    this.rootMkdir = fs.mkdir(root, { recursive: true });
-    this.mutex = new FileMutex(path.join(root, "lock"));
-    this.txnCountPath = path.join(root, "count");
-    this.txnWriteSetPathPrefix = path.join(root, "writes");
-  }
-
-  async runExclusive<T>(closure: () => Promise<T>): Promise<T> {
-    await this.rootMkdir;
-    return this.mutex.runWith(closure);
-  }
-
-  async getTxnCount(): Promise<number> {
-    return parseInt((await readFile(this.txnCountPath, true)) ?? "0");
-  }
-  async setTxnCount(value: number): Promise<void> {
-    await this.rootMkdir;
-    await writeFile(this.txnCountPath, value.toString());
-  }
-
-  private writeSetPath(id: number): string {
-    return `${this.txnWriteSetPathPrefix}${id}.json`;
-  }
-  async getTxnWriteSet(id: number): Promise<Set<string> | undefined> {
-    const value = await readFile(this.writeSetPath(id), true);
-    if (value === undefined) return;
-    const array = JSON.parse(value);
-    assert(Array.isArray(array));
-    return new Set<string>(array);
-  }
-  async setTxnWriteSet(
-    id: number,
-    value: Set<string> | undefined
-  ): Promise<void> {
-    await this.rootMkdir;
-    const writeSetPath = this.writeSetPath(id);
-    if (value) await writeFile(writeSetPath, JSON.stringify([...value]));
-    else await deleteFile(writeSetPath);
-  }
-}
-
-// TODO: rename to ExperimentalFileStorage, and create new FileStorage using
-//  MemoryTransactionManager
-export class FileStorage extends FileStorageOperator implements Storage {
-  private txnManager?: FileTransactionManager;
-
-  transaction<T>(closure: (txn: StorageTransaction) => Promise<T>): Promise<T> {
-    // Lazily create the transaction manager to keep the storage directory tidy
-    this.txnManager ??= new FileTransactionManager(this, this.root);
-    return this.txnManager.runTransaction(closure);
   }
 }

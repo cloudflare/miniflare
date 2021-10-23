@@ -26,7 +26,7 @@ const SUGGEST_RES =
   "calling `event.respondWith()` with a `Response` or `Promise<Response>` in your handler";
 const SUGGEST_RES_MODULES = "returning a `Response` in your handler";
 const SUGGEST_GLOBAL_BINDING_MODULES =
-  "Attempted to access binding using global in modules mode." +
+  "Attempted to access binding using global in modules." +
   "\nYou must use the 2nd `env` parameter passed to exported " +
   "handlers or Durable Object constructors.";
 
