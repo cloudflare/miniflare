@@ -31,7 +31,7 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/cli": "2.0.0",
+    "@miniflare/cli-parser": "2.0.0",
     "@miniflare/core": "2.0.0",
     "@miniflare/runner-vm": "2.0.0",
     "@miniflare/shared": "2.0.0",

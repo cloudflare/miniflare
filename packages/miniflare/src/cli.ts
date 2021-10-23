@@ -24,7 +24,7 @@ function suppressWarnings() {
 async function main() {
   // Need to import these after warnings have been suppressed
   const [{ ParseError, buildHelp, parseArgv }, { Miniflare, PLUGINS }] =
-    await Promise.all([import("@miniflare/cli"), import("miniflare")]);
+    await Promise.all([import("@miniflare/cli-parser"), import("miniflare")]);
 
   // Parse command line options
   let options: Options<typeof PLUGINS>;

@@ -1,4 +1,4 @@
-import { parseArgv } from "@miniflare/cli";
+import { parseArgv } from "@miniflare/cli-parser";
 import {
   BeforeSetupResult,
   Context,

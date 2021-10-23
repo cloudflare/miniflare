@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@miniflare/cache": "2.0.0",
-    "@miniflare/cli": "2.0.0",
+    "@miniflare/cli-parser": "2.0.0",
     "@miniflare/core": "2.0.0",
     "@miniflare/durable-objects": "2.0.0",
     "@miniflare/html-rewriter": "2.0.0",
