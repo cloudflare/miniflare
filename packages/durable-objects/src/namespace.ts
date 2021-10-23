@@ -90,7 +90,6 @@ export class DurableObjectStub {
     return this.id.name;
   }
 
-  // TODO: check websocket requests work here
   async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
     // Get object
     const state = await this.#factory(this.id);
@@ -129,15 +128,15 @@ export class DurableObjectNamespace {
     this.#objectNameHashHex = hexEncode(this.#objectNameHash);
   }
 
-  newUniqueId(_options: NewUniqueIdOptions): DurableObjectId {
+  newUniqueId(_options?: NewUniqueIdOptions): DurableObjectId {
     // Create new zero-filled 32 byte buffer
     const id = new Uint8Array(32);
     // Leave first byte as 0, ensuring no intersection with named IDs
     // ...then write current time in 8 bytes
-    const view = new DataView(id);
+    const view = new DataView(id.buffer);
     view.setBigUint64(1, BigInt(Date.now()));
     // ...then fill 15 (32 - 1 - 8 - 8) bytes with random data
-    webcrypto.getRandomValues(new Uint8Array(id.buffer, 9, 15));
+    webcrypto.getRandomValues(new DataView(id.buffer, 9, 15));
     // ...then copy objectName hash
     id.set(this.#objectNameHash, 24 /* 32 - 8 */);
     return new DurableObjectId(this.#objectName, hexEncode(id));

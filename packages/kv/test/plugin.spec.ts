@@ -1,5 +1,4 @@
 import assert from "assert";
-import { CachedMeta } from "@miniflare/cache";
 import { KVNamespace, KVPlugin } from "@miniflare/kv";
 import { StoredValueMeta } from "@miniflare/shared";
 import {
@@ -58,7 +57,7 @@ test("KVPlugin: logs options", (t) => {
 });
 test("KVPlugin: getNamespace: creates namespace", async (t) => {
   const log = new NoOpLog();
-  const map = new Map<string, StoredValueMeta<CachedMeta>>();
+  const map = new Map<string, StoredValueMeta>();
   const factory = new MemoryStorageFactory({ ["map:NAMESPACE"]: map });
 
   const plugin = new KVPlugin(log, { kvPersist: "map" });
@@ -68,8 +67,8 @@ test("KVPlugin: getNamespace: creates namespace", async (t) => {
 });
 test("KVPlugin: setup: includes namespaces in bindings", async (t) => {
   const log = new NoOpLog();
-  const map1 = new Map<string, StoredValueMeta<CachedMeta>>();
-  const map2 = new Map<string, StoredValueMeta<CachedMeta>>();
+  const map1 = new Map<string, StoredValueMeta>();
+  const map2 = new Map<string, StoredValueMeta>();
   const factory = new MemoryStorageFactory({
     ["map:NAMESPACE1"]: map1,
     ["map:NAMESPACE2"]: map2,
