@@ -17,14 +17,17 @@
     "emitDeclarationOnly": true,
     "baseUrl": ".",
     "rootDir": ".",
+    "checkJs": true,
+    "allowJs": true,
     "paths": {
       "miniflare": ["packages/miniflare/src"],
       "@miniflare/*": ["packages/*/src"]
     }
   },
   "include": [
-    "packages/*/src",
-    "packages/*/test",
+    "packages/*/src/**/*.ts",
+    "packages/*/test/**/*.ts",
+    "packages/miniflare/bootstrap.js",
     "types"
   ]
 }

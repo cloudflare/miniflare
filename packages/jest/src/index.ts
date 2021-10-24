@@ -6,7 +6,7 @@ import { ModuleMocker } from "jest-mock";
 import { installCommonGlobals } from "jest-util";
 import { Miniflare } from "miniflare";
 
-type Timer = {
+export type Timer = {
   id: number;
   ref: () => Timer;
   unref: () => Timer;

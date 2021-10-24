@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 import childProcess from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
