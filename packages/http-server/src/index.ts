@@ -89,6 +89,8 @@ export async function convertNodeRequest(
   // https://support.cloudflare.com/hc/en-us/articles/200170986-How-does-Cloudflare-handle-HTTP-Request-headers-
   const proto = meta?.forwardedProto ?? "https";
   let ip = meta?.realIp ?? req.socket.remoteAddress ?? "";
+  // Convert IPv6 loopback address to IPv4 address
+  if (ip === "::1") ip = "127.0.0.1";
   // Remove IPv6 prefix for IPv4 addresses
   if (ip.startsWith("::ffff:")) ip = ip.substring("::ffff:".length);
   headers.set("x-forwarded-proto", proto);
