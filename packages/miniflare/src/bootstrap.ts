@@ -41,7 +41,6 @@ Consider using a Node.js version manager such as https://volta.sh/ or https://gi
     .spawn(
       process.execPath,
       [
-        "--enable-source-maps", // TODO: this caches source maps, check these get flushed properly, and they work with the webpack example
         "--experimental-vm-modules",
         ...process.execArgv,
         path.join(__dirname, "cli.js"),
