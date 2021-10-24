@@ -174,6 +174,7 @@ export class MiniflareCore<
   Plugins extends CorePluginSignatures
 > extends TypedEventTarget<MiniflareCoreEventMap<Plugins>> {
   readonly #plugins: PluginEntries<Plugins>;
+  #previousSetOptions: Options<Plugins>;
   #overrides: PluginOptions<Plugins>;
   #previousOptions?: PluginOptions<Plugins>;
 
@@ -206,6 +207,7 @@ export class MiniflareCore<
   ) {
     super();
     this.#plugins = getPluginEntries(plugins);
+    this.#previousSetOptions = options;
     this.#overrides = splitPluginOptions(this.#plugins, options);
 
     this.log = ctx.log;
@@ -566,6 +568,9 @@ export class MiniflareCore<
 
   async setOptions(options: Options<Plugins>): Promise<void> {
     await this.#initPromise;
+    // @ts-expect-error Options is an object type
+    options = { ...this.#previousSetOptions, ...options };
+    this.#previousSetOptions = options;
     this.#overrides = splitPluginOptions(this.#plugins, options);
     await this.#init();
     await this.#reload();

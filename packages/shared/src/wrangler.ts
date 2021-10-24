@@ -57,6 +57,7 @@ export interface WranglerEnvironmentConfig {
           pfx?: string;
           passphrase?: string;
         };
+    live_reload?: boolean;
     update_check?: boolean;
   }; // inherited
 }
