@@ -1,3 +1,4 @@
+import path from "path";
 import ignore from "ignore";
 
 export function nonCircularClone<T>(value: T): T {
@@ -88,7 +89,7 @@ function trailingReplacement(match: string) {
 
 export function sanitisePath(unsafe: string): string {
   return unsafe
-    .replace(namespaceRegexp, "/")
+    .replace(namespaceRegexp, path.sep)
     .replace(dotRegexp, dotReplacement)
     .replace(dotRegexp, dotReplacement)
     .replace(illegalRegexp, "_")

@@ -44,7 +44,7 @@ Consider using a Node.js version manager such as https://volta.sh/ or https://gi
       [
         "--experimental-vm-modules",
         ...process.execArgv,
-        path.join(__dirname, "cli.js"),
+        path.join(__dirname, "dist", "src", "cli.js"),
         ...process.argv.slice(2),
       ],
       { stdio: "inherit" }

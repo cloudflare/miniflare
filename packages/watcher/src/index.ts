@@ -183,7 +183,11 @@ class PathWatcher {
       // If dir is no longer a directory, something weird has happened,
       // (e.g. directory deleted and replaced with file of same name)
       // so just reset the watcher
-      if (!(await fsp.stat(dir)).isDirectory()) {
+      let dirIsDirectory = false;
+      try {
+        dirIsDirectory = (await fsp.stat(dir)).isDirectory();
+      } catch {}
+      if (!dirIsDirectory) {
         log(`${this.filePath}: ${dir} is no longer a directory, resetting...`);
         this.callback();
         this.dispose();
