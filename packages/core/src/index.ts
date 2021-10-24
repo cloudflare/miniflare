@@ -191,6 +191,7 @@ export class MiniflareCore<
   #beforeSetupWatch?: PluginData<Plugins, Set<string>>;
   #setupWatch?: PluginData<Plugins, Set<string>>;
   #setupResults?: PluginData<Plugins, SetupResult>;
+  #script?: ScriptBlueprint;
 
   #globalScope?: ServiceWorkerGlobalScope;
   #watcher?: Watcher;
@@ -377,7 +378,7 @@ export class MiniflareCore<
     const newWatchPaths = new Set<string>();
     if (this.#wranglerConfigPath) newWatchPaths.add(this.#wranglerConfigPath);
 
-    let script: ScriptBlueprint | undefined;
+    this.#script = undefined;
     for (const [name] of this.#plugins) {
       // Run beforeReload hook
       const instance = this.#instances![name];
@@ -391,8 +392,10 @@ export class MiniflareCore<
       Object.assign(globals, result?.globals);
       Object.assign(bindings, result?.bindings);
       if (result?.script) {
-        if (script) throw new TypeError("Multiple plugins returned a script");
-        script = result.script;
+        if (this.#script) {
+          throw new TypeError("Multiple plugins returned a script");
+        }
+        this.#script = result.script;
       }
 
       // Extract watch paths
@@ -413,7 +416,8 @@ export class MiniflareCore<
     // Run script blueprints, with modules rules if in modules mode
     const rules = modules ? processedModuleRules : undefined;
     const res =
-      script && (await this.#scriptRunner.run(globalScope, script, rules));
+      this.#script &&
+      (await this.#scriptRunner.run(globalScope, this.#script, rules));
     if (res?.watch) addAll(newWatchPaths, res.watch);
 
     // Add module event listeners if any
@@ -496,8 +500,15 @@ export class MiniflareCore<
     }
   }
 
+  #ignoreScriptUpdates = false;
+  #ignoreScriptUpdatesTimeout!: NodeJS.Timeout;
   #watcherCallback(eventPath: string): void {
     this.log.debug(`${path.relative("", eventPath)} changed...`);
+    if (this.#ignoreScriptUpdates && eventPath === this.#script?.filePath) {
+      this.log.verbose("Ignoring script change after build...");
+      return;
+    }
+
     const promise = this.#watcherCallbackMutex!.runWith(async () => {
       // If wrangler config changed, re-init any changed plugins
       if (eventPath === this.#wranglerConfigPath) {
@@ -510,6 +521,14 @@ export class MiniflareCore<
         if (this.#beforeSetupWatch!.get(name)?.has(eventPath)) {
           await this.#runBeforeSetup(name);
           ranBeforeSetup = true;
+
+          // Ignore script updates for 1s
+          this.#ignoreScriptUpdates = true;
+          clearTimeout(this.#ignoreScriptUpdatesTimeout);
+          this.#ignoreScriptUpdatesTimeout = setTimeout(
+            () => (this.#ignoreScriptUpdates = false),
+            1000
+          );
         }
         if (this.#setupWatch!.get(name)?.has(eventPath)) {
           await this.#runSetup(name);
