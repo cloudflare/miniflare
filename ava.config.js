@@ -10,6 +10,6 @@ export default {
     "--enable-source-maps",
     "--experimental-vm-modules",
     "--experimental-loader",
-    "./scripts/tsloader.js",
+    "./scripts/tsloader.mjs",
   ],
 };
