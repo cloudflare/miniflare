@@ -44,14 +44,18 @@ const validatesKeyMacro: Macro<
   [
     method: string,
     httpMethod: string,
-    func: (ns: KVNamespace, key?: string) => Promise<void>
+    func: (ns: KVNamespace, key?: any) => Promise<void>
   ],
   Context
 > = async (t, method, httpMethod, func) => {
   const { ns } = t.context;
   await t.throwsAsync(func(ns), {
     instanceOf: TypeError,
-    message: `Failed to execute '${method}' on 'KvNamespace': parameter 1 is not of type 'string'. (key is undefined)`,
+    message: `Failed to execute '${method}' on 'KvNamespace': parameter 1 is not of type 'string'.`,
+  });
+  await t.throwsAsync(func(ns, 0), {
+    instanceOf: TypeError,
+    message: `Failed to execute '${method}' on 'KvNamespace': parameter 1 is not of type 'string'.`,
   });
   await t.throwsAsync(func(ns, ""), {
     instanceOf: TypeError,
@@ -179,7 +183,7 @@ test("get: waits for input gate to open before returning stream chunk", async (t
   t.is(utf8Decode(chunk.value), "value");
 });
 test(validatesKeyMacro, "get", "GET", async (ns, key) => {
-  await ns.get(key!);
+  await ns.get(key);
 });
 test("get", validateGetMacro, async (ns, cacheTtl, type) => {
   await ns.get("key", { cacheTtl, type: type as any });
@@ -298,7 +302,7 @@ test("getWithMetadata: waits for input gate to open before returning stream chun
   t.is(utf8Decode(chunk.value), "value");
 });
 test(validatesKeyMacro, "getWithMetadata", "GET", async (ns, key) => {
-  await ns.getWithMetadata(key!);
+  await ns.getWithMetadata(key);
 });
 test("getWithMetadata", validateGetMacro, async (ns, cacheTtl, type) => {
   await ns.getWithMetadata("key", { cacheTtl, type: type as any });
@@ -410,7 +414,7 @@ test("put: waits for input gate to open before returning", async (t) => {
   await waitsForInputGate(t, () => ns.put("key", "value"));
 });
 test(validatesKeyMacro, "put", "PUT", async (ns, key) => {
-  await ns.put(key!, "value");
+  await ns.put(key, "value");
 });
 test("put: validates value type", async (t) => {
   const { ns } = t.context;
@@ -511,7 +515,7 @@ test("delete: waits for input gate to open before returning", async (t) => {
   await waitsForInputGate(t, () => ns.delete("key"));
 });
 test(validatesKeyMacro, "delete", "DELETE", async (ns, key) => {
-  await ns.delete(key!);
+  await ns.delete(key);
 });
 
 const listMacro: Macro<
