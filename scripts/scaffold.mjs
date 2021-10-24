@@ -7,7 +7,7 @@ import {
   projectRoot,
   scope,
   setPackage,
-} from "./common.js";
+} from "./common.mjs";
 
 const argv = process.argv.slice(2);
 const name = argv[0];

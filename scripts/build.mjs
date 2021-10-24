@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import esbuild from "esbuild";
-import { getPackage, pkgsDir, pkgsList, projectRoot } from "./common.js";
+import { getPackage, pkgsDir, pkgsList, projectRoot } from "./common.mjs";
 
 const argv = process.argv.slice(2);
 const watch = argv[0] === "watch";
