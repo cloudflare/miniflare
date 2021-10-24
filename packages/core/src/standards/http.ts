@@ -12,6 +12,7 @@ import {
   waitForOpenOutputGate,
 } from "@miniflare/shared";
 import type { WebSocket } from "@miniflare/web-sockets";
+import type { BusboyHeaders } from "busboy";
 import { Colorize, blue, bold, green, grey, red, yellow } from "kleur/colors";
 import { splitCookiesString } from "set-cookie-parser";
 import {
@@ -22,6 +23,7 @@ import {
   Response as BaseResponse,
   ResponseInit as BaseResponseInit,
   BodyInit,
+  File,
   FormData,
   RequestCache,
   RequestCredentials,
@@ -68,10 +70,12 @@ export class Headers extends BaseHeaders {
 export const kInner = Symbol("kInner");
 
 const kInputGated = Symbol("kInputGated");
+const kFormDataFiles = Symbol("kFormDataFiles");
 
-export class InputGatedBody<Inner extends BaseRequest | BaseResponse> {
+export class Body<Inner extends BaseRequest | BaseResponse> {
   [kInner]: Inner;
   [kInputGated] = false;
+  [kFormDataFiles] = true; // Default to enabling form-data File parsing
   #inputGatedBody?: ReadableStream;
   #headers?: Headers;
 
@@ -122,7 +126,7 @@ export class InputGatedBody<Inner extends BaseRequest | BaseResponse> {
     return this[kInner].bodyUsed;
   }
 
-  async arrayBuffer(): Promise<Buffer> {
+  async arrayBuffer(): Promise<ArrayBuffer> {
     const body = await this[kInner].arrayBuffer();
     this[kInputGated] && (await waitForOpenInputGate());
     return body;
@@ -133,9 +137,49 @@ export class InputGatedBody<Inner extends BaseRequest | BaseResponse> {
     return body;
   }
   async formData(): Promise<FormData> {
-    const body = await this[kInner].formData();
+    // undici doesn't include a multipart/form-data parser yet, so we parse
+    // form data with busboy instead
+    const headers: http.IncomingHttpHeaders = {};
+    for (const [key, value] of this.headers) headers[key.toLowerCase()] = value;
+    if (headers["content-type"] === undefined) {
+      throw new TypeError(
+        "Parsing a Body as FormData requires a Content-Type header."
+      );
+    }
+    const formData = new FormData();
+    await new Promise<void>(async (resolve) => {
+      const Busboy = await import("busboy");
+      const busboy = new Busboy.default({ headers: headers as BusboyHeaders });
+      busboy.on("field", (name, value) => {
+        formData.append(name, value);
+      });
+      busboy.on("file", (name, value, filename, encoding, type) => {
+        const base64 = encoding.toLowerCase() === "base64";
+        const chunks: Buffer[] = [];
+        let totalLength = 0;
+        value.on("data", (chunk: Buffer) => {
+          if (base64) chunk = Buffer.from(chunk.toString(), "base64");
+          chunks.push(chunk);
+          totalLength += chunk.byteLength;
+        });
+        value.on("end", () => {
+          if (this[kFormDataFiles]) {
+            const file = new File(chunks, filename, { type });
+            formData.append(name, file);
+          } else {
+            const text = Buffer.concat(chunks, totalLength).toString();
+            formData.append(name, text);
+          }
+        });
+      });
+      busboy.on("finish", resolve);
+
+      const body = this[kInner].body;
+      if (body !== null) for await (const chunk of body) busboy.write(chunk);
+      busboy.end();
+    });
     this[kInputGated] && (await waitForOpenInputGate());
-    return body;
+    return formData;
   }
   async json<T>(): Promise<T> {
     const body = await this[kInner].json();
@@ -157,10 +201,17 @@ export class InputGatedBody<Inner extends BaseRequest | BaseResponse> {
   }
 }
 
-export function withInputGating<
-  Inner extends InputGatedBody<BaseRequest | BaseResponse>
->(body: Inner): Inner {
+export function withInputGating<Inner extends Body<BaseRequest | BaseResponse>>(
+  body: Inner
+): Inner {
   body[kInputGated] = true;
+  return body;
+}
+
+export function withStringFormDataFiles<
+  Inner extends Body<BaseRequest | BaseResponse>
+>(body: Inner): Inner {
+  body[kFormDataFiles] = false;
   return body;
 }
 
@@ -170,7 +221,7 @@ export interface RequestInit extends BaseRequestInit {
   readonly cf?: IncomingRequestCfProperties | RequestInitCfProperties;
 }
 
-export class Request extends InputGatedBody<BaseRequest> {
+export class Request extends Body<BaseRequest> {
   // noinspection TypeScriptFieldCanBeMadeReadonly
   #cf?: IncomingRequestCfProperties | RequestInitCfProperties;
 
@@ -193,6 +244,7 @@ export class Request extends InputGatedBody<BaseRequest> {
     const innerClone = this[kInner].clone();
     const clone = new Request(innerClone);
     clone[kInputGated] = this[kInputGated];
+    clone[kFormDataFiles] = this[kFormDataFiles];
     clone.#cf = this.cf ? nonCircularClone(this.cf) : undefined;
     return clone;
   }
@@ -251,7 +303,7 @@ const kWaitUntil = Symbol("kWaitUntil");
 
 export class Response<
   WaitUntil extends any[] = unknown[]
-> extends InputGatedBody<BaseResponse> {
+> extends Body<BaseResponse> {
   // Note Workers don't implement Response.error()
 
   static redirect(url: string | URL, status: ResponseRedirectStatus): Response {
@@ -303,6 +355,7 @@ export class Response<
     const innerClone = this[kInner].clone();
     const clone = new Response(innerClone.body, innerClone);
     clone[kInputGated] = this[kInputGated];
+    clone[kFormDataFiles] = this[kFormDataFiles];
     // Technically don't need to copy status, as it should only be set for
     // WebSocket handshake responses
     clone.#status = this.#status;
@@ -385,7 +438,8 @@ export function createCompatFetch(
   inner: typeof fetch = fetch
 ): typeof fetch {
   const refusesUnknown = compat.isEnabled("fetch_refuses_unknown_protocols");
-  return (input, init) => {
+  const formDataFiles = compat.isEnabled("formdata_parser_supports_files");
+  return async (input, init) => {
     // noinspection SuspiciousTypeOfGuard
     const url = new URL(
       input instanceof Request || input instanceof BaseRequest
@@ -420,7 +474,9 @@ export function createCompatFetch(
         input = url;
       }
     }
-    return inner(input, init);
+    let res = await inner(input, init);
+    if (!formDataFiles) res = withStringFormDataFiles(res);
+    return res;
   };
 }
 

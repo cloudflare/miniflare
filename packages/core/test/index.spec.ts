@@ -1,3 +1,4 @@
+import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
 import { setTimeout } from "timers/promises";
@@ -14,8 +15,10 @@ import {
 } from "@miniflare/core";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
+  Context,
   LogLevel,
   NoOpLog,
+  Options,
   Storage,
   TypedEventListener,
 } from "@miniflare/shared";
@@ -34,7 +37,7 @@ import {
   utf8Encode,
 } from "@miniflare/shared-test";
 import test, { Macro } from "ava";
-import { Request as BaseRequest } from "undici";
+import { Request as BaseRequest, File, FormData } from "undici";
 
 // Only use this shared storage factory when the test doesn't care about storage
 const storageFactory = new MemoryStorageFactory();
@@ -905,6 +908,39 @@ test("MiniflareCore: dispatchFetch: request gets immutable headers", async (t) =
     instanceOf: TypeError,
     message: "immutable",
   });
+});
+test("MiniflareCore: dispatchFetch: Request parse files in FormData as File objects only if compatibility flag enabled", async (t) => {
+  let reqFormData: FormData;
+  const options: Options<{ BindingsPlugin: typeof BindingsPlugin }> = {
+    globals: { formDataCallback: (data: FormData) => (reqFormData = data) },
+  };
+  const handler = async (globals: Context, req: Request) => {
+    globals.formDataCallback(await req.formData());
+    return new globals.Response(null);
+  };
+  const formData = new FormData();
+  formData.append("file", new File(["test"], "test.txt"));
+
+  let mf = useMiniflareWithHandler({ BindingsPlugin }, options, handler);
+  await mf.dispatchFetch("http://localhost", {
+    method: "POST",
+    body: formData,
+  });
+  t.is(reqFormData!.get("file"), "test");
+
+  mf = useMiniflareWithHandler(
+    { BindingsPlugin },
+    { ...options, compatibilityFlags: ["formdata_parser_supports_files"] },
+    handler
+  );
+  await mf.dispatchFetch("http://localhost", {
+    method: "POST",
+    body: formData,
+  });
+  const file = reqFormData!.get("file");
+  assert(file instanceof File);
+  t.is(await file.text(), "test");
+  t.is(file.name, "test.txt");
 });
 
 test("MiniflareCore: dispatchScheduled: dispatches scheduled event", async (t) => {

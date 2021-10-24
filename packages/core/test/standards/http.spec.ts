@@ -2,9 +2,9 @@ import assert from "assert";
 import { text } from "stream/consumers";
 import { ReadableStream, TransformStream, WritableStream } from "stream/web";
 import {
+  Body,
   Headers,
   IncomingRequestCfProperties,
-  InputGatedBody,
   Request,
   Response,
   createCompatFetch,
@@ -12,6 +12,7 @@ import {
   logResponse,
   withImmutableHeaders,
   withInputGating,
+  withStringFormDataFiles,
   withWaitUntil,
 } from "@miniflare/core";
 import { Compatibility, InputGate, LogLevel } from "@miniflare/shared";
@@ -29,6 +30,8 @@ import {
   Request as BaseRequest,
   Response as BaseResponse,
   BodyMixin,
+  File,
+  FormData,
 } from "undici";
 
 // @ts-expect-error filling out all properties is annoying
@@ -58,30 +61,30 @@ test("Headers: getAll: returns separated Set-Cookie values", (t) => {
 });
 
 // These tests also implicitly test withInputGating
-test("InputGatedBody: body isn't input gated by default", async (t) => {
+test("Body: body isn't input gated by default", async (t) => {
   const inputGate = new InputGate();
   const [openTrigger, openPromise] = triggerPromise<void>();
   await inputGate.runWith(async () => {
     // noinspection ES6MissingAwait
     void inputGate.runWithClosed(() => openPromise);
-    const body = new InputGatedBody(new BaseResponse("body")).body;
+    const body = new Body(new BaseResponse("body")).body;
     assert(body);
     t.is(await text(body), "body");
   });
   openTrigger();
 });
-test("InputGatedBody: body returns null with null body", (t) => {
-  const body = withInputGating(new InputGatedBody(new BaseResponse(null)));
+test("Body: body returns null with null body", (t) => {
+  const body = withInputGating(new Body(new BaseResponse(null)));
   t.is(body.body, null);
 });
-test("InputGatedBody: same body instance is always returned", (t) => {
-  const body = withInputGating(new InputGatedBody(new BaseResponse("body")));
+test("Body: same body instance is always returned", (t) => {
+  const body = withInputGating(new Body(new BaseResponse("body")));
   t.is(body.body, body.body);
 });
-test("InputGatedBody: body isn't locked until read from", async (t) => {
+test("Body: body isn't locked until read from", async (t) => {
   const res = withInputGating(new Response("body"));
   // noinspection SuspiciousTypeOfGuard
-  t.true(res instanceof InputGatedBody);
+  t.true(res instanceof Body);
   // noinspection SuspiciousTypeOfGuard
   assert(res.body instanceof ReadableStream);
 
@@ -93,7 +96,7 @@ test("InputGatedBody: body isn't locked until read from", async (t) => {
 });
 const inputGatedBodyMacro: Macro<[(body: ReadableStream) => Promise<any>]> =
   async (t, closure) => {
-    const res = withInputGating(new InputGatedBody(new BaseResponse("body")));
+    const res = withInputGating(new Body(new BaseResponse("body")));
     // @ts-expect-error res.body is a ReadableStream
     const body: ReadableStream = res.body;
     await waitsForInputGate(t, () => closure(body));
@@ -121,14 +124,14 @@ const inputGatedConsumerMacro: Macro<
   await inputGate.runWith(async () => {
     // noinspection ES6MissingAwait
     void inputGate.runWithClosed(() => openPromise);
-    const body = new InputGatedBody(res.clone());
+    const body = new Body(res.clone());
     t.not(await body?.[key](), undefined);
   });
   openTrigger();
 
   // Check input gating can be enabled
   await waitsForInputGate(t, async () => {
-    const body = withInputGating(new InputGatedBody(res));
+    const body = withInputGating(new Body(res));
     await body?.[key]();
   });
 };
@@ -145,11 +148,11 @@ test(
 );
 test(inputGatedConsumerMacro, "json");
 test(inputGatedConsumerMacro, "text");
-test("InputGatedBody: reuses custom headers instance", (t) => {
+test("Body: reuses custom headers instance", (t) => {
   const headers = new BaseHeaders();
   headers.append("Set-Cookie", "key1=value1");
   headers.append("Set-Cookie", "key2=value2");
-  const body = new InputGatedBody(new BaseResponse("body", { headers }));
+  const body = new Body(new BaseResponse("body", { headers }));
   const customHeaders = body.headers;
   t.not(headers, customHeaders);
   t.is(body.headers, customHeaders);
@@ -157,6 +160,99 @@ test("InputGatedBody: reuses custom headers instance", (t) => {
     "key1=value1",
     "key2=value2",
   ]);
+});
+test("Body: formData: parses regular form data fields", async (t) => {
+  // Check with application/x-www-form-urlencoded Content-Type
+  let body = new Body(
+    new BaseResponse("key1=value1&key2=value2", {
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+    })
+  );
+  let formData = await body.formData();
+  t.is(formData.get("key1"), "value1");
+  t.is(formData.get("key2"), "value2");
+
+  // Check with multipart/form-data Content-Type
+  body = new Body(
+    new BaseResponse(
+      [
+        "--boundary",
+        'Content-Disposition: form-data; name="key1"',
+        "",
+        "multipart value1",
+        "--boundary",
+        'Content-Disposition: form-data; name="key2"',
+        "",
+        "multipart value2",
+        "--boundary",
+        'Content-Disposition: form-data; name="key2"',
+        "",
+        "second value2",
+        "--boundary--",
+      ].join("\r\n"),
+      { headers: { "content-type": 'multipart/form-data;boundary="boundary"' } }
+    )
+  );
+  formData = await body.formData();
+  t.is(formData.get("key1"), "multipart value1");
+  t.deepEqual(formData.getAll("key2"), ["multipart value2", "second value2"]);
+});
+test("Body: formData: parses files as File objects by default", async (t) => {
+  const body = new Body(
+    new BaseResponse(
+      [
+        "--boundary",
+        'Content-Disposition: form-data; name="key"; filename="test.txt"',
+        "Content-Type: text/plain",
+        "",
+        "file contents",
+        "--boundary--",
+      ].join("\r\n"),
+      { headers: { "content-type": 'multipart/form-data;boundary="boundary"' } }
+    )
+  );
+  const formData = await body.formData();
+  const file = formData.get("key");
+  assert(file instanceof File);
+  t.is(await file.text(), "file contents");
+  t.is(file.name, "test.txt");
+});
+test("Body: formData: parses files as strings if option set", async (t) => {
+  let body = new Body(
+    new BaseResponse(
+      [
+        "--boundary",
+        'Content-Disposition: form-data; name="key"; filename="test.txt"',
+        "Content-Type: text/plain",
+        "",
+        "file contents",
+        "--boundary--",
+      ].join("\r\n"),
+      { headers: { "content-type": 'multipart/form-data;boundary="boundary"' } }
+    )
+  );
+  body = withStringFormDataFiles(body);
+  const formData = await body.formData();
+  t.is(formData.get("key"), "file contents");
+});
+test("Body: formData: respects Content-Transfer-Encoding header for base64 encoded files", async (t) => {
+  let body = new Body(
+    new BaseResponse(
+      [
+        "--boundary",
+        'Content-Disposition: form-data; name="key"; filename="test.txt"',
+        "Content-Transfer-Encoding: base64",
+        "Content-Type: text/plain",
+        "",
+        "dGVzdA==", // test
+        "--boundary--",
+      ].join("\r\n"),
+      { headers: { "content-type": 'multipart/form-data;boundary="boundary"' } }
+    )
+  );
+  body = withStringFormDataFiles(body);
+  const formData = await body.formData();
+  t.is(formData.get("key"), "test");
 });
 
 test("Request: constructing from BaseRequest doesn't create new BaseRequest unless required", (t) => {
@@ -247,7 +343,7 @@ test("Request: can be input gated", async (t) => {
     new Request("http://localhost", { method: "POST", body: "body" })
   );
   // noinspection SuspiciousTypeOfGuard
-  t.true(req instanceof InputGatedBody);
+  t.true(req instanceof Body);
   await waitsForInputGate(t, () => req.text());
 });
 test("Request: clone retains input gated option", async (t) => {
@@ -256,6 +352,25 @@ test("Request: clone retains input gated option", async (t) => {
   );
   const clone = req.clone();
   await waitsForInputGate(t, () => clone.text());
+});
+test("Request: clone retains form data file parsing option", async (t) => {
+  const formData = new FormData();
+  formData.append("file", new File(["test"], "test.txt"));
+
+  // Implicitly testing FormData body encoding here too
+  let req = new Request("https://host", { method: "POST", body: formData });
+  let clone = req.clone();
+  let resFormData = await clone.formData();
+  const file = resFormData.get("file");
+  assert(file instanceof File);
+  t.is(await file.text(), "test");
+  t.is(file.name, "test.txt");
+
+  req = new Request("https://host", { method: "POST", body: formData });
+  req = withStringFormDataFiles(req);
+  clone = req.clone();
+  resFormData = await clone.formData();
+  t.is(resFormData.get("file"), "test");
 });
 
 test("withImmutableHeaders: makes Request's headers immutable", (t) => {
@@ -367,13 +482,32 @@ test("Response: fails to clone WebSocket response", (t) => {
 test("Response: can be input gated", async (t) => {
   const res = withInputGating(new Response("body"));
   // noinspection SuspiciousTypeOfGuard
-  t.true(res instanceof InputGatedBody);
+  t.true(res instanceof Body);
   await waitsForInputGate(t, () => res.text());
 });
 test("Response: clone retains input gated option", async (t) => {
   const res = withInputGating(new Response("body"));
   const clone = res.clone();
   await waitsForInputGate(t, () => clone.text());
+});
+test("Response: clone retains form data file parsing option", async (t) => {
+  const formData = new FormData();
+  formData.append("file", new File(["test"], "test.txt"));
+
+  // Implicitly testing FormData body encoding here too
+  let res = new Response(formData);
+  let clone = res.clone();
+  let resFormData = await clone.formData();
+  const file = resFormData.get("file");
+  assert(file instanceof File);
+  t.is(await file.text(), "test");
+  t.is(file.name, "test.txt");
+
+  res = new Response(formData);
+  res = withStringFormDataFiles(res);
+  clone = res.clone();
+  resFormData = await clone.formData();
+  t.is(resFormData.get("file"), "test");
 });
 
 test("withWaitUntil: adds wait until to (Base)Response", async (t) => {
@@ -416,7 +550,7 @@ test("fetch: Response body is input gated", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   const res = await fetch(upstream);
   // noinspection SuspiciousTypeOfGuard
-  t.true(res instanceof InputGatedBody);
+  t.true(res instanceof Body);
   const body = await waitsForInputGate(t, () => res.text());
   t.is(body, "upstream");
 });
@@ -515,6 +649,36 @@ test("createCompatFetch: rewrites urls of all types of fetch inputs", async (t) 
     { body: "body2" }
   );
   t.is(await res.text(), "POST:value:body2");
+});
+test("createCompatFetch: Responses parse files in FormData as File objects only if compatibility flag enabled", async (t) => {
+  const { http: upstream } = await useServer(t, (req, res) => {
+    res.writeHead(200, {
+      "Content-Type": 'multipart/form-data;boundary="boundary"',
+    });
+    res.end(
+      [
+        "--boundary",
+        'Content-Disposition: form-data; name="key"; filename="test.txt"',
+        "Content-Type: text/plain",
+        "",
+        "file contents",
+        "--boundary--",
+      ].join("\r\n")
+    );
+  });
+
+  let fetch = createCompatFetch(new Compatibility());
+  let formData = await (await fetch(upstream)).formData();
+  t.is(formData.get("key"), "file contents");
+
+  fetch = createCompatFetch(
+    new Compatibility(undefined, ["formdata_parser_supports_files"])
+  );
+  formData = await (await fetch(upstream)).formData();
+  const file = formData.get("key");
+  assert(file instanceof File);
+  t.is(await file.text(), "file contents");
+  t.is(file.name, "test.txt");
 });
 
 test("logResponse: logs HTTP response with waitUntil", async (t) => {
