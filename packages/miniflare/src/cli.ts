@@ -3,7 +3,6 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import type { Options } from "@miniflare/shared";
-import { LogLevel } from "@miniflare/shared";
 import { red } from "kleur/colors";
 import { MiniflareOptions } from "./api";
 import { updateCheck } from "./updater";
@@ -32,8 +31,15 @@ function suppressWarnings() {
 
 async function main() {
   // Need to import these after warnings have been suppressed
-  const [{ ParseError, buildHelp, parseArgv }, { Miniflare, PLUGINS }] =
-    await Promise.all([import("@miniflare/cli-parser"), import("miniflare")]);
+  const [
+    { ParseError, buildHelp, parseArgv },
+    { Log, LogLevel },
+    { Miniflare, PLUGINS },
+  ] = await Promise.all([
+    import("@miniflare/cli-parser"),
+    import("@miniflare/shared"),
+    import("miniflare"),
+  ]);
 
   // Parse command line options
   let options: Options<typeof PLUGINS>;
@@ -63,12 +69,13 @@ async function main() {
 
   // TODO: warn if script path is src/... but dist/... exists, or build command set, or type webpack/rust
 
-  const mfOptions: MiniflareOptions = options;
-  mfOptions.logLevel = options?.verbose
+  const logLevel = options?.verbose
     ? LogLevel.VERBOSE
     : options?.debug
     ? LogLevel.DEBUG
     : LogLevel.INFO;
+  const mfOptions: MiniflareOptions = options;
+  mfOptions.log = new Log(logLevel);
   const mf = new Miniflare(mfOptions);
   try {
     // Start Miniflare development server

@@ -1,5 +1,5 @@
 import { AddressInfo } from "net";
-import { LogLevel } from "@miniflare/shared";
+import { Log, LogLevel } from "@miniflare/shared";
 import { interceptConsoleLogs } from "@miniflare/shared-test";
 import test from "ava";
 import { Miniflare, VariedStorageFactory } from "miniflare";
@@ -9,7 +9,7 @@ function clearArray(arr: any[]): void {
   arr.splice(0, arr.length);
 }
 
-test.serial("Miniflare: gets log level from options", async (t) => {
+test.serial("Miniflare: gets log from options", async (t) => {
   const logs = interceptConsoleLogs(t);
 
   let mf = new Miniflare({ script: "//" });
@@ -18,29 +18,21 @@ test.serial("Miniflare: gets log level from options", async (t) => {
   mf.log.info("info");
   mf.log.debug("debug");
   mf.log.verbose("verbose");
-  t.deepEqual(logs, []); // Defaults to NONE
+  t.deepEqual(logs, []); // Defaults to NoOpLog
 
-  mf = new Miniflare({ script: "//", logLevel: LogLevel.DEBUG });
+  mf = new Miniflare({ script: "//", log: new Log(LogLevel.DEBUG) });
   await mf.getPlugins();
   clearArray(logs);
   mf.log.info("info");
   mf.log.debug("debug");
   mf.log.verbose("verbose");
   t.deepEqual(logs, ["[mf:inf] info", "[mf:dbg] debug"]);
-
-  mf = new Miniflare({ script: "//", logLevel: LogLevel.VERBOSE });
-  await mf.getPlugins();
-  clearArray(logs);
-  mf.log.info("info");
-  mf.log.debug("debug");
-  mf.log.verbose("verbose");
-  t.deepEqual(logs, ["[mf:inf] info", "[mf:dbg] debug", "[mf:vrb] verbose"]);
 });
 test.serial("Miniflare: dispose: disposes plugins and storage", async (t) => {
   const logs = interceptConsoleLogs(t);
   const mf = new Miniflare({
     script: "//",
-    logLevel: LogLevel.VERBOSE,
+    log: new Log(LogLevel.VERBOSE),
   });
   await mf.getPlugins();
   clearArray(logs);
@@ -137,7 +129,7 @@ test.serial("Miniflare: startServer: starts HTTP server", async (t) => {
     }`,
     modules: true,
     port: 0,
-    logLevel: LogLevel.INFO,
+    log: new Log(LogLevel.INFO),
   });
   await mf.getPlugins();
   clearArray(logs);
