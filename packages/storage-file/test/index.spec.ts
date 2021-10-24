@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { Storage, StoredValueMeta } from "@miniflare/shared";
+import { Storage, StoredValueMeta, sanitisePath } from "@miniflare/shared";
 import {
   TestStorageFactory,
   storageMacros,
@@ -23,10 +23,10 @@ class FileStorageFactory extends TestStorageFactory {
     for (const [key, { value, expiration, metadata }] of Object.entries(seed)) {
       await fs.mkdir(path.dirname(path.join(tmp, key)), { recursive: true });
       await fs.writeFile(path.join(tmp, key), value);
-      if (expiration || metadata) {
+      if (expiration || metadata || key !== sanitisePath(key)) {
         await fs.writeFile(
           path.join(tmp, key + ".meta.json"),
-          JSON.stringify({ expiration, metadata }),
+          JSON.stringify({ expiration, metadata, key }),
           "utf8"
         );
       }

@@ -73,11 +73,11 @@ export function titleCase(s: string): string {
  * DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
  * ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-const namespaceRegexp = /[\\:|]/g;
-const dotRegexp = /(^|\/)(\.+)(\/|$)/g;
+const namespaceRegexp = /[/\\:|]/g;
+const dotRegexp = /(^|\/|\\)(\.+)(\/|\\|$)/g;
 const illegalRegexp = /[?<>*"'^\x00-\x1f\x80-\x9f]/g;
 const windowsReservedRegexp = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
-const trailingRegexp = /[ /]+$/;
+const trailingRegexp = /[ /\\]+$/;
 
 function dotReplacement(match: string, g1: string, g2: string, g3: string) {
   return `${g1}${"".padStart(g2.length, "_")}${g3}`;

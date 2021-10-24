@@ -188,6 +188,7 @@ class PathWatcher {
         dirIsDirectory = (await fsp.stat(dir)).isDirectory();
       } catch {}
       if (!dirIsDirectory) {
+        // TODO: don't reset the entire watcher if this isn't the root
         log(`${this.filePath}: ${dir} is no longer a directory, resetting...`);
         this.callback();
         this.dispose();
