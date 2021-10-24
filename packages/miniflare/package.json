@@ -57,10 +57,12 @@
     "@miniflare/web-sockets": "2.0.0",
     "kleur": "^4.1.4",
     "semiver": "^1.1.0",
+    "source-map-support": "^0.5.20",
     "undici": "^4.8.1"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.0.0"
+    "@miniflare/shared-test": "2.0.0",
+    "@types/source-map-support": "^0.5.4"
   },
   "peerDependencies": {
     "@miniflare/storage-redis": "2.0.0",
