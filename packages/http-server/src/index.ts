@@ -1,3 +1,5 @@
+// noinspection ES6ConvertVarToLetConst
+
 import assert from "assert";
 import http, { OutgoingHttpHeaders } from "http";
 import https from "https";
@@ -10,6 +12,7 @@ import {
   Response,
   logResponse,
 } from "@miniflare/core";
+import type { HTMLRewriter } from "@miniflare/html-rewriter";
 import { randomHex } from "@miniflare/shared";
 import { coupleWebSocket } from "@miniflare/web-sockets";
 import { BodyInit, Headers } from "undici";
@@ -24,6 +27,23 @@ export * from "./plugin";
 export type HTTPPluginSignatures = CorePluginSignatures & {
   HTTPPlugin: typeof HTTPPlugin;
 };
+
+const liveReloadScript = `<script defer type="application/javascript">
+(function () {
+  // Miniflare Live Reload
+  var url = new URL("/cdn-cgi/mf/reload", location.origin);
+  url.protocol = url.protocol.replace("http", "ws");
+  function reload() { location.reload(); }
+  function connect(reconnected) {
+    var ws = new WebSocket(url);
+    if (reconnected) ws.onopen = reload;
+    ws.onmessage = reload;
+    ws.onclose = function(e) { e.code === 1000 || e.code === 1001 || setTimeout(connect, 1000, true); }
+  }
+  connect();
+})();
+</script>`;
+let liveReloadRewriter: HTMLRewriter | undefined = undefined;
 
 export async function convertNodeRequest(
   req: http.IncomingMessage,
@@ -144,7 +164,31 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
             headers[key] = value;
           }
         }
-        res?.writeHead(response.status, headers);
+        res?.writeHead(status, headers);
+
+        // Add live reload script if enabled and this is an HTML response
+        if (
+          HTTPPlugin.liveReload &&
+          response.headers
+            .get("content-type")
+            ?.toLowerCase()
+            .includes("text/html")
+        ) {
+          // We need some way of injecting a script into a streamed response
+          // body. If only we had some way of efficiently rewriting HTML... :D
+          if (liveReloadRewriter === undefined) {
+            // Technically this might get assigned twice because of this await,
+            // but that doesn't matter at all
+            const { HTMLRewriter } = await import("@miniflare/html-rewriter");
+            liveReloadRewriter = new HTMLRewriter().on("body", {
+              element(end) {
+                end.append(liveReloadScript, { html: true });
+              },
+            });
+          }
+          response = liveReloadRewriter.transform(response);
+        }
+
         // Response body may be null if empty
         if (response.body) {
           for await (const chunk of response.body) {
@@ -164,11 +208,14 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
           const { default: Youch } = await import("youch");
           const youch = new Youch(e, req);
           youch.addLink(() => {
-            return [
+            const links = [
               '<a href="https://developers.cloudflare.com/workers/" target="_blank" style="text-decoration:none">📚 Workers Docs</a>',
               '<a href="https://discord.gg/cloudflaredev" target="_blank" style="text-decoration:none">💬 Workers Discord</a>',
               '<a href="https://miniflare.dev" target="_blank" style="text-decoration:none">🔥 Miniflare Docs</a>',
-            ].join("");
+            ];
+            // Live reload is basically a link right?
+            if (HTTPPlugin.liveReload) links.push(liveReloadScript);
+            return links.join("");
           });
           const errorHtml = await youch.toHTML();
           res?.writeHead(500, { "Content-Type": "text/html; charset=UTF-8" });
@@ -253,11 +300,25 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
     server = http.createServer(options ?? {}, listener);
   }
 
-  // Setup WebSocket server
+  // Setup WebSocket servers
   const upgrader = createWebSocketUpgradeListener(mf, listener);
-  const webSocketServer = new WebSocketServer({ server });
+  const webSocketServer = new WebSocketServer({ noServer: true });
   webSocketServer.on("connection", upgrader);
+  const liveReloadServer = new WebSocketServer({ noServer: true });
+  server.on("upgrade", (request, socket, head) => {
+    const { pathname } = new URL(request.url ?? "", "http://localhost");
+    const server =
+      pathname === "/cdn-cgi/mf/reload" ? liveReloadServer : webSocketServer;
+    server.handleUpgrade(request, socket, head, (ws: StandardWebSocket) =>
+      server.emit("connection", ws, request)
+    );
+  });
   const reloadListener = () => {
+    // Reload all connected live reload clients
+    for (const ws of liveReloadServer.clients) {
+      ws.send("");
+      ws.close(1012, "Service Restart");
+    }
     // Close all existing web sockets on reload
     for (const ws of webSocketServer.clients) {
       ws.close(1012, "Service Restart");

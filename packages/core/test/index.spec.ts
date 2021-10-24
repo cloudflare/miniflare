@@ -196,7 +196,7 @@ test("MiniflareCore: #init: loads different wrangler environment", async (t) => 
   t.is(plugins.CorePlugin.upstream, "https://miniflare.dev/");
 
   // Unset environment and check value is updated
-  await mf.setOptions({ wranglerConfigPath });
+  await mf.setOptions({ wranglerConfigEnv: undefined });
   plugins = await mf.getPlugins();
   t.is(plugins.CorePlugin.upstream, "http://localhost/");
 });
@@ -804,6 +804,20 @@ test("MiniflareCore: setOptions: updates options and reloads worker", async (t) 
     [LogLevel.INFO, "Worker reloaded!"],
   ];
   t.deepEqual(log.logs, expectedLogs);
+});
+test("MiniflareCore: setOptions: builds on previous options", async (t) => {
+  const mf = useMiniflare({ TestPlugin }, { numberOption: 1 });
+
+  await mf.setOptions({ booleanOption: true });
+  let plugins = await mf.getPlugins();
+  t.is(plugins.TestPlugin.numberOption, 1);
+  t.true(plugins.TestPlugin.booleanOption);
+
+  await mf.setOptions({ numberOption: 2, stringOption: "test" });
+  plugins = await mf.getPlugins();
+  t.is(plugins.TestPlugin.numberOption, 2);
+  t.is(plugins.TestPlugin.stringOption, "test");
+  t.true(plugins.TestPlugin.booleanOption);
 });
 
 test("MiniflareCore: getPluginStorage: gets namespaced plugin-specific storage", async (t) => {

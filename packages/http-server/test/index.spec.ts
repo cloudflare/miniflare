@@ -4,6 +4,7 @@ import http from "http";
 import https from "https";
 import { AddressInfo } from "net";
 import { Readable } from "stream";
+import { setTimeout } from "timers/promises";
 import {
   BindingsPlugin,
   IncomingRequestCfProperties,
@@ -74,7 +75,7 @@ function request(
   path?: string,
   headers?: http.OutgoingHttpHeaders,
   secure?: boolean
-): Promise<[string, http.IncomingHttpHeaders]> {
+): Promise<[body: string, headers: http.IncomingHttpHeaders, status: number]> {
   return new Promise((resolve) => {
     (secure ? https : http).get(
       {
@@ -88,7 +89,7 @@ function request(
       (res) => {
         let body = "";
         res.on("data", (chunk) => (body += chunk));
-        res.on("end", () => resolve([body, res.headers]));
+        res.on("end", () => resolve([body, res.headers, res.statusCode ?? 0]));
       }
     );
   });
@@ -263,15 +264,16 @@ test("createRequestListener: handles http headers in response", async (t) => {
     headers.append("X-Message", "test");
     headers.append("Set-Cookie", "test1=value1");
     headers.append("Set-Cookie", "test2=value2");
-    return new globals.Response("string", { headers });
+    return new globals.Response("string", { status: 404, headers });
   });
   const port = await listen(t, http.createServer(createRequestListener(mf)));
-  const [body, headers] = await request(port);
+  const [body, headers, status] = await request(port);
   t.is(body, "string");
   t.like(headers, {
     "x-message": "test",
     "set-cookie": ["test1=value1", "test2=value2"],
   });
+  t.is(status, 404);
 });
 test("createRequestListener: handles scheduled event trigger over http", async (t) => {
   const events: ScheduledEvent[] = [];
@@ -338,6 +340,40 @@ test("createRequestListener: displays appropriately-formatted error page", async
   [, headers] = await request(port, "/", { accept: "image/png, */*" });
   t.is(headers["content-type"], "text/html; charset=UTF-8");
 });
+test("createRequestListener: includes live reload script in html responses if enabled", async (t) => {
+  const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {
+    return new globals.Response(
+      '<!DOCTYPE html><html lang="en"><body><p>Test</p></body></html>',
+      { headers: { "content-type": "text/html" } }
+    );
+  });
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+  let [body] = await request(port, "/");
+  t.notRegex(body, /Miniflare Live Reload/);
+
+  await mf.setOptions({ liveReload: true });
+  [body] = await request(port, "/");
+  t.regex(body, /Miniflare Live Reload/);
+});
+test("createRequestListener: includes live reload script in html error responses if enabled", async (t) => {
+  const log = new TestLog();
+  log.error = () => {};
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin },
+    {},
+    () => {
+      throw new Error();
+    },
+    log
+  );
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+  let [body] = await request(port, "/", { accept: "text/html" });
+  t.notRegex(body, /Miniflare Live Reload/);
+
+  await mf.setOptions({ liveReload: true });
+  [body] = await request(port, "/", { accept: "text/html" });
+  t.regex(body, /Miniflare Live Reload/);
+});
 
 test("createServer: handles regular requests", async (t) => {
   const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {
@@ -399,6 +435,32 @@ test("createServer: expects status 101 and web socket response for upgrades", as
   ]);
   t.is(event.code, 1002);
   t.is(event.reason, "Protocol Error");
+});
+test("createServer: notifies connected live reload clients on reload", async (t) => {
+  const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {
+    // Connecting to live reload server shouldn't make any worker requests
+    t.fail();
+    return new globals.Response(null);
+  });
+  await mf.getPlugins();
+
+  const port = await listen(t, await createServer(mf));
+  const ws = new StandardWebSocket(`ws://localhost:${port}/cdn-cgi/mf/reload`);
+  const [openTrigger, openPromise] = triggerPromise<void>();
+  ws.addEventListener("open", openTrigger);
+  let receivedMessage = false;
+  const [messageTrigger, messagePromise] = triggerPromise<void>();
+  ws.addEventListener("message", () => {
+    receivedMessage = true;
+    messageTrigger();
+  });
+  await openPromise;
+
+  await setTimeout();
+  t.false(receivedMessage);
+  await mf.reload();
+  await messagePromise;
+  t.true(receivedMessage);
 });
 test("createServer: handles https requests", async (t) => {
   const tmp = await useTmp(t);

@@ -100,6 +100,8 @@ export interface HTTPOptions {
 
   cfFetch?: boolean | string;
   metaProvider?: (req: http.IncomingMessage) => Awaitable<RequestMeta>;
+
+  liveReload?: boolean;
 }
 
 function valueOrFile(
@@ -211,6 +213,13 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
 
   @Option({ type: OptionType.NONE })
   metaProvider?: (req: http.IncomingMessage) => Awaitable<RequestMeta>;
+
+  @Option({
+    type: OptionType.BOOLEAN,
+    description: "Reload HTML pages whenever worker is reloaded",
+    fromWrangler: ({ miniflare }) => miniflare?.live_reload,
+  })
+  liveReload?: boolean;
 
   private readonly defaultCertRoot: string;
   private readonly defaultCfPath: string;

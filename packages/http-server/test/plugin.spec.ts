@@ -34,6 +34,7 @@ test("HTTPPlugin: parses options from argv", (t) => {
     "--https-passphrase",
     "the passphrase is passphrase",
     "--no-cf-fetch",
+    "--live-reload",
   ]);
   t.deepEqual(options, {
     host: "127.0.0.1",
@@ -45,6 +46,7 @@ test("HTTPPlugin: parses options from argv", (t) => {
     httpsPfxPath: "cert.pfx",
     httpsPassphrase: "the passphrase is passphrase",
     cfFetch: false,
+    liveReload: true,
   });
   options = parsePluginArgv(HTTPPlugin, [
     "-H",
@@ -70,6 +72,7 @@ test("HTTPPlugin: parses options from wrangler config", (t) => {
       port: 3000,
       https: true,
       cf_fetch: false,
+      live_reload: true,
     },
   });
   t.like(options, {
@@ -77,6 +80,7 @@ test("HTTPPlugin: parses options from wrangler config", (t) => {
     port: 3000,
     https: true,
     cfFetch: false,
+    liveReload: true,
   });
   options = parsePluginWranglerConfig(HTTPPlugin, {
     miniflare: { https: "./cert" },
@@ -119,6 +123,7 @@ test("HTTPPlugin: logs options", (t) => {
     httpsPassphrase: "the passphrase is passphrase",
     cfFetch: "./cf.json",
     metaProvider: () => ({} as any),
+    liveReload: true,
   });
   t.deepEqual(logs, [
     "Host: 127.0.0.1",
@@ -130,6 +135,7 @@ test("HTTPPlugin: logs options", (t) => {
     "HTTPS PFX: cert.pfx",
     "HTTPS Passphrase: **********",
     "Request cf Object Fetch: cf.json",
+    "Live Reload: true",
   ]);
   logs = logPluginOptions(HTTPPlugin, { cfFetch: true });
   t.deepEqual(logs, ["Request cf Object Fetch: .mf/cf.json"]);
