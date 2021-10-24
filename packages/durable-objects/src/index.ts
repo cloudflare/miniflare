@@ -12,4 +12,5 @@ export type {
 } from "./namespace";
 export * from "./plugin";
 export * from "./rwmutex";
+export * from "./shadow";
 export * from "./storage";

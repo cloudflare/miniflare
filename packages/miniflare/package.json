@@ -15,7 +15,8 @@
   "exports": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "files": [
-    "./dist/src"
+    "./dist/src",
+    "./bootstrap.js"
   ],
   "publishConfig": {
     "access": "public"
@@ -33,11 +34,10 @@
     "extends": "../../package.json"
   },
   "entryPoints": [
-    "src/bootstrap.ts",
     "src/cli.ts"
   ],
   "bin": {
-    "miniflare2": "dist/src/bootstrap.js"
+    "miniflare": "bootstrap.js"
   },
   "dependencies": {
     "@miniflare/cache": "2.0.0",
