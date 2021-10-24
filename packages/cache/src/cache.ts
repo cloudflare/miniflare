@@ -4,6 +4,7 @@ import {
   RequestInfo,
   RequestInitCfProperties,
   Response,
+  withStringFormDataFiles,
 } from "@miniflare/core";
 import {
   Awaitable,
@@ -132,10 +133,16 @@ function getExpirationTtl(
 
 export class Cache implements CacheInterface {
   readonly #storage: Awaitable<Storage>;
+  readonly #formDataFiles: boolean;
   readonly #clock: Clock;
 
-  constructor(storage: Awaitable<Storage>, clock = defaultClock) {
+  constructor(
+    storage: Awaitable<Storage>,
+    formDataFiles = true,
+    clock = defaultClock
+  ) {
     this.#storage = storage;
+    this.#formDataFiles = formDataFiles;
     this.#clock = clock;
   }
 
@@ -200,10 +207,12 @@ export class Cache implements CacheInterface {
     headers.set("CF-Cache-Status", "HIT");
     // Returning a @miniflare/core Response so we don't need to convert
     // BaseResponse to one when dispatching fetch events
-    return new Response(cached.value, {
+    let res = new Response(cached.value, {
       status: cached.metadata?.status,
       headers,
     });
+    if (!this.#formDataFiles) res = withStringFormDataFiles(res);
+    return res;
   }
 
   async delete(

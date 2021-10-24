@@ -38,16 +38,18 @@
   "dependencies": {
     "@iarna/toml": "^2.2.5",
     "@miniflare/shared": "2.0.0",
+    "busboy": "^0.3.1",
     "dequal": "^2.0.2",
     "dotenv": "^10.0.0",
     "kleur": "^4.1.4",
     "set-cookie-parser": "^2.4.8",
-    "undici": "^4.5.1"
+    "undici": "^4.8.1"
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.0.0",
     "@miniflare/watcher": "2.0.0",
     "@miniflare/web-sockets": "2.0.0",
+    "@types/busboy": "^0.3.1",
     "@types/set-cookie-parser": "^2.4.1"
   },
   "peerDependencies": {

@@ -24,13 +24,20 @@ export class CacheStorage {
   readonly #options: CacheOptions;
   readonly #log: Log;
   readonly #storage: StorageFactory;
+  readonly #formDataFiles: boolean;
   #warnUsage?: boolean;
   #defaultCache?: CacheInterface;
 
-  constructor(options: CacheOptions, log: Log, storageFactory: StorageFactory) {
+  constructor(
+    options: CacheOptions,
+    log: Log,
+    storageFactory: StorageFactory,
+    formDataFiles = true
+  ) {
     this.#options = options;
     this.#log = log;
     this.#storage = storageFactory;
+    this.#formDataFiles = formDataFiles;
     this.#warnUsage = options.cacheWarnUsage;
   }
 
@@ -57,7 +64,8 @@ export class CacheStorage {
     // doesn't do anything with the cache immediately, but this is unlikely.
     this.#maybeWarnUsage();
     return (this.#defaultCache = new Cache(
-      this.#storage.storage(DEFAULT_CACHE_NAME, cachePersist)
+      this.#storage.storage(DEFAULT_CACHE_NAME, cachePersist),
+      this.#formDataFiles
     ));
   }
 
@@ -76,7 +84,10 @@ export class CacheStorage {
     if (cache === false) return NOOP_CACHE;
     // Return regular cache
     this.#maybeWarnUsage();
-    return new Cache(await this.#storage.storage(cacheName, cachePersist));
+    return new Cache(
+      await this.#storage.storage(cacheName, cachePersist),
+      this.#formDataFiles
+    );
   }
 }
 
@@ -116,7 +127,12 @@ export class CachePlugin extends Plugin<CacheOptions> implements CacheOptions {
   }
 
   setup(storageFactory: StorageFactory): SetupResult {
-    const caches = new CacheStorage(this, this.log, storageFactory);
+    const caches = new CacheStorage(
+      this,
+      this.log,
+      storageFactory,
+      this.compat.isEnabled("formdata_parser_supports_files")
+    );
     return { globals: { caches } };
   }
 }

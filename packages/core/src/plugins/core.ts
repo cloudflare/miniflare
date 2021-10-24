@@ -47,12 +47,24 @@ import {
   crypto,
   inputGatedSetInterval,
   inputGatedSetTimeout,
+  withStringFormDataFiles,
 } from "../standards";
 
 const DEFAULT_MODULE_RULES: ModuleRule[] = [
   { type: "ESModule", include: ["**/*.mjs"] },
   { type: "CommonJS", include: ["**/*.js", "**/*.cjs"] },
 ];
+
+function proxyStringFormDataFiles<
+  Class extends typeof Request | typeof Response
+>(klass: Class) {
+  return new Proxy(klass, {
+    construct(target, args, newTarget) {
+      const value = Reflect.construct(target, args, newTarget);
+      return withStringFormDataFiles(value);
+    },
+  });
+}
 
 export interface CoreOptions {
   script?: string;
@@ -221,6 +233,15 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     super(log, compat);
     this.assignOptions(options);
 
+    // Make sure the kFormDataFiles flag is set correctly when constructing
+    let CompatRequest = Request;
+    let CompatResponse = Response;
+    const formDataFiles = compat.isEnabled("formdata_parser_supports_files");
+    if (!formDataFiles) {
+      CompatRequest = proxyStringFormDataFiles(CompatRequest);
+      CompatResponse = proxyStringFormDataFiles(CompatResponse);
+    }
+
     // Build globals object
     this.#globals = {
       console,
@@ -240,8 +261,8 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
       fetch: createCompatFetch(compat),
       Headers,
-      Request,
-      Response,
+      Request: CompatRequest,
+      Response: CompatResponse,
       FormData,
       Blob,
       File,

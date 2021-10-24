@@ -22,6 +22,7 @@ import {
   utf8Decode,
 } from "@miniflare/shared-test";
 import test from "ava";
+import { File, FormData } from "undici";
 import { testResponse } from "./helpers";
 
 const log = new NoOpLog();
@@ -155,4 +156,32 @@ test("CachePlugin: setup: includes CacheStorage in globals", async (t) => {
   assert(caches instanceof CacheStorage);
   t.true(caches.default instanceof NoOpCache);
   t.true((await caches.open("test")) instanceof NoOpCache);
+});
+test("CachePlugin: setup: Responses parse files in FormData as File objects only if compatibility flag enabled", async (t) => {
+  const factory = new MemoryStorageFactory();
+  const formData = new FormData();
+  formData.append("file", new File(["test"], "test.txt"));
+
+  let plugin = new CachePlugin(log, new Compatibility());
+  let caches: CacheStorage = plugin.setup(factory).globals?.caches;
+  await caches.default.put("http://localhost", testResponse(formData));
+  let cache = await caches.open("test");
+  await cache.put("http://localhost", testResponse(formData));
+
+  let res = await caches.default.match("http://localhost");
+  t.is((await res?.formData())?.get("file"), "test");
+  res = await cache.match("http://localhost");
+  t.is((await res?.formData())?.get("file"), "test");
+
+  const compat = new Compatibility(undefined, [
+    "formdata_parser_supports_files",
+  ]);
+  plugin = new CachePlugin(log, compat);
+  caches = plugin.setup(factory).globals?.caches;
+  cache = await caches.open("test");
+
+  res = await caches.default.match("http://localhost");
+  t.true((await res?.formData())?.get("file") instanceof File);
+  res = await cache.match("http://localhost");
+  t.true((await res?.formData())?.get("file") instanceof File);
 });

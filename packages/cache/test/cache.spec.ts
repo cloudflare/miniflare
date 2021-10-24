@@ -32,7 +32,7 @@ test.beforeEach((t) => {
   const clock = { timestamp: 1_000_000 }; // 1000s
   const clockFunction = () => clock.timestamp;
   const storage = new MemoryStorage(undefined, clockFunction);
-  const cache = new Cache(storage, clockFunction);
+  const cache = new Cache(storage, true, clockFunction);
   t.context = { storage, clock, cache };
 });
 

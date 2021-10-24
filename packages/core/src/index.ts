@@ -36,6 +36,7 @@ import {
   kDispatchFetch,
   kDispatchScheduled,
   withImmutableHeaders,
+  withStringFormDataFiles,
 } from "./standards";
 import { PluginStorageFactory } from "./storage";
 
@@ -598,8 +599,11 @@ export class MiniflareCore<
     const corePlugin = this.#instances!.CorePlugin;
     const globalScope = this.#globalScope;
     // noinspection SuspiciousTypeOfGuard
-    const request =
+    let request =
       input instanceof Request && !init ? input : new Request(input, init);
+    if (!this.#compat!.isEnabled("formdata_parser_supports_files")) {
+      request = withStringFormDataFiles(request);
+    }
     return globalScope![kDispatchFetch]<WaitUntil>(
       withImmutableHeaders(request),
       !!corePlugin.upstream

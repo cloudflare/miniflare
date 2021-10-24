@@ -1,7 +1,7 @@
 import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
-import { CorePlugin } from "@miniflare/core";
+import { CorePlugin, Request, Response } from "@miniflare/core";
 import { Compatibility, NoOpLog, STRING_SCRIPT_PATH } from "@miniflare/shared";
 import {
   logPluginOptions,
@@ -11,6 +11,7 @@ import {
   useTmp,
 } from "@miniflare/shared-test";
 import test from "ava";
+import { File, FormData } from "undici";
 
 const compat = new Compatibility();
 
@@ -263,18 +264,69 @@ test("CorePlugin: setup: includes web standards", async (t) => {
 
   t.true(globals.MINIFLARE);
 });
-test("CorePlugin: setup: fetch refuses unknown protocols if compatibility flag enabled", async (t) => {
+test("CorePlugin: setup: fetch refuses unknown protocols only if compatibility flag enabled", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  upstream.protocol = "ftp:";
+
+  let plugin = new CorePlugin(new NoOpLog(), new Compatibility());
+  let { globals } = await plugin.setup();
+  const res = await globals?.fetch(upstream);
+  t.is(await res.text(), "upstream");
+
   const compat = new Compatibility(undefined, [
     "fetch_refuses_unknown_protocols",
   ]);
-  const plugin = new CorePlugin(new NoOpLog(), compat);
-  const { globals } = await plugin.setup();
-  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
-  upstream.protocol = "ftp:";
+  plugin = new CorePlugin(new NoOpLog(), compat);
+  globals = (await plugin.setup()).globals;
   await t.throwsAsync(async () => globals?.fetch(upstream), {
     instanceOf: TypeError,
     message: `Fetch API cannot load: ${upstream.toString()}`,
   });
+});
+test("CorePlugin: setup: Request parses files in FormData as File objects only if compatibility flag enabled", async (t) => {
+  const formData = new FormData();
+  formData.append("file", new File(["test"], "test.txt"));
+
+  let plugin = new CorePlugin(new NoOpLog(), new Compatibility());
+  let CompatRequest: typeof Request = (await plugin.setup()).globals?.Request;
+  let req = new CompatRequest("http://localhost", {
+    method: "POST",
+    body: formData,
+  });
+  let reqFormData = await req.formData();
+  t.is(reqFormData.get("file"), "test");
+
+  const compat = new Compatibility(undefined, [
+    "formdata_parser_supports_files",
+  ]);
+  plugin = new CorePlugin(new NoOpLog(), compat);
+  CompatRequest = (await plugin.setup()).globals?.Request;
+  req = new CompatRequest("http://localhost", {
+    method: "POST",
+    body: formData,
+  });
+  reqFormData = await req.formData();
+  t.true(reqFormData.get("file") instanceof File);
+});
+test("CorePlugin: setup: Response parses files in FormData as File objects only if compatibility flag enabled", async (t) => {
+  const formData = new FormData();
+  formData.append("file", new File(["test"], "test.txt"));
+
+  let plugin = new CorePlugin(new NoOpLog(), new Compatibility());
+  let CompatResponse: typeof Response = (await plugin.setup()).globals
+    ?.Response;
+  let res = new CompatResponse(formData);
+  let resFormData = await res.formData();
+  t.is(resFormData.get("file"), "test");
+
+  const compat = new Compatibility(undefined, [
+    "formdata_parser_supports_files",
+  ]);
+  plugin = new CorePlugin(new NoOpLog(), compat);
+  CompatResponse = (await plugin.setup()).globals?.Response;
+  res = new CompatResponse(formData);
+  resFormData = await res.formData();
+  t.true(resFormData.get("file") instanceof File);
 });
 
 test("CorePlugin: processedModuleRules: processes rules includes default module rules", (t) => {

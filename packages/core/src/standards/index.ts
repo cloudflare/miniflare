@@ -5,8 +5,9 @@ export * from "./encoding";
 export * from "./event";
 export {
   Headers,
-  InputGatedBody,
+  Body,
   withInputGating,
+  withStringFormDataFiles,
   Request,
   withImmutableHeaders,
   Response,
