@@ -138,7 +138,7 @@ test("HTTPPlugin: logs options", (t) => {
     "Live Reload: true",
   ]);
   logs = logPluginOptions(HTTPPlugin, { cfFetch: true });
-  t.deepEqual(logs, ["Request cf Object Fetch: .mf/cf.json"]);
+  t.deepEqual(logs, [`Request cf Object Fetch: .mf${path.sep}cf.json`]);
   logs = logPluginOptions(HTTPPlugin, { cfFetch: false });
   t.deepEqual(logs, []);
 });

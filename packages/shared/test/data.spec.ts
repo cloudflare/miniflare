@@ -1,3 +1,4 @@
+import path from "path";
 import { TextDecoder } from "util";
 import {
   addAll,
@@ -79,17 +80,22 @@ test("sanitisePath: doesn't change safe paths", (t) => {
   t.is(sanitisePath("tést filé.txt"), "tést filé.txt");
 });
 test("sanitisePath: sanitises namespace separators", (t) => {
-  t.is(sanitisePath("a/b\\c:d|e"), "a/b/c/d/e");
+  const s = path.sep;
+  t.is(sanitisePath("a/b\\c:d|e"), `a${s}b${s}c${s}d${s}e`);
 });
 test("sanitisePath: sanitises relative paths", (t) => {
+  const s = path.sep;
   t.is(sanitisePath("."), "_");
   t.is(sanitisePath(".."), "__");
   t.is(sanitisePath("./"), "__");
   t.is(sanitisePath("../"), "___");
-  t.is(sanitisePath("/.."), "/__");
-  t.is(sanitisePath("/../"), "/___");
-  t.is(sanitisePath("..\\./.../..\\..../.a./."), "__/_/___/__/____/.a./_");
-  t.is(sanitisePath("dir/../test.txt"), "dir/__/test.txt");
+  t.is(sanitisePath("/.."), `${s}__`);
+  t.is(sanitisePath("/../"), `${s}___`);
+  t.is(
+    sanitisePath("..\\./.../..\\..../.a./."),
+    `__${s}_${s}___${s}__${s}____${s}.a.${s}_`
+  );
+  t.is(sanitisePath("dir/../test.txt"), `dir${s}__${s}test.txt`);
 });
 test("sanitisePath: sanitises illegal characters", (t) => {
   t.is(sanitisePath("?.text"), "_.text");
