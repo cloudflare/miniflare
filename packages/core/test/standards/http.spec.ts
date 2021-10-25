@@ -102,7 +102,7 @@ const inputGatedBodyMacro: Macro<[(body: ReadableStream) => Promise<any>]> =
     await waitsForInputGate(t, () => closure(body));
   };
 inputGatedBodyMacro.title = (providedTitle) =>
-  `InputGatedBody: body.${providedTitle}() applies input gating`;
+  `Body: body.${providedTitle}() applies input gating`;
 test("getReader", inputGatedBodyMacro, (body) => body.getReader().read());
 test("pipeTrough", inputGatedBodyMacro, (body) =>
   body.pipeThrough(new TransformStream()).getReader().read()
@@ -136,7 +136,7 @@ const inputGatedConsumerMacro: Macro<
   });
 };
 inputGatedConsumerMacro.title = (providedTitle, key) =>
-  `InputGatedBody: ${key}() applies input gating`;
+  `Body: ${key}() applies input gating`;
 test(inputGatedConsumerMacro, "arrayBuffer");
 test(inputGatedConsumerMacro, "blob");
 test(
