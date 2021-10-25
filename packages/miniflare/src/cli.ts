@@ -70,8 +70,10 @@ async function main() {
   options.wranglerConfigPath ??= true;
   options.packagePath ??= true;
   options.envPath ??= true;
-  // Assume --watch if --build-watch-path set
-  if (options.buildWatchPaths?.length) options.watch = true;
+  // Assume --watch if --build-watch-path or --live-reload set
+  if (options.buildWatchPaths?.length || options.liveReload) {
+    options.watch = true;
+  }
 
   // TODO: warn if script path is src/... but dist/... exists, or build command set, or type webpack/rust
 
