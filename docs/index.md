@@ -4,6 +4,9 @@ title: Home
 
 # 🔥 Miniflare
 
+> ⚠️ These docs are for the next major version of Miniflare, which is under
+> development. Therefore, they're very likely to be incorrect and incomplete.
+
 **Miniflare** is a simulator for developing and testing
 [**Cloudflare Workers**](https://workers.cloudflare.com/).
 
