@@ -3,6 +3,7 @@ import { ReadableStream } from "stream/web";
 import { setTimeout } from "timers/promises";
 import { URLSearchParams } from "url";
 import { TextDecoder, TextEncoder } from "util";
+import { Response } from "@miniflare/core";
 import { HTMLRewriter, HTMLRewriterPlugin } from "@miniflare/html-rewriter";
 import {
   getObjectProperties,
@@ -16,7 +17,6 @@ import {
   Element,
   TextChunk,
 } from "html-rewriter-wasm";
-import { Response } from "undici";
 
 // TODO (someday): debug why removing .serial breaks some of these async tests
 
@@ -621,13 +621,15 @@ test("HTMLRewriter: handles empty string response", async (t) => {
   const res = new HTMLRewriter().transform(new Response(""));
   t.is(await res.text(), "");
 });
-test("HTMLRewriter: copies response headers", async (t) => {
+test("HTMLRewriter: copies response status and headers", async (t) => {
   const res = new HTMLRewriter().transform(
     new Response("<p>test</p>", {
+      status: 404,
       headers: { "X-Message": "test" },
     })
   );
   t.is(res.headers.get("X-Message"), "test");
+  t.is(res.status, 404);
   t.is(await res.text(), "<p>test</p>");
 });
 // endregion: responses
