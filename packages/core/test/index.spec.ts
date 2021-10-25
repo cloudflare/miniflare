@@ -346,6 +346,7 @@ test("MiniflareCore: #init: re-runs setup for script-providing plugins if any be
     "- setup(CorePlugin)",
     "- setup(TestPlugin)",
     "- beforeReload(TestPlugin)",
+    "Running script...",
     "- reload(TestPlugin)",
   ]);
 
@@ -360,6 +361,7 @@ test("MiniflareCore: #init: re-runs setup for script-providing plugins if any be
   t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), [
     "- setup(BindingsPlugin)",
     "- beforeReload(TestPlugin)",
+    "Running script...",
     "- reload(TestPlugin)",
   ]);
 });
@@ -382,6 +384,7 @@ test("MiniflareCore: #init: re-creates all plugins if compatibility data changed
     "- setup(TestPlugin)",
     "- setup(BindingsPlugin)",
     "- beforeReload(TestPlugin)",
+    "Running script...",
     "- reload(TestPlugin)",
   ]);
 
@@ -399,6 +402,7 @@ test("MiniflareCore: #init: re-creates all plugins if compatibility data changed
     "- setup(TestPlugin)",
     "- setup(BindingsPlugin)",
     "- beforeReload(TestPlugin)",
+    "Running script...",
     "- reload(TestPlugin)",
   ]);
 });
@@ -442,6 +446,7 @@ test("MiniflareCore: #init: logs options on init and change", async (t) => {
     ...(modules ? ["- Modules: true"] : []),
     "- Watch: true",
     `- Number Option: ${numberOption}`,
+    "Enabled Compatibility Flags: <none>",
     "Reloading worker...",
   ];
 
@@ -511,6 +516,7 @@ test("MiniflareCore: #reload: reloads worker on init", async (t) => {
     [LogLevel.INFO, "beforeReload"],
     [LogLevel.VERBOSE, "- beforeReload(TestPlugin2)"],
     [LogLevel.INFO, "beforeReload"],
+    [LogLevel.VERBOSE, "Running script..."],
     [LogLevel.VERBOSE, "- reload(TestPlugin1)"],
     [LogLevel.INFO, "reload"],
     [LogLevel.VERBOSE, "- reload(TestPlugin2)"],
@@ -713,6 +719,7 @@ test("MiniflareCore: #watcherCallback: re-runs setup for script-providing plugin
     "- beforeSetup(TestPlugin)",
     "- setup(CorePlugin)",
     "- beforeReload(TestPlugin)",
+    "Running script...",
     "- reload(TestPlugin)",
   ]);
 
@@ -725,6 +732,7 @@ test("MiniflareCore: #watcherCallback: re-runs setup for script-providing plugin
   t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), [
     "- setup(BindingsPlugin)",
     "- beforeReload(TestPlugin)",
+    "Running script...",
     "- reload(TestPlugin)",
   ]);
 });
@@ -796,6 +804,7 @@ test("MiniflareCore: setOptions: updates options and reloads worker", async (t) 
     [LogLevel.INFO, "setup"],
     [LogLevel.DEBUG, "Options:"],
     [LogLevel.DEBUG, "- Number Option: 2"],
+    [LogLevel.DEBUG, "Enabled Compatibility Flags: <none>"],
     [LogLevel.DEBUG, "Reloading worker..."],
     [LogLevel.VERBOSE, "- beforeReload(TestPlugin)"],
     [LogLevel.INFO, "beforeReload"],

@@ -1,3 +1,5 @@
+import { LogLevel } from "@miniflare/shared";
+import { TestLog } from "@miniflare/shared-test";
 import test from "ava";
 import { Compatibility } from "../src/compat";
 
@@ -68,4 +70,24 @@ test("Compatibility: update: returns true iff compatibility data chaged", (t) =>
       "formdata_parser_supports_files",
     ])
   );
+});
+test("Compatibility: logEnabled: logs resolved enabled compatibility flags", (t) => {
+  const log = new TestLog();
+  let compat = new Compatibility();
+  compat.logEnabled(log);
+  t.deepEqual(log.logs, [
+    [LogLevel.DEBUG, "Enabled Compatibility Flags: <none>"],
+  ]);
+
+  log.logs = [];
+  compat = new Compatibility("2021-11-05", [
+    "durable_object_fetch_requires_full_url",
+  ]);
+  compat.logEnabled(log);
+  t.deepEqual(log.logs, [
+    [LogLevel.DEBUG, "Enabled Compatibility Flags:"],
+    // Note flags logged with most recent first (order in FEATURES array)
+    [LogLevel.DEBUG, "- durable_object_fetch_requires_full_url"],
+    [LogLevel.DEBUG, "- formdata_parser_supports_files"],
+  ]);
 });

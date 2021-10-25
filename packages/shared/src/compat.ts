@@ -1,3 +1,5 @@
+import { Log } from "./log";
+
 export interface CompatibilityFeature {
   defaultAsOf?: string;
   enableFlag: CompatibilityEnableFlag;
@@ -5,11 +7,13 @@ export interface CompatibilityFeature {
 }
 
 // See https://developers.cloudflare.com/workers/platform/compatibility-dates#change-history
+// This list only includes flags currently supported by Miniflare, meaning users
+// will get a type error if they try to use an unsupported flag via the API,
+// and they won't be logged in the "Enabled Compatibility Flags" section.
 export type CompatibilityEnableFlag =
   | "durable_object_fetch_requires_full_url"
   | "fetch_refuses_unknown_protocols"
-  | "formdata_parser_supports_files"
-  | "html_rewriter_treats_esi_include_as_void_tag";
+  | "formdata_parser_supports_files";
 export type CompatibilityDisableFlag =
   | "durable_object_fetch_allows_relative_url"
   | "fetch_treats_unknown_protocols_as_http"
@@ -33,9 +37,6 @@ const FEATURES: CompatibilityFeature[] = [
     defaultAsOf: "2021-11-03",
     enableFlag: "formdata_parser_supports_files",
     disableFlag: "formdata_parser_converts_files_to_strings",
-  },
-  {
-    enableFlag: "html_rewriter_treats_esi_include_as_void_tag",
   },
 ];
 
@@ -87,5 +88,12 @@ export class Compatibility {
     this.compatibilityFlags = compatibilityFlags;
     this.#rebuildEnabled();
     return true;
+  }
+
+  logEnabled(log: Log): void {
+    log.debug(
+      `Enabled Compatibility Flags:${this.#enabled.size === 0 ? " <none>" : ""}`
+    );
+    for (const flag of this.#enabled) log.debug(`- ${flag}`);
   }
 }

@@ -369,8 +369,9 @@ export class MiniflareCore<
       throwNoScriptError(options.CorePlugin.modules);
     }
 
-    // Log options every time they might've changed
+    // Log options and compatibility flags every time they might've changed
     logOptions(this.#plugins, this.log, options);
+    this.#compat.logEnabled(this.log);
   }
 
   async #reload(): Promise<void> {
@@ -421,6 +422,7 @@ export class MiniflareCore<
     const rules = modules ? processedModuleRules : undefined;
     let res: ScriptRunnerResult | undefined = undefined;
     if (script) {
+      this.log.verbose("Running script...");
       res = await this.#scriptRunner.run(globalScope, script, rules);
 
       this.#scriptWatchPaths.clear();
