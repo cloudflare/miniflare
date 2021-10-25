@@ -170,6 +170,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   @Option({
     type: OptionType.STRING,
+    name: "compat-date",
     description: "Opt into backwards-incompatible changes from",
     fromWrangler: ({ compatibility_date }) => compatibility_date,
   })
@@ -177,6 +178,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   @Option({
     type: OptionType.ARRAY,
+    name: "compat-flag",
     description: "Control specific backwards-incompatible changes",
     fromWrangler: ({ compatibility_flags }) => compatibility_flags,
   })
