@@ -26,20 +26,21 @@ function isError<Ctor extends ErrorConstructor>(errorCtor: Ctor) {
 
 function proxyHasInstance<T extends object>(
   target: T,
-  hasInstance: (value: any) => boolean
+  hasInstance: (value: any) => boolean,
+  handler?: ProxyHandler<T>
 ) {
   return new Proxy<T>(target, {
     get(target, property, receiver) {
       if (property === Symbol.hasInstance) return hasInstance;
       return Reflect.get(target, property, receiver);
     },
+    ...handler,
   });
 }
 
 export const proxiedGlobals = {
   Object: proxyHasInstance(Object, isObject),
   Array: proxyHasInstance(Array, Array.isArray),
-  Function: proxyHasInstance(Function, isFunction),
   Promise: proxyHasInstance(Promise, types.isPromise),
   RegExp: proxyHasInstance(RegExp, types.isRegExp),
   Error: proxyHasInstance(Error, isError(Error)),
@@ -49,4 +50,18 @@ export const proxiedGlobals = {
   SyntaxError: proxyHasInstance(SyntaxError, isError(SyntaxError)),
   TypeError: proxyHasInstance(TypeError, isError(TypeError)),
   URIError: proxyHasInstance(URIError, isError(URIError)),
+  Function: proxyHasInstance(Function, isFunction, {
+    construct() {
+      // We set `codeGeneration: { strings: false }` in our vm context, but
+      // because we're passing the Function constructor from outside the realm,
+      // we have to prevent construction ourselves.
+      //
+      // Constructing with the Function constructor obtained from
+      // `Object.getPrototypeOf(function(){}).constructor` will still throw
+      // though because of `strings: false`.
+      throw new EvalError(
+        "Code generation from strings disallowed for this context"
+      );
+    },
+  }),
 };
