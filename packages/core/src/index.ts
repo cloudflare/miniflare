@@ -13,6 +13,7 @@ import {
   PluginSignatures,
   ScriptBlueprint,
   ScriptRunner,
+  ScriptRunnerResult,
   SetupResult,
   StorageFactory,
   TypedEventTarget,
@@ -193,7 +194,7 @@ export class MiniflareCore<
   #beforeSetupWatch?: PluginData<Plugins, Set<string>>;
   #setupWatch?: PluginData<Plugins, Set<string>>;
   #setupResults?: PluginData<Plugins, SetupResult>;
-  #script?: ScriptBlueprint;
+  readonly #scriptWatchPaths = new Set<string>();
 
   #globalScope?: ServiceWorkerGlobalScope;
   #watcher?: Watcher;
@@ -381,7 +382,7 @@ export class MiniflareCore<
     const newWatchPaths = new Set<string>();
     if (this.#wranglerConfigPath) newWatchPaths.add(this.#wranglerConfigPath);
 
-    this.#script = undefined;
+    let script: ScriptBlueprint | undefined = undefined;
     for (const [name] of this.#plugins) {
       // Run beforeReload hook
       const instance = this.#instances![name];
@@ -395,10 +396,10 @@ export class MiniflareCore<
       Object.assign(globals, result?.globals);
       Object.assign(bindings, result?.bindings);
       if (result?.script) {
-        if (this.#script) {
+        if (script) {
           throw new TypeError("Multiple plugins returned a script");
         }
-        this.#script = result.script;
+        script = result.script;
       }
 
       // Extract watch paths
@@ -418,23 +419,30 @@ export class MiniflareCore<
 
     // Run script blueprints, with modules rules if in modules mode
     const rules = modules ? processedModuleRules : undefined;
-    const res =
-      this.#script &&
-      (await this.#scriptRunner.run(globalScope, this.#script, rules));
-    if (res?.watch) addAll(newWatchPaths, res.watch);
+    let res: ScriptRunnerResult | undefined = undefined;
+    if (script) {
+      res = await this.#scriptRunner.run(globalScope, script, rules);
 
-    // Add module event listeners if any
-    if (res?.exports) {
-      const defaults = res.exports.default;
-
-      const fetchListener = defaults?.fetch?.bind(defaults);
-      if (fetchListener) {
-        globalScope[kAddModuleFetchListener](fetchListener);
+      this.#scriptWatchPaths.clear();
+      this.#scriptWatchPaths.add(script.filePath);
+      if (res.watch) {
+        addAll(newWatchPaths, res.watch);
+        addAll(this.#scriptWatchPaths, res.watch);
       }
 
-      const scheduledListener = defaults?.scheduled?.bind(defaults);
-      if (scheduledListener) {
-        globalScope[kAddModuleScheduledListener](scheduledListener);
+      // Add module event listeners if any
+      if (res.exports) {
+        const defaults = res.exports.default;
+
+        const fetchListener = defaults?.fetch?.bind(defaults);
+        if (fetchListener) {
+          globalScope[kAddModuleFetchListener](fetchListener);
+        }
+
+        const scheduledListener = defaults?.scheduled?.bind(defaults);
+        if (scheduledListener) {
+          globalScope[kAddModuleScheduledListener](scheduledListener);
+        }
       }
     }
 
@@ -450,12 +458,14 @@ export class MiniflareCore<
     this.dispatchEvent(new ReloadEvent(this.#instances!));
 
     // Log bundle size and warning if too big
+    // noinspection JSObjectNullOrUndefined
     this.log.info(
       `Worker reloaded!${
         res?.bundleSize !== undefined ? ` (${formatSize(res.bundleSize)})` : ""
       }`
     );
     // TODO (someday): compress asynchronously
+    // noinspection JSObjectNullOrUndefined
     if (res?.bundleSize !== undefined && res.bundleSize > 1_048_576) {
       this.log.warn(
         "Worker's uncompressed size exceeds the 1MiB limit! " +
@@ -507,7 +517,7 @@ export class MiniflareCore<
   #ignoreScriptUpdatesTimeout!: NodeJS.Timeout;
   #watcherCallback(eventPath: string): void {
     this.log.debug(`${path.relative("", eventPath)} changed...`);
-    if (this.#ignoreScriptUpdates && eventPath === this.#script?.filePath) {
+    if (this.#ignoreScriptUpdates && this.#scriptWatchPaths.has(eventPath)) {
       this.log.verbose("Ignoring script change after build...");
       return;
     }
