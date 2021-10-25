@@ -134,23 +134,26 @@ function throwNoScriptError(modules?: boolean) {
   const script = modules ? "worker.mjs" : "worker.js";
   const format = modules ? "modules" : "service-worker";
   const pkgScriptField = modules ? "module" : "main";
-  throw new TypeError(
-    [
-      "No script defined, either:",
-      "- Pass it as a positional argument, if you're using the CLI",
-      dim(`    $ ${execName} dist/${script}`),
-      "- Set the script or scriptPath option, if you're using the API",
-      dim(`    new Miniflare({ scriptPath: "dist/${script}" })`),
+  const lines = [
+    "No script defined, either:",
+    "- Pass it as a positional argument, if you're using the CLI",
+    dim(`    $ ${execName} dist/${script}`),
+    "- Set the script or scriptPath option, if you're using the API",
+    dim(`    new Miniflare({ scriptPath: "dist/${script}" })`),
+    `- Set ${pkgScriptField} in package.json`,
+    dim(`    { "${pkgScriptField}": "dist/${script}" }`),
+  ];
+  if (modules) {
+    lines.push(
       "- Set build.upload.main in wrangler.toml",
       dim("    [build.upload]"),
       dim(`    format = "${format}"`),
       dim(`    dir = "dist"`),
-      dim(`    main = "${script}"`),
-      `- Set ${pkgScriptField} in package.json`,
-      dim(`    { "${pkgScriptField}": "dist/${script}" }`),
-      "",
-    ].join("\n")
-  );
+      dim(`    main = "${script}"`)
+    );
+  }
+  lines.push("");
+  throw new TypeError(lines.join("\n"));
 }
 
 export interface MiniflareCoreContext {

@@ -417,9 +417,24 @@ test("MiniflareCore: #init: throws if script required but not provided", async (
 
   // Check throws if no script defined
   let mf = new MiniflareCore({ CorePlugin }, ctx);
+  let error: Error | undefined = undefined;
+  try {
+    await mf.getPlugins();
+  } catch (e: any) {
+    error = e;
+  }
+  assert(error);
+  // noinspection SuspiciousTypeOfGuard
+  t.true(error instanceof TypeError);
+  t.regex(error?.stack ?? "", /No script defined/);
+
+  // Check build.upload.main is only suggested in modules mode
+  // (cannot use notRegexp with t.throwsAsync hence catch)
+  t.notRegex(error!.stack!, /build\.upload\.main/);
+  mf = new MiniflareCore({ CorePlugin }, ctx, { modules: true });
   await t.throwsAsync(mf.getPlugins(), {
     instanceOf: TypeError,
-    message: /^No script defined/,
+    message: /build\.upload\.main/,
   });
 
   // Check doesn't throw if script defined
