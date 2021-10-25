@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { VMScriptRunner } from "@miniflare/runner-vm";
-import test from "ava";
+import test, { ThrowsExpectation } from "ava";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,13 +55,38 @@ test("VMScriptRunner: run: includes module file name in stack traces", async (t)
   }
 });
 test("VMScriptRunner: run: disallows dynamic JavaScript execution", async (t) => {
-  const result = runner.run(
-    { callback: () => t.fail() },
-    { code: 'eval("callback()")', filePath: "test.js" }
-  );
-  await t.throwsAsync(result, {
+  const globals = { callback: () => t.fail() };
+  const expectations: ThrowsExpectation = {
     message: "Code generation from strings disallowed for this context",
+  };
+
+  // Check eval()
+  let result = runner.run(globals, {
+    code: 'eval("callback()")',
+    filePath: "test.js",
   });
+  await t.throwsAsync(result, expectations, "eval(...)");
+
+  // Check new Function() via global
+  result = runner.run(globals, {
+    code: 'new Function("callback()")',
+    filePath: "test.js",
+  });
+  await t.throwsAsync(result, expectations, "global new Function(...)");
+
+  // Check new Function() via prototype
+  result = runner.run(globals, {
+    code: 'new (Object.getPrototypeOf(function(){}).constructor)("callback()")',
+    filePath: "test.js",
+  });
+  await t.throwsAsync(result, expectations, "prototype new Function(...)");
+
+  // Check new GeneratorFunction()
+  result = runner.run(globals, {
+    code: 'new (Object.getPrototypeOf(function*(){}).constructor)("callback()")',
+    filePath: "test.js",
+  });
+  await t.throwsAsync(result, expectations, "new GeneratorFunction(...)");
 });
 test("VMScriptRunner: run: disallows WebAssembly compilation", async (t) => {
   const addModule = await fs.readFile(path.join(fixturesPath, "add.wasm"));

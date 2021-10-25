@@ -24,7 +24,6 @@ instanceOfMacro.title = (providedTitle, type) =>
   }`;
 test(instanceOfMacro, "Object", () => ({ a: 1 }));
 test(instanceOfMacro, "Array", () => [1]);
-test(instanceOfMacro, "Function", () => () => {});
 test(instanceOfMacro, "Promise", () => (async () => {})());
 test(instanceOfMacro, "RegExp", () => /a/);
 test(instanceOfMacro, "Error", () => new Error());
@@ -34,6 +33,7 @@ test(instanceOfMacro, "ReferenceError", () => new ReferenceError());
 test(instanceOfMacro, "SyntaxError", () => new SyntaxError());
 test(instanceOfMacro, "TypeError", () => new TypeError());
 test(instanceOfMacro, "URIError", () => new URIError());
+test(instanceOfMacro, "Function", () => () => {});
 
 test(
   "supports subclass cross-realm instanceof",
