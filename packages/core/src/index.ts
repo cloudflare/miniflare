@@ -413,6 +413,10 @@ export class MiniflareCore<
       if (setupWatch) addAll(newWatchPaths, setupWatch);
     }
     const { modules, processedModuleRules } = this.#instances!.CorePlugin;
+
+    // Clean up process-wide promise rejection event listeners
+    this.#globalScope?.dispose();
+    // Create new global scope on each reload
     const globalScope = new ServiceWorkerGlobalScope(
       this.log,
       globals,

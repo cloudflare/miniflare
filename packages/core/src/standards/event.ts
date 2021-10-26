@@ -36,13 +36,15 @@ const kWaitUntil = Symbol("kWaitUntil");
 const kSent = Symbol("kSent");
 
 export class FetchEvent extends Event {
+  readonly request: Request;
   [kResponse]?: Promise<Response | BaseResponse>;
   [kPassThrough] = false;
   readonly [kWaitUntil]: Promise<unknown>[] = [];
   [kSent] = false;
 
-  constructor(public readonly request: Request) {
-    super("fetch");
+  constructor(type: "fetch", init: { request: Request }) {
+    super(type);
+    this.request = init.request;
   }
 
   respondWith(response: Awaitable<Response | BaseResponse>): void {
@@ -82,13 +84,17 @@ export class FetchEvent extends Event {
 }
 
 export class ScheduledEvent extends Event {
+  readonly scheduledTime: number;
+  readonly cron: string;
   readonly [kWaitUntil]: Promise<unknown>[] = [];
 
   constructor(
-    public readonly scheduledTime: number,
-    public readonly cron: string
+    type: "scheduled",
+    init: { scheduledTime: number; cron: string }
   ) {
-    super("scheduled");
+    super(type);
+    this.scheduledTime = init.scheduledTime;
+    this.cron = init.cron;
   }
 
   waitUntil(promise: Promise<any>): void {
@@ -147,9 +153,25 @@ export const kAddModuleScheduledListener = Symbol(
 export const kDispatchFetch = Symbol("kDispatchFetch");
 export const kDispatchScheduled = Symbol("kDispatchScheduled");
 
+export class PromiseRejectionEvent extends Event {
+  readonly promise: Promise<any>;
+  readonly reason?: any;
+
+  constructor(
+    type: "unhandledrejection" | "rejectionhandled",
+    init: { promise: Promise<any>; reason?: any }
+  ) {
+    super(type, { cancelable: true });
+    this.promise = init.promise;
+    this.reason = init.reason;
+  }
+}
+
 export type WorkerGlobalScopeEventMap = {
   fetch: FetchEvent;
   scheduled: ScheduledEvent;
+  unhandledrejection: PromiseRejectionEvent;
+  rejectionhandled: PromiseRejectionEvent;
 };
 
 export class WorkerGlobalScope extends ThrowingEventTarget<WorkerGlobalScopeEventMap> {}
@@ -158,7 +180,14 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
   readonly #log: Log;
   readonly #bindings: Context;
   readonly #modules?: boolean;
-  #addedFetchListener = false;
+  #calledAddFetchEventListener = false;
+
+  readonly #rejectionHandledListeners = new Set<
+    TypedEventListener<PromiseRejectionEvent>
+  >();
+  readonly #unhandledRejectionListeners = new Set<
+    TypedEventListener<PromiseRejectionEvent>
+  >();
 
   // Global self-references
   // noinspection JSUnusedGlobalSymbols
@@ -213,7 +242,32 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
           "handlers should be declared as exports on the root module."
       );
     }
-    if (type === "fetch") this.#addedFetchListener = true;
+
+    if (type === "fetch") this.#calledAddFetchEventListener = true;
+
+    // Register process wide unhandledRejection/rejectionHandled listeners if
+    // not already done so
+    if (type === "unhandledrejection" && listener) {
+      if (this.#unhandledRejectionListeners.size === 0) {
+        this.#log.verbose("Adding process unhandledRejection listener...");
+        process.prependListener(
+          "unhandledRejection",
+          this.#unhandledRejectionListener
+        );
+      }
+      this.#unhandledRejectionListeners.add(listener as any);
+    }
+    if (type === "rejectionhandled" && listener) {
+      if (this.#rejectionHandledListeners.size === 0) {
+        this.#log.verbose("Adding process rejectionHandled listener...");
+        process.prependListener(
+          "rejectionHandled",
+          this.#rejectionHandledListener
+        );
+      }
+      this.#rejectionHandledListeners.add(listener as any);
+    }
+
     super.addEventListener(type, listener, options);
   };
 
@@ -228,6 +282,32 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
           "handlers should be declared as exports on the root module."
       );
     }
+
+    // Unregister process wide rejectionHandled/unhandledRejection listeners if
+    // no longer needed and not already done so
+    if (type === "unhandledrejection" && listener) {
+      const registered = this.#unhandledRejectionListeners.size > 0;
+      this.#unhandledRejectionListeners.delete(listener as any);
+      if (registered && this.#unhandledRejectionListeners.size === 0) {
+        this.#log.verbose("Removing process unhandledRejection listener...");
+        process.removeListener(
+          "unhandledRejection",
+          this.#unhandledRejectionListener
+        );
+      }
+    }
+    if (type === "rejectionhandled" && listener) {
+      const registered = this.#rejectionHandledListeners.size > 0;
+      this.#rejectionHandledListeners.delete(listener as any);
+      if (registered && this.#rejectionHandledListeners.size === 0) {
+        this.#log.verbose("Removing process rejectionHandled listener...");
+        process.removeListener(
+          "rejectionHandled",
+          this.#rejectionHandledListener
+        );
+      }
+    }
+
     super.removeEventListener(type, listener, options);
   };
 
@@ -242,7 +322,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
   };
 
   [kAddModuleFetchListener](listener: ModuleFetchListener): void {
-    this.#addedFetchListener = true;
+    this.#calledAddFetchEventListener = true;
     super.addEventListener("fetch", (e) => {
       const ctx = new ExecutionContext(e);
       const res = listener(e.request, this.#bindings, ctx);
@@ -265,7 +345,9 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
   ): Promise<Response<WaitUntil>> {
     // No need to clone request if not proxying, no chance we'll need to send
     // it somewhere else
-    const event = new FetchEvent(proxy ? request.clone() : request);
+    const event = new FetchEvent("fetch", {
+      request: proxy ? request.clone() : request,
+    });
     let res: Response | BaseResponse | undefined;
     try {
       super.dispatchEvent(event);
@@ -303,7 +385,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
           "ERR_NO_UPSTREAM",
           "No upstream to pass-through to specified.\nMake sure you've set the `upstream` option."
         );
-      } else if (this.#addedFetchListener) {
+      } else if (this.#calledAddFetchEventListener) {
         // Technically we'll get this error if we addEventListener and then
         // removeEventListener, but that seems extremely unlikely, and you
         // probably know what you're doing if you're calling removeEventListener
@@ -334,8 +416,56 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     scheduledTime?: number,
     cron?: string
   ): Promise<WaitUntil> {
-    const event = new ScheduledEvent(scheduledTime ?? Date.now(), cron ?? "");
+    const event = new ScheduledEvent("scheduled", {
+      scheduledTime: scheduledTime ?? Date.now(),
+      cron: cron ?? "",
+    });
     super.dispatchEvent(event);
     return (await Promise.all(event[kWaitUntil])) as WaitUntil;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+  #unhandledRejectionListener = (reason: any, promise: Promise<any>): void => {
+    const event = new PromiseRejectionEvent("unhandledrejection", {
+      reason,
+      promise,
+    });
+    const notCancelled = super.dispatchEvent(event);
+    // If the event wasn't preventDefault()ed, remove the listener and cause
+    // an unhandled promise rejection again. This should terminate the program.
+    if (notCancelled) {
+      process.removeListener(
+        "unhandledRejection",
+        this.#unhandledRejectionListener
+      );
+      // noinspection JSIgnoredPromiseFromCall
+      Promise.reject(reason);
+    }
+  };
+
+  #rejectionHandledListener = (promise: Promise<any>): void => {
+    // Node.js doesn't give us the reason :(
+    const event = new PromiseRejectionEvent("rejectionhandled", { promise });
+    super.dispatchEvent(event);
+  };
+
+  dispose(): void {
+    if (this.#unhandledRejectionListeners.size > 0) {
+      this.#log.verbose("Removing process unhandledRejection listener...");
+      process.removeListener(
+        "unhandledRejection",
+        this.#unhandledRejectionListener
+      );
+    }
+    this.#unhandledRejectionListeners.clear();
+
+    if (this.#rejectionHandledListeners.size > 0) {
+      this.#log.verbose("Removing process rejectionHandled listener...");
+      process.removeListener(
+        "rejectionHandled",
+        this.#rejectionHandledListener
+      );
+    }
+    this.#rejectionHandledListeners.clear();
   }
 }

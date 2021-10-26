@@ -92,7 +92,9 @@ test("ServiceWorkerGlobalScope: removeEventListener: disabled if modules enabled
 });
 test("ServiceWorkerGlobalScope: dispatchEvent: disabled if modules enabled", (t) => {
   const globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
-  const event = new FetchEvent(new Request("http://localhost"));
+  const event = new FetchEvent("fetch", {
+    request: new Request("http://localhost"),
+  });
   t.throws(() => globalScope.dispatchEvent(event), {
     instanceOf: TypeError,
     message:
@@ -106,6 +108,7 @@ test("ServiceWorkerGlobalScope: hides implementation details", (t) => {
     "KEY", // binding
     "addEventListener",
     "dispatchEvent",
+    "dispose",
     "global",
     "globalThis",
     "removeEventListener",
@@ -465,7 +468,9 @@ const illegalInvocationExpectation: ThrowsExpectation = {
 };
 
 test("FetchEvent: hides implementation details", (t) => {
-  const event = new FetchEvent(new Request("http://localhost:8787"));
+  const event = new FetchEvent("fetch", {
+    request: new Request("http://localhost:8787"),
+  });
   t.deepEqual(getObjectProperties(event), [
     "isTrusted",
     "passThroughOnException",
@@ -476,14 +481,18 @@ test("FetchEvent: hides implementation details", (t) => {
 });
 test("FetchEvent: methods throw if this is incorrectly bound", (t) => {
   const { respondWith, passThroughOnException, waitUntil } = new FetchEvent(
-    new Request("http://localhost:8787")
+    "fetch",
+    { request: new Request("http://localhost:8787") }
   );
   t.throws(() => respondWith(new Response()), illegalInvocationExpectation);
   t.throws(() => passThroughOnException(), illegalInvocationExpectation);
   t.throws(() => waitUntil(Promise.resolve()), illegalInvocationExpectation);
 });
 test("ScheduledEvent: hides implementation details", (t) => {
-  const event = new ScheduledEvent(1000, "30 * * * *");
+  const event = new ScheduledEvent("scheduled", {
+    scheduledTime: 1000,
+    cron: "30 * * * *",
+  });
   t.deepEqual(getObjectProperties(event), [
     "cron",
     "isTrusted",
@@ -492,11 +501,16 @@ test("ScheduledEvent: hides implementation details", (t) => {
   ]);
 });
 test("ScheduledEvent: methods throw if this is incorrectly bound", (t) => {
-  const { waitUntil } = new ScheduledEvent(1000, "30 * * * *");
+  const { waitUntil } = new ScheduledEvent("scheduled", {
+    scheduledTime: 1000,
+    cron: "30 * * * *",
+  });
   t.throws(() => waitUntil(Promise.resolve()), illegalInvocationExpectation);
 });
 test("ExecutionContext: hides implementation details", (t) => {
-  const event = new FetchEvent(new Request("http://localhost:8787"));
+  const event = new FetchEvent("fetch", {
+    request: new Request("http://localhost:8787"),
+  });
   const ctx = new ExecutionContext(event);
   t.deepEqual(getObjectProperties(ctx), [
     "passThroughOnException",
@@ -504,7 +518,9 @@ test("ExecutionContext: hides implementation details", (t) => {
   ]);
 });
 test("ExecutionContext: methods throw if this is incorrectly bound", (t) => {
-  const event = new FetchEvent(new Request("http://localhost:8787"));
+  const event = new FetchEvent("fetch", {
+    request: new Request("http://localhost:8787"),
+  });
   const { passThroughOnException, waitUntil } = new ExecutionContext(event);
   t.throws(() => passThroughOnException(), illegalInvocationExpectation);
   t.throws(() => waitUntil(Promise.resolve()), illegalInvocationExpectation);
