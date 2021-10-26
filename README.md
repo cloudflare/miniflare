@@ -17,12 +17,8 @@ workers in a sandbox implementing Workers' runtime APIs.
 
 ---
 
-<!--prettier-ignore-start-->
-:::warning
-⚠️ This branch is for the next major version of Miniflare, which is
-under development.
-:::
-<!--prettier-ignore-end-->
+> ⚠️ This branch is for the next major version of Miniflare, which is under
+> development.
 
 Miniflare 2 has been completely redesigned from version 1 with 3 primary design
 goals:
