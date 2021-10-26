@@ -1,7 +1,7 @@
 {
   "name": "@miniflare/storage-file",
-  "version": "2.0.0",
-  "description": "",
+  "version": "2.0.0-next.1",
+  "description": "File-system storage module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
     "workers",
@@ -33,10 +33,10 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/shared": "2.0.0",
-    "@miniflare/storage-memory": "2.0.0"
+    "@miniflare/shared": "2.0.0-next.1",
+    "@miniflare/storage-memory": "2.0.0-next.1"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.0.0"
+    "@miniflare/shared-test": "2.0.0-next.1"
   }
 }

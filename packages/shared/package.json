@@ -1,7 +1,7 @@
 {
   "name": "@miniflare/shared",
-  "version": "2.0.0",
-  "description": "",
+  "version": "2.0.0-next.1",
+  "description": "Shared utility module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
     "workers",
@@ -37,6 +37,6 @@
     "kleur": "^4.1.4"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.0.0"
+    "@miniflare/shared-test": "2.0.0-next.1"
   }
 }

@@ -118,7 +118,7 @@ test("parseArgv: throws on --version", (t) => {
   const expectation: ThrowsExpectation = {
     instanceOf: ParseError,
     code: "ERR_VERSION",
-    message: /^\d+\.\d+\.\d+$/,
+    message: /^\d+\.\d+\.\d+/,
   };
   t.throws(() => parseArgv(plugins, ["--version"]), expectation);
   t.throws(() => parseArgv(plugins, ["-v"]), expectation);
