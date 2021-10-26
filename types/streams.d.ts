@@ -102,6 +102,12 @@ declare module "stream/web" {
       view: T
     ): Promise<ReadableStreamBYOBReadResult<T>>;
     releaseLock(): void;
+
+    // Non-standard: https://community.cloudflare.com/t/2021-10-21-workers-runtime-release-notes/318571
+    readAtLeast<T extends ArrayBufferView>(
+      bytes: number,
+      view: T
+    ): Promise<ReadableStreamBYOBReadResult<T>>;
   }
 
   export type ReadableStreamBYOBReadResult<T extends ArrayBufferView> =
