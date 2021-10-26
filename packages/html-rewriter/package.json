@@ -15,7 +15,7 @@
   "exports": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "files": [
-    "./dist/src"
+    "dist/src"
   ],
   "publishConfig": {
     "access": "public"

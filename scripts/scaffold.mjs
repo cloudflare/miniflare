@@ -32,14 +32,15 @@ async function scaffoldPackage(unscopedPkgName) {
   const pkg = {
     name: `${scope}/${unscopedPkgName}`,
     version: rootPkg.version,
-    description: "",
+    description:
+      "Module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
     keywords: ["cloudflare", "workers", "worker", "local", "cloudworker"],
     author: "MrBBot <me@mrbbot.dev>",
     license: "MIT",
     type: "module",
     exports: "./dist/src/index.js",
     types: "./dist/src/index.d.ts",
-    files: ["./dist/src"],
+    files: ["dist/src"],
     publishConfig: { access: "public" },
     repository: {
       type: "git",
