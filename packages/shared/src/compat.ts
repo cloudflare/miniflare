@@ -1,5 +1,3 @@
-import { Log } from "./log";
-
 export interface CompatibilityFeature {
   defaultAsOf?: string;
   enableFlag: CompatibilityEnableFlag;
@@ -90,10 +88,7 @@ export class Compatibility {
     return true;
   }
 
-  logEnabled(log: Log): void {
-    log.debug(
-      `Enabled Compatibility Flags:${this.#enabled.size === 0 ? " <none>" : ""}`
-    );
-    for (const flag of this.#enabled) log.debug(`- ${flag}`);
+  get enabled(): CompatibilityEnableFlag[] {
+    return [...this.#enabled];
   }
 }
