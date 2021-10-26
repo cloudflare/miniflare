@@ -1,6 +1,6 @@
 {
   "name": "miniflare",
-  "version": "2.0.0",
+  "version": "2.0.0-next.1",
   "description": "Fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -40,32 +40,32 @@
     "miniflare": "bootstrap.js"
   },
   "dependencies": {
-    "@miniflare/cache": "2.0.0",
-    "@miniflare/cli-parser": "2.0.0",
-    "@miniflare/core": "2.0.0",
-    "@miniflare/durable-objects": "2.0.0",
-    "@miniflare/html-rewriter": "2.0.0",
-    "@miniflare/http-server": "2.0.0",
-    "@miniflare/kv": "2.0.0",
-    "@miniflare/runner-vm": "2.0.0",
-    "@miniflare/scheduler": "2.0.0",
-    "@miniflare/shared": "2.0.0",
-    "@miniflare/sites": "2.0.0",
-    "@miniflare/storage-file": "2.0.0",
-    "@miniflare/storage-memory": "2.0.0",
-    "@miniflare/watcher": "2.0.0",
-    "@miniflare/web-sockets": "2.0.0",
+    "@miniflare/cache": "2.0.0-next.1",
+    "@miniflare/cli-parser": "2.0.0-next.1",
+    "@miniflare/core": "2.0.0-next.1",
+    "@miniflare/durable-objects": "2.0.0-next.1",
+    "@miniflare/html-rewriter": "2.0.0-next.1",
+    "@miniflare/http-server": "2.0.0-next.1",
+    "@miniflare/kv": "2.0.0-next.1",
+    "@miniflare/runner-vm": "2.0.0-next.1",
+    "@miniflare/scheduler": "2.0.0-next.1",
+    "@miniflare/shared": "2.0.0-next.1",
+    "@miniflare/sites": "2.0.0-next.1",
+    "@miniflare/storage-file": "2.0.0-next.1",
+    "@miniflare/storage-memory": "2.0.0-next.1",
+    "@miniflare/watcher": "2.0.0-next.1",
+    "@miniflare/web-sockets": "2.0.0-next.1",
     "kleur": "^4.1.4",
     "source-map-support": "^0.5.20",
     "undici": "^4.8.1"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.0.0",
+    "@miniflare/shared-test": "2.0.0-next.1",
     "@types/source-map-support": "^0.5.4",
     "semiver": "^1.1.0"
   },
   "peerDependencies": {
-    "@miniflare/storage-redis": "2.0.0",
+    "@miniflare/storage-redis": "2.0.0-next.1",
     "ioredis": "^4.27.9",
     "node-cron": "^3.0.0"
   },
