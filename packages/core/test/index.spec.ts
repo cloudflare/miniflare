@@ -499,6 +499,31 @@ test("MiniflareCore: #init: logs options on init and change", async (t) => {
     ...expectedLogs(2, true),
   ]);
 });
+test("MiniflareCore: #init: logs compatibility flags", async (t) => {
+  // Check options logged on init
+  const log = new TestLog();
+  const mf = useMiniflare({}, {}, log);
+  await mf.getPlugins();
+  t.deepEqual(log.logsAtLevel(LogLevel.DEBUG), [
+    "Initialising worker...",
+    "Options:",
+    "Enabled Compatibility Flags: <none>",
+    "Reloading worker...",
+  ]);
+
+  log.logs = [];
+  await mf.setOptions({
+    compatibilityFlags: ["formdata_parser_supports_files"],
+  });
+  t.deepEqual(log.logsAtLevel(LogLevel.DEBUG), [
+    "Initialising worker...",
+    "Options:",
+    "- Compatibility Flags: formdata_parser_supports_files",
+    "Enabled Compatibility Flags:",
+    "- formdata_parser_supports_files",
+    "Reloading worker...",
+  ]);
+});
 
 test("MiniflareCore: #reload: reloads worker on init", async (t) => {
   const log = new TestLog();

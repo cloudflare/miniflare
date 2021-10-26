@@ -374,7 +374,11 @@ export class MiniflareCore<
 
     // Log options and compatibility flags every time they might've changed
     logOptions(this.#plugins, this.log, options);
-    this.#compat.logEnabled(this.log);
+    const enabled = this.#compat.enabled;
+    this.log.debug(
+      `Enabled Compatibility Flags:${enabled.length === 0 ? " <none>" : ""}`
+    );
+    for (const flag of enabled) this.log.debug(`- ${flag}`);
   }
 
   async #reload(): Promise<void> {
