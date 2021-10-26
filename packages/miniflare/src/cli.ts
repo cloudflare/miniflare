@@ -95,6 +95,7 @@ async function main() {
     return;
   }
 
+  // TODO: check how this works with next tag
   const plugins = await mf.getPlugins();
   // Check for updates, ignoring errors (it's not that important)
   // Explicitly checking === false as undefined (default) should be true
