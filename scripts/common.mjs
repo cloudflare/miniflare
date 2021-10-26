@@ -45,7 +45,7 @@ export async function getPackage(pkgRoot) {
 export async function setPackage(pkgRoot, pkg) {
   await fs.writeFile(
     path.join(pkgRoot, "package.json"),
-    JSON.stringify(pkg, null, 2),
+    JSON.stringify(pkg, null, 2) + "\n",
     "utf8"
   );
 }
