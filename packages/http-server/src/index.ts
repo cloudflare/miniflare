@@ -65,6 +65,25 @@ export async function convertNodeRequest(
     }
   }
 
+  // Add additional Cloudflare specific headers:
+  // https://support.cloudflare.com/hc/en-us/articles/200170986-How-does-Cloudflare-handle-HTTP-Request-headers-
+  const proto = meta?.forwardedProto ?? "https";
+  let ip = meta?.realIp ?? req.socket.remoteAddress ?? "";
+  // Convert IPv6 loopback address to IPv4 address
+  if (ip === "::1") ip = "127.0.0.1";
+  // Remove IPv6 prefix for IPv4 addresses
+  if (ip.startsWith("::ffff:")) ip = ip.substring("::ffff:".length);
+  // We're a bit naughty here mutating the incoming request, but this ensures
+  // the headers are included in the pretty-error page. If we used the new
+  // converted Request instance's headers, we wouldn't have connection, keep-
+  // alive, etc as we strip those
+  req.headers["x-forwarded-proto"] ??= proto;
+  req.headers["x-real-ip"] ??= ip;
+  req.headers["cf-connecting-ip"] ??= ip;
+  req.headers["cf-ipcountry"] ??= meta?.cf?.country ?? "US";
+  req.headers["cf-ray"] ??= randomHex(16);
+  req.headers["cf-visitor"] ??= `{"scheme":"${proto}"}`;
+
   // Build Headers object from request
   const headers = new Headers();
   for (const [name, values] of Object.entries(req.headers)) {
@@ -84,21 +103,6 @@ export async function convertNodeRequest(
       headers.append(name, values);
     }
   }
-
-  // Add additional Cloudflare specific headers:
-  // https://support.cloudflare.com/hc/en-us/articles/200170986-How-does-Cloudflare-handle-HTTP-Request-headers-
-  const proto = meta?.forwardedProto ?? "https";
-  let ip = meta?.realIp ?? req.socket.remoteAddress ?? "";
-  // Convert IPv6 loopback address to IPv4 address
-  if (ip === "::1") ip = "127.0.0.1";
-  // Remove IPv6 prefix for IPv4 addresses
-  if (ip.startsWith("::ffff:")) ip = ip.substring("::ffff:".length);
-  headers.set("x-forwarded-proto", proto);
-  headers.set("x-real-ip", ip);
-  headers.set("cf-connecting-ip", ip);
-  headers.set("cf-ipcountry", meta?.cf?.country ?? "US");
-  headers.set("cf-ray", randomHex(16));
-  headers.set("cf-visitor", `{"scheme":"${proto}"}`);
 
   // Create Request with additional Cloudflare specific properties:
   // https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties
