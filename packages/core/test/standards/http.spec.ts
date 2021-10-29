@@ -372,6 +372,23 @@ test("Request: clone retains form data file parsing option", async (t) => {
   resFormData = await clone.formData();
   t.is(resFormData.get("file"), "test");
 });
+test("Request: Object.keys() returns getters", async (t) => {
+  const res = new Request("http://localhost", {
+    headers: { "X-Key": "value " },
+  });
+  const keys = Object.keys(res);
+  const expectedKeys = [
+    "body",
+    "bodyUsed",
+    "headers",
+    "cf",
+    "signal",
+    "redirect",
+    "url",
+    "method",
+  ];
+  t.deepEqual(keys.sort(), expectedKeys.sort());
+});
 
 test("withImmutableHeaders: makes Request's headers immutable", (t) => {
   const req = new Request("http://localhost");
@@ -508,6 +525,23 @@ test("Response: clone retains form data file parsing option", async (t) => {
   clone = res.clone();
   resFormData = await clone.formData();
   t.is(resFormData.get("file"), "test");
+});
+test("Response: Object.keys() returns getters", async (t) => {
+  const res = new Response("body", { headers: { "X-Key": "value " } });
+  const keys = Object.keys(res);
+  const expectedKeys = [
+    "body",
+    "bodyUsed",
+    "headers",
+    "webSocket",
+    "url",
+    "redirected",
+    "ok",
+    "statusText",
+    "status",
+    "type",
+  ];
+  t.deepEqual(keys.sort(), expectedKeys.sort());
 });
 
 test("withWaitUntil: adds wait until to (Base)Response", async (t) => {

@@ -1,3 +1,5 @@
+// noinspection SuspiciousTypeOfGuard
+
 import assert from "assert";
 import { Blob } from "buffer";
 import http from "http";
@@ -38,6 +40,18 @@ import {
 import fetchSymbols from "undici/lib/fetch/symbols.js";
 import { IncomingRequestCfProperties, RequestInitCfProperties } from "./cf";
 
+const inspect = Symbol.for("nodejs.util.inspect.custom");
+const nonEnumerable = Object.create(null);
+nonEnumerable.enumerable = false;
+
+function makeEnumerable<T>(prototype: any, instance: T, keys: (keyof T)[]) {
+  for (const key of keys) {
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, key)!;
+    descriptor.enumerable = true;
+    Object.defineProperty(instance, key, descriptor);
+  }
+}
+
 export class Headers extends BaseHeaders {
   getAll(key: string): string[] {
     if (key.toLowerCase() !== "set-cookie") {
@@ -72,6 +86,7 @@ export const kInner = Symbol("kInner");
 const kInputGated = Symbol("kInputGated");
 const kFormDataFiles = Symbol("kFormDataFiles");
 
+const enumerableBodyKeys: (keyof Body<any>)[] = ["body", "bodyUsed", "headers"];
 export class Body<Inner extends BaseRequest | BaseResponse> {
   [kInner]: Inner;
   [kInputGated] = false;
@@ -81,6 +96,23 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
 
   constructor(inner: Inner) {
     this[kInner] = inner;
+
+    makeEnumerable(Body.prototype, this, enumerableBodyKeys);
+    Object.defineProperty(this, kInner, nonEnumerable);
+    Object.defineProperty(this, kInputGated, nonEnumerable);
+    Object.defineProperty(this, kFormDataFiles, nonEnumerable);
+  }
+
+  [inspect](): Inner {
+    return this[kInner];
+  }
+
+  get headers(): Headers {
+    if (this.#headers) return this.#headers;
+    const headers = new Headers(this[kInner].headers);
+    // @ts-expect-error internal kGuard isn't included in type definitions
+    headers[fetchSymbols.kGuard] = this[kInner].headers[fetchSymbols.kGuard];
+    return (this.#headers = headers);
   }
 
   get body(): ReadableStream | null {
@@ -191,14 +223,6 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
     this[kInputGated] && (await waitForOpenInputGate());
     return body;
   }
-
-  get headers(): Headers {
-    if (this.#headers) return this.#headers;
-    const headers = new Headers(this[kInner].headers);
-    // @ts-expect-error internal kGuard isn't included in type definitions
-    headers[fetchSymbols.kGuard] = this[kInner].headers[fetchSymbols.kGuard];
-    return (this.#headers = headers);
-  }
 }
 
 export function withInputGating<Inner extends Body<BaseRequest | BaseResponse>>(
@@ -221,23 +245,30 @@ export interface RequestInit extends BaseRequestInit {
   readonly cf?: IncomingRequestCfProperties | RequestInitCfProperties;
 }
 
+const enumerableRequestKeys: (keyof Request)[] = [
+  "cf",
+  "signal",
+  "redirect",
+  "url",
+  "method",
+];
 export class Request extends Body<BaseRequest> {
   // noinspection TypeScriptFieldCanBeMadeReadonly
   #cf?: IncomingRequestCfProperties | RequestInitCfProperties;
 
   constructor(input: RequestInfo, init?: RequestInit) {
-    // noinspection SuspiciousTypeOfGuard
     const cf = input instanceof Request ? input.#cf : init?.cf;
     if (input instanceof BaseRequest && !init) {
       // For cloning
       super(input);
     } else {
       // Don't pass our strange hybrid Request to undici
-      // noinspection SuspiciousTypeOfGuard
       if (input instanceof Request) input = input[kInner];
       super(new BaseRequest(input, init));
     }
     this.#cf = cf ? nonCircularClone(cf) : undefined;
+
+    makeEnumerable(Request.prototype, this, enumerableRequestKeys);
   }
 
   clone(): Request {
@@ -301,6 +332,15 @@ export interface ResponseInit extends BaseResponseInit {
 
 const kWaitUntil = Symbol("kWaitUntil");
 
+const enumerableResponseKeys: (keyof Response)[] = [
+  "webSocket",
+  "url",
+  "redirected",
+  "ok",
+  "statusText",
+  "status",
+  "type",
+];
 export class Response<
   WaitUntil extends any[] = unknown[]
 > extends Body<BaseResponse> {
@@ -346,6 +386,9 @@ export class Response<
     }
     this.#status = status;
     this.#webSocket = webSocket;
+
+    makeEnumerable(Response.prototype, this, enumerableResponseKeys);
+    Object.defineProperty(this, kWaitUntil, nonEnumerable);
   }
 
   clone(): Response {
@@ -414,7 +457,6 @@ export async function fetch(
   //  https://developers.cloudflare.com/workers/examples/cache-using-fetch
 
   // Don't pass our strange hybrid Request to undici
-  // noinspection SuspiciousTypeOfGuard
   if (input instanceof Request) input = input[kInner];
   await waitForOpenOutputGate();
   const baseRes = await baseFetch(input, init);
@@ -423,16 +465,6 @@ export async function fetch(
   return withInputGating(res);
 }
 
-const requestInitKeys: (keyof BaseRequestInit)[] = [
-  "method",
-  "keepalive",
-  "headers",
-  "body",
-  "redirect",
-  "integrity",
-  "signal",
-];
-
 export function createCompatFetch(
   compat: Compatibility,
   inner: typeof fetch = fetch
@@ -440,7 +472,6 @@ export function createCompatFetch(
   const refusesUnknown = compat.isEnabled("fetch_refuses_unknown_protocols");
   const formDataFiles = compat.isEnabled("formdata_parser_supports_files");
   return async (input, init) => {
-    // noinspection SuspiciousTypeOfGuard
     const url = new URL(
       input instanceof Request || input instanceof BaseRequest
         ? input.url
@@ -455,19 +486,13 @@ export function createCompatFetch(
       if (refusesUnknown) {
         throw new TypeError(`Fetch API cannot load: ${url.toString()}`);
       } else {
-        // Undici doesn't let you pass a Request as the init prop, without
-        // losing the headers, so if we need to rewrite the URL, we have to
-        // manually build a RequestInit dict so we don't lose those properties.
-        // noinspection SuspiciousTypeOfGuard
-        if (input instanceof Request) input = input[kInner];
-        if (input instanceof BaseRequest) {
-          const newInit: RequestInit = {};
-          for (const key of requestInitKeys) {
-            const value = init?.[key] ?? input[key];
-            // @ts-expect-error RequestInit is defined as read-only
-            if (value) newInit[key] = value;
-          }
-          init = newInit;
+        if (init) {
+          init = new Request(input, init);
+        } else if (input instanceof BaseRequest) {
+          // BaseRequest's properties aren't enumerable, so convert to a Request
+          init = new Request(input);
+        } else if (input instanceof Request) {
+          init = input;
         }
         // Free to mutate this as we created url at the start of the function
         url.protocol = "http:";
