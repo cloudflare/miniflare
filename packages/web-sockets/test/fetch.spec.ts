@@ -38,7 +38,7 @@ test("upgradingFetch: performs web socket upgrade", async (t) => {
     ws.send(req.headers["user-agent"]);
     ws.addEventListener("message", ({ data }) => ws.send(data));
   });
-  const res = await upgradingFetch(server.ws, {
+  const res = await upgradingFetch(server.http, {
     headers: { upgrade: "websocket", "user-agent": "Test" },
   });
   const webSocket = res.webSocket;
@@ -56,6 +56,28 @@ test("upgradingFetch: performs web socket upgrade", async (t) => {
 
   await eventPromise;
   t.deepEqual(messages, ["hello client", "Test", "hello server"]);
+});
+test("upgradingFetch: throws on ws(s) protocols", async (t) => {
+  await t.throwsAsync(
+    upgradingFetch("ws://localhost/", {
+      headers: { upgrade: "websocket" },
+    }),
+    {
+      instanceOf: TypeError,
+      message:
+        "Fetch API cannot load: ws://localhost/.\nMake sure you're using http(s):// URLs for WebSocket requests via fetch.",
+    }
+  );
+  await t.throwsAsync(
+    upgradingFetch("wss://localhost/", {
+      headers: { upgrade: "websocket" },
+    }),
+    {
+      instanceOf: TypeError,
+      message:
+        "Fetch API cannot load: wss://localhost/.\nMake sure you're using http(s):// URLs for WebSocket requests via fetch.",
+    }
+  );
 });
 test("upgradingFetch: requires GET for web socket upgrade", async (t) => {
   const server = await useServer(

@@ -477,12 +477,7 @@ export function createCompatFetch(
         ? input.url
         : input.toString()
     );
-    if (
-      url.protocol !== "http:" &&
-      url.protocol !== "https:" &&
-      url.protocol !== "ws:" &&
-      url.protocol !== "wss:"
-    ) {
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
       if (refusesUnknown) {
         throw new TypeError(`Fetch API cannot load: ${url.toString()}`);
       } else {

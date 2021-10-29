@@ -610,15 +610,13 @@ test("createCompatFetch: refuses unknown protocols if compatibility flag enabled
     message: `Fetch API cannot load: ${upstream.toString()}`,
   });
 });
-test("createCompatFetch: recognises http, https, ws, and wss as known protocols", async (t) => {
+test("createCompatFetch: recognises http and https as known protocols", async (t) => {
   const fetch = createCompatFetch(
     new Compatibility(undefined, ["fetch_refuses_unknown_protocols"]),
     async () => new Response("upstream")
   );
   t.is(await (await fetch("http://localhost/")).text(), "upstream");
   t.is(await (await fetch("https://localhost/")).text(), "upstream");
-  t.is(await (await fetch("ws://localhost/")).text(), "upstream");
-  t.is(await (await fetch("wss://localhost/")).text(), "upstream");
 });
 test("createCompatFetch: rewrites urls of all types of fetch inputs", async (t) => {
   const { http: upstream } = await useServer(t, (req, res) => {

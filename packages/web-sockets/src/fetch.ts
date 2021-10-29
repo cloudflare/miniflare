@@ -1,3 +1,4 @@
+import { URL } from "url";
 import {
   Request,
   RequestInfo,
@@ -28,7 +29,14 @@ export async function upgradingFetch(
     for (const [key, value] of request.headers.entries()) {
       headers[key] = value;
     }
-    const ws = new StandardWebSocket(request.url, {
+    const url = new URL(request.url);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      throw new TypeError(
+        `Fetch API cannot load: ${url.toString()}.\nMake sure you're using http(s):// URLs for WebSocket requests via fetch.`
+      );
+    }
+    url.protocol = url.protocol.replace("http", "ws");
+    const ws = new StandardWebSocket(url, {
       followRedirects: request.redirect === "follow",
       headers,
     });
