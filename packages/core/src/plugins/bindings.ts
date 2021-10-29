@@ -83,6 +83,17 @@ export class BindingsPlugin
     const bindings: Context = {};
     const watch: string[] = [];
 
+    // Load WebAssembly module bindings from files
+    if (this.wasmBindings) {
+      for (const [name, wasmPath] of Object.entries(this.wasmBindings)) {
+        bindings[name] = new WebAssembly.Module(await fs.readFile(wasmPath));
+        watch.push(wasmPath);
+      }
+    }
+
+    // Copy user's arbitrary bindings
+    Object.assign(bindings, this.bindings);
+    
     // Load bindings from .env file
     const envPath = this.envPath === true ? this.defaultEnvPath : this.envPath;
     if (envPath) {
@@ -97,17 +108,6 @@ export class BindingsPlugin
       }
       watch.push(envPath);
     }
-
-    // Load WebAssembly module bindings from files
-    if (this.wasmBindings) {
-      for (const [name, wasmPath] of Object.entries(this.wasmBindings)) {
-        bindings[name] = new WebAssembly.Module(await fs.readFile(wasmPath));
-        watch.push(wasmPath);
-      }
-    }
-
-    // Copy user's arbitrary bindings
-    Object.assign(bindings, this.bindings);
 
     return { globals: this.globals, bindings, watch };
   }
