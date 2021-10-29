@@ -374,6 +374,21 @@ test("createRequestListener: includes live reload script in html error responses
   [body] = await request(port, "/", { accept: "text/html" });
   t.regex(body, /Miniflare Live Reload/);
 });
+test("createRequestListener: includes CF-* headers in html error response", async (t) => {
+  const log = new TestLog();
+  log.error = () => {};
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin },
+    {},
+    () => {
+      throw new Error();
+    },
+    log
+  );
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+  const [body] = await request(port, "/", { accept: "text/html" });
+  t.regex(body, /CF-CONNECTING-IP/);
+});
 
 test("createServer: handles regular requests", async (t) => {
   const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {
