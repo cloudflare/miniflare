@@ -184,21 +184,25 @@ test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
   const log = new NoOpLog();
   const tmp = await useTmp(t);
   const envPath = path.join(tmp, ".env");
-  await fs.writeFile(envPath, "A=a\nB=b\nC=c");
+  await fs.writeFile(envPath, "C=c");
   const obj = { c: 3 };
   const plugin = new BindingsPlugin(log, compat, {
-    envPath,
     wasmBindings: {
+      A: addModulePath,
       B: addModulePath,
       C: addModulePath,
     },
-    bindings: { C: obj },
+    bindings: { B: obj, C: obj },
+    envPath,
   });
   const result = await plugin.setup();
-  t.is(result.bindings?.A, "a");
-  assert(result.bindings?.B);
-  const instance = new WebAssembly.Instance(result.bindings.B);
+  assert(result.bindings);
+
+  const instance = new WebAssembly.Instance(result.bindings.A);
   assert(typeof instance.exports.add === "function");
   t.is(instance.exports.add(1, 2), 3);
-  t.is(result.bindings.C, obj);
+
+  t.is(result.bindings.B, obj);
+
+  t.is(result.bindings.C, "c");
 });
