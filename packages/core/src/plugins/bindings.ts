@@ -93,7 +93,7 @@ export class BindingsPlugin
 
     // Copy user's arbitrary bindings
     Object.assign(bindings, this.bindings);
-    
+
     // Load bindings from .env file
     const envPath = this.envPath === true ? this.defaultEnvPath : this.envPath;
     if (envPath) {
