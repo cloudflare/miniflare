@@ -18,7 +18,6 @@ import type { BusboyHeaders } from "busboy";
 import { Colorize, blue, bold, green, grey, red, yellow } from "kleur/colors";
 import { splitCookiesString } from "set-cookie-parser";
 import {
-  Headers as BaseHeaders,
   Request as BaseRequest,
   RequestInfo as BaseRequestInfo,
   RequestInit as BaseRequestInit,
@@ -27,6 +26,7 @@ import {
   BodyInit,
   File,
   FormData,
+  Headers,
   RequestCache,
   RequestCredentials,
   RequestDestination,
@@ -52,17 +52,24 @@ function makeEnumerable<T>(prototype: any, instance: T, keys: (keyof T)[]) {
   }
 }
 
-export class Headers extends BaseHeaders {
-  getAll(key: string): string[] {
-    if (key.toLowerCase() !== "set-cookie") {
-      throw new TypeError(
-        'getAll() can only be used with the header name "Set-Cookie".'
-      );
-    }
-    const value = super.get("set-cookie");
-    return value ? splitCookiesString(value) : [];
+// Manipulating the prototype like this isn't very nice. However, this is a
+// non-standard function so it's unlikely to cause problems with other people's
+// code. Miniflare is also usually the only thing running in a process.
+// The alternative would probably be to subclass Headers. However, we'd have
+// to construct a version of our Headers object from undici Headers, which
+// would copy the headers. If we then attempted to create a new Response from
+// this mutated-header Response, the headers wouldn't be copied, as we unwrap
+// our hybrid Response before passing it to undici.
+// @ts-expect-error getAll is non-standard
+Headers.prototype.getAll = function (key: string): string[] {
+  if (key.toLowerCase() !== "set-cookie") {
+    throw new TypeError(
+      'getAll() can only be used with the header name "Set-Cookie".'
+    );
   }
-}
+  const value = this.get("set-cookie");
+  return value ? splitCookiesString(value) : [];
+};
 
 // Instead of subclassing our customised Request and Response classes from
 // BaseRequest and BaseResponse, we instead compose them and implement the same
@@ -92,7 +99,6 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
   [kInputGated] = false;
   [kFormDataFiles] = true; // Default to enabling form-data File parsing
   #inputGatedBody?: ReadableStream;
-  #headers?: Headers;
 
   constructor(inner: Inner) {
     this[kInner] = inner;
@@ -108,11 +114,7 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
   }
 
   get headers(): Headers {
-    if (this.#headers) return this.#headers;
-    const headers = new Headers(this[kInner].headers);
-    // @ts-expect-error internal kGuard isn't included in type definitions
-    headers[fetchSymbols.kGuard] = this[kInner].headers[fetchSymbols.kGuard];
-    return (this.#headers = headers);
+    return this[kInner].headers;
   }
 
   get body(): ReadableStream | null {

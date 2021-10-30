@@ -171,6 +171,8 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
           key = key.toLowerCase();
           if (key === "set-cookie") {
             // Multiple Set-Cookie headers should be treated as separate headers
+            // @ts-expect-error getAll is added to the Headers prototype by
+            // importing @miniflare/core
             headers["set-cookie"] = response.headers.getAll("set-cookie");
           } else {
             headers[key] = value;
