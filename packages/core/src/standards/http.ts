@@ -327,12 +327,14 @@ export function withImmutableHeaders(req: Request): Request {
 }
 
 export interface ResponseInit extends BaseResponseInit {
+  readonly encodeBody?: "auto" | "manual";
   readonly webSocket?: WebSocket;
 }
 
 const kWaitUntil = Symbol("kWaitUntil");
 
 const enumerableResponseKeys: (keyof Response)[] = [
+  "encodeBody",
   "webSocket",
   "url",
   "redirected",
@@ -351,14 +353,16 @@ export class Response<
     return new Response(res.body, res);
   }
 
+  // https://developers.cloudflare.com/workers/runtime-apis/response#properties
+  // noinspection TypeScriptFieldCanBeMadeReadonly
+  #encodeBody: "auto" | "manual";
   // noinspection TypeScriptFieldCanBeMadeReadonly
   #status?: number;
   readonly #webSocket?: WebSocket;
   [kWaitUntil]?: Promise<WaitUntil>;
 
-  // TODO: add encodeBody: https://developers.cloudflare.com/workers/runtime-apis/response#properties
-
   constructor(body?: BodyInit, init?: ResponseInit | Response | BaseResponse) {
+    let encodeBody: string | undefined;
     let status: number | undefined;
     let webSocket: WebSocket | undefined;
     if (init instanceof BaseResponse && body === init.body) {
@@ -366,12 +370,14 @@ export class Response<
       super(init);
     } else {
       if (init instanceof Response) {
+        encodeBody = init.#encodeBody;
         // Don't pass our strange hybrid Response to undici
         init = init[kInner];
-      } else if (!(init instanceof BaseResponse) /* ResponseInit */) {
+      } else if (!(init instanceof BaseResponse) /* ResponseInit */ && init) {
+        encodeBody = init.encodeBody;
         // Status 101 Switching Protocols would normally throw a RangeError, but we
         // need to allow it for WebSockets
-        if (init?.webSocket) {
+        if (init.webSocket) {
           if (init.status !== 101) {
             throw new RangeError(
               "Responses with a WebSocket must have status code 101."
@@ -384,6 +390,13 @@ export class Response<
       }
       super(new BaseResponse(body, init));
     }
+
+    encodeBody ??= "auto";
+    if (encodeBody !== "auto" && encodeBody !== "manual") {
+      throw new TypeError(`encodeBody: unexpected value: ${encodeBody}`);
+    }
+    this.#encodeBody = encodeBody;
+
     this.#status = status;
     this.#webSocket = webSocket;
 
@@ -399,11 +412,16 @@ export class Response<
     const clone = new Response(innerClone.body, innerClone);
     clone[kInputGated] = this[kInputGated];
     clone[kFormDataFiles] = this[kFormDataFiles];
+    clone.#encodeBody = this.#encodeBody;
     // Technically don't need to copy status, as it should only be set for
     // WebSocket handshake responses
     clone.#status = this.#status;
     clone[kWaitUntil] = this[kWaitUntil];
     return clone;
+  }
+
+  get encodeBody(): "auto" | "manual" {
+    return this.#encodeBody;
   }
 
   get webSocket(): WebSocket | undefined {

@@ -3,8 +3,11 @@
 import assert from "assert";
 import http, { OutgoingHttpHeaders } from "http";
 import https from "https";
+import { PassThrough, Transform } from "stream";
 import { arrayBuffer } from "stream/consumers";
+import { pipeline } from "stream/promises";
 import { URL } from "url";
+import zlib from "zlib";
 import {
   CorePluginSignatures,
   MiniflareCore,
@@ -76,7 +79,8 @@ export async function convertNodeRequest(
   // We're a bit naughty here mutating the incoming request, but this ensures
   // the headers are included in the pretty-error page. If we used the new
   // converted Request instance's headers, we wouldn't have connection, keep-
-  // alive, etc as we strip those
+  // alive, etc as we strip those. We need to take ownership of the request
+  // anyway though, since we're consuming its body.
   req.headers["x-forwarded-proto"] ??= proto;
   req.headers["x-real-ip"] ??= ip;
   req.headers["cf-connecting-ip"] ??= ip;
@@ -162,12 +166,45 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
         waitUntil = response.waitUntil();
         status = response.status;
         const headers: OutgoingHttpHeaders = {};
-        for (const [key, value] of response.headers) {
-          if (key.length === 10 && key.toLowerCase() === "set-cookie") {
+        // eslint-disable-next-line prefer-const
+        for (let [key, value] of response.headers) {
+          key = key.toLowerCase();
+          if (key === "set-cookie") {
             // Multiple Set-Cookie headers should be treated as separate headers
             headers["set-cookie"] = response.headers.getAll("set-cookie");
           } else {
             headers[key] = value;
+          }
+        }
+
+        // If a Content-Encoding is set, and the user hasn't encoded the body,
+        // we're responsible for doing so.
+        const encoders: Transform[] = [];
+        if (headers["content-encoding"] && response.encodeBody === "auto") {
+          // Content-Length will be wrong as it's for the decoded length
+          delete headers["content-length"];
+          // Reverse of https://github.com/nodejs/undici/blob/48d9578f431cbbd6e74f77455ba92184f57096cf/lib/fetch/index.js#L1660
+          const codings = headers["content-encoding"]
+            .toString()
+            .toLowerCase()
+            .split(",")
+            .map((x) => x.trim());
+          for (const coding of codings) {
+            if (/(x-)?gzip/.test(coding)) {
+              encoders.push(zlib.createGzip());
+            } else if (/(x-)?deflate/.test(coding)) {
+              encoders.push(zlib.createDeflate());
+            } else if (coding === "br") {
+              encoders.push(zlib.createBrotliCompress());
+            } else {
+              // Unknown encoding, don't do any encoding at all
+              mf.log.warn(
+                `Unknown encoding \"${coding}\", sending plain response...`
+              );
+              delete headers["content-encoding"];
+              encoders.length = 0;
+              break;
+            }
           }
         }
         res?.writeHead(status, headers);
@@ -175,6 +212,7 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
         // Add live reload script if enabled and this is an HTML response
         if (
           HTTPPlugin.liveReload &&
+          response.encodeBody === "auto" &&
           response.headers
             .get("content-type")
             ?.toLowerCase()
@@ -196,12 +234,18 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
         }
 
         // Response body may be null if empty
-        if (response.body) {
-          for await (const chunk of response.body) {
-            if (chunk) res?.write(chunk);
+        if (res) {
+          const passThrough = new PassThrough();
+          // @ts-expect-error passThrough is definitely a PipelineSource
+          const pipelinePromise = pipeline(passThrough, ...encoders, res);
+          if (response.body) {
+            for await (const chunk of response.body) {
+              if (chunk) passThrough.write(chunk);
+            }
           }
+          passThrough.end();
+          await pipelinePromise;
         }
-        res?.end();
       } catch (e: any) {
         // MIME types aren't case sensitive
         const accept = req.headers.accept?.toLowerCase() ?? "";
