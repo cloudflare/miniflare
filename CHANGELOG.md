@@ -1,5 +1,29 @@
 # 🚧 Changelog
 
+## 2.0.0-next.2
+
+### Fixes
+
+- Added support for the
+  [`Response#encodeBody` property](https://developers.cloudflare.com/workers/runtime-apis/response#properties).
+  If this is omitted or set to `auto`, `Response`s with a `Content-Encoding`
+  header that includes `gzip`, `deflate` or `br` will be automatically encoded.
+  Closes [issue #72](https://github.com/cloudflare/miniflare/issues/72), thanks
+  [@SupremeTechnopriest](https://github.com/SupremeTechnopriest).
+- Getters on `Request`/`Response` are now enumerable, and headers added to
+  `Request`/`Response` instances after construction will now be retained if
+  those instances are used to construct new `Request`/`Response`s. Closes
+  [issue #73](https://github.com/cloudflare/miniflare/issues/73), thanks
+  [@maraisr](https://github.com/maraisr) and
+  [@somebody1234](https://github.com/somebody1234).
+- Variables defined in `.env` files now override those in `wrangler.toml`.
+  Closes [issue #75](https://github.com/cloudflare/miniflare/issues/75), thanks
+  [@payellodevsupport](https://github.com/payellodevsupport) for the
+  [PR](https://github.com/cloudflare/miniflare/pull/76).
+- `http` and `https` protocols are now required for WebSocket upgrades via
+  `fetch` as per the workers runtime
+- Miniflare-added `CF-*` headers are now included in the HTML error response
+
 ## 2.0.0-next.1
 
 Miniflare 2 has been completely redesigned from version 1 with 3 primary design

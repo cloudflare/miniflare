@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/storage-redis",
-  "version": "2.0.0-next.1",
+  "version": "2.0.0-next.2",
   "description": "Redis storage module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -33,12 +33,12 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/shared": "2.0.0-next.1",
-    "@miniflare/storage-memory": "2.0.0-next.1",
+    "@miniflare/shared": "2.0.0-next.2",
+    "@miniflare/storage-memory": "2.0.0-next.2",
     "ioredis": "^4.27.9"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.0.0-next.1",
+    "@miniflare/shared-test": "2.0.0-next.2",
     "@types/ioredis": "^4.27.2"
   }
 }
