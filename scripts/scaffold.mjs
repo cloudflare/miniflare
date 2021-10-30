@@ -44,11 +44,11 @@ async function scaffoldPackage(unscopedPkgName) {
     publishConfig: { access: "public" },
     repository: {
       type: "git",
-      url: "git+https://github.com/mrbbot/miniflare.git",
+      url: "git+https://github.com/cloudflare/miniflare.git",
       directory: `packages/${unscopedPkgName}`,
     },
-    bugs: { url: "https://github.com/mrbbot/miniflare/issues" },
-    homepage: `https://github.com/mrbbot/miniflare/tree/master/packages/${unscopedPkgName}#readme`,
+    bugs: { url: "https://github.com/cloudflare/miniflare/issues" },
+    homepage: `https://github.com/cloudflare/miniflare/tree/master/packages/${unscopedPkgName}#readme`,
     volta: { extends: "../../package.json" },
     dependencies: { [`${scope}/shared`]: rootPkg.version },
   };

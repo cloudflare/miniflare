@@ -22,13 +22,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mrbbot/miniflare.git",
+    "url": "git+https://github.com/cloudflare/miniflare.git",
     "directory": "packages/storage-file"
   },
   "bugs": {
-    "url": "https://github.com/mrbbot/miniflare/issues"
+    "url": "https://github.com/cloudflare/miniflare/issues"
   },
-  "homepage": "https://github.com/mrbbot/miniflare/tree/master/packages/storage-file#readme",
+  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/storage-file#readme",
   "volta": {
     "extends": "../../package.json"
   },
