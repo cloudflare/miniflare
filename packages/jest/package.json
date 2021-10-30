@@ -23,13 +23,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mrbbot/miniflare.git",
+    "url": "git+https://github.com/cloudflare/miniflare.git",
     "directory": "packages/jest"
   },
   "bugs": {
-    "url": "https://github.com/mrbbot/miniflare/issues"
+    "url": "https://github.com/cloudflare/miniflare/issues"
   },
-  "homepage": "https://github.com/mrbbot/miniflare/tree/master/packages/jest#readme",
+  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/jest#readme",
   "volta": {
     "extends": "../../package.json"
   },
