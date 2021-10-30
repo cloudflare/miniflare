@@ -447,13 +447,19 @@ test("Response: can construct new Response from existing Response", async (t) =>
 test("Response: supports non-standard properties", (t) => {
   const pair = new WebSocketPair();
   const res = new Response(null, {
+    encodeBody: "manual",
     status: 101,
     webSocket: pair["0"],
     headers: { "X-Key": "value" },
   });
+  t.is(res.encodeBody, "manual");
   t.is(res.status, 101);
   t.is(res.webSocket, pair[0]);
   t.is(res.headers.get("X-Key"), "value");
+});
+test("Response: encodeBody defaults to auto", (t) => {
+  const res = new Response(null);
+  t.is(res.encodeBody, "auto");
 });
 test("Response: requires status 101 for WebSocket response", (t) => {
   const pair = new WebSocketPair();
@@ -470,16 +476,18 @@ test("Response: only allows status 101 for WebSocket response", (t) => {
   });
 });
 test("Response: clones non-standard properties", async (t) => {
-  const res = new Response("body");
+  const res = new Response("body", { encodeBody: "manual" });
   const waitUntil = [1, "2", true];
   withWaitUntil(res, Promise.resolve(waitUntil));
   t.is(await res.waitUntil(), waitUntil);
   const res2 = res.clone();
+  t.is(res2.encodeBody, "manual");
   t.is(await res2.waitUntil(), waitUntil);
 
   // Check prototype correct and clone still clones non-standard properties
   t.is(Object.getPrototypeOf(res2), Response.prototype);
   const res3 = res2.clone();
+  t.is(res3.encodeBody, "manual");
   t.is(await res3.waitUntil(), waitUntil);
   t.is(await res.text(), "body");
   t.is(await res2.text(), "body");
@@ -533,6 +541,7 @@ test("Response: Object.keys() returns getters", async (t) => {
     "body",
     "bodyUsed",
     "headers",
+    "encodeBody",
     "webSocket",
     "url",
     "redirected",

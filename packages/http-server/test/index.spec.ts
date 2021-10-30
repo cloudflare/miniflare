@@ -4,7 +4,9 @@ import http from "http";
 import https from "https";
 import { AddressInfo } from "net";
 import { Readable } from "stream";
+import { buffer, text } from "stream/consumers";
 import { setTimeout } from "timers/promises";
+import zlib from "zlib";
 import {
   BindingsPlugin,
   IncomingRequestCfProperties,
@@ -29,7 +31,7 @@ import {
   useTmp,
 } from "@miniflare/shared-test";
 import { MessageEvent, WebSocketPlugin } from "@miniflare/web-sockets";
-import test, { ExecutionContext } from "ava";
+import test, { ExecutionContext, Macro } from "ava";
 import StandardWebSocket from "ws";
 
 function listen(
@@ -86,10 +88,9 @@ function request(
         headers,
         rejectUnauthorized: false,
       },
-      (res) => {
-        let body = "";
-        res.on("data", (chunk) => (body += chunk));
-        res.on("end", () => resolve([body, res.headers, res.statusCode ?? 0]));
+      async (res) => {
+        const body = await text(res);
+        resolve([body, res.headers, res.statusCode ?? 0]);
       }
     );
   });
@@ -388,6 +389,74 @@ test("createRequestListener: includes CF-* headers in html error response", asyn
   const port = await listen(t, http.createServer(createRequestListener(mf)));
   const [body] = await request(port, "/", { accept: "text/html" });
   t.regex(body, /CF-CONNECTING-IP/);
+});
+
+const longText = "".padStart(1024, "x");
+const autoEncodeMacro: Macro<
+  [encoding: string, decompress: (buffer: Buffer) => Buffer, encodes?: boolean]
+> = async (t, encoding, decompress, encodes = true) => {
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin, BindingsPlugin },
+    { bindings: { longText, encoding } },
+    (globals) => {
+      return new globals.Response(globals.longText, {
+        headers: { "Content-Encoding": globals.encoding },
+      });
+    }
+  );
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+  return new Promise<void>((resolve) => {
+    http.get({ port }, async (res) => {
+      t.is(res.headers["content-length"], undefined);
+      t.is(res.headers["transfer-encoding"], "chunked");
+      t.is(res.headers["content-encoding"], encodes ? encoding : undefined);
+      const compressed = await buffer(res);
+      const decompressed = decompress(compressed);
+      if (encodes) t.true(compressed.byteLength < decompressed.byteLength);
+      t.is(decompressed.toString("utf8"), longText);
+      resolve();
+    });
+  });
+};
+autoEncodeMacro.title = (providedTitle, encoding, decompress, encodes = true) =>
+  `createRequestListener: ${
+    encodes ? "auto-encodes" : "doesn't encode"
+  } response with Content-Encoding: ${encoding}`;
+test(autoEncodeMacro, "gzip", (buffer) => zlib.gunzipSync(buffer));
+test(autoEncodeMacro, "deFlaTe", (buffer) => zlib.inflateSync(buffer));
+test(autoEncodeMacro, "br", (buffer) => zlib.brotliDecompressSync(buffer));
+test(autoEncodeMacro, "deflate, gZip", (buffer) =>
+  zlib.inflateSync(zlib.gunzipSync(buffer))
+);
+// Should skip all encoding with single unknown encoding
+test(autoEncodeMacro, "deflate, unknown, gzip", (buffer) => buffer, false);
+test("createRequestListener: skips encoding already encoded data", async (t) => {
+  const encoded = new Uint8Array(zlib.gzipSync(Buffer.from(longText, "utf8")));
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin, BindingsPlugin },
+    { bindings: { encoded } },
+    (globals) => {
+      return new globals.Response(globals.encoded, {
+        encodeBody: "manual",
+        headers: {
+          "Content-Length": globals.encoded.byteLength.toString(),
+          "Content-Encoding": "gzip",
+        },
+      });
+    }
+  );
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+  return new Promise<void>((resolve) => {
+    http.get({ port }, async (res) => {
+      t.is(res.headers["content-length"], encoded.byteLength.toString());
+      t.is(res.headers["content-encoding"], "gzip");
+      const compressed = await buffer(res);
+      const decompressed = zlib.gunzipSync(compressed);
+      t.true(compressed.byteLength < decompressed.byteLength);
+      t.is(decompressed.toString("utf8"), longText);
+      resolve();
+    });
+  });
 });
 
 test("createServer: handles regular requests", async (t) => {
