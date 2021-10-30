@@ -40,8 +40,9 @@ const liveReloadScript = `<script defer type="application/javascript">
   function connect(reconnected) {
     var ws = new WebSocket(url);
     if (reconnected) ws.onopen = reload;
-    ws.onmessage = reload;
-    ws.onclose = function(e) { e.code === 1000 || e.code === 1001 || setTimeout(connect, 1000, true); }
+    ws.onclose = function(e) { 
+      e.code === 1012 ? reload() : e.code === 1000 || e.code === 1001 || setTimeout(connect, 1000, true);
+    }
   }
   connect();
 })();
@@ -368,7 +369,6 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
   const reloadListener = () => {
     // Reload all connected live reload clients
     for (const ws of liveReloadServer.clients) {
-      ws.send("");
       ws.close(1012, "Service Restart");
     }
     // Close all existing web sockets on reload
