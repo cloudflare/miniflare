@@ -1,4 +1,5 @@
 import assert from "assert";
+import fs from "fs/promises";
 import path from "path";
 import {
   getPackage,
@@ -14,16 +15,22 @@ const version = argv[0];
 assert(version);
 
 /**
+ * Returns true if this name belongs to a Miniflare package
+ * @param {string} name
+ * @returns {boolean}
+ */
+function isMiniflarePkg(name) {
+  return name.startsWith(scope) || name === "miniflare";
+}
+
+/**
  * Updates the version number for all scoped dependencies in <dependencies>
  * @param {string} newVersion
  * @param {Record<string, string>} dependencies
  */
 function updateDependencyVersions(newVersion, dependencies) {
   for (const dependency in dependencies) {
-    if (
-      dependencies.hasOwnProperty(dependency) &&
-      (dependency.startsWith(scope) || dependency === "miniflare")
-    ) {
+    if (dependencies.hasOwnProperty(dependency) && isMiniflarePkg(dependency)) {
       dependencies[dependency] = newVersion;
     }
   }
@@ -40,6 +47,34 @@ async function updateVersions(newVersion) {
   const rootPkg = await getPackage(projectRoot);
   rootPkg.version = newVersion;
   await setPackage(projectRoot, rootPkg);
+
+  // Update package-lock.json
+  console.log("--> Updating package-lock.json's versions...");
+  const pkgLockPath = path.join(projectRoot, "package-lock.json");
+  const pkgLock = JSON.parse(await fs.readFile(pkgLockPath, "utf8"));
+  pkgLock.version = newVersion;
+  for (const [pkgPath, pkg] of Object.entries(pkgLock.packages)) {
+    if (
+      (pkg.name && isMiniflarePkg(pkg.name)) ||
+      pkgPath === "packages/miniflare"
+    ) {
+      pkg.version = newVersion;
+      updateDependencyVersions(newVersion, pkg.dependencies);
+      updateDependencyVersions(newVersion, pkg.devDependencies);
+      updateDependencyVersions(newVersion, pkg.peerDependencies);
+      updateDependencyVersions(newVersion, pkg.optionalDependencies);
+    }
+  }
+  for (const [pkgName, pkg] of Object.entries(pkgLock.dependencies)) {
+    if (isMiniflarePkg(pkgName)) {
+      updateDependencyVersions(newVersion, pkg.requires);
+    }
+  }
+  await fs.writeFile(
+    pkgLockPath,
+    JSON.stringify(pkgLock, null, 2) + "\n",
+    "utf8"
+  );
 
   // Update sub-packages
   for (const name of pkgsList) {
