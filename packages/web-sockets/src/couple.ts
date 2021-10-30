@@ -49,14 +49,14 @@ export async function coupleWebSocket(
   if (ws.readyState === StandardWebSocket.CONNECTING) {
     // Wait for client to be open before accepting worker pair (which would
     // release buffered messages)
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       ws.once("open", () => {
         pair.accept();
         pair[kCoupled] = true;
 
         ws.off("close", reject);
         ws.off("error", reject);
-        resolve(undefined);
+        resolve();
       });
       ws.once("close", reject);
       ws.once("error", reject);
