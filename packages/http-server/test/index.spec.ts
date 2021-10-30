@@ -532,19 +532,20 @@ test("createServer: notifies connected live reload clients on reload", async (t)
   const ws = new StandardWebSocket(`ws://localhost:${port}/cdn-cgi/mf/reload`);
   const [openTrigger, openPromise] = triggerPromise<void>();
   ws.addEventListener("open", openTrigger);
-  let receivedMessage = false;
-  const [messageTrigger, messagePromise] = triggerPromise<void>();
-  ws.addEventListener("message", () => {
-    receivedMessage = true;
-    messageTrigger();
+  let receivedClose = false;
+  const [closeTrigger, closePromise] = triggerPromise<void>();
+  ws.addEventListener("close", (event) => {
+    t.is(event.code, 1012 /* Service Restart */);
+    receivedClose = true;
+    closeTrigger();
   });
   await openPromise;
 
   await setTimeout();
-  t.false(receivedMessage);
+  t.false(receivedClose);
   await mf.reload();
-  await messagePromise;
-  t.true(receivedMessage);
+  await closePromise;
+  t.true(receivedClose);
 });
 test("createServer: handles https requests", async (t) => {
   const tmp = await useTmp(t);
