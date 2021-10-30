@@ -3,7 +3,6 @@ import { text } from "stream/consumers";
 import { ReadableStream, TransformStream, WritableStream } from "stream/web";
 import {
   Body,
-  Headers,
   IncomingRequestCfProperties,
   Request,
   Response,
@@ -26,12 +25,12 @@ import {
 import { WebSocketPair } from "@miniflare/web-sockets";
 import test, { Macro } from "ava";
 import {
-  Headers as BaseHeaders,
   Request as BaseRequest,
   Response as BaseResponse,
   BodyMixin,
   File,
   FormData,
+  Headers,
 } from "undici";
 
 // @ts-expect-error filling out all properties is annoying
@@ -39,6 +38,8 @@ const cf: IncomingRequestCfProperties = { country: "GB" };
 
 test('Headers: getAll: throws if key not "Set-Cookie"', (t) => {
   const headers = new Headers();
+  // @ts-expect-error getAll is added to the Headers prototype by importing
+  // @miniflare/core
   t.throws(() => headers.getAll("set-biscuit"), {
     instanceOf: TypeError,
     message: 'getAll() can only be used with the header name "Set-Cookie".',
@@ -46,6 +47,8 @@ test('Headers: getAll: throws if key not "Set-Cookie"', (t) => {
 });
 test("Headers: getAll: returns empty array if no headers", (t) => {
   const headers = new Headers();
+  // @ts-expect-error getAll is added to the Headers prototype by importing
+  // @miniflare/core
   t.deepEqual(headers.getAll("Set-Cookie"), []);
 });
 test("Headers: getAll: returns separated Set-Cookie values", (t) => {
@@ -57,6 +60,8 @@ test("Headers: getAll: returns separated Set-Cookie values", (t) => {
   headers.append("Set-Cookie", cookie2);
   headers.append("Set-Cookie", cookie3);
   t.is(headers.get("set-Cookie"), [cookie1, cookie2, cookie3].join(", "));
+  // @ts-expect-error getAll is added to the Headers prototype by importing
+  // @miniflare/core
   t.deepEqual(headers.getAll("set-CoOkiE"), [cookie1, cookie2, cookie3]);
 });
 
@@ -148,19 +153,6 @@ test(
 );
 test(inputGatedConsumerMacro, "json");
 test(inputGatedConsumerMacro, "text");
-test("Body: reuses custom headers instance", (t) => {
-  const headers = new BaseHeaders();
-  headers.append("Set-Cookie", "key1=value1");
-  headers.append("Set-Cookie", "key2=value2");
-  const body = new Body(new BaseResponse("body", { headers }));
-  const customHeaders = body.headers;
-  t.not(headers, customHeaders);
-  t.is(body.headers, customHeaders);
-  t.deepEqual(customHeaders.getAll("Set-Cookie"), [
-    "key1=value1",
-    "key2=value2",
-  ]);
-});
 test("Body: formData: parses regular form data fields", async (t) => {
   // Check with application/x-www-form-urlencoded Content-Type
   let body = new Body(
