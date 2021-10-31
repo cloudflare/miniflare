@@ -375,6 +375,22 @@ test("createRequestListener: includes live reload script in html error responses
   [body] = await request(port, "/", { accept: "text/html" });
   t.regex(body, /Miniflare Live Reload/);
 });
+test("createRequestListener: updates Content-Length header if specified and live reload enabled", async (t) => {
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin },
+    { liveReload: true },
+    (globals) => {
+      return new globals.Response("test", {
+        headers: { "content-type": "text/html", "content-length": "4" },
+      });
+    }
+  );
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+  const [body, headers] = await request(port, "/");
+  t.not(headers["content-length"], "4");
+  t.regex(body, /Miniflare Live Reload/);
+  t.regex(body, /<\/script>/); // Check entire script included
+});
 test("createRequestListener: includes CF-* headers in html error response", async (t) => {
   const log = new TestLog();
   log.error = () => {};
