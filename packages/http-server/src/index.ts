@@ -46,6 +46,7 @@ const liveReloadScript = `<script defer type="application/javascript">
   connect();
 })();
 </script>`;
+const liveReloadScriptLength = Buffer.byteLength(liveReloadScript);
 
 export async function convertNodeRequest(
   req: http.IncomingMessage,
@@ -208,6 +209,28 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
             }
           }
         }
+
+        // Add live reload script if enabled, this isn't an already encoded
+        // response, and it's HTML
+        const liveReloadEnabled =
+          HTTPPlugin.liveReload &&
+          response.encodeBody === "auto" &&
+          response.headers
+            .get("content-type")
+            ?.toLowerCase()
+            .includes("text/html");
+
+        // If Content-Length is specified, and we're live-reloading, we'll
+        // need to adjust it to make room for the live reload script
+        const contentLength = response.headers.get("content-length");
+        if (liveReloadEnabled && contentLength !== null) {
+          const length = parseInt(contentLength);
+          if (!isNaN(length)) {
+            // Append length of live reload script
+            headers["content-length"] = length + liveReloadScriptLength;
+          }
+        }
+
         res?.writeHead(status, headers);
 
         // Response body may be null if empty
@@ -220,15 +243,7 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
               if (chunk) passThrough.write(chunk);
             }
 
-            // Add live reload script if enabled and this is an HTML response
-            if (
-              HTTPPlugin.liveReload &&
-              response.encodeBody === "auto" &&
-              response.headers
-                .get("content-type")
-                ?.toLowerCase()
-                .includes("text/html")
-            ) {
+            if (liveReloadEnabled) {
               passThrough.write(liveReloadScript);
             }
           }
