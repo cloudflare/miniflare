@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import { builtinModules } from "module";
 import path from "path";
 import esbuild from "esbuild";
 import { getPackage, pkgsDir, pkgsList, projectRoot } from "./common.mjs";
@@ -30,6 +31,8 @@ async function walk(rootPath) {
  */
 function getPackageDependencies(pkg, includeDev) {
   return [
+    "node:",
+    ...builtinModules,
     ...(pkg.dependencies ? Object.keys(pkg.dependencies) : []),
     ...(includeDev && pkg.devDependencies
       ? Object.keys(pkg.devDependencies)
@@ -46,11 +49,13 @@ function getPackageDependencies(pkg, includeDev) {
 const buildOptions = {
   format: "esm",
   // outExtension: { ".js": ".mjs" },
-  platform: "node",
+  platform: "neutral",
   target: "esnext",
   bundle: true,
   sourcemap: true,
   sourcesContent: false,
+  mainFields: ["module", "main"],
+  conditions: ["import", "node", "production", "default"],
   // minify: true,
   // minifySyntax: true,
   // minifyWhitespace: true,
