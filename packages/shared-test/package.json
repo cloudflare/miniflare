@@ -18,6 +18,9 @@
   "files": [
     "dist/src"
   ],
+  "engines": {
+    "node": ">=16.7"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cloudflare/miniflare.git",
