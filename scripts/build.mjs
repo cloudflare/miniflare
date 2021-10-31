@@ -31,8 +31,6 @@ async function walk(rootPath) {
  */
 function getPackageDependencies(pkg, includeDev) {
   return [
-    "node:",
-    ...builtinModules,
     ...(pkg.dependencies ? Object.keys(pkg.dependencies) : []),
     ...(includeDev && pkg.devDependencies
       ? Object.keys(pkg.devDependencies)
@@ -61,7 +59,11 @@ const buildOptions = {
   // minifyWhitespace: true,
   // Mark root package's dependencies as external, include root devDependencies
   // (e.g. test runner) as we don't want these bundled
-  external: [...getPackageDependencies(await getPackage(projectRoot), true)],
+  external: [
+    "node:",
+    ...builtinModules,
+    ...getPackageDependencies(await getPackage(projectRoot), true),
+  ],
   logLevel: watch ? "info" : "warning",
   watch,
 };
