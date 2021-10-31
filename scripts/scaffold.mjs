@@ -41,6 +41,9 @@ async function scaffoldPackage(unscopedPkgName) {
     exports: "./dist/src/index.js",
     types: "./dist/src/index.d.ts",
     files: ["dist/src"],
+    engines: {
+      node: ">=16.7",
+    },
     publishConfig: { access: "public" },
     repository: {
       type: "git",

@@ -17,6 +17,9 @@
   "files": [
     "dist/src"
   ],
+  "engines": {
+    "node": ">=16.7"
+  },
   "publishConfig": {
     "access": "public"
   },
