@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import { builtinModules } from "module";
 import path from "path";
 import esbuild from "esbuild";
 import { getPackage, pkgsDir, pkgsList, projectRoot } from "./common.mjs";
@@ -46,17 +47,23 @@ function getPackageDependencies(pkg, includeDev) {
 const buildOptions = {
   format: "esm",
   // outExtension: { ".js": ".mjs" },
-  platform: "node",
+  platform: "neutral",
   target: "esnext",
   bundle: true,
   sourcemap: true,
   sourcesContent: false,
+  mainFields: ["module", "main"],
+  conditions: ["import", "node", "production", "default"],
   // minify: true,
   // minifySyntax: true,
   // minifyWhitespace: true,
   // Mark root package's dependencies as external, include root devDependencies
   // (e.g. test runner) as we don't want these bundled
-  external: [...getPackageDependencies(await getPackage(projectRoot), true)],
+  external: [
+    "node:",
+    ...builtinModules,
+    ...getPackageDependencies(await getPackage(projectRoot), true),
+  ],
   logLevel: watch ? "info" : "warning",
   watch,
 };
