@@ -90,6 +90,8 @@ export class HTMLRewriter {
     // Return a response with the transformed body, copying over headers, etc,
     // returning a @miniflare/core Response so we don't need to convert
     // BaseResponse to one when dispatching fetch events
-    return new Response(transformedStream, response);
+    const res = new Response(transformedStream, response);
+    res.headers.delete("Content-Length");
+    return res;
   }
 }
