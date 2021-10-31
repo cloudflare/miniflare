@@ -37,7 +37,6 @@
   },
   "dependencies": {
     "@miniflare/core": "2.0.0-next.2",
-    "@miniflare/html-rewriter": "2.0.0-next.2",
     "@miniflare/shared": "2.0.0-next.2",
     "@miniflare/web-sockets": "2.0.0-next.2",
     "kleur": "^4.1.4",

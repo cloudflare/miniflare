@@ -15,7 +15,6 @@ import {
   Response,
   logResponse,
 } from "@miniflare/core";
-import type { HTMLRewriter } from "@miniflare/html-rewriter";
 import { randomHex } from "@miniflare/shared";
 import { coupleWebSocket } from "@miniflare/web-sockets";
 import { BodyInit, Headers } from "undici";
@@ -47,7 +46,6 @@ const liveReloadScript = `<script defer type="application/javascript">
   connect();
 })();
 </script>`;
-let liveReloadRewriter: HTMLRewriter | undefined = undefined;
 
 export async function convertNodeRequest(
   req: http.IncomingMessage,
@@ -212,30 +210,6 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
         }
         res?.writeHead(status, headers);
 
-        // Add live reload script if enabled and this is an HTML response
-        if (
-          HTTPPlugin.liveReload &&
-          response.encodeBody === "auto" &&
-          response.headers
-            .get("content-type")
-            ?.toLowerCase()
-            .includes("text/html")
-        ) {
-          // We need some way of injecting a script into a streamed response
-          // body. If only we had some way of efficiently rewriting HTML... :D
-          if (liveReloadRewriter === undefined) {
-            // Technically this might get assigned twice because of this await,
-            // but that doesn't matter at all
-            const { HTMLRewriter } = await import("@miniflare/html-rewriter");
-            liveReloadRewriter = new HTMLRewriter().onDocument({
-              end(tag) {
-                tag.append(liveReloadScript, { html: true });
-              }
-            });
-          }
-          response = liveReloadRewriter.transform(response);
-        }
-
         // Response body may be null if empty
         if (res) {
           const passThrough = new PassThrough();
@@ -245,7 +219,20 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
             for await (const chunk of response.body) {
               if (chunk) passThrough.write(chunk);
             }
+
+            // Add live reload script if enabled and this is an HTML response
+            if (
+              HTTPPlugin.liveReload &&
+              response.encodeBody === "auto" &&
+              response.headers
+                .get("content-type")
+                ?.toLowerCase()
+                .includes("text/html")
+            ) {
+              passThrough.write(liveReloadScript);
+            }
           }
+
           passThrough.end();
           await pipelinePromise;
         }
