@@ -54,6 +54,9 @@
     "vitepress": "^0.20.0",
     "which": "^2.0.2"
   },
+  "engines": {
+    "node": ">=16.7"
+  },
   "volta": {
     "node": "16.9.0"
   }
