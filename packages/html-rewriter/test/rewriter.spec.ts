@@ -717,6 +717,25 @@ test.serial("HTMLRewriter: handles async handlers in sandbox", async (t) => {
   const res = await mf.dispatchFetch("http://localhost");
   t.is(await res.text(), "<p>test append</p>");
 });
+test("HTMLRewriter: strips Content-Length header from transformed response", async (t) => {
+  const res = new HTMLRewriter()
+    .on("p", {
+      element(element) {
+        element.setInnerContent("very long new text");
+      },
+    })
+    .transform(
+      new Response(`<p>old</p>`, {
+        headers: {
+          "Content-Type": "text/html",
+          "Content-Length": "10",
+        },
+      })
+    );
+  t.is(res.headers.get("Content-Type"), "text/html");
+  t.false(res.headers.has("Content-Length"));
+  t.is(await res.text(), "<p>very long new text</p>");
+});
 test("HTMLRewriter: hides implementation details", (t) => {
   const rewriter = new HTMLRewriter();
   t.deepEqual(getObjectProperties(rewriter), ["on", "onDocument", "transform"]);
