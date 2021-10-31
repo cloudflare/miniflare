@@ -40,7 +40,7 @@ const liveReloadScript = `<script defer type="application/javascript">
   function connect(reconnected) {
     var ws = new WebSocket(url);
     if (reconnected) ws.onopen = reload;
-    ws.onclose = function(e) { 
+    ws.onclose = function(e) {
       e.code === 1012 ? reload() : e.code === 1000 || e.code === 1001 || setTimeout(connect, 1000, true);
     }
   }
@@ -227,10 +227,10 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
             // Technically this might get assigned twice because of this await,
             // but that doesn't matter at all
             const { HTMLRewriter } = await import("@miniflare/html-rewriter");
-            liveReloadRewriter = new HTMLRewriter().on("body", {
-              element(end) {
-                end.append(liveReloadScript, { html: true });
-              },
+            liveReloadRewriter = new HTMLRewriter().onDocument({
+              end(tag) {
+                tag.append(liveReloadScript, { html: true });
+              }
             });
           }
           response = liveReloadRewriter.transform(response);
