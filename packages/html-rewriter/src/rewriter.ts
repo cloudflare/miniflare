@@ -1,36 +1,25 @@
-import { ReadableStream } from "stream/web";
-import { TextEncoder } from "util";
+import { ReadableStream, TransformStream } from "stream/web";
 import { Response } from "@miniflare/core";
-import type { DocumentHandlers, ElementHandlers } from "html-rewriter-wasm";
+import type {
+  HTMLRewriter as BaseHTMLRewriter,
+  DocumentHandlers,
+  ElementHandlers,
+} from "html-rewriter-wasm";
 import { Response as BaseResponse } from "undici";
 
-// TODO: remove this function and these conversions, Workers only allows byte streams for Responses
-// Based on https://developer.mozilla.org/en-US/docs/Web/API/TransformStream#anything-to-uint8array_stream
-const encoder = new TextEncoder();
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-function transformToArray(chunk: any): Uint8Array {
+function transformToArray(chunk: ArrayBuffer | ArrayBufferView): Uint8Array {
   if (chunk instanceof Uint8Array) {
     return chunk;
-  } else if (ArrayBuffer.isView(chunk)) {
-    return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
   } else if (chunk instanceof ArrayBuffer) {
     return new Uint8Array(chunk);
-  } else if (
-    Array.isArray(chunk) &&
-    chunk.every((value) => typeof value === "number")
-  ) {
-    return new Uint8Array(chunk);
-  } else if (typeof chunk === "number") {
-    return new Uint8Array([chunk]);
-  } else if (chunk === null || chunk === undefined) {
-    throw new TypeError("Chunk must be defined");
   } else {
-    return encoder.encode(String(chunk));
+    return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
   }
 }
 
 type SelectorElementHandlers = [selector: string, handlers: ElementHandlers];
 
+// noinspection SuspiciousTypeOfGuard
 export class HTMLRewriter {
   readonly #elementHandlers: SelectorElementHandlers[] = [];
   readonly #documentHandlers: DocumentHandlers[] = [];
@@ -46,8 +35,11 @@ export class HTMLRewriter {
   }
 
   transform(response: BaseResponse | Response): Response {
-    const transformedStream = new ReadableStream<Uint8Array>({
-      type: "bytes",
+    let rewriter: BaseHTMLRewriter;
+    const transformStream = new TransformStream<
+      ArrayBuffer | ArrayBufferView,
+      Uint8Array
+    >({
       start: async (controller) => {
         // Create a rewriter instance for this transformation that writes its
         // output to the transformed response's stream. Note that each
@@ -57,7 +49,7 @@ export class HTMLRewriter {
         const { HTMLRewriter: BaseHTMLRewriter } = await import(
           "html-rewriter-wasm"
         );
-        const rewriter = new BaseHTMLRewriter((output: Uint8Array) => {
+        rewriter = new BaseHTMLRewriter((output) => {
           // enqueue will throw on empty chunks
           if (output.length !== 0) controller.enqueue(output);
         });
@@ -68,29 +60,52 @@ export class HTMLRewriter {
         for (const handlers of this.#documentHandlers) {
           rewriter.onDocument(handlers);
         }
-
-        try {
-          // Transform the response body (may be null if empty)
-          if (response.body) {
-            for await (const chunk of response.body) {
-              await rewriter.write(transformToArray(chunk));
-            }
+      },
+      transform: async (chunk) => {
+        if (chunk instanceof ArrayBuffer || ArrayBuffer.isView(chunk)) {
+          try {
+            // Make sure we're passing a Uint8Array to Rust glue
+            return await rewriter.write(transformToArray(chunk));
+          } catch (e) {
+            // Make sure the rewriter is always freed (if transformer
+            // transform() throws an error, transformer flush() won't be called)
+            rewriter.free();
+            throw e;
           }
-          await rewriter.end();
-        } catch (e) {
-          controller.error(e);
+        } else if (typeof chunk === "string") {
+          throw new TypeError(
+            "This TransformStream is being used as a byte stream, " +
+              "but received a string on its writable side. " +
+              "If you wish to write a string, you'll probably want to " +
+              "explicitly UTF-8-encode it with TextEncoder."
+          );
+        } else {
+          throw new TypeError(
+            "This TransformStream is being used as a byte stream, " +
+              "but received an object of non-ArrayBuffer/ArrayBufferView " +
+              "type on its writable side."
+          );
+        }
+      },
+      flush: async () => {
+        try {
+          // Runs document end handlers
+          return await rewriter.end();
         } finally {
-          // Make sure the rewriter/controller are always freed/closed
+          // Make sure the rewriter is always freed, regardless of whether
+          // rewriter.end() throws
           rewriter.free();
-          controller.close();
         }
       },
     });
 
     // Return a response with the transformed body, copying over headers, etc,
     // returning a @miniflare/core Response so we don't need to convert
-    // BaseResponse to one when dispatching fetch events
-    const res = new Response(transformedStream, response);
+    // BaseResponse to one when dispatching fetch events.
+    const body = response.body as ReadableStream<Uint8Array> | null;
+    const res = new Response(body?.pipeThrough(transformStream), response);
+    // If Content-Length is set, it's probably going to be wrong, since we're
+    // rewriting content, so remove it
     res.headers.delete("Content-Length");
     return res;
   }
