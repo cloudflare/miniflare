@@ -61,7 +61,7 @@
     "kleur": "^4.1.4",
     "semiver": "^1.1.0",
     "source-map-support": "^0.5.20",
-    "undici": "^4.8.1"
+    "undici": "^4.9.3"
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.0.0-next.2",
