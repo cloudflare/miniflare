@@ -1,7 +1,6 @@
 import assert from "assert";
 import { ReadableStream } from "stream/web";
 import { setTimeout } from "timers/promises";
-import { URLSearchParams } from "url";
 import { TextDecoder, TextEncoder } from "util";
 import { Response } from "@miniflare/core";
 import { HTMLRewriter, HTMLRewriterPlugin } from "@miniflare/html-rewriter";
@@ -19,6 +18,8 @@ import {
 } from "html-rewriter-wasm";
 
 // TODO (someday): debug why removing .serial breaks some of these async tests
+
+const encoder = new TextEncoder();
 
 // region: ELEMENT HANDLERS
 
@@ -556,7 +557,7 @@ test("HTMLRewriter: handles streaming responses", async (t) => {
         "</html>",
       ];
       for (const chunk of chunks) {
-        controller.enqueue(chunk);
+        controller.enqueue(encoder.encode(chunk));
         await setTimeout(50);
       }
       controller.close();
@@ -583,43 +584,106 @@ test("HTMLRewriter: handles streaming responses", async (t) => {
   t.true(chunks.length >= 2);
   t.is(chunks.join(""), '<html lang="en"><body><p>test</p></body></html>');
 });
-test("HTMLRewriter: handles streaming response with various chunk types", async (t) => {
-  const encoder = new TextEncoder();
-  const chunks: [input: any, output: Uint8Array][] = [
-    [new Uint8Array([1, 2, 3]), new Uint8Array([1, 2, 3])],
-    [new Int8Array([1, 2, 3]), new Uint8Array([1, 2, 3])],
-    [encoder.encode("test").buffer, encoder.encode("test")],
-    [[1, 2, 3], new Uint8Array([1, 2, 3])],
-    [1, new Uint8Array([1])],
-    ["test", encoder.encode("test")],
-    [
-      new URLSearchParams({ a: "1", b: "2", c: "3" }),
-      encoder.encode("a=1&b=2&c=3"),
-    ],
-    [{}, encoder.encode("[object Object]")],
-  ];
-
+test("HTMLRewriter: handles ArrayBuffer and ArrayBufferView chunks", async (t) => {
+  t.plan(2);
   const inputStream = new ReadableStream({
-    async start(controller) {
-      for (const [input] of chunks) controller.enqueue(input);
+    start(controller) {
+      const buffer = encoder.encode("<p>").buffer;
+      let array = encoder.encode("test");
+      const view1 = new Uint16Array(
+        array.buffer,
+        array.byteOffset,
+        array.byteLength / Uint16Array.BYTES_PER_ELEMENT
+      );
+      array = encoder.encode("</p>");
+      const view2 = new DataView(
+        array.buffer,
+        array.byteOffset,
+        array.byteLength
+      );
+      controller.enqueue(buffer);
+      controller.enqueue(view1);
+      controller.enqueue(view2);
+      controller.close();
+    },
+  });
+  const res = new HTMLRewriter()
+    .on("p", {
+      text(text) {
+        if (text.text) t.is(text.text, "test");
+      },
+    })
+    .transform(new Response(inputStream));
+  t.is(await res.text(), "<p>test</p>");
+});
+test("HTMLRewriter: throws on string chunks", async (t) => {
+  const inputStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue("I'm a string");
       controller.close();
     },
   });
   const res = new HTMLRewriter().transform(new Response(inputStream));
-  assert(res.body);
-  for await (const chunk of res.body) {
-    const expected = chunks.shift();
-    t.deepEqual(chunk, expected?.[1]);
-  }
+  await t.throwsAsync(res.text(), {
+    instanceOf: TypeError,
+    message:
+      "This TransformStream is being used as a byte stream, " +
+      "but received a string on its writable side. " +
+      "If you wish to write a string, you'll probably want to " +
+      "explicitly UTF-8-encode it with TextEncoder.",
+  });
+});
+test("HTMLRewriter: throws on non-ArrayBuffer/ArrayBufferView chunks", async (t) => {
+  const inputStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(42);
+      controller.close();
+    },
+  });
+  const res = new HTMLRewriter().transform(new Response(inputStream));
+  await t.throwsAsync(res.text(), {
+    instanceOf: TypeError,
+    message:
+      "This TransformStream is being used as a byte stream, " +
+      "but received an object of non-ArrayBuffer/ArrayBufferView " +
+      "type on its writable side.",
+  });
 });
 test("HTMLRewriter: handles empty response", async (t) => {
   // Shouldn't call BaseHTMLRewriter.write, just BaseHTMLRewriter.end
-  const res = new HTMLRewriter().transform(new Response());
+  const res = new HTMLRewriter()
+    .onDocument({
+      end(end) {
+        end.append("end");
+      },
+    })
+    .transform(new Response());
+  // Workers don't run the end() handler on null responses
   t.is(await res.text(), "");
 });
 test("HTMLRewriter: handles empty string response", async (t) => {
-  const res = new HTMLRewriter().transform(new Response(""));
-  t.is(await res.text(), "");
+  const res = new HTMLRewriter()
+    .onDocument({
+      end(end) {
+        end.append("end");
+      },
+    })
+    .transform(new Response(""));
+  t.is(await res.text(), "end");
+});
+test("HTNLRewriter: doesn't transform response until needed", async (t) => {
+  const chunks: string[] = [];
+  const res = new HTMLRewriter()
+    .on("p", {
+      text(text) {
+        if (text.text) chunks.push(text.text);
+      },
+    })
+    .transform(new Response("<p>1</p><p>2</p><p>3</p>"));
+  await setTimeout(50);
+  t.deepEqual(chunks, []);
+  await res.arrayBuffer();
+  t.deepEqual(chunks, ["1", "2", "3"]);
 });
 test("HTMLRewriter: copies response status and headers", async (t) => {
   const res = new HTMLRewriter().transform(
