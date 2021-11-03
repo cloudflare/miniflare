@@ -1,6 +1,6 @@
 {
   "name": "miniflare",
-  "version": "2.0.0-next.2",
+  "version": "2.0.0-next.3",
   "description": "Fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -43,32 +43,32 @@
     "miniflare": "bootstrap.js"
   },
   "dependencies": {
-    "@miniflare/cache": "2.0.0-next.2",
-    "@miniflare/cli-parser": "2.0.0-next.2",
-    "@miniflare/core": "2.0.0-next.2",
-    "@miniflare/durable-objects": "2.0.0-next.2",
-    "@miniflare/html-rewriter": "2.0.0-next.2",
-    "@miniflare/http-server": "2.0.0-next.2",
-    "@miniflare/kv": "2.0.0-next.2",
-    "@miniflare/runner-vm": "2.0.0-next.2",
-    "@miniflare/scheduler": "2.0.0-next.2",
-    "@miniflare/shared": "2.0.0-next.2",
-    "@miniflare/sites": "2.0.0-next.2",
-    "@miniflare/storage-file": "2.0.0-next.2",
-    "@miniflare/storage-memory": "2.0.0-next.2",
-    "@miniflare/watcher": "2.0.0-next.2",
-    "@miniflare/web-sockets": "2.0.0-next.2",
+    "@miniflare/cache": "2.0.0-next.3",
+    "@miniflare/cli-parser": "2.0.0-next.3",
+    "@miniflare/core": "2.0.0-next.3",
+    "@miniflare/durable-objects": "2.0.0-next.3",
+    "@miniflare/html-rewriter": "2.0.0-next.3",
+    "@miniflare/http-server": "2.0.0-next.3",
+    "@miniflare/kv": "2.0.0-next.3",
+    "@miniflare/runner-vm": "2.0.0-next.3",
+    "@miniflare/scheduler": "2.0.0-next.3",
+    "@miniflare/shared": "2.0.0-next.3",
+    "@miniflare/sites": "2.0.0-next.3",
+    "@miniflare/storage-file": "2.0.0-next.3",
+    "@miniflare/storage-memory": "2.0.0-next.3",
+    "@miniflare/watcher": "2.0.0-next.3",
+    "@miniflare/web-sockets": "2.0.0-next.3",
     "kleur": "^4.1.4",
     "semiver": "^1.1.0",
     "source-map-support": "^0.5.20",
     "undici": "^4.9.3"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.0.0-next.2",
+    "@miniflare/shared-test": "2.0.0-next.3",
     "@types/source-map-support": "^0.5.4"
   },
   "peerDependencies": {
-    "@miniflare/storage-redis": "2.0.0-next.2",
+    "@miniflare/storage-redis": "2.0.0-next.3",
     "ioredis": "^4.27.9",
     "node-cron": "^3.0.0"
   },

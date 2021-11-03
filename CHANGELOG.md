@@ -1,5 +1,28 @@
 # 🚧 Changelog
 
+## 2.0.0-next.3
+
+### Fixes
+
+- Remove `Content-Length` header from `HTMLRewriter` transformed `Response`s
+- Update `Content-Length` header if set and live-reload is enabled
+- Inject the live-reload script when there is no closing `</body>` tag. Closes
+  [issue #70](https://github.com/cloudflare/miniflare/issues/70), thanks
+  [@jed](https://github.com/jed) for reporting this, and
+  [@lukeed](https://github.com/lukeed) for the
+  [PR](https://github.com/cloudflare/miniflare/pull/79).
+- Bump `undici` to `4.9.3`, fixing iteration of `Headers`. Closes
+  [issue #64](https://github.com/cloudflare/miniflare/issues/64), thanks
+  [@Kikobeats](https://github.com/Kikobeats) for reporting this, and
+  [@lukeed](https://github.com/lukeed) for
+  [fixing this in `undici`](https://github.com/nodejs/undici/pull/1081).
+- Added install-time check for minimum supported Node.js version. Thanks
+  [@lukeed](https://github.com/lukeed) for the
+  [PR](https://github.com/cloudflare/miniflare/pull/78).
+- Updated build script to use ES module exports of dependencies where possible.
+  Thanks [@lukeed](https://github.com/lukeed) for the
+  [PR](https://github.com/cloudflare/miniflare/pull/77).
+
 ## 2.0.0-next.2
 
 ### Fixes

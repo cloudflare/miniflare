@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/scheduler",
-  "version": "2.0.0-next.2",
+  "version": "2.0.0-next.3",
   "description": "Scheduler module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -36,12 +36,12 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/core": "2.0.0-next.2",
-    "@miniflare/shared": "2.0.0-next.2",
+    "@miniflare/core": "2.0.0-next.3",
+    "@miniflare/shared": "2.0.0-next.3",
     "node-cron": "^3.0.0"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.0.0-next.2",
+    "@miniflare/shared-test": "2.0.0-next.3",
     "@types/node-cron": "^2.0.4"
   }
 }
