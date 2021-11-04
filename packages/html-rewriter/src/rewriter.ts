@@ -72,18 +72,15 @@ export class HTMLRewriter {
             rewriter.free();
             throw e;
           }
-        } else if (typeof chunk === "string") {
-          throw new TypeError(
-            "This TransformStream is being used as a byte stream, " +
-              "but received a string on its writable side. " +
-              "If you wish to write a string, you'll probably want to " +
-              "explicitly UTF-8-encode it with TextEncoder."
-          );
         } else {
+          rewriter.free();
+          const isString = typeof chunk === "string";
           throw new TypeError(
-            "This TransformStream is being used as a byte stream, " +
-              "but received an object of non-ArrayBuffer/ArrayBufferView " +
-              "type on its writable side."
+            "This TransformStream is being used as a byte stream, but received " +
+              (isString
+                ? "a string on its writable side. If you wish to write a string, " +
+                  "you'll probably want to explicitly UTF-8-encode it with TextEncoder."
+                : "an object of non-ArrayBuffer/ArrayBufferView type on its writable side.")
           );
         }
       },

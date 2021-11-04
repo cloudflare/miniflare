@@ -8,8 +8,9 @@ import {
   getObjectProperties,
   useMiniflareWithHandler,
 } from "@miniflare/shared-test";
-import test, { Macro } from "ava";
+import test, { ExecutionContext, Macro } from "ava";
 import {
+  HTMLRewriter as BaseHTMLRewriter,
   Comment,
   Doctype,
   DocumentEnd,
@@ -20,6 +21,20 @@ import {
 // TODO (someday): debug why removing .serial breaks some of these async tests
 
 const encoder = new TextEncoder();
+
+// Must be run in serial tests
+function recordFree(t: ExecutionContext): { freed: boolean } {
+  const result = { freed: false };
+  const originalFree = BaseHTMLRewriter.prototype.free;
+  BaseHTMLRewriter.prototype.free = function () {
+    result.freed = true;
+    originalFree.bind(this)();
+  };
+  t.teardown(() => {
+    BaseHTMLRewriter.prototype.free = originalFree;
+  });
+  return result;
+}
 
 // region: ELEMENT HANDLERS
 
@@ -584,39 +599,45 @@ test("HTMLRewriter: handles streaming responses", async (t) => {
   t.true(chunks.length >= 2);
   t.is(chunks.join(""), '<html lang="en"><body><p>test</p></body></html>');
 });
-test("HTMLRewriter: handles ArrayBuffer and ArrayBufferView chunks", async (t) => {
-  t.plan(2);
-  const inputStream = new ReadableStream({
-    start(controller) {
-      const buffer = encoder.encode("<p>").buffer;
-      let array = encoder.encode("test");
-      const view1 = new Uint16Array(
-        array.buffer,
-        array.byteOffset,
-        array.byteLength / Uint16Array.BYTES_PER_ELEMENT
-      );
-      array = encoder.encode("</p>");
-      const view2 = new DataView(
-        array.buffer,
-        array.byteOffset,
-        array.byteLength
-      );
-      controller.enqueue(buffer);
-      controller.enqueue(view1);
-      controller.enqueue(view2);
-      controller.close();
-    },
-  });
-  const res = new HTMLRewriter()
-    .on("p", {
-      text(text) {
-        if (text.text) t.is(text.text, "test");
+test.serial(
+  "HTMLRewriter: handles ArrayBuffer and ArrayBufferView chunks",
+  async (t) => {
+    t.plan(3);
+    const inputStream = new ReadableStream({
+      start(controller) {
+        const buffer = encoder.encode("<p>").buffer;
+        let array = encoder.encode("test");
+        const view1 = new Uint16Array(
+          array.buffer,
+          array.byteOffset,
+          array.byteLength / Uint16Array.BYTES_PER_ELEMENT
+        );
+        array = encoder.encode("</p>");
+        const view2 = new DataView(
+          array.buffer,
+          array.byteOffset,
+          array.byteLength
+        );
+        controller.enqueue(buffer);
+        controller.enqueue(view1);
+        controller.enqueue(view2);
+        controller.close();
       },
-    })
-    .transform(new Response(inputStream));
-  t.is(await res.text(), "<p>test</p>");
-});
-test("HTMLRewriter: throws on string chunks", async (t) => {
+    });
+    const freed = recordFree(t);
+    const res = new HTMLRewriter()
+      .on("p", {
+        text(text) {
+          if (text.text) t.is(text.text, "test");
+        },
+      })
+      .transform(new Response(inputStream));
+    t.is(await res.text(), "<p>test</p>");
+    t.true(freed.freed);
+  }
+);
+test.serial("HTMLRewriter: throws on string chunks", async (t) => {
+  const freed = recordFree(t);
   const inputStream = new ReadableStream({
     start(controller) {
       controller.enqueue("I'm a string");
@@ -632,23 +653,29 @@ test("HTMLRewriter: throws on string chunks", async (t) => {
       "If you wish to write a string, you'll probably want to " +
       "explicitly UTF-8-encode it with TextEncoder.",
   });
+  t.true(freed.freed);
 });
-test("HTMLRewriter: throws on non-ArrayBuffer/ArrayBufferView chunks", async (t) => {
-  const inputStream = new ReadableStream({
-    start(controller) {
-      controller.enqueue(42);
-      controller.close();
-    },
-  });
-  const res = new HTMLRewriter().transform(new Response(inputStream));
-  await t.throwsAsync(res.text(), {
-    instanceOf: TypeError,
-    message:
-      "This TransformStream is being used as a byte stream, " +
-      "but received an object of non-ArrayBuffer/ArrayBufferView " +
-      "type on its writable side.",
-  });
-});
+test.serial(
+  "HTMLRewriter: throws on non-ArrayBuffer/ArrayBufferView chunks",
+  async (t) => {
+    const freed = recordFree(t);
+    const inputStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(42);
+        controller.close();
+      },
+    });
+    const res = new HTMLRewriter().transform(new Response(inputStream));
+    await t.throwsAsync(res.text(), {
+      instanceOf: TypeError,
+      message:
+        "This TransformStream is being used as a byte stream, " +
+        "but received an object of non-ArrayBuffer/ArrayBufferView " +
+        "type on its writable side.",
+    });
+    t.true(freed.freed);
+  }
+);
 test("HTMLRewriter: handles empty response", async (t) => {
   // Shouldn't call BaseHTMLRewriter.write, just BaseHTMLRewriter.end
   const res = new HTMLRewriter()
@@ -698,7 +725,8 @@ test("HTMLRewriter: copies response status and headers", async (t) => {
 });
 // endregion: responses
 
-test("HTMLRewriter: rethrows error thrown in handler", async (t) => {
+test.serial("HTMLRewriter: rethrows error thrown in handler", async (t) => {
+  const freed = recordFree(t);
   const res = new HTMLRewriter()
     .on("p", {
       element() {
@@ -707,6 +735,7 @@ test("HTMLRewriter: rethrows error thrown in handler", async (t) => {
     })
     .transform(new Response("<p>test</p>"));
   await t.throwsAsync(res.text(), { message: "Whoops!" });
+  t.true(freed.freed);
 });
 
 test("HTMLRewriter: can use same rewriter multiple times", async (t) => {
