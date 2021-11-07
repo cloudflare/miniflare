@@ -335,7 +335,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
       const controller = new ScheduledController(e.scheduledTime, e.cron);
       const ctx = new ExecutionContext(e);
       const res = listener(controller, this.#bindings, ctx);
-      e.waitUntil(Promise.resolve(res));
+      if (res !== undefined) e.waitUntil(Promise.resolve(res));
     });
   }
 

@@ -168,12 +168,25 @@ test("MiniflareCore: adds module scheduled event listener", async (t) => {
       return "returned";
     }
   }`;
-  const mf = useMiniflare(
+  let mf = useMiniflare(
     { BindingsPlugin },
     { modules: true, script, bindings: { KEY: "value" } }
   );
-  const res = await mf.dispatchScheduled(1000, "30 * * * *");
+  let res = await mf.dispatchScheduled(1000, "30 * * * *");
   t.deepEqual(res, [1000, "30 * * * *", "value", "that", "returned"]);
+
+  // Check returned value is only waitUntil'ed if it's defined
+  mf = useMiniflare(
+    { BindingsPlugin },
+    {
+      modules: true,
+      script: `export default { scheduled(controller, env, ctx) { 
+        ctx.waitUntil(42);
+      }}`,
+    }
+  );
+  res = await mf.dispatchScheduled(1000, "30 * * * *");
+  t.deepEqual(res, [42]);
 });
 
 test("kDispatchFetch: dispatches event", async (t) => {
