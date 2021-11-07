@@ -251,6 +251,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       setInterval: inputGatedSetInterval,
       clearTimeout,
       clearInterval,
+      queueMicrotask,
 
       atob,
       btoa,
