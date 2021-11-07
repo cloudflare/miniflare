@@ -2,6 +2,7 @@ import {
   PromiseRejectionEvent,
   ServiceWorkerGlobalScope,
   WorkerGlobalScopeEventMap,
+  kDispose,
 } from "@miniflare/core";
 import { LogLevel, TypedEventListener } from "@miniflare/shared";
 import { TestLog, triggerPromise } from "@miniflare/shared-test";
@@ -107,7 +108,7 @@ const processListenerDisposeMacro: Macro<[event: string], Context> = async (
 
   // Try disposing when listener that hasn't been added yet
   t.is(process.listenerCount(event), 0);
-  globalScope.dispose();
+  globalScope[kDispose]();
   t.is(process.listenerCount(event), 0);
   t.deepEqual(log.logs, []);
 
@@ -119,7 +120,7 @@ const processListenerDisposeMacro: Macro<[event: string], Context> = async (
   ]);
   log.logs = [];
 
-  globalScope.dispose();
+  globalScope[kDispose]();
   t.is(process.listenerCount(event), 0);
   t.deepEqual(log.logs, [
     [LogLevel.VERBOSE, `Removing process ${event} listener...`],
