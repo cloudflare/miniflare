@@ -66,12 +66,6 @@ test("ServiceWorkerGlobalScope: includes environment in globals if modules disab
       /^env is not defined\.\nAttempted to access binding using global in modules/,
   });
 });
-test("ServiceWorkerGlobalScope: includes global self-references", (t) => {
-  const { globalScope } = t.context;
-  t.is(globalScope.global, globalScope);
-  t.is(globalScope.globalThis, globalScope);
-  t.is(globalScope.self, globalScope);
-});
 test("ServiceWorkerGlobalScope: addEventListener: disabled if modules enabled", (t) => {
   const globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
   t.throws(() => globalScope.addEventListener("fetch", () => {}), {
@@ -109,12 +103,22 @@ test("ServiceWorkerGlobalScope: hides implementation details", (t) => {
     "addEventListener",
     "dispatchEvent",
     "global",
-    "globalThis",
     "removeEventListener",
     "self",
   ]);
 });
 
+test("MiniflareCore: includes global self-references", async (t) => {
+  t.plan(2);
+  const mf = useMiniflare(
+    { BindingsPlugin },
+    {
+      globals: { t },
+      script: "t.is(global, globalThis); t.is(self, global);",
+    }
+  );
+  await mf.getPlugins();
+});
 test("MiniflareCore: adds fetch event listener", async (t) => {
   const script = `(${(() => {
     const sandbox = self as any;
