@@ -36,6 +36,7 @@ import {
   kAddModuleScheduledListener,
   kDispatchFetch,
   kDispatchScheduled,
+  kDispose,
   withImmutableHeaders,
   withStringFormDataFiles,
 } from "./standards";
@@ -419,7 +420,7 @@ export class MiniflareCore<
     const { modules, processedModuleRules } = this.#instances!.CorePlugin;
 
     // Clean up process-wide promise rejection event listeners
-    this.#globalScope?.dispose();
+    this.#globalScope?.[kDispose]();
     // Create new global scope on each reload
     const globalScope = new ServiceWorkerGlobalScope(
       this.log,

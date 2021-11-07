@@ -152,6 +152,7 @@ export const kAddModuleScheduledListener = Symbol(
 );
 export const kDispatchFetch = Symbol("kDispatchFetch");
 export const kDispatchScheduled = Symbol("kDispatchScheduled");
+export const kDispose = Symbol("kDispose");
 
 export class PromiseRejectionEvent extends Event {
   readonly promise: Promise<any>;
@@ -444,7 +445,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     super.dispatchEvent(event);
   };
 
-  dispose(): void {
+  [kDispose](): void {
     if (this.#unhandledRejectionListeners.size > 0) {
       this.#log.verbose("Removing process unhandledRejection listener...");
       process.removeListener(

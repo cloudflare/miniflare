@@ -108,7 +108,6 @@ test("ServiceWorkerGlobalScope: hides implementation details", (t) => {
     "KEY", // binding
     "addEventListener",
     "dispatchEvent",
-    "dispose",
     "global",
     "globalThis",
     "removeEventListener",
