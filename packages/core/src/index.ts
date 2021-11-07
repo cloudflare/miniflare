@@ -46,6 +46,23 @@ export * from "./plugins";
 export * from "./standards";
 export * from "./storage";
 
+/** @internal */
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+export function _deepEqual(a: any, b: any): boolean {
+  if (!dequal(a, b)) return false;
+
+  // Check top-level symbol properties are equal (used by BindingsPlugin for
+  // Wrangler variables)
+  if (typeof a === "object") {
+    const aSymbols = Object.getOwnPropertySymbols(a);
+    for (const aSymbol of aSymbols) {
+      if (!(aSymbol in b) || !dequal(a[aSymbol], b[aSymbol])) return false;
+    }
+    return aSymbols.length === Object.getOwnPropertySymbols(b).length;
+  }
+  return true;
+}
+
 export type CorePluginSignatures = PluginSignatures & {
   CorePlugin: typeof CorePlugin;
 };
@@ -120,6 +137,7 @@ function splitWranglerConfig<Plugins extends PluginSignatures>(
     const pluginResult = {} as PluginOptionsUnion<Plugins>;
     const pluginOverrides = overrides[name];
     for (const [key, meta] of plugin.prototype.opts?.entries() ?? []) {
+      // TODO: merge options
       (pluginResult as any)[key] =
         pluginOverrides[key] ?? meta.fromWrangler?.(config, configDir);
     }
@@ -329,7 +347,7 @@ export class MiniflareCore<
       if (
         previous !== undefined &&
         !compatUpdate &&
-        dequal(previous[name], options[name])
+        _deepEqual(previous[name], options[name])
       ) {
         continue;
       }
@@ -353,7 +371,7 @@ export class MiniflareCore<
       if (
         previous !== undefined &&
         !compatUpdate &&
-        dequal(previous[name], options[name]) &&
+        _deepEqual(previous[name], options[name]) &&
         // Make sure if we ran any beforeSetups and this plugin previously
         // returned scripts, that we rerun its setup
         !(ranBeforeSetup && this.#setupResults.get(name)?.script)

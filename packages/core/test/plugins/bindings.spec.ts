@@ -58,9 +58,8 @@ test("BindingsPlugin: parses options from argv", (t) => {
     bindings: { KEY1: "value1", KEY2: "value2" },
   });
 });
-test("BindingsPlugin: parses options from wrangler config", (t) => {
-  const options = parsePluginWranglerConfig(BindingsPlugin, {
-    vars: { KEY1: "value1", KEY2: "value2", KEY3: true, KEY4: 42 },
+test("BindingsPlugin: parses options from wrangler config", async (t) => {
+  let options = parsePluginWranglerConfig(BindingsPlugin, {
     wasm_modules: {
       MODULE1: "module1.wasm",
       MODULE2: "module2.wasm",
@@ -70,26 +69,45 @@ test("BindingsPlugin: parses options from wrangler config", (t) => {
       env_path: ".env.test",
     },
   });
-  t.deepEqual(options, {
+  t.like(options, {
     envPath: ".env.test",
-    // Bindings should be stringified...
-    bindings: { KEY1: "value1", KEY2: "value2", KEY3: "true", KEY4: "42" },
-    // ...but globals shouldn't
     globals: { KEY5: "value5", KEY6: false, KEY7: 10 },
     wasmBindings: { MODULE1: "module1.wasm", MODULE2: "module2.wasm" },
   });
+
+  // Wrangler bindings are stored in the kWranglerBindings symbol, which isn't
+  // exported, so setup the plugin and check they're included
+  options = parsePluginWranglerConfig(BindingsPlugin, {
+    vars: { KEY1: "value1", KEY2: "value2", KEY3: true, KEY4: 42 },
+  });
+  const log = new NoOpLog();
+  const plugin = new BindingsPlugin(log, compat, options);
+  const result = await plugin.setup();
+  // Wrangler bindings should be stringified
+  t.deepEqual(result.bindings, {
+    KEY1: "value1",
+    KEY2: "value2",
+    KEY3: "true",
+    KEY4: "42",
+  });
 });
 test("BindingsPlugin: logs options", (t) => {
+  // wranglerOptions should contain [kWranglerBindings]
+  const wranglerOptions = parsePluginWranglerConfig(BindingsPlugin, {
+    vars: { KEY1: "value1", KEY2: "value2" },
+  });
   let logs = logPluginOptions(BindingsPlugin, {
+    ...wranglerOptions,
     envPath: ".env.custom",
-    bindings: { KEY1: "value1", KEY2: "value2" },
-    globals: { KEY3: "value3", KEY4: "value4" },
+    bindings: { KEY3: "value3", KEY4: "value4" },
+    globals: { KEY5: "value5", KEY6: "value6" },
     wasmBindings: { MODULE1: "module1.wasm", MODULE2: "module2.wasm" },
   });
   t.deepEqual(logs, [
     "Env Path: .env.custom",
-    "Custom Bindings: KEY1, KEY2",
-    "Custom Globals: KEY3, KEY4",
+    "Wrangler Variables: KEY1, KEY2",
+    "Custom Bindings: KEY3, KEY4",
+    "Custom Globals: KEY5, KEY6",
     "WASM Bindings: MODULE1, MODULE2",
   ]);
   logs = logPluginOptions(BindingsPlugin, { envPath: true });
@@ -182,27 +200,37 @@ test("BindingsPlugin: setup: loads WebAssembly bindings", async (t) => {
 });
 test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
   const log = new NoOpLog();
+
+  // Bindings should be loaded in this order, from lowest to highest priority:
+  // 1) Wrangler [vars]
+  // 2) .env Variables
+  // 3) WASM Module Bindings
+  // 4) Custom Bindings
+
+  // wranglerOptions should contain [kWranglerBindings]
+  const wranglerOptions = parsePluginWranglerConfig(BindingsPlugin, {
+    vars: { A: "wrangler", B: "wrangler", C: "wrangler", D: "wrangler" },
+  });
+
   const tmp = await useTmp(t);
   const envPath = path.join(tmp, ".env");
-  await fs.writeFile(envPath, "C=c");
-  const obj = { c: 3 };
+  await fs.writeFile(envPath, "A=env\nB=env\nC=env");
+
+  const obj = { ping: "pong" };
   const plugin = new BindingsPlugin(log, compat, {
+    ...wranglerOptions,
     wasmBindings: {
       A: addModulePath,
       B: addModulePath,
-      C: addModulePath,
     },
-    bindings: { B: obj, C: obj },
+    bindings: { A: obj },
     envPath,
   });
   const result = await plugin.setup();
   assert(result.bindings);
 
-  const instance = new WebAssembly.Instance(result.bindings.A);
-  assert(typeof instance.exports.add === "function");
-  t.is(instance.exports.add(1, 2), 3);
-
-  t.is(result.bindings.B, obj);
-
-  t.is(result.bindings.C, "c");
+  t.is(result.bindings.D, "wrangler");
+  t.is(result.bindings.C, "env");
+  t.true(result.bindings.B instanceof WebAssembly.Module);
+  t.is(result.bindings.A, obj);
 });

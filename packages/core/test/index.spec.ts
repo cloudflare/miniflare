@@ -12,6 +12,7 @@ import {
   Request,
   RequestInfo,
   RequestInit,
+  _deepEqual,
 } from "@miniflare/core";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
@@ -50,6 +51,16 @@ function waitForReload(mf: MiniflareCore<any>): Promise<unknown> {
   mf.addEventListener("reload", reloadTrigger, { once: true });
   return reloadPromise;
 }
+
+test("_deepEqual: checks top-level symbol property equality", (t) => {
+  const a = Symbol("a");
+  const b = Symbol("b");
+  t.true(_deepEqual({ [a]: { a: 1 } }, { [a]: { a: 1 } }));
+  t.false(_deepEqual({ [a]: { a: 1 } }, { [a]: { a: 2 } }));
+  t.false(_deepEqual({ [a]: { a: 1 } }, { [b]: { a: 1 } }));
+  t.false(_deepEqual({ [a]: { a: 1 } }, {}));
+  t.false(_deepEqual({}, { [a]: { a: 1 } }));
+});
 
 test("MiniflareCore: always loads CorePlugin first", async (t) => {
   const log = new TestLog();
@@ -229,7 +240,7 @@ test("MiniflareCore: #init: gets watching option once", async (t) => {
   const mf = useMiniflare(plugins, { wranglerConfigPath });
   let instances = await mf.getPlugins();
   t.true(instances.CorePlugin.watch);
-  t.is(instances.BindingsPlugin.bindings?.KEY, "1");
+  t.is((await instances.BindingsPlugin.setup()).bindings?.KEY, "1");
 
   // Disable watching in wrangler.toml
   let reloadPromise = waitForReload(mf);
@@ -237,7 +248,7 @@ test("MiniflareCore: #init: gets watching option once", async (t) => {
   await reloadPromise;
   instances = await mf.getPlugins();
   t.false(instances.CorePlugin.watch);
-  t.is(instances.BindingsPlugin.bindings?.KEY, "2");
+  t.is((await instances.BindingsPlugin.setup()).bindings?.KEY, "2");
 
   // Edit KEY again in wrangler.toml, file should still be watched even though
   // watching has been "disabled"
@@ -246,7 +257,7 @@ test("MiniflareCore: #init: gets watching option once", async (t) => {
   await reloadPromise;
   instances = await mf.getPlugins();
   t.false(instances.CorePlugin.watch);
-  t.is(instances.BindingsPlugin.bindings?.KEY, "3");
+  t.is((await instances.BindingsPlugin.setup()).bindings?.KEY, "3");
 });
 test("MiniflareCore: #init: creates all plugins on init", async (t) => {
   const log = new TestLog();
@@ -677,7 +688,7 @@ test("MiniflareCore: #watcherCallback: re-inits on wrangler config change", asyn
   );
   const plugins = await mf.getPlugins();
   const bindingsPlugin = plugins.BindingsPlugin;
-  t.is(bindingsPlugin.bindings?.KEY, "value1");
+  t.is((await bindingsPlugin.setup()).bindings?.KEY, "value1");
 
   // Update wrangler config, expecting BindingsPlugin to be re-created
   log.logs = [];
@@ -685,7 +696,7 @@ test("MiniflareCore: #watcherCallback: re-inits on wrangler config change", asyn
   await fs.writeFile(wranglerConfigPath, '[vars]\nKEY = "value2"');
   await reloadPromise;
   t.not(plugins.BindingsPlugin, bindingsPlugin); // re-created
-  t.is(plugins.BindingsPlugin.bindings?.KEY, "value2");
+  t.is((await plugins.BindingsPlugin.setup()).bindings?.KEY, "value2");
   startsWith(t, log.logsAtLevel(LogLevel.DEBUG), [
     `${relative(wranglerConfigPath)} changed...`,
     "Initialising worker...", // re-init

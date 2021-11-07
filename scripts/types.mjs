@@ -24,10 +24,10 @@ const extractorCfgObject = {
   },
   dtsRollup: {
     enabled: true,
-    untrimmedFilePath:
-      "<projectFolder>/packages/<unscopedPackageName>/dist/src/index.d.ts",
+    untrimmedFilePath: "",
     betaTrimmedFilePath: "",
-    publicTrimmedFilePath: "",
+    publicTrimmedFilePath:
+      "<projectFolder>/packages/<unscopedPackageName>/dist/src/index.d.ts",
     omitTrimmingComments: false,
   },
   tsdocMetadata: {
