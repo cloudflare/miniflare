@@ -224,11 +224,6 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     } else {
       Object.assign(this, bindings);
     }
-
-    // Make sure this remains bound when creating VM context
-    this.addEventListener = this.addEventListener.bind(this);
-    this.removeEventListener = this.removeEventListener.bind(this);
-    this.dispatchEvent = this.dispatchEvent.bind(this);
   }
 
   addEventListener = <Type extends keyof WorkerGlobalScopeEventMap>(
