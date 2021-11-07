@@ -308,7 +308,7 @@ export class MiniflareCore<
         const configDir = path.dirname(configPath);
 
         // Add build configuration for webpack and rust builds
-        populateBuildConfig(config, configDir);
+        populateBuildConfig(config, configDir, configEnv);
 
         options = splitWranglerConfig(
           this.#plugins,

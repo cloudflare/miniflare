@@ -84,7 +84,8 @@ export class BuildPlugin extends Plugin<BuildOptions> implements BuildOptions {
 
 export function populateBuildConfig(
   config: WranglerConfig,
-  configDir: string
+  configDir: string,
+  configEnv?: string
 ): void {
   // If there's already a build configuration, or this isn't a "webpack"/"rust"
   // type project, leave the config as is
@@ -97,8 +98,12 @@ export function populateBuildConfig(
   config.build = { cwd: configDir, upload: { dir: "" } };
   assert(config.build.upload); // TypeScript gets annoyed if this isn't here
 
+  // Make sure to pass the correct --env to `wrangler build` so the correct
+  // webpack_config is loaded
+  const env = configEnv ? ` --env ${configEnv}` : "";
+
   if (config.type === "webpack") {
-    config.build.command = "wrangler build";
+    config.build.command = `wrangler build${env}`;
     config.build.upload.main = path.join("worker", "script.js");
   } else if (config.type === "rust") {
     // This script will be included in the root index.js bundle, but rust.mjs
@@ -106,7 +111,7 @@ export function populateBuildConfig(
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     const rustScript = path.join(__dirname, "plugins", "rust.js");
-    config.build.command = `wrangler build && ${process.execPath} ${rustScript}`;
+    config.build.command = `wrangler build${env} && ${process.execPath} ${rustScript}`;
     config.build.upload.main = path.join("worker", "generated", "script.js");
 
     // Add wasm binding, script.wasm will be created by rustScript
