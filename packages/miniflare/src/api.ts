@@ -25,6 +25,7 @@ import {
 import { Log, NoOpLog, Options } from "@miniflare/shared";
 import { SitesPlugin } from "@miniflare/sites";
 import { WebSocketPlugin } from "@miniflare/web-sockets";
+import sourceMap from "source-map-support";
 import { VariedStorageFactory } from "./storage";
 
 // MiniflareCore will ensure CorePlugin is first and BindingsPlugin is last,
@@ -53,12 +54,20 @@ export type Plugins = typeof PLUGINS;
 
 export type MiniflareOptions = Omit<Options<Plugins>, "debug" | "verbose"> & {
   log?: Log;
+  sourceMap?: boolean;
 };
 
 export class Miniflare extends MiniflareCore<Plugins> {
   #storageFactory: VariedStorageFactory;
 
   constructor(options?: MiniflareOptions) {
+    if (options?.sourceMap) {
+      // Node has the --enable-source-maps flag, but this doesn't work for VM scripts.
+      // It also doesn't expose a way of flushing the source map cache, which we need
+      // so previous versions of worker code don't end up in stack traces.
+      sourceMap.install({ emptyCacheBetweenOperations: true });
+    }
+
     const storageFactory = new VariedStorageFactory();
     super(
       PLUGINS,
