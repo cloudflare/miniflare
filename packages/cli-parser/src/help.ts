@@ -65,7 +65,7 @@ export function buildHelp<Plugins extends PluginSignatures>(
     for (const [key, meta] of entries) {
       const { type, typeFormat, alias, description = "", negatable } = meta;
       // Ignore API-only options (e.g. string script)
-      if (type === OptionType.NONE) continue;
+      if (type === OptionType.NONE || typeof key === "symbol") continue;
 
       let name = argName(key, meta);
       if (negatable) name = `(no-)${name}`;

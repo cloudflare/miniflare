@@ -51,7 +51,7 @@ export function parseArgv<Plugins extends PluginSignatures>(
     for (const [key, meta] of plugin.prototype.opts.entries()) {
       const type = meta.type;
       // Ignore API-only options (e.g. string script)
-      if (type === OptionType.NONE) continue;
+      if (type === OptionType.NONE || typeof key === "symbol") continue;
 
       // Record arg so we can construct result options object later, note we're
       // including positional arguments here so they're included in the result

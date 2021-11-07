@@ -6,7 +6,7 @@ import { StorageFactory } from "./storage";
 import { Awaitable } from "./sync";
 import { WranglerConfig } from "./wrangler";
 
-export type Context = { [key: string]: any };
+export type Context = { [key: string | symbol]: any };
 
 export enum OptionType {
   NONE, // never
@@ -51,9 +51,12 @@ export type OptionMetadata =
 
 export function Option(
   metadata: OptionMetadata
-): (prototype: typeof Plugin.prototype, key: string) => void {
+): (prototype: typeof Plugin.prototype, key: string | symbol) => void {
   return function (prototype, key) {
-    (prototype.opts ??= new Map<string, OptionMetadata>()).set(key, metadata);
+    (prototype.opts ??= new Map<string | symbol, OptionMetadata>()).set(
+      key,
+      metadata
+    );
   };
 }
 
@@ -72,7 +75,7 @@ export abstract class Plugin<Options extends Context = never> {
   // noinspection JSUnusedLocalSymbols
   readonly #phantom!: Options;
   // Metadata added by @Option decorator
-  opts?: Map<string, OptionMetadata>;
+  opts?: Map<string | symbol, OptionMetadata>;
 
   protected constructor(
     protected readonly log: Log,
@@ -106,7 +109,7 @@ export abstract class Plugin<Options extends Context = never> {
 
 export type PluginSignature = {
   new (log: Log, compat: Compatibility, options?: Context): Plugin<Context>;
-  prototype: { opts?: Map<string, OptionMetadata> };
+  prototype: { opts?: Map<string | symbol, OptionMetadata> };
 };
 export type PluginSignatures = { [pluginName: string]: PluginSignature };
 
@@ -157,7 +160,8 @@ export function logOptions<Plugins extends PluginSignatures>(
     for (const [key, meta] of plugin.prototype.opts?.entries() ?? []) {
       const value = pluginOptions[key];
       if (value === undefined || meta.type === OptionType.NONE) continue;
-      const keyName = meta?.logName ?? titleCase(key);
+      const keyName =
+        meta?.logName ?? titleCase(typeof key === "symbol" ? "<symbol>" : key);
       let str: string | undefined;
       if (meta.logValue) {
         str = (meta.logValue as any)(value);

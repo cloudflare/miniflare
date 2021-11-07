@@ -11,6 +11,8 @@ import {
 } from "@miniflare/shared";
 import dotenv from "dotenv";
 
+const kWranglerBindings = Symbol("kWranglerBindings");
+
 export interface BindingsOptions {
   envPath?: boolean | string;
   bindings?: Record<string, any>;
@@ -36,11 +38,12 @@ export class BindingsPlugin
   })
   envPath?: boolean | string;
 
+  // We want custom bindings to override Wrangler bindings, so we can't put
+  // fromWrangler in `bindings`. Using a symbol, means these low-priority
+  // bindings can only be loaded from a Wrangler config.
   @Option({
     type: OptionType.OBJECT,
-    alias: "b",
-    description: "Binds variable/secret to environment",
-    logName: "Custom Bindings",
+    logName: "Wrangler Variables",
     fromWrangler: ({ vars }) => {
       if (!vars) return;
       // Wrangler stringifies all environment variables
@@ -48,6 +51,14 @@ export class BindingsPlugin
         Object.entries(vars).map(([key, value]) => [key, String(value)])
       );
     },
+  })
+  [kWranglerBindings]?: Record<string, any>;
+
+  @Option({
+    type: OptionType.OBJECT,
+    alias: "b",
+    description: "Binds variable/secret to environment",
+    logName: "Custom Bindings",
   })
   bindings?: Record<string, any>;
 
@@ -80,19 +91,17 @@ export class BindingsPlugin
   }
 
   async setup(): Promise<SetupResult> {
+    // Bindings should be loaded in this order, from lowest to highest priority:
+    // 1) Wrangler [vars]
+    // 2) .env Variables
+    // 3) WASM Module Bindings
+    // 4) Custom Bindings
+
     const bindings: Context = {};
     const watch: string[] = [];
 
-    // Load WebAssembly module bindings from files
-    if (this.wasmBindings) {
-      for (const [name, wasmPath] of Object.entries(this.wasmBindings)) {
-        bindings[name] = new WebAssembly.Module(await fs.readFile(wasmPath));
-        watch.push(wasmPath);
-      }
-    }
-
-    // Copy user's arbitrary bindings
-    Object.assign(bindings, this.bindings);
+    // Copy Wrangler bindings first
+    Object.assign(bindings, this[kWranglerBindings]);
 
     // Load bindings from .env file
     const envPath = this.envPath === true ? this.defaultEnvPath : this.envPath;
@@ -108,6 +117,17 @@ export class BindingsPlugin
       }
       watch.push(envPath);
     }
+
+    // Load WebAssembly module bindings from files
+    if (this.wasmBindings) {
+      for (const [name, wasmPath] of Object.entries(this.wasmBindings)) {
+        bindings[name] = new WebAssembly.Module(await fs.readFile(wasmPath));
+        watch.push(wasmPath);
+      }
+    }
+
+    // Copy user's arbitrary bindings
+    Object.assign(bindings, this.bindings);
 
     return { globals: this.globals, bindings, watch };
   }
