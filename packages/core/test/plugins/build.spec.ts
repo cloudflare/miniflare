@@ -153,9 +153,14 @@ webpackTest(
     await rimrafPromise(path.join(webpackPath, "worker"));
     const mf = useMiniflare(
       { BuildPlugin },
-      { wranglerConfigPath: path.join(webpackPath, "wrangler.toml") }
+      {
+        wranglerConfigPath: path.join(webpackPath, "wrangler.toml"),
+        wranglerConfigEnv: "dev",
+      }
     );
-    await mf.getPlugins(); // Resolves once worker has been built
+    const plugins = await mf.getPlugins(); // Resolves once worker has been built
+    // Check correct env used
+    t.is(plugins.BuildPlugin.buildCommand, "wrangler build --env dev");
     t.true(existsSync(path.join(webpackPath, "worker", "script.js")));
 
     const res = await mf.dispatchFetch("http://localhost:8787/");
