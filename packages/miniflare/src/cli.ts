@@ -4,17 +4,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 import type { Options } from "@miniflare/shared";
 import { red } from "kleur/colors";
-import sourceMap from "source-map-support";
-import { MiniflareOptions } from "./api";
+import type { MiniflareOptions } from "miniflare";
 import { updateCheck } from "./updater";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Node has the --enable-source-maps flag, but this doesn't work for VM scripts.
-// It also doesn't expose a way of flushing the source map cache, which we need
-// so previous versions of worker code don't end up in stack traces.
-sourceMap.install({ emptyCacheBetweenOperations: true });
 
 function suppressWarnings() {
   // Suppress experimental warnings
@@ -84,6 +78,7 @@ async function main() {
     : LogLevel.INFO;
   const mfOptions: MiniflareOptions = options;
   mfOptions.log = new Log(logLevel);
+  mfOptions.sourceMap = true;
   const mf = new Miniflare(mfOptions);
   try {
     // Start Miniflare development server
