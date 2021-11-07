@@ -191,11 +191,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
   >();
 
   // Global self-references
-  // noinspection JSUnusedGlobalSymbols
   readonly global = this;
-  // noinspection JSUnusedGlobalSymbols
-  readonly globalThis = this;
-  // noinspection JSUnusedGlobalSymbols
   readonly self = this;
 
   constructor(
