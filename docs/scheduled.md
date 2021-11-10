@@ -27,19 +27,19 @@ const mf = new Miniflare({
 ## HTTP Triggers
 
 Because waiting for cron triggers is annoying, you can also make HTTP requests
-to `/.mf/scheduled` to trigger `scheduled` events, when using the CLI or
+to `/cdn-cgi/mf/scheduled` to trigger `scheduled` events, when using the CLI or
 starting an HTTP server with `createServer`:
 
 ```shell
-$ curl "http://localhost:8787/.mf/scheduled"
+$ curl "http://localhost:8787/cdn-cgi/mf/scheduled"
 ```
 
 To simulate different values of `scheduledTime` and `cron` in the dispatched
 event, use the `time` and `cron` query parameters:
 
 ```shell
-$ curl "http://localhost:8787/.mf/scheduled?time=1000"
-$ curl "http://localhost:8787/.mf/scheduled?cron=*+*+*+*+*"
+$ curl "http://localhost:8787/cdn-cgi/mf/scheduled?time=1000"
+$ curl "http://localhost:8787/cdn-cgi/mf/scheduled?cron=*+*+*+*+*"
 ```
 
 ## Dispatching Events
