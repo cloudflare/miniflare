@@ -4,6 +4,7 @@ import {
   ErrorEvent,
   WebSocket,
   kAccepted,
+  kClose,
   kClosed,
   kCoupled,
 } from "./websocket";
@@ -32,7 +33,7 @@ export async function coupleWebSocket(
     }
   });
   ws.on("close", (code: number, reason: Buffer) => {
-    if (!pair[kClosed]) pair.close(code, reason.toString());
+    if (!pair[kClosed]) pair[kClose](code, reason.toString());
   });
   ws.on("error", (error) => {
     pair.dispatchEvent(new ErrorEvent(error));

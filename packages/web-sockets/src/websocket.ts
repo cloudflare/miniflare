@@ -34,6 +34,8 @@ const kPair = Symbol("kPair");
 export const kAccepted = Symbol("kAccepted");
 export const kCoupled = Symbol("kCoupled");
 export const kClosed = Symbol("kClosed");
+// Internal close method exposed to bypass close code checking
+export const kClose = Symbol("kClose");
 
 export type WebSocketEventMap = {
   message: MessageEvent;
@@ -91,13 +93,6 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
   }
 
   close(code?: number, reason?: string): void {
-    const pair = this[kPair];
-    if (!this[kAccepted]) {
-      throw new TypeError(
-        "You must call accept() on this WebSocket before sending messages."
-      );
-    }
-    if (this[kClosed]) throw new TypeError("WebSocket already closed");
     if (code) {
       // https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/code
       const validCode =
@@ -114,9 +109,20 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
         "If you specify a WebSocket close reason, you must also specify a code."
       );
     }
+    this[kClose](code, reason);
+  }
 
+  [kClose](code?: number, reason?: string): void {
+    // Split from close() so we don't check the close code when forwarding close
+    // events from the client
+    if (!this[kAccepted]) {
+      throw new TypeError(
+        "You must call accept() on this WebSocket before sending messages."
+      );
+    }
+    if (this[kClosed]) throw new TypeError("WebSocket already closed");
     this[kClosed] = true;
-    pair[kClosed] = true;
+    this[kPair][kClosed] = true;
     void this.#dispatchCloseEvent(code, reason);
   }
 
