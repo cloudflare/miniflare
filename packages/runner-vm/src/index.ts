@@ -1,5 +1,6 @@
 import vm from "vm";
 import {
+  AdditionalModules,
   Context,
   ProcessedModuleRule,
   ScriptBlueprint,
@@ -41,7 +42,8 @@ export class VMScriptRunner implements ScriptRunner {
   async run(
     globalScope: Context,
     blueprint: ScriptBlueprint,
-    modulesRules?: ProcessedModuleRule[]
+    modulesRules?: ProcessedModuleRule[],
+    additionalModules?: AdditionalModules
   ): Promise<ScriptRunnerResult> {
     // If we're using modules, make sure --experimental-vm-modules is enabled
     if (modulesRules && !("SourceTextModule" in vm)) {
@@ -51,7 +53,8 @@ export class VMScriptRunner implements ScriptRunner {
       );
     }
     // Also build a linker if we're using modules
-    const linker = modulesRules && new ModuleLinker(modulesRules);
+    const linker =
+      modulesRules && new ModuleLinker(modulesRules, additionalModules ?? {});
 
     // Add proxied globals so cross-realm instanceof works correctly.
     // globalScope will be fresh for each call of run so it's fine to mutate it.

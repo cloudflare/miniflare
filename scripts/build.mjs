@@ -70,6 +70,8 @@ const buildOptions = {
     // Make sure all Jest packages aren't bundled
     "@jest/*",
     "jest*",
+    // Mark sites manifest as external, it's added by SitesPlugin
+    "__STATIC_CONTENT_MANIFEST",
   ],
   logLevel: watch ? "info" : "warning",
   watch,

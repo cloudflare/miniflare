@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import path from "path";
 import vm from "vm";
 import {
+  AdditionalModules,
   Context,
   ProcessedModuleRule,
   STRING_SCRIPT_PATH,
@@ -19,7 +20,10 @@ export class ModuleLinker {
   readonly #moduleCache = new Map<string, vm.Module>();
   readonly #cjsModuleCache = new Map<string, CommonJSModule>();
 
-  constructor(private moduleRules: ProcessedModuleRule[]) {
+  constructor(
+    private moduleRules: ProcessedModuleRule[],
+    private additionalModules: AdditionalModules
+  ) {
     this.linker = this.linker.bind(this);
   }
 
@@ -45,12 +49,34 @@ export class ModuleLinker {
       );
     }
 
-    // Get path to specified module relative to referencing module
-    const identifier = path.resolve(path.dirname(referencing.identifier), spec);
+    const additionalModule = this.additionalModules[spec];
+    const identifier = additionalModule
+      ? spec
+      : // Get path to specified module relative to referencing module
+        path.resolve(path.dirname(referencing.identifier), spec);
+
     // If we've already seen a module with the same identifier, return it, to
     // handle import cycles
     const cached = this.#moduleCache.get(identifier);
     if (cached) return cached;
+
+    const moduleOptions = { identifier, context: referencing.context };
+    let module: vm.Module;
+
+    // If this is an additional module, construct and return it immediately
+    if (additionalModule) {
+      module = new vm.SyntheticModule(
+        Object.keys(additionalModule),
+        function () {
+          for (const [key, value] of Object.entries(additionalModule)) {
+            this.setExport(key, value);
+          }
+        },
+        moduleOptions
+      );
+      this.#moduleCache.set(identifier, module);
+      return module;
+    }
 
     // Find first matching module rule ("ignore" requires relative paths)
     const relativeIdentifier = path.relative("", identifier);
@@ -67,8 +93,6 @@ export class ModuleLinker {
     // Load module based on rule type
     const data = await fs.readFile(identifier);
     this.#referencedPathSizes.set(identifier, data.byteLength);
-    const moduleOptions = { identifier, context: referencing.context };
-    let module: vm.Module;
     switch (rule.type) {
       case "ESModule":
         module = new vm.SourceTextModule(data.toString("utf8"), moduleOptions);
