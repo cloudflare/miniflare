@@ -3,6 +3,7 @@ import { deserialize } from "v8";
 import { Request, Response, fetch } from "@miniflare/core";
 import {
   DurableObject,
+  DurableObjectError,
   DurableObjectId,
   DurableObjectNamespace,
   DurableObjectState,
@@ -206,6 +207,29 @@ test("DurableObjectStub: fetch: passes through web socket requests", async (t) =
   webSocket.accept();
   webSocket.send("test message");
   t.is(await dataPromise, "test message");
+});
+test("DurableObjectStub: fetch: throws if handler doesn't return Response", async (t) => {
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(log, compat, {
+    durableObjects: { TEST: "TestObject" },
+  });
+
+  class TestObject implements DurableObject {
+    fetch(): Response {
+      return "definitely a response" as any;
+    }
+  }
+  plugin.beforeReload();
+  plugin.reload({ TestObject }, {});
+
+  const ns = plugin.getNamespace(factory, "TEST");
+  const stub = ns.get(testId);
+  await t.throwsAsync(stub.fetch("http://localhost"), {
+    instanceOf: DurableObjectError,
+    code: "ERR_RESPONSE_TYPE",
+    message:
+      "Durable Object fetch handler didn't respond with a Response object",
+  });
 });
 test("DurableObjectStub: hides implementation details", async (t) => {
   const [ns] = getTestObjectNamespace();

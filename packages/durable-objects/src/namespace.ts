@@ -9,6 +9,8 @@ import {
   withInputGating,
 } from "@miniflare/core";
 import { Awaitable, Context, InputGate, OutputGate } from "@miniflare/shared";
+import { Response as BaseResponse } from "undici";
+import { DurableObjectError } from "./plugin";
 import { DurableObjectStorage } from "./storage";
 
 function hexEncode(value: Uint8Array): string {
@@ -107,7 +109,21 @@ export class DurableObjectStub {
     // noinspection SuspiciousTypeOfGuard
     const request =
       input instanceof Request && !init ? input : new Request(input, init);
-    return state[kFetch](withInputGating(withImmutableHeaders(request)));
+    const res = await state[kFetch](
+      withInputGating(withImmutableHeaders(request))
+    );
+
+    // noinspection SuspiciousTypeOfGuard
+    const validRes =
+      res instanceof Response || (res as any) instanceof BaseResponse;
+    if (!validRes) {
+      throw new DurableObjectError(
+        "ERR_RESPONSE_TYPE",
+        "Durable Object fetch handler didn't respond with a Response object"
+      );
+    }
+
+    return res;
   }
 }
 
