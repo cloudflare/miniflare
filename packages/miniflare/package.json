@@ -12,7 +12,10 @@
   "author": "MrBBot <me@mrbbot.dev>",
   "license": "MIT",
   "type": "module",
-  "exports": "./dist/src/index.js",
+  "exports": {
+     ".": "./dist/src/index.js",
+     "./cli": "./dist/src/cli.js"
+  },
   "types": "./dist/src/index.d.ts",
   "files": [
     "dist/src",
