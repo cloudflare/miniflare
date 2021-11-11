@@ -99,9 +99,9 @@ async function main() {
     // Get currently installed package metadata
     const pkgFile = path.join(__dirname, "..", "..", "package.json");
     const pkg = JSON.parse(await fs.readFile(pkgFile, "utf8"));
-    const mfDir = path.resolve(".mf");
-    await fs.mkdir(mfDir, { recursive: true });
-    const lastCheckFile = path.join(mfDir, "update-check");
+    const cacheDir = path.resolve("node_modules", ".mf");
+    await fs.mkdir(cacheDir, { recursive: true });
+    const lastCheckFile = path.join(cacheDir, "update-check");
     await updateCheck({ pkg, lastCheckFile, log: mf.log });
   } catch (e: any) {
     mf.log.debug("Unable to check for updates: " + e.stack);

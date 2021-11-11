@@ -14,7 +14,7 @@ export class StackedMemoryStorage extends MemoryStorage {
     // If the storage wasn't created immediately (e.g. caches.open(), Durable
     // Object instances), the stack may be popped more times than it's pushed.
     // If this happens, default to an empty map, since the storage didn't exist
-    // at the  new stack level.
+    // at the new stack level.
     this.map = this.stack.pop() ?? new Map();
   }
 }

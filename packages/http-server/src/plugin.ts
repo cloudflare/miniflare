@@ -34,7 +34,7 @@ export interface HTTPPluginDefaults {
 }
 
 const defaultCertRoot = path.resolve(".mf", "cert");
-const defaultCfPath = path.resolve(".mf", "cf.json");
+const defaultCfPath = path.resolve("node_modules", ".mf", "cf.json");
 const defaultCfFetch = process.env.NODE_ENV !== "test";
 const defaultCfFetchEndpoint = "https://workers.cloudflare.com/cf.json";
 const defaultCf: IncomingRequestCfProperties = {
