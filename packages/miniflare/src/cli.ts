@@ -68,6 +68,10 @@ async function main() {
   if (options.buildWatchPaths?.length || options.liveReload) {
     options.watch = true;
   }
+  // Assume --modules if --durable-object set
+  if (options.durableObjects && Object.keys(options.durableObjects).length) {
+    options.modules = true;
+  }
 
   // TODO: warn if script path is src/... but dist/... exists, or build command set, or type webpack/rust
 
