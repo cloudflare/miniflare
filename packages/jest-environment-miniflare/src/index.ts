@@ -118,7 +118,10 @@ export default class MiniflareEnvironment implements JestEnvironment {
         storageFactory: this.storageFactory,
         scriptRunner: this.scriptRunner,
         // Only run the script if we're using Durable Objects and need to have
-        // access to the exported classes
+        // access to the exported classes. This means we're only running the
+        // script in modules mode, so we don't need to worry about
+        // addEventListener being called twice (once when the script is run, and
+        // again when the user imports the worker in Jest tests).
         scriptRunForModuleExports: true,
       },
       {
@@ -161,7 +164,9 @@ export default class MiniflareEnvironment implements JestEnvironment {
     Object.assign(global, mfGlobalScope);
     Object.assign(global, proxiedGlobals);
 
-    // Add a way of getting bindings in modules mode to allow seeding data
+    // Add a way of getting bindings in modules mode to allow seeding data.
+    // These names are intentionally verbose so they don't collide with anything
+    // else in scope.
     const bindings = await mf.getBindings();
     global.getMiniflareBindings = () => bindings;
     global.getMiniflareDurableObjectStorage = async (id: DurableObjectId) => {
