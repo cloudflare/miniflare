@@ -41,9 +41,9 @@ function runJest(
         "--testEnvironment",
         "miniflare",
         "--testEnvironmentOptions",
-        JSON.stringify(JSON.stringify(options)),
+        JSON.stringify(options),
       ],
-      { cwd, shell: true }
+      { cwd }
     );
     let output = "";
     jest.stdout.on("data", (data) => (output += data));
@@ -55,7 +55,7 @@ function runJest(
 test.serial(
   "MiniflareEnvironment: runs Jest tests with Service Worker format workers",
   async (t) => {
-    const [exitCode, output] = await runJest("*.worker.spec.js", {
+    const [exitCode, output] = await runJest(".worker.spec.js", {
       kvNamespaces: ["TEST_NAMESPACE"],
       sitePath: fixturesPath,
       globals: { KEY: "value" },
@@ -72,7 +72,7 @@ test.serial(
 test.serial(
   "MiniflareEnvironment: runs Jest tests with ES Module format workers",
   async (t) => {
-    const [exitCode, output] = await runJest("*.module.spec.js", {
+    const [exitCode, output] = await runJest(".module.spec.js", {
       modules: true,
       scriptPath: path.join(fixturesPath, "module-worker.js"),
       durableObjects: { TEST_OBJECT: "TestObject" },
