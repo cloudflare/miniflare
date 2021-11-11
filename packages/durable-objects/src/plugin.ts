@@ -37,7 +37,9 @@ interface ProcessedDurableObject {
   scriptName?: string;
 }
 
-export type DurableObjectErrorCode = "ERR_CLASS_NOT_FOUND"; // Missing constructor for object
+export type DurableObjectErrorCode =
+  | "ERR_CLASS_NOT_FOUND" // Missing constructor for object
+  | "ERR_RESPONSE_TYPE"; // Fetch handler returned non-Response object;
 
 export class DurableObjectError extends MiniflareError<DurableObjectErrorCode> {}
 
