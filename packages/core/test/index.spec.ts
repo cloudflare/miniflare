@@ -14,6 +14,7 @@ import {
   RequestInit,
   _deepEqual,
 } from "@miniflare/core";
+import { DurableObjectsPlugin } from "@miniflare/durable-objects";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
   Context,
@@ -598,6 +599,37 @@ test("MiniflareCore: #reload: throws if multiple plugins return scripts", async 
     message: "Multiple plugins returned a script",
   });
 });
+test("MiniflareCore: #reload: only runs script if module exports needed when scriptRunForModuleExports set", async (t) => {
+  const log = new NoOpLog();
+  const storageFactory = new MemoryStorageFactory();
+  const ctx: MiniflareCoreContext = {
+    log,
+    storageFactory,
+    scriptRunner,
+    scriptRunForModuleExports: true,
+  };
+
+  let calledback = false;
+  const plugins = { CorePlugin, BindingsPlugin, DurableObjectsPlugin };
+  const globals = { callback: () => (calledback = true) };
+  const script = "callback(); export class TestObject {}";
+  let mf = new MiniflareCore(plugins, ctx, {
+    modules: true,
+    script,
+    globals,
+  });
+  await mf.getPlugins(); // Allow script to run
+  t.false(calledback);
+
+  mf = new MiniflareCore(plugins, ctx, {
+    modules: true,
+    script,
+    globals,
+    durableObjects: { TEST: "TestObject" },
+  });
+  await mf.getPlugins(); // Allow script to run
+  t.true(calledback);
+});
 test("MiniflareCore: #reload: watches files", async (t) => {
   const log = new TestLog();
   const tmp = await useTmp(t);
@@ -930,6 +962,15 @@ test("MiniflareCore: getGlobalScope: gets mutable global scope", async (t) => {
   globalScope.KEY2 = "test"; // new property
   res = await mf.dispatchFetch("http://localhost/");
   t.is(await res.text(), "value2,test");
+});
+
+test("MiniflareCore: getBindings: gets bindings", async (t) => {
+  const mf = useMiniflare(
+    { BindingsPlugin },
+    { bindings: { KEY1: "value1" }, globals: { KEY2: "value2" } }
+  );
+  const bindings = await mf.getBindings();
+  t.deepEqual(bindings, { KEY1: "value1" });
 });
 
 // Just testing dispatchFetch/dispatchScheduled parameter normalisation and

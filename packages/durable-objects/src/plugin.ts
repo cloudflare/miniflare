@@ -165,7 +165,10 @@ export class DurableObjectsPlugin
       // TODO: get namespace from scriptName instance, maybe watch it?
       bindings[name] = this.getNamespace(storageFactory, name);
     }
-    return { bindings };
+    return {
+      bindings,
+      requiresModuleExports: this.#processedObjects.length > 0,
+    };
   }
 
   beforeReload(): void {

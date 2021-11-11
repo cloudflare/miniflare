@@ -11,9 +11,12 @@ import { ModuleLinker } from "./linker";
 import { proxiedGlobals } from "./proxied";
 
 export * from "./error";
+export * from "./proxied";
 
 // noinspection JSMethodCanBeStatic
 export class VMScriptRunner implements ScriptRunner {
+  constructor(private context?: vm.Context) {}
+
   private runAsScript(context: vm.Context, blueprint: ScriptBlueprint) {
     const script = new vm.Script(blueprint.code, {
       filename: blueprint.filePath,
@@ -54,10 +57,18 @@ export class VMScriptRunner implements ScriptRunner {
     // globalScope will be fresh for each call of run so it's fine to mutate it.
     Object.assign(globalScope, proxiedGlobals);
 
-    // Create a new context with eval/new Function/WASM compile disabled
-    const context = vm.createContext(globalScope, {
-      codeGeneration: { strings: false, wasm: false },
-    });
+    let context = this.context;
+    if (context) {
+      // This path is for custom test environments, where this.context is only
+      // used once.
+      Object.assign(context, globalScope);
+    } else {
+      // Create a new context with eval/new Function/WASM compile disabled
+      context = vm.createContext(globalScope, {
+        codeGeneration: { strings: false, wasm: false },
+      });
+    }
+
     // Keep track of module namespaces and total script size
     let exports: Context = {};
     let bundleSize = 0;

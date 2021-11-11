@@ -5,7 +5,7 @@ import { LocalStorage } from "./local";
 
 export class MemoryStorage extends LocalStorage {
   constructor(
-    private readonly map = new Map<string, StoredValueMeta>(),
+    protected map = new Map<string, StoredValueMeta>(),
     clock = defaultClock
   ) {
     super(clock);

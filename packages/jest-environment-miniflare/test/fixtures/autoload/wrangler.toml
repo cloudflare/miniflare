@@ -1,0 +1,7 @@
+[durable_objects]
+bindings = [
+  { name = "OBJECT", class_name = "TestObject" }
+]
+
+[build.upload]
+format = "modules"

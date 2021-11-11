@@ -63,6 +63,13 @@ const buildOptions = {
     "node:",
     ...builtinModules,
     ...getPackageDependencies(await getPackage(projectRoot), true),
+    // Make sure we're not bundling any packages we're building, we want to
+    // test against the actual code we'll publish for instance
+    "miniflare",
+    "@miniflare/*",
+    // Make sure all Jest packages aren't bundled
+    "@jest/*",
+    "jest*",
   ],
   logLevel: watch ? "info" : "warning",
   watch,
@@ -102,10 +109,6 @@ async function buildPackage(name) {
       // Exclude devDependencies, we'll use these to signal single-use/small
       // packages we want inlined in the bundle
       ...getPackageDependencies(pkg),
-      // Make sure we're not bundling any packages we're building, we want to
-      // test against the actual code we'll publish for instance
-      "miniflare",
-      "@miniflare/*",
     ],
     entryPoints,
     outdir: outPath,
