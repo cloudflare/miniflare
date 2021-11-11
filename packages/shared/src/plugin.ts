@@ -68,6 +68,7 @@ export interface SetupResult extends BeforeSetupResult {
   globals?: Context;
   bindings?: Context;
   script?: ScriptBlueprint;
+  requiresModuleExports?: boolean;
 }
 
 export abstract class Plugin<Options extends Context = never> {

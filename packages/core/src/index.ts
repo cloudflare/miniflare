@@ -178,8 +178,9 @@ function throwNoScriptError(modules?: boolean) {
 export interface MiniflareCoreContext {
   log: Log;
   storageFactory: StorageFactory;
-  scriptRunner: ScriptRunner;
+  scriptRunner?: ScriptRunner;
   scriptRequired?: boolean;
+  scriptRunForModuleExports?: boolean;
   defaultConfigPath?: string;
 }
 
@@ -204,8 +205,9 @@ export class MiniflareCore<
   readonly log: Log;
   readonly #storage: StorageFactory;
   readonly #pluginStorages: PluginData<Plugins, PluginStorageFactory>;
-  readonly #scriptRunner: ScriptRunner;
+  readonly #scriptRunner?: ScriptRunner;
   readonly #scriptRequired?: boolean;
+  readonly #scriptRunForModuleExports?: boolean;
   readonly #defaultConfigPath: string;
 
   #compat?: Compatibility;
@@ -219,6 +221,7 @@ export class MiniflareCore<
   readonly #scriptWatchPaths = new Set<string>();
 
   #globalScope?: ServiceWorkerGlobalScope;
+  #bindings?: Context;
   #watcher?: Watcher;
   #watcherCallbackMutex?: Mutex;
   #previousWatchPaths?: Set<string>;
@@ -238,6 +241,7 @@ export class MiniflareCore<
     this.#pluginStorages = new Map<keyof Plugins, PluginStorageFactory>();
     this.#scriptRunner = ctx.scriptRunner;
     this.#scriptRequired = ctx.scriptRequired;
+    this.#scriptRunForModuleExports = ctx.scriptRunForModuleExports;
     this.#defaultConfigPath = ctx.defaultConfigPath ?? "wrangler.toml";
 
     this.#initPromise = this.#init().then(() => this.#reload());
@@ -271,11 +275,7 @@ export class MiniflareCore<
     this.log.verbose(`- setup(${name})`);
     const result = await instance.setup(this.getPluginStorage(name));
     this.#updateWatch(this.#setupWatch!, name, result);
-    this.#setupResults!.set(name, {
-      globals: result?.globals,
-      bindings: result?.bindings,
-      script: result?.script,
-    });
+    this.#setupResults!.set(name, result ?? {});
     return true;
   }
 
@@ -410,6 +410,7 @@ export class MiniflareCore<
     if (this.#wranglerConfigPath) newWatchPaths.add(this.#wranglerConfigPath);
 
     let script: ScriptBlueprint | undefined = undefined;
+    let requiresModuleExports = false;
     for (const [name] of this.#plugins) {
       // Run beforeReload hook
       const instance = this.#instances![name];
@@ -428,6 +429,7 @@ export class MiniflareCore<
         }
         script = result.script;
       }
+      if (result?.requiresModuleExports) requiresModuleExports = true;
 
       // Extract watch paths
       const beforeSetupWatch = this.#beforeSetupWatch!.get(name);
@@ -447,11 +449,22 @@ export class MiniflareCore<
       modules
     );
     this.#globalScope = globalScope;
+    this.#bindings = bindings;
 
     // Run script blueprints, with modules rules if in modules mode
     const rules = modules ? processedModuleRules : undefined;
     let res: ScriptRunnerResult | undefined = undefined;
-    if (script) {
+    if (
+      // Run the script if we've got one...
+      script &&
+      // ...and either we're always running it, or we're in modules mode
+      // and require its exports
+      (!this.#scriptRunForModuleExports || (modules && requiresModuleExports))
+    ) {
+      if (!this.#scriptRunner) {
+        throw new TypeError("Running scripts requires a script runner");
+      }
+
       this.log.verbose("Running script...");
       res = await this.#scriptRunner.run(globalScope, script, rules);
 
@@ -636,6 +649,11 @@ export class MiniflareCore<
   async getGlobalScope(): Promise<Context> {
     await this.#initPromise;
     return this.#globalScope!;
+  }
+
+  async getBindings(): Promise<Context> {
+    await this.#initPromise;
+    return this.#bindings!;
   }
 
   async dispatchFetch<WaitUntil extends any[] = unknown[]>(

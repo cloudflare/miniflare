@@ -1,6 +1,6 @@
 import vm from "vm";
+import { proxiedGlobals } from "@miniflare/runner-vm";
 import test, { Macro } from "ava";
-import { proxiedGlobals } from "../src/proxied";
 
 const instanceOfMacro: Macro<
   [type: string, create: () => any, invert?: boolean]

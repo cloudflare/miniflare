@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "@miniflare/jest",
+  "name": "jest-environment-miniflare",
   "version": "2.0.0-next.3",
   "description": "Jest testing module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
@@ -37,8 +37,16 @@
     "extends": "../../package.json"
   },
   "dependencies": {
+    "@miniflare/cache": "2.0.0-next.3",
     "@miniflare/core": "2.0.0-next.3",
+    "@miniflare/durable-objects": "2.0.0-next.3",
+    "@miniflare/html-rewriter": "2.0.0-next.3",
+    "@miniflare/kv": "2.0.0-next.3",
+    "@miniflare/runner-vm": "2.0.0-next.3",
     "@miniflare/shared": "2.0.0-next.3",
+    "@miniflare/sites": "2.0.0-next.3",
+    "@miniflare/storage-memory": "2.0.0-next.3",
+    "@miniflare/web-sockets": "2.0.0-next.3",
     "miniflare": "2.0.0-next.3"
   },
   "peerDependencies": {

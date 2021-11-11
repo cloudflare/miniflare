@@ -29,15 +29,13 @@ Consider using a Node.js version manager such as https://volta.sh/ or https://gi
     return;
   }
 
-  /* Spawn a new process using the same Node.js executable and passing the same
-   * command line arguments, but with required flags for source map and modules
-   * support.
-   *
-   * This is the only cross-platform way of doing this I can think of. On
-   * Mac/Linux, we can use "#!/usr/bin/env -S node ..." as a shebang, but this
-   * won't work on Windows (or older Linux versions, e.g. Ubuntu 18.04). If you
-   * can think of a better way of doing this, please open a GitHub issue.
-   */
+  // Spawn a new process using the same Node.js executable and passing the same
+  // command line arguments, but with required flags for modules support.
+  //
+  // This is the only cross-platform way of doing this I can think of. On
+  // Mac/Linux, we can use "#!/usr/bin/env -S node ..." as a shebang, but this
+  // won't work on Windows (or older Linux versions, e.g. Ubuntu 18.04). If you
+  // can think of a better way of doing this, please open a GitHub issue.
   childProcess
     .spawn(
       process.execPath,
