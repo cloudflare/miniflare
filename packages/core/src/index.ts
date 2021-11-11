@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import {
+  AdditionalModules,
   BeforeSetupResult,
   Compatibility,
   Context,
@@ -411,6 +412,7 @@ export class MiniflareCore<
 
     let script: ScriptBlueprint | undefined = undefined;
     let requiresModuleExports = false;
+    const additionalModules: AdditionalModules = {};
     for (const [name] of this.#plugins) {
       // Run beforeReload hook
       const instance = this.#instances![name];
@@ -419,7 +421,7 @@ export class MiniflareCore<
         await instance.beforeReload();
       }
 
-      // Build global scope and extract script blueprints
+      // Build global scope, extracting script blueprints and additional modules
       const result = this.#setupResults!.get(name);
       Object.assign(globals, result?.globals);
       Object.assign(bindings, result?.bindings);
@@ -430,6 +432,9 @@ export class MiniflareCore<
         script = result.script;
       }
       if (result?.requiresModuleExports) requiresModuleExports = true;
+      if (result?.additionalModules) {
+        Object.assign(additionalModules, result.additionalModules);
+      }
 
       // Extract watch paths
       const beforeSetupWatch = this.#beforeSetupWatch!.get(name);
@@ -466,7 +471,12 @@ export class MiniflareCore<
       }
 
       this.log.verbose("Running script...");
-      res = await this.#scriptRunner.run(globalScope, script, rules);
+      res = await this.#scriptRunner.run(
+        globalScope,
+        script,
+        rules,
+        additionalModules
+      );
 
       this.#scriptWatchPaths.clear();
       this.#scriptWatchPaths.add(script.filePath);

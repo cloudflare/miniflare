@@ -1,5 +1,5 @@
 import { Matcher } from "./data";
-import { Context } from "./plugin";
+import { AdditionalModules, Context } from "./plugin";
 
 export type ModuleRuleType =
   | "ESModule"
@@ -37,6 +37,7 @@ export interface ScriptRunner {
   run(
     globalScope: Context,
     blueprint: ScriptBlueprint,
-    modulesRules?: ProcessedModuleRule[]
+    modulesRules?: ProcessedModuleRule[],
+    additionalModules?: AdditionalModules
   ): Promise<ScriptRunnerResult>;
 }

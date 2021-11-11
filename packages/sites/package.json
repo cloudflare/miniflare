@@ -36,7 +36,8 @@
     "extends": "../../package.json"
   },
   "entryPoints": [
-    "test/fixtures/plugin.assetHandler.js"
+    "test/fixtures/plugin.assetHandler.js",
+    "test/fixtures/plugin.assetHandler.modules.js"
   ],
   "dependencies": {
     "@miniflare/kv": "2.0.0-next.3",

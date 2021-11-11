@@ -124,6 +124,19 @@ test("ModuleLinker: throws error for unsupported module type via ES module", asy
     message: /PNG modules are unsupported$/,
   });
 });
+test("ModuleLinker: links additional module via ES module", async (t) => {
+  const callback = (defaultExport: string, namedExport: number) => {
+    t.is(defaultExport, "test");
+    t.is(namedExport, 42);
+  };
+  const additionalModules = { ADDITIONAL: { default: "test", n: 42 } };
+  await runner.run(
+    { callback },
+    { code: 'import s, { n } from "ADDITIONAL"; callback(s, n);', filePath },
+    processedModuleRules,
+    additionalModules
+  );
+});
 
 test("ModuleLinker: throws error when linking ESModule via CommonJS module", async (t) => {
   // Technically Workers "supports" this, in that it doesn't throw an error,

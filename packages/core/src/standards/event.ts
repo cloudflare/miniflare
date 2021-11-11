@@ -210,6 +210,13 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     if (modules) {
       // Error when trying to access bindings using the global in modules mode
       for (const key of Object.keys(bindings)) {
+        // @cloudflare/kv-asset-handler checks the typeof these keys which
+        // triggers an access. We want this typeof to return "undefined", not
+        // throw, so skip these specific keys.
+        if (key === "__STATIC_CONTENT" || key === "__STATIC_CONTENT_MANIFEST") {
+          break;
+        }
+
         Object.defineProperty(this, key, {
           get() {
             throw new ReferenceError(

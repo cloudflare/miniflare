@@ -71,10 +71,14 @@ export class SitesPlugin extends Plugin<SitesOptions> implements SitesOptions {
       // path as the file path and won't edge cache files
       __STATIC_CONTENT_MANIFEST: {},
     };
+    // Allow `import manifest from "__STATIC_CONTENT_MANIFEST"`
+    const additionalModules = {
+      __STATIC_CONTENT_MANIFEST: { default: "{}" },
+    };
 
     // Whilst FileStorage will always serve the latest files, we want to
     // force a reload when these files change for live reload.
-    return { bindings, watch: [this.sitePath] };
+    return { bindings, watch: [this.sitePath], additionalModules };
   }
 
   async setup(): Promise<SetupResult> {

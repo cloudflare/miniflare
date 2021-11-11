@@ -8,6 +8,9 @@ import { WranglerConfig } from "./wrangler";
 
 export type Context = { [key: string | symbol]: any };
 
+// Maps module specifiers to module namespace
+export type AdditionalModules = { [key: string]: Context };
+
 export enum OptionType {
   NONE, // never
   BOOLEAN, // boolean
@@ -69,6 +72,7 @@ export interface SetupResult extends BeforeSetupResult {
   bindings?: Context;
   script?: ScriptBlueprint;
   requiresModuleExports?: boolean;
+  additionalModules?: AdditionalModules;
 }
 
 export abstract class Plugin<Options extends Context = never> {

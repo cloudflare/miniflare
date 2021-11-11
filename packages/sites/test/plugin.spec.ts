@@ -98,6 +98,11 @@ const sitesScriptPath = path.resolve(
   "fixtures",
   "plugin.assetHandler.js"
 );
+const sitesModulesScriptPath = path.resolve(
+  __dirname,
+  "fixtures",
+  "plugin.assetHandler.modules.js"
+);
 
 type Route = keyof typeof routeContents;
 const routeContents = {
@@ -193,15 +198,27 @@ test("MiniflareCore: doesn't cache files", async (t) => {
 
   await fs.writeFile(testPath, "1", "utf8");
   const res1 = await mf.dispatchFetch(
-    new Request(`http://localhost:8787/test.txt`)
+    new Request("http://localhost:8787/test.txt")
   );
   t.false(res1.headers.has("CF-Cache-Status"));
   t.is(await res1.text(), "1");
 
   await fs.writeFile(testPath, "2", "utf8");
   const res2 = await mf.dispatchFetch(
-    new Request(`http://localhost:8787/test.txt`)
+    new Request("http://localhost:8787/test.txt")
   );
   t.false(res2.headers.has("CF-Cache-Status"));
   t.is(await res2.text(), "2");
+});
+
+test("MiniflareCore: gets assets with module worker", async (t) => {
+  const tmp = await useTmp(t);
+  const testPath = path.join(tmp, "test.txt");
+  await fs.writeFile(testPath, "test", "utf8");
+  const mf = useMiniflare(
+    { SitesPlugin, CachePlugin },
+    { modules: true, scriptPath: sitesModulesScriptPath, sitePath: tmp }
+  );
+  const res = await mf.dispatchFetch("http://localhost:8787/test.txt");
+  t.is(await res.text(), "test");
 });
