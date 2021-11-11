@@ -97,6 +97,7 @@ test("coupleWebSocket: closes worker socket on client close", async (t) => {
   t.is(event.code, 1000);
   t.is(event.reason, "Test Closure");
 });
+// TODO: add test for invalid WebSocket close code
 
 test("coupleWebSocket: forwards messages from worker to client before coupling", async (t) => {
   const [eventTrigger, eventPromise] = triggerPromise<{ data: any }>();
