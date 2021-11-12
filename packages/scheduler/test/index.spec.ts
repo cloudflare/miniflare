@@ -1,6 +1,7 @@
 import { setImmediate } from "timers/promises";
 import { BindingsPlugin, ScheduledEvent } from "@miniflare/core";
 import {
+  CronScheduler,
   Scheduler,
   SchedulerPlugin,
   startScheduler,
@@ -8,44 +9,32 @@ import {
 import { Awaitable } from "@miniflare/shared";
 import { TestLog, useMiniflare } from "@miniflare/shared-test";
 import test from "ava";
+import { Cron, ITimerHandle } from "cron-schedule";
 
-// Waiting for CRONs is slow, so mock out node-cron with manual dispatch
-function createCronIsh(): [
+// Waiting for CRONs is slow, so mock out a scheduler with manual dispatch
+function createCronScheduler(): [
   dispatch: (cron: string) => Promise<void>,
-  cron: Promise<{ default: typeof import("node-cron") }>
+  scheduler: Promise<CronScheduler>
 ] {
   const crons = new Map<string, Set<() => Awaitable<void>>>();
-  const cronIsh: typeof import("node-cron") = {
-    validate() {
-      return false;
+  const scheduler: CronScheduler = {
+    setInterval(cron: Cron, task: () => Awaitable<void>): ITimerHandle {
+      const spec = cron.toString();
+      const set = crons.get(spec) ?? new Set();
+      crons.set(spec, set);
+      set.add(task);
+      // Not technically as ITimerHandle, but this is an opaque type anyways
+      // so it doesn't really matter
+      return [spec, task] as any;
     },
-    schedule(cron, func, options) {
-      const set: Set<() => void> = crons.get(cron) ?? new Set();
-      crons.set(cron, set);
-      if (options?.scheduled ?? true) set.add(func);
-      // noinspection JSUnusedGlobalSymbols
-      return {
-        start() {
-          set.add(func);
-          return this;
-        },
-        stop() {
-          set.delete(func);
-          return this;
-        },
-        destroy() {
-          set.delete(func);
-        },
-        getStatus() {
-          return "";
-        },
-      };
+    clearTimeoutOrInterval([spec, task]: any): void {
+      crons.get(spec)?.delete(task);
     },
   };
   const dispatch = async (cron: string) => {
     await Promise.all(Array.from(crons.get(cron) ?? []).map((func) => func()));
   };
-  return [dispatch, Promise.resolve({ default: cronIsh })];
+  return [dispatch, Promise.resolve(scheduler)];
 }
 
 test("Scheduler: schedules tasks for validated CRONs on reload", async (t) => {
@@ -61,8 +50,8 @@ test("Scheduler: schedules tasks for validated CRONs on reload", async (t) => {
     log
   );
   await mf.getPlugins(); // Wait for initial reload
-  const [dispatch, cronish] = createCronIsh();
-  new Scheduler(mf, cronish);
+  const [dispatch, cronScheduler] = createCronScheduler();
+  new Scheduler(mf, cronScheduler);
   await setImmediate();
 
   // Check scheduler requires reload to schedule tasks
@@ -94,8 +83,8 @@ test("Scheduler: destroys tasks when CRONs change", async (t) => {
   };
   const mf = useMiniflare({ SchedulerPlugin, BindingsPlugin }, options);
   await mf.getPlugins(); // Wait for initial reload
-  const [dispatch, cronish] = createCronIsh();
-  new Scheduler(mf, cronish);
+  const [dispatch, cronScheduler] = createCronScheduler();
+  new Scheduler(mf, cronScheduler);
   await mf.reload(); // Schedule tasks
 
   t.is(events.length, 0);
@@ -121,15 +110,15 @@ test("Scheduler: dispose: destroys tasks and removes reload listener", async (t)
     }
   );
   await mf.getPlugins(); // Wait for initial reload
-  const [dispatch, cronish] = createCronIsh();
-  const scheduler = new Scheduler(mf, cronish);
+  const [dispatch, cronScheduler] = createCronScheduler();
+  const scheduler = new Scheduler(mf, cronScheduler);
   await mf.reload(); // Schedule tasks
 
   t.is(events.length, 0);
   await dispatch("15 * * * *");
   t.is(events.length, 1);
 
-  scheduler.dispose();
+  await scheduler.dispose();
   await dispatch("15 * * * *");
   t.is(events.length, 1);
 });
@@ -145,8 +134,8 @@ test("createScheduler: automatically schedules tasks", async (t) => {
     }
   );
   await mf.getPlugins(); // Wait for initial reload
-  const [dispatch, cronish] = createCronIsh();
-  await startScheduler(mf, cronish);
+  const [dispatch, cronScheduler] = createCronScheduler();
+  await startScheduler(mf, cronScheduler);
   t.is(events.length, 0);
   await dispatch("15 * * * *");
   t.is(events.length, 1);

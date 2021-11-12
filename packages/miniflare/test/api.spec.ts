@@ -154,14 +154,14 @@ test.serial("Miniflare: startScheduler: starts CRON scheduler", async (t) => {
   // Wait for plugins to load, this includes CRON validation
   await mf.getPlugins();
 
-  const cron = await import("node-cron");
-  const originalSchedule = cron.default.schedule;
-  t.teardown(() => (cron.default.schedule = originalSchedule));
-  cron.default.schedule = (expression, func) => {
-    t.is(expression, "* * * * *");
+  const { TimerBasedCronScheduler } = await import("cron-schedule");
+  const originalSetInterval = TimerBasedCronScheduler.setInterval;
+  t.teardown(() => (TimerBasedCronScheduler.setInterval = originalSetInterval));
+  TimerBasedCronScheduler.setInterval = (expression, func) => {
+    t.is(expression.toString(), "* * * * *");
     // Immediately invoke the task because we're impatient
     func();
-    return { destroy: () => t.fail() } as any;
+    return 0 as any;
   };
   await mf.startScheduler();
 });

@@ -72,8 +72,8 @@
   },
   "peerDependencies": {
     "@miniflare/storage-redis": "2.0.0-next.3",
-    "ioredis": "^4.27.9",
-    "node-cron": "^3.0.0"
+    "cron-schedule": "^3.0.4",
+    "ioredis": "^4.27.9"
   },
   "peerDependenciesMeta": {
     "@miniflare/storage-redis": {
