@@ -111,10 +111,10 @@ command line arguments. This means starting the installed executable with the
 
 To get around this, inspect the script the bootstrapper starts instead by
 replacing `miniflare` with
-`node --experimental-vm-modules --inspect ./node_modules/miniflare/dist/cli.js`:
+`node --experimental-vm-modules --inspect ./node_modules/miniflare/dist/src/cli.js`:
 
 ```shell
-node --experimental-vm-modules --inspect ./node_modules/miniflare/dist/cli.js worker.js --watch --debug
+node --experimental-vm-modules --inspect ./node_modules/miniflare/dist/src/cli.js worker.js --watch --debug
 ```
 
 Navigate to `chrome://inspect` in Google Chrome and click **Open dedicated

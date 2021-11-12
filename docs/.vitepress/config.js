@@ -58,7 +58,7 @@ module.exports = {
             text: "⚡️ Developing with esbuild",
             link: "/recipes/esbuild.html",
           },
-          { text: "✅ Testing with AVA", link: "/recipes/ava.html" },
+          { text: "🚀 Testing with AVA", link: "/recipes/ava.html" },
           { text: "🐛 Attaching a Debugger", link: "/recipes/debugger.html" },
         ],
       },

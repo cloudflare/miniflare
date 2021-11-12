@@ -95,12 +95,3 @@ globs = ["**/*.mjs"]
 type = "CommonJS"
 globs = ["**/*.js", "**/*.cjs"]
 ```
-
-<!--prettier-ignore-start-->
-::: warning
-`CommonJS` modules are handled by transforming them to ES modules using
-[wessberg/cjstoesm](https://github.com/wessberg/cjstoesm). Ideally, you should
-just use ES modules instead to avoid this extra transformation step. Note that
-`.js` files are handled as `CommonJS` modules by default.
-:::
-<!--prettier-ignore-end-->

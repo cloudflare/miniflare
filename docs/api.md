@@ -43,16 +43,16 @@ The [Guide](/fetch.html) goes into more detail on configuring specific features.
 
 <!--prettier-ignore-start-->
 ::: warning
-Like the CLI, the API will automatically load `.env`, `package.json` and `wrangler.toml` files
-in the current working directory. This may lead to unexpected behaviour. You can
-disable this by setting `envPath`, `packagePath` and `wranglerConfigPath` options to paths of
-empty files:
+Unlike the CLI, the API won't automatically load configuration from `.env`,
+`package.json` and `wrangler.toml` files in the current working directory. You
+can enable this by setting the `envPath`, `packagePath` and `wranglerConfigPath`
+options to `true`:
 
 ```js
 const mf = new Miniflare({
-  envPath: ".env.empty",
-  packagePath: "package.empty.json", // Containing empty object: {}
-  wranglerConfigPath: "wrangler.empty.toml"
+  envPath: true,
+  packagePath: true,
+  wranglerConfigPath: true,
 });
 ```
 :::
@@ -91,22 +91,11 @@ You must also `dispose` if you're persisting KV, cache, or Durable Object data
 in Redis to close opened connections.
 
 You can also manually reload scripts (main and Durable Objects') and options
-(`.env`, `package.json` and `wrangler.toml`) too with `reloadOptions`:
+(`.env`, `package.json` and `wrangler.toml`) too with `reload`:
 
 ```js
 const mf = new Miniflare({ ... });
-await mf.reloadOptions();
-```
-
-### Getting Processed Options
-
-You can get an object containing processed options with `getOptions`. These
-contain options resolved from the constructor, `.env`, `package.json` and
-`wrangler.toml` files:
-
-```js
-const mf = new Miniflare({ ... });
-const options = await mf.getOptions();
+await mf.reload();
 ```
 
 ### Dispatching Events
@@ -144,7 +133,7 @@ for more details.
 
 ### HTTP Server
 
-To start an HTTP server like the CLI's, use the `createServer` method. This
+To start an HTTP server like the CLI's, use the `startServer` method. This
 returns a
 [Node.js `http.Server`](https://nodejs.org/api/http.html#http_class_http_server)
 instance:
@@ -158,43 +147,19 @@ const mf = new Miniflare({
     event.respondWith(new Response("Hello Miniflare!"));
   });
   `,
+  port: 5000,
 });
-mf.createServer().listen(5000, () => {
-  console.log("Listening on :5000");
-});
-```
-
-Note that `port` and `host` options are ignored by default. It's up to you to
-get and use them:
-
-```js
-const options = await mf.getOptions();
-const port = options.port ?? 5000; // Use port 5000 by default
-mf.createServer().listen(port, () => { ... });
+const server = await mf.startServer();
+console.log("Listening on :5000");
 ```
 
 ### HTTPS Server
 
-To start an HTTPS server instead, set the `https` option as described below and
-pass `true` as the secure argument of `createServer`. Note that you must now
-`await` the call to `createServer`:
-
-```js
-import { Miniflare } from "miniflare";
-
-const mf = new Miniflare({
-  ...,
-  https: ...
-});
-(await mf.createServer(true)).listen(5000, () => {
-  console.log("Listening on :5000");
-});
-```
-
-To use an automatically generated self-signed certificate, set `https` to
-`true`. This certificate will be valid for 30 days and be cached in `./.mf/cert`
-by default. You can customise this directory by setting `https` to a string path
-instead. The certificate will be renewed if it expires in less than 2 days:
+To start an HTTPS server instead, set the `https` option. To use an
+automatically generated self-signed certificate, set `https` to `true`. This
+certificate will be valid for 30 days and be cached in `./.mf/cert` by default.
+You can customise this directory by setting `https` to a string path instead.
+The certificate will be renewed if it expires in less than 2 days:
 
 ```js
 const mf = new Miniflare({
@@ -207,14 +172,12 @@ To load an existing certificate from the file system:
 
 ```js
 const mf = new Miniflare({
-  https: {
-    // These are all optional, you don't need to include them all
-    keyPath: "./key.pem",
-    certPath: "./cert.pem",
-    caPath: "./ca.pem",
-    pfxPath: "./pfx.pfx",
-    passphrase: "pfx passphrase",
-  },
+  // These are all optional, you don't need to include them all
+  httpsKeyPath: "./key.pem",
+  httpsCertPath: "./cert.pem",
+  httpsCaPath: "./ca.pem",
+  httpsPfxPath: "./pfx.pfx",
+  httpsPassphrase: "pfx passphrase",
 });
 ```
 
@@ -222,39 +185,37 @@ To load an existing certificate from strings instead:
 
 ```js
 const mf = new Miniflare({
-  https: {
-    // These are all optional, you don't need to include them all
-    key: "-----BEGIN RSA PRIVATE KEY-----...",
-    cert: "-----BEGIN CERTIFICATE-----...",
-    ca: "...",
-    pfx: "...",
-    passphrase: "pfx passphrase",
-  },
+  // These are all optional, you don't need to include them all
+  httpsKey: "-----BEGIN RSA PRIVATE KEY-----...",
+  httpsCert: "-----BEGIN CERTIFICATE-----...",
+  httpsCa: "...",
+  httpsPfx: "...",
+  httpsPassphrase: "pfx passphrase",
 });
 ```
 
-If both a string and path are specified for an option (e.g. `key` and
-`keyPath`), the string will be preferred.
+If both a string and path are specified for an option (e.g. `httpsKey` and
+`httpsKeyPath`), the string will be preferred.
 
 ### Logging
 
 By default, `[mf:*]` logs as seen in the CLI are disabled when using the API. To
-enable these, set the `log` property to an instance of the `ConsoleLog` class.
-Its only parameter is a boolean indicating whether debug messages should be
-logged:
+enable these, set the `log` property to an instance of the `Log` class. Its only
+parameter is the log level indicating which messages should be logged:
 
 ```js{5}
-import { Miniflare, ConsoleLog } from "miniflare";
+import { Log, LogLevel } from "@miniflare/shared";
+import { Miniflare } from "miniflare";
 
 const mf = new Miniflare({
   scriptPath: "worker.js",
-  log: new ConsoleLog(true), // Enable --debug messages
+  log: new Log(LogLevel.DEBUG), // Enable --debug messages
 });
 ```
 
-### Arbitrary Bindings
+### Arbitrary Globals
 
-The `bindings` property can be used to inject arbitrary objects into the global
+The `globals` property can be used to inject arbitrary objects into the global
 scope of the sandbox. This can be very useful for testing:
 
 ```js{9-11}
@@ -266,7 +227,7 @@ const mf = new Miniflare({
     event.respondWith(new Response(greet("Miniflare")));
   });
   `,
-  bindings: {
+  globals: {
     greet: (name) => `Hello ${name}!`,
   },
 });

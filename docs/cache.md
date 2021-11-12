@@ -86,12 +86,11 @@ const mf = new Miniflare({
 let res = await mf.dispatchFetch("http://localhost:8787/put");
 console.log(await res.text()); // 1
 
-const cache = await mf.getCache(); // Gets the default cache
-const namedCache = await mf.getCache("cache_name"); // Gets a namespaced cache
-const cachedRes = await cache.match("https://miniflare.dev/");
+const caches = await mf.getCaches(); // Gets the global caches object
+const cachedRes = await caches.default.match("https://miniflare.dev/");
 console.log(await cachedRes.text()); // 1
 
-await cache.put(
+await caches.default.put(
   "https://miniflare.dev",
   new Response("2", {
     headers: { "Cache-Control": "max-age=3600" },
@@ -108,17 +107,17 @@ When disabled, the caches will still be available in the sandbox, they just
 won't cache anything. This may be useful during development:
 
 ```shell
-$ miniflare --disable-cache
+$ miniflare --no-cache
 ```
 
 ```toml
 # wrangler.toml
 [miniflare]
-disable_cache = true
+cache = false
 ```
 
 ```js
 const mf = new Miniflare({
-  disableCache: true,
+  cache: false,
 });
 ```

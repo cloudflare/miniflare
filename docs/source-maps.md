@@ -32,7 +32,19 @@ Use the `--sourcemap` flag or the
 
 See the
 [`devtool` configuration option](https://webpack.js.org/configuration/devtool/).
-Note that `eval` is unsupported in workers.
+Note that `eval` is unsupported in workers. For the error page to correctly
+resolve your source files, you must set `devtoolModuleFilenameTemplate` to
+`[absolute-resource-path]`:
+
+```js
+module.exports = {
+  entry: "./src/index.js",
+  devtool: "cheap-module-source-map",
+  output: {
+    devtoolModuleFilenameTemplate: "[absolute-resource-path]",
+  },
+};
+```
 
 ### Rollup
 
