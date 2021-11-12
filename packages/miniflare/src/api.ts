@@ -1,6 +1,6 @@
 import http from "http";
 import https from "https";
-import { CachePlugin } from "@miniflare/cache";
+import { CachePlugin, CacheStorage } from "@miniflare/cache";
 import {
   BindingsPlugin,
   BuildPlugin,
@@ -91,6 +91,11 @@ export class Miniflare extends MiniflareCore<Plugins> {
     const plugin = (await this.getPlugins()).KVPlugin;
     const storage = this.getPluginStorage("KVPlugin");
     return plugin.getNamespace(storage, namespace);
+  }
+
+  async getCaches(): Promise<CacheStorage> {
+    const plugin = (await this.getPlugins()).CachePlugin;
+    return plugin.getCaches();
   }
 
   async getDurableObjectNamespace(
