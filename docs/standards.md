@@ -12,18 +12,24 @@
 Miniflare supports the following Web Standards in its sandbox:
 
 - **Console:** `console.*`
-- **Timers:** `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval`
+- **Timers:** `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval`,
+  `queueMicrotask`
 - **Base64:** `atob`, `btoa`
-- **Web Crypto**: `crypto.*`
+- **Web Crypto**: `crypto.getRandomValues`, `crypto.randomUUID`,
+  `crypto.subtle.*` (with support for `MD5` digests and `NODE-ED25519`
+  signatures)
 - **Encoding:** `TextEncoder`, `TextDecoder`
-- **Fetch:** `fetch`, `Headers`, `Request`, `Response`, `FormData`, `Blob`,
-  `File`, `URL`, `URLSearchParams` (powered by
-  [undici](https://github.com/nodejs/undici/))
+- **Fetch:** `fetch`, `Headers` (including
+  [non-standard `getAll` method](https://developers.cloudflare.com/workers/runtime-apis/headers#differences)),
+  `Request`, `Response`, `FormData`, `Blob`, `File`, `URL`, `URLSearchParams`
+  (powered by [undici](https://github.com/nodejs/undici/))
 - **URL:** `URL`, `URLSearchParams`
 - **Streams:** `ByteLengthQueuingStrategy`, `CountQueuingStrategy`,
-  `ReadableByteStreamController`, `ReadableStream`, `ReadableStreamBYOBReader`,
-  `ReadableStreamBYOBRequest`, `ReadableStreamDefaultController`,
-  `ReadableStreamDefaultReader`, `TransformStream`,
-  `TransformStreamDefaultController`, `WritableStream`,
+  `ReadableByteStreamController`, `ReadableStream`, `ReadableStreamBYOBReader`
+  (including non-standard `readAtLeast` method), `ReadableStreamBYOBRequest`,
+  `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`,
+  `TransformStream`, `TransformStreamDefaultController`, `WritableStream`,
   `WritableStreamDefaultController`, `WritableStreamDefaultWriter`
 - **Events:** `Event`, `EventTarget`, `AbortController`, `AbortSignal`
+- **Event Types:** `fetch`, `scheduled`, `unhandledrejection`,
+  `rejectionhandled`

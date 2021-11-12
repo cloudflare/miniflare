@@ -58,10 +58,19 @@ When using Redis, each key will be prefixed with the namespace. If you're using
 this with the API, make sure you call `dispose` on your `Miniflare` instance to
 close database connections.
 
+<!--prettier-ignore-start-->
+::: warning
+Redis support is not included by default. You must install an optional peer dependency:
+```
+$ npm install -D @miniflare/storage-redis
+```
+:::
+<!--prettier-ignore-end-->
+
 ## Manipulating Outside Workers
 
 For testing, it can be useful to put/match data from cache outside a worker. You
-can do this with the `getCache` method:
+can do this with the `getCaches` method:
 
 ```js{23-33}
 import { Miniflare, Response } from "miniflare";

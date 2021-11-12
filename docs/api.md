@@ -98,6 +98,46 @@ const mf = new Miniflare({ ... });
 await mf.reload();
 ```
 
+Miniflare will emit a `reload` event whenever it reloads too:
+
+```js
+const mf = new Miniflare({ ... });
+mf.addEventListener("reload", (event) => {
+  console.log("Worker reloaded!");
+});
+```
+
+### Updating Options and the Global Scope
+
+You can use the `setOptions` method to update the options of an existing
+`Miniflare` instance. This accepts the same options object as the
+`new Miniflare` constructor, applies those options, then reloads the worker.
+
+```js
+const mf = new Miniflare({
+  script: "...",
+  kvNamespaces: ["TEST_NAMESPACE"],
+  bindings: { KEY: "value1" },
+});
+
+// Only updates `bindings`, leaves `script` and `kvNamespaces` alone
+await mf.setOptions({
+  bindings: { KEY: "value2" },
+});
+```
+
+You can also access the global scope of the sandbox directly using the
+`getGlobalScope` method. Ideally, use should use the `setOptions` method when
+updating the environment dynamically though:
+
+```js
+const mf = new Miniflare({
+  globals: { KEY: "value1" },
+});
+const globalScope = await mf.getGlobalScope();
+globalScope.KEY = "value2";
+```
+
 ### Dispatching Events
 
 `dispatchFetch` and `dispatchScheduled` dispatch `fetch` and `scheduled` events
@@ -138,7 +178,7 @@ returns a
 [Node.js `http.Server`](https://nodejs.org/api/http.html#http_class_http_server)
 instance:
 
-```js{10}
+```js{11}
 import { Miniflare } from "miniflare";
 
 const mf = new Miniflare({
@@ -151,6 +191,52 @@ const mf = new Miniflare({
 });
 const server = await mf.startServer();
 console.log("Listening on :5000");
+```
+
+You can also just create the server with `createServer` and start it yourself.
+Note that you're then responsible for setting the correct host and port:
+
+```js
+const mf = new Miniflare({
+  script: "...",
+  port: 5000,
+});
+const server = await mf.createServer();
+const { HTTPPlugin } = await mf.getPlugins();
+server.listen(HTTPPlugin.port, () => {
+  console.log(`Listening on :${HTTPPlugin.port}`);
+});
+```
+
+#### `Request#cf` Object
+
+By default, Miniflare will fetch the `Request#cf` object from a trusted
+Cloudflare endpoint. You can disable this behaviour, using the `cfFetch` option:
+
+```js
+const mf = new Miniflare({
+  cfFetch: false,
+});
+```
+
+You can also provide a custom request metadata provider, which takes the
+incoming Node request and may look-up information in a geo-IP database:
+
+```js
+const mf = new Miniflare({
+  async metaProvider(req) {
+    return {
+      forwardedProto: req.headers["X-Forwarded-Proto"],
+      realIp: req.headers["X-Forwarded-For"],
+      cf: {
+        // Could get these from a geo-IP database
+        colo: "SFO",
+        country: "US",
+        // ...
+      },
+    };
+  },
+});
 ```
 
 ### HTTPS Server
@@ -196,6 +282,21 @@ const mf = new Miniflare({
 
 If both a string and path are specified for an option (e.g. `httpsKey` and
 `httpsKeyPath`), the string will be preferred.
+
+### CRON Scheduler
+
+To start a CRON scheduler like the CLI's, use the `startScheduler` method. This
+will dispatch `scheduled` events according to the specified CRON expressions:
+
+```js
+const mf = new Miniflare({
+  crons: ["30 * * * *"],
+});
+const scheduler = await mf.startScheduler();
+// ...
+// Stop dispatching events
+await scheduler.dispose();
+```
 
 ### Logging
 

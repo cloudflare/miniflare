@@ -79,6 +79,35 @@ When using Redis, each key will be prefixed with the object name and instance.
 If you're using this with the API, make sure you call `dispose` on your
 `Miniflare` instance to close database connections.
 
+<!--prettier-ignore-start-->
+::: warning
+Redis support is not included by default. You must install an optional peer dependency:
+```
+$ npm install -D @miniflare/storage-redis
+```
+:::
+<!--prettier-ignore-end-->
+
+## Validation
+
+Like the real Workers runtime, Miniflare will throw errors when:
+
+- The string passed to `DurableObjectNamespace#idFromString(hexId)` is not 64
+  hex digits
+- The hex-ID passed to `DurableObjectNamespace#idFromString(hexId)` is for a
+  different Durable Object
+- The ID passed to `DurableObjectNamespace#get(id)` is for a different Durable
+  Object
+- Keys are greater than `2KiB` or `undefined`
+- Values are greater than `32KiB`
+- Attempting to `get`, `put` or `delete` more than `128` keys
+- Attempting to modify more than `128` keys in a transaction
+- Attempting to `put` an `undefined` value
+- Attempting to list keys with a negative `limit`
+- Attempting to perform an operation in a rolledback transaction or in a
+  transaction that has already committed
+- Attempting to call `deleteAll()` in a transaction
+
 ## Manipulating Outside Workers
 
 For testing, it can be useful to put/get data from Durable Object storage
