@@ -6,8 +6,7 @@ import {
   OptionType,
   Plugin,
 } from "@miniflare/shared";
-
-const noop = () => {};
+import type { Cron } from "cron-schedule";
 
 export type SchedulerErrorCode = "ERR_INVALID_CRON"; // Invalid CRON expression
 
@@ -30,36 +29,34 @@ export class SchedulerPlugin
   })
   crons?: string[];
 
-  #validatedCrons: string[] = [];
+  #validatedCrons: Cron[] = [];
 
   constructor(log: Log, compat: Compatibility, options?: SchedulerOptions) {
     super(log, compat);
     this.assignOptions(options);
   }
 
-  get validatedCrons(): string[] {
+  get validatedCrons(): Cron[] {
     return this.#validatedCrons;
   }
 
   async setup(): Promise<void> {
-    const validatedCrons: string[] = [];
     if (!this.crons?.length) {
-      this.#validatedCrons = validatedCrons;
+      this.#validatedCrons = [];
       return;
     }
-    const cron = await import("node-cron");
-    for (const spec of this.crons) {
+    const { parseCronExpression } = await import("cron-schedule");
+    const validatedCrons = Array(this.crons.length);
+    for (let i = 0; i < this.crons.length; i++) {
+      const spec = this.crons[i];
       try {
-        // We don't use cron.validate here since that doesn't tell us why
-        // parsing failed
-        const task = cron.default.schedule(spec, noop, { scheduled: false });
-        task.stop();
-        // validateCrons is always defined here
-        validatedCrons.push(spec);
-      } catch (e) {
+        const cron = parseCronExpression(spec);
+        cron.toString = () => spec;
+        validatedCrons[i] = cron;
+      } catch (e: any) {
         throw new SchedulerError(
           "ERR_INVALID_CRON",
-          `Unable to parse CRON "${spec}": ${e}`
+          `Unable to parse CRON "${spec}": ${e.message}`
         );
       }
     }

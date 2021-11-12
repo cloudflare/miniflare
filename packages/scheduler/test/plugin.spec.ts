@@ -43,7 +43,10 @@ test("SchedulerPlugin: setup: accepts valid CRON expressions", async (t) => {
     crons: ["0 12 * * MON", "* * * * *"],
   });
   await plugin.setup();
-  t.deepEqual(plugin.validatedCrons, ["0 12 * * MON", "* * * * *"]);
+  t.deepEqual(
+    plugin.validatedCrons.map((cron) => cron.toString()),
+    ["0 12 * * MON", "* * * * *"]
+  );
 });
 test("SchedulerPlugin: setup: throws on invalid CRON expressions", async (t) => {
   let plugin = new SchedulerPlugin(new NoOpLog(), compat, {
