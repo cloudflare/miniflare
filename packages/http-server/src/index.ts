@@ -18,7 +18,6 @@ import {
 import { randomHex } from "@miniflare/shared";
 import { coupleWebSocket } from "@miniflare/web-sockets";
 import { BodyInit, Headers } from "undici";
-// @ts-expect-error ws's type definitions haven't been updated yet
 import StandardWebSocket, { WebSocketServer } from "ws";
 import { getAccessibleHosts } from "./helpers";
 import { HTTPPlugin, RequestMeta } from "./plugin";
@@ -364,7 +363,7 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
     const { pathname } = new URL(request.url ?? "", "http://localhost");
     const server =
       pathname === "/cdn-cgi/mf/reload" ? liveReloadServer : webSocketServer;
-    server.handleUpgrade(request, socket, head, (ws: StandardWebSocket) =>
+    server.handleUpgrade(request, socket as any, head, (ws) =>
       server.emit("connection", ws, request)
     );
   });

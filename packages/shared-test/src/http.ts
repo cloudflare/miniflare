@@ -2,7 +2,6 @@ import http from "http";
 import { AddressInfo } from "net";
 import { URL } from "url";
 import { ExecutionContext } from "ava";
-// @ts-expect-error ws's type definitions haven't been updated yet
 import StandardWebSocket, { WebSocketServer } from "ws";
 
 export async function useServer(

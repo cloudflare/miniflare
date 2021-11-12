@@ -43,6 +43,6 @@
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.0.0-next.3",
-    "@types/ws": "^7.4.7"
+    "@types/ws": "^8.2.0"
   }
 }

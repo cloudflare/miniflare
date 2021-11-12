@@ -32,7 +32,7 @@ import {
 } from "@miniflare/shared-test";
 import { MessageEvent, WebSocketPlugin } from "@miniflare/web-sockets";
 import test, { ExecutionContext, Macro } from "ava";
-import StandardWebSocket from "ws";
+import StandardWebSocket, { Data, Event as WebSocketEvent } from "ws";
 
 function listen(
   t: ExecutionContext,
@@ -502,7 +502,7 @@ test("createServer: handles web socket upgrades", async (t) => {
   const port = await listen(t, await createServer(mf));
 
   const ws = new StandardWebSocket(`ws://localhost:${port}`);
-  const [eventTrigger, eventPromise] = triggerPromise<string>();
+  const [eventTrigger, eventPromise] = triggerPromise<Data>();
   ws.addEventListener("message", (e) => {
     eventTrigger(e.data);
   });
@@ -546,7 +546,7 @@ test("createServer: notifies connected live reload clients on reload", async (t)
 
   const port = await listen(t, await createServer(mf));
   const ws = new StandardWebSocket(`ws://localhost:${port}/cdn-cgi/mf/reload`);
-  const [openTrigger, openPromise] = triggerPromise<void>();
+  const [openTrigger, openPromise] = triggerPromise<WebSocketEvent>();
   ws.addEventListener("open", openTrigger);
   let receivedClose = false;
   const [closeTrigger, closePromise] = triggerPromise<void>();
