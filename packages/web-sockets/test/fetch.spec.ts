@@ -1,8 +1,10 @@
 import assert from "assert";
 import { Blob } from "buffer";
 import { URLSearchParams } from "url";
+import { createCompatFetch } from "@miniflare/core";
+import { Compatibility } from "@miniflare/shared";
 import { noop, triggerPromise, useServer } from "@miniflare/shared-test";
-import { upgradingFetch } from "@miniflare/web-sockets";
+import { MessageEvent, upgradingFetch } from "@miniflare/web-sockets";
 import test from "ava";
 import { FormData } from "undici";
 
@@ -78,6 +80,26 @@ test("upgradingFetch: throws on ws(s) protocols", async (t) => {
         "Fetch API cannot load: wss://localhost/.\nMake sure you're using http(s):// URLs for WebSocket requests via fetch.",
     }
   );
+});
+test("upgradingFetch: allows ws protocol with createCompatFetch", async (t) => {
+  const compat = new Compatibility();
+  const fetch = createCompatFetch(compat, upgradingFetch);
+  const server = await useServer(t, noop, (ws) => {
+    ws.addEventListener("message", ({ data }) => ws.send(data));
+  });
+  // Should implicitly treat this as http
+  const res = await fetch(server.ws, {
+    headers: { upgrade: "websocket" },
+  });
+  const webSocket = res.webSocket;
+  t.not(webSocket, undefined);
+  assert(webSocket);
+
+  const [eventTrigger, eventPromise] = triggerPromise<MessageEvent>();
+  webSocket.addEventListener("message", eventTrigger);
+  webSocket.accept();
+  webSocket.send("hello");
+  t.is((await eventPromise).data, "hello");
 });
 test("upgradingFetch: requires GET for web socket upgrade", async (t) => {
   const server = await useServer(
