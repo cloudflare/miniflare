@@ -115,7 +115,6 @@ export function populateBuildConfig(
     config.build.upload.main = path.join("worker", "generated", "script.js");
 
     // Add wasm binding, script.wasm will be created by rustScript
-    config.miniflare ??= {};
     config.wasm_modules ??= {};
     // WASM bindings aren't implicitly resolved relative to configDir
     config.wasm_modules.wasm = path.join(
