@@ -1,4 +1,6 @@
 import assert from "assert";
+import http from "http";
+import { AddressInfo } from "net";
 import { viewToBuffer } from "@miniflare/shared";
 import {
   noop,
@@ -10,7 +12,10 @@ import {
 import { WebSocketPair, coupleWebSocket } from "@miniflare/web-sockets";
 import { CloseEvent, MessageEvent } from "@miniflare/web-sockets";
 import test from "ava";
-import StandardWebSocket from "ws";
+import StandardWebSocket, {
+  Event as WebSocketEvent,
+  WebSocketServer,
+} from "ws";
 
 test("coupleWebSocket: throws if already coupled", async (t) => {
   const server = await useServer(t, noop, (ws) => ws.send("test"));
@@ -97,7 +102,30 @@ test("coupleWebSocket: closes worker socket on client close", async (t) => {
   t.is(event.code, 1000);
   t.is(event.reason, "Test Closure");
 });
-// TODO: add test for invalid WebSocket close code
+test("coupleWebSocket: closes worker socket with invalid client close code", async (t) => {
+  const server = http.createServer();
+  const wss = new WebSocketServer({ server });
+  wss.on("connection", (ws) => {
+    // Close WebSocket without code, defaults to 1005 (No Status Received)
+    // which would be an invalid code if passed normally
+    ws.close();
+  });
+  const port = await new Promise<number>((resolve) => {
+    server.listen(0, () => {
+      resolve((server.address() as AddressInfo).port);
+    });
+  });
+  const ws = new StandardWebSocket(`ws://localhost:${port}`);
+  const [client, worker] = Object.values(new WebSocketPair());
+
+  const [eventTrigger, eventPromise] = triggerPromise<CloseEvent>();
+  worker.addEventListener("close", eventTrigger);
+  worker.accept();
+  await coupleWebSocket(ws, client);
+
+  const event = await eventPromise;
+  t.is(event.code, 1005);
+});
 
 test("coupleWebSocket: forwards messages from worker to client before coupling", async (t) => {
   const [eventTrigger, eventPromise] = triggerPromise<{ data: any }>();
@@ -177,7 +205,7 @@ test("coupleWebSocket: accepts worker socket immediately if already open", async
   // Send before coupling, simulates sending message in worker code before returning response
   worker.send("test");
   // Make sure socket is open before terminating
-  const [openTrigger, openPromise] = triggerPromise<void>();
+  const [openTrigger, openPromise] = triggerPromise<WebSocketEvent>();
   ws.addEventListener("open", openTrigger);
   await openPromise;
   await coupleWebSocket(ws, client);
@@ -192,7 +220,7 @@ test("coupleWebSocket: throws if web socket already closed", async (t) => {
 
   worker.accept();
   // Make sure socket is open before closing
-  const [openTrigger, openPromise] = triggerPromise<void>();
+  const [openTrigger, openPromise] = triggerPromise<WebSocketEvent>();
   ws.addEventListener("open", openTrigger);
   await openPromise;
   // Make sure socket is closed before terminating
