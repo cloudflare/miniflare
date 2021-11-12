@@ -13,7 +13,7 @@ $ npm install -D jest-environment-miniflare jest
 
 In the following examples, we'll assume your `package.json` contains
 `"type": "module"`, and that you're using a tool to bundle your worker. See
-[⚡️ Developing with esbuild](/esbuild.html) for an example.
+[⚡️ Developing with esbuild](/recipes/esbuild.html) for an example.
 
 To enable the Miniflare environment, set the
 [`testEnvironment` option](https://jestjs.io/docs/configuration#testenvironment-string)

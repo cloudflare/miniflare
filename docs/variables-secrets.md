@@ -13,6 +13,7 @@ $ miniflare --binding KEY1=value1 --binding KEY2=value2 # or -b
 [vars]
 KEY1 = "value1"
 KEY2 = "value2"
+NUMBER = 42 # Note [vars] are automatically stringified
 ```
 
 ```js
@@ -53,3 +54,54 @@ const mf = new Miniflare({
   envPath: ".env.test",
 });
 ```
+
+## Bindings Priority
+
+Higher priority bindings override lower priority bindings with the same name.
+The order (from lowest to highest priority) is:
+
+1. Variables from `wrangler.toml` `[vars]`
+2. Variables from `.env` files
+3. WASM module bindings (`--wasm`, `[wasm_modules]`)
+4. Custom bindings (`--binding`, `bindings`)
+
+## Globals
+
+You can also bind variables or arbitrary objects to the global scope, even in
+modules mode:
+
+```shell
+$ miniflare --global KEY1=value1 --global KEY2=value2
+```
+
+```toml
+# wrangler.toml
+[miniflare.globals]
+KEY1 = "value1"
+KEY2 = "value2"
+```
+
+```js
+const mf = new Miniflare({
+  globals: {
+    KEY1: "value1",
+    KEY2: "value2",
+    FUNCTION: () => { ... }
+  },
+});
+```
+
+<!--prettier-ignore-start-->
+::: tip
+Miniflare will always set the global variable `MINIFLARE` to `true` in its
+sandbox. You can use this as an escape hatch to customise behaviour during local
+development:
+```js
+if (globalThis.MINIFLARE) {
+  // Do something when running in Miniflare
+} else {
+  // Do something else when running in the real Workers environment
+}
+```
+:::
+<!--prettier-ignore-end-->

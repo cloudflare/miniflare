@@ -84,6 +84,31 @@ Metadata will be prefixed with the namespace and `:meta:`. If you're using this
 with the API, make sure you call `dispose` on your `Miniflare` instance to close
 database connections.
 
+<!--prettier-ignore-start-->
+::: warning
+Redis support is not included by default. You must install an optional peer dependency:
+```
+$ npm install -D @miniflare/storage-redis
+```
+:::
+<!--prettier-ignore-end-->
+
+## Validation
+
+Like the real Workers runtime, Miniflare will throw errors when:
+
+- Keys are empty, `.`, `..`, `undefined`, or greater than `512B` when UTF-8
+  encoded
+- Values are greater than `25MiB`
+- Metadata is greater than `1KiB`
+- The `cacheTtl` option is less than `60s`
+- The `expirationTtl` option is non-numeric, less than or equal 0, or less than
+  `60s`
+- The `expiration` option is non-numeric, less than or equal the current time,
+  or less than `60s` in the future
+- The `limit` passed to `KVNamespace#list()` is non-numeric, less than or equal
+  `0`, or greater than `1000`
+
 ## Manipulating Outside Workers
 
 For testing, it can be useful to put/get data from KV outside a worker. You can

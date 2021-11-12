@@ -8,9 +8,9 @@ Custom builds can be enabled by specifying a build command. You can also specify
 a path to run the build in, and a path to watch:
 
 ```shell
-$ miniflare --build-command "npm run build"
+$ miniflare --build-command "npm run build" # or -B
 $ miniflare --build-command "npm run build" --build-base-path "build"
-$ miniflare --build-command "npm run build" --build-watch-path "source"
+$ miniflare --build-command "npm run build" --build-watch-path "source1" --build-watch-path "source2"
 ```
 
 ```toml
@@ -27,7 +27,7 @@ const mf = new Miniflare({
   buildCommand: "npm run build",
   // Below options are optional
   buildBasePath: "build",
-  buildWatchPath: "source", // Defaults to "src" if command set
+  buildWatchPaths: ["source1", "source2"], // Defaults to "src" if command set
 });
 ```
 
@@ -46,6 +46,14 @@ main = "./output.js"
 ::: tip
 When using the CLI, if `--build-watch-path` is set, `--watch` is automatically
 assumed.
+:::
+<!--prettier-ignore-end-->
+
+<!--prettier-ignore-start-->
+::: tip
+When running your custom build script, Miniflare will set the environment
+variable `MINIFLARE=1`. You can use this to customise build behaviour during
+local development.
 :::
 <!--prettier-ignore-end-->
 

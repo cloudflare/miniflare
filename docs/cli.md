@@ -18,6 +18,16 @@ You can also install and invoke the CLI using `npx`:
 $ npx miniflare
 ```
 
+<!--prettier-ignore-start-->
+::: warning
+Miniflare requires at least **Node.js 16.7.0**, as it makes extensive use of
+recently added web standards. You should use the latest Node.js version if
+possible, as Cloudflare Workers use a very up-to-date version of V8. Consider
+using a Node.js version manager such as https://volta.sh/ or
+https://github.com/nvm-sh/nvm.
+:::
+<!--prettier-ignore-end-->
+
 ## Usage
 
 If `worker.js` contains the following worker script:
@@ -121,6 +131,18 @@ main = "./worker.js"
   "main": "worker.js", // "service-worker" format
   "module": "worker.mjs" // "modules" format
 }
+```
+
+### `Request#cf` Object
+
+For a more accurate development experience, Miniflare automatically fetches the
+`cf` object for incoming requests (containing IP and location data) from a
+trusted Cloudflare endpoint, caching it for 30 days. You can disable this
+behaviour, falling back to a default `cf` object, using the `--no-cf-fetch`
+flag:
+
+```shell
+$ miniflare worker.js --no-cf-fetch
 ```
 
 ### HTTPS Server
