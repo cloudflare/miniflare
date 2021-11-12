@@ -65,6 +65,12 @@ test("Miniflare: getKVNamespace: gets KV namespace", async (t) => {
   const res = await mf.dispatchFetch("http://localhost/");
   t.is(await res.text(), "value");
 });
+test("Miniflare: getCaches: gets CacheStorage instance", async (t) => {
+  const mf = new Miniflare({ script: "//" });
+  const caches = await mf.getCaches();
+  const globalScope = await mf.getGlobalScope();
+  t.is(caches, globalScope.caches);
+});
 test("Miniflare: getDurableObjectNamespace: gets Durable Object namespace", async (t) => {
   const mf = new Miniflare({
     script: `export class TestObject {

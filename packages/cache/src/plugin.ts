@@ -121,18 +121,24 @@ export class CachePlugin extends Plugin<CacheOptions> implements CacheOptions {
   })
   cacheWarnUsage?: boolean;
 
+  #caches?: CacheStorage;
+
   constructor(log: Log, compat: Compatibility, options?: CacheOptions) {
     super(log, compat);
     this.assignOptions(options);
   }
 
   setup(storageFactory: StorageFactory): SetupResult {
-    const caches = new CacheStorage(
+    this.#caches = new CacheStorage(
       this,
       this.log,
       storageFactory,
       this.compat.isEnabled("formdata_parser_supports_files")
     );
-    return { globals: { caches } };
+    return { globals: { caches: this.#caches } };
+  }
+
+  getCaches(): CacheStorage {
+    return this.#caches!;
   }
 }

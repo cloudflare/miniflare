@@ -146,6 +146,7 @@ test("CachePlugin: setup: includes CacheStorage in globals", async (t) => {
   let caches = result.globals?.caches;
   t.true(caches instanceof CacheStorage);
   assert(caches instanceof CacheStorage);
+  t.is(caches, plugin.getCaches());
   await caches.default.put("http://localhost:8787/", testResponse());
   t.true(map.has("http://localhost:8787/"));
 
