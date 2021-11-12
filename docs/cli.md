@@ -63,7 +63,8 @@ respectively:
 ```shell{1}
 $ miniflare worker.js --watch --debug
 [mf:dbg] Options:
-[mf:dbg] - Scripts: worker.js
+[mf:dbg] - Script Path: worker.js
+[mf:dbg] Enabled Compatibility Flags: <none>
 [mf:dbg] Reloading worker.js...
 [mf:inf] Worker reloaded! (97B)
 [mf:dbg] Watching .env, package.json, worker.js, wrangler.toml...
@@ -148,7 +149,7 @@ $ miniflare worker.js --https-key ./key.pem --https-cert ./cert.pem
 The CLI includes an automatic update checker that looks for new versions of
 Miniflare once a day. As Cloudflare are always improving and tweaking workers,
 you should aim to install these promptly for improved compatibility with the
-real workers environment. You can disable this with the `--disable-updater`
+real workers environment. You can disable this with the `--no-update-check`
 flag.
 
 ## Reference
@@ -158,43 +159,68 @@ flag.
 ```
 Usage: miniflare [script] [options]
 
-Options:
-  -h, --help              Show help                                    [boolean]
-  -v, --version           Show version number                          [boolean]
-  -H, --host              HTTP server host to listen on (all by default)[string]
-  -p, --port              HTTP server port (8787 by default)            [number]
-  -d, --debug             Log debug messages                           [boolean]
-  -c, --wrangler-config   Path to wrangler.toml                         [string]
-      --wrangler-env      Environment in wrangler.toml to use           [string]
-      --package           Path to package.json                          [string]
-  -m, --modules           Enable modules                               [boolean]
-      --modules-rule      Modules import rule (TYPE=GLOB)                [array]
-      --build-command     Command to build project                      [string]
-      --build-base-path   Working directory for build command           [string]
-      --build-watch-path  Directory to watch for rebuilding on changes  [string]
-  -w, --watch             Watch files for changes                      [boolean]
-  -u, --upstream          URL of upstream origin                        [string]
-  -t, --cron              Cron pattern to trigger scheduled events with  [array]
-  -k, --kv                KV namespace to bind                           [array]
-      --kv-persist        Path to persist KV data to (omit path for default)
-      --cache-persist     Path to persist cached data to (omit path for default)
-      --disable-cache     Disable caching with default/named caches    [boolean]
-  -s, --site              Path to serve Workers Site files from         [string]
-      --site-include      Glob pattern of site files to serve            [array]
-      --site-exclude      Glob pattern of site files not to serve        [array]
-  -o, --do                Durable Object to bind (NAME=CLASS)            [array]
-      --do-persist        Path to persist Durable Object data to (omit path for
-                          default)
-  -e, --env               Path to .env file                             [string]
-  -b, --binding           Bind variable/secret (KEY=VALUE)               [array]
-      --wasm              WASM module to bind (NAME=PATH)                [array]
-      --https             Enable self-signed HTTPS
-      --https-key         Path to PEM SSL key                           [string]
-      --https-cert        Path to PEM SSL cert chain                    [string]
-      --https-ca          Path to SSL trusted CA certs                  [string]
-      --https-pfx         Path to PFX/PKCS12 SSL key/cert chain         [string]
-      --https-passphrase  Passphrase to decrypt SSL files               [string]
-      --disable-updater   Disable update checker                       [boolean]
+Core Options:
+ -h, --help              Show help                                     [boolean]
+ -v, --version           Show version number                           [boolean]
+ -c, --wrangler-config   Path to wrangler.toml                          [string]
+     --wrangler-env      Environment in wrangler.toml to use            [string]
+     --package           Path to package.json                           [string]
+ -m, --modules           Enable modules                                [boolean]
+     --modules-rule      Modules import rule                   [array:TYPE=GLOB]
+     --compat-date       Opt into backwards-incompatible changes from   [string]
+     --compat-flag       Control specific backwards-incompatible changes [array]
+ -u, --upstream          URL of upstream origin                         [string]
+ -w, --watch             Watch files for changes                       [boolean]
+ -d, --debug             Enable debug logging                          [boolean]
+ -V, --verbose           Enable verbose logging                        [boolean]
+     --(no-)update-check Enable update checker (enabled by default)    [boolean]
+
+HTTP Options:
+ -H, --host              Host for HTTP(S) server to listen on           [string]
+ -p, --port              Port for HTTP(S) server to listen on           [number]
+     --https             Enable self-signed HTTPS (with         [boolean/string]
+                         optional cert path)
+     --https-key         Path to PEM SSL key                            [string]
+     --https-cert        Path to PEM SSL cert chain                     [string]
+     --https-ca          Path to SSL trusted CA certs                   [string]
+     --https-pfx         Path to PFX/PKCS12 SSL key/cert chain          [string]
+     --https-passphrase  Passphrase to decrypt SSL files                [string]
+     --(no-)cf-fetch     Path for cached Request cf object from [boolean/string]
+                         Cloudflare
+     --live-reload       Reload HTML pages whenever worker is reloaded [boolean]
+
+Scheduler Options:
+ -t, --cron              CRON expression for triggering scheduled events [array]
+
+Build Options:
+ -B, --build-command     Command to build project                       [string]
+     --build-base-path   Working directory for build command            [string]
+     --build-watch-path  Directory to watch for rebuilding on changes    [array]
+
+KV Options:
+ -k, --kv                KV namespace to bind                            [array]
+     --kv-persist        Persist KV data (to optional path)     [boolean/string]
+
+Durable Objects Options:
+ -o, --do                Durable Object to bind               [array:NAME=CLASS]
+     --do-persist        Persist Durable Object data (to        [boolean/string]
+                         optional path)
+
+Cache Options:
+     --(no-)cache        Enable default/named caches (enabled by       [boolean]
+                         default)
+     --cache-persist     Persist cached data (to optional path) [boolean/string]
+
+Sites Options:
+ -s, --site              Path to serve Workers Site files from          [string]
+     --site-include      Glob pattern of site files to serve             [array]
+     --site-exclude      Glob pattern of site files not to serve         [array]
+
+Bindings Options:
+ -e, --env               Path to .env file                              [string]
+ -b, --binding           Binds variable/secret to environment  [array:KEY=VALUE]
+     --global            Binds variable/secret to global scope [array:KEY=VALUE]
+     --wasm              WASM module to bind                   [array:NAME=PATH]
 ```
 
 ### Wrangler Configuration
@@ -204,13 +230,18 @@ For Miniflare specific options, the keys are in the special `[miniflare]`
 section.
 
 ```toml
+compatibility_date = "2021-11-12"  ## --compat-date
+compatibility_flags = [            ## --compat-flag
+    "formdata_parser_supports_files"
+]
+
 kv_namespaces = [                  ## --kv
   { binding = "TEST_NAMESPACE", id = "", preview_id = "" }
 ]
 
 [durable_objects]
 bindings = [                       ## --do
-  { name = "OBJECT", class_name = "Object", script_name = "./object.mjs" }
+  { name = "OBJECT", class_name = "Object" }
 ]
 
 [vars]                             ## --binding
@@ -236,19 +267,23 @@ main = "./index.mjs"               ## [script]
 type = "ESModule"
 globs = ["**/*.js"]
 
+[wasm_modules]                     ## --wasm
+MODULE = "module.wasm"
+
 [miniflare]
-upstream = "https://miniflare.dev" ## --upstream
-kv_persist = true                  ## --kv-persist
-cache_persist = "./cache"          ## --cache-persist
-disable_cache = true               ## --disable-cache
-durable_objects_persist = true     ## --do-persist
-env_path = ".env.test"             ## --env
 host = "127.0.0.1"                 ## --host
 port = 1337                        ## --port
-wasm_bindings = [                  ## --wasm
-  { name = "MODULE", path="module.wasm" }
-]
-disable_updater = true             ## --disable-updater
+upstream = "https://miniflare.dev" ## --upstream
+watch = true                       ## --watch
+live_reload = true                 ## --live-reload
+env_path = ".env.test"             ## --env
+kv_persist = true                  ## --kv-persist
+cache_persist = "./cache"          ## --cache-persist
+cache = false                      ## --no-cache
+durable_objects_persist = true     ## --do-persist
+update_check = false               ## --no-update-check
+cf_fetch = "./cf.json"             ## --cf-fetch ./cf.json
+cf_fetch = false                   ## --no-cf-fetch
 https = true                       ## --https
 https = "./cert_cache"             ## --https ./cert_cache
 [miniflare.https]
@@ -257,4 +292,6 @@ cert = "./cert.pem"                ## --https-cert
 ca = "./ca.pem"                    ## --https-ca
 pfx = "./pfx.pfx"                  ## --https-pfx
 passphrase = "pfx passphrase"      ## --https-passphrase
+[miniflare.globals]                ## --global
+KEY = "value"
 ```

@@ -14,21 +14,16 @@ Miniflare supports the following Web Standards in its sandbox:
 - **Console:** `console.*`
 - **Timers:** `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval`
 - **Base64:** `atob`, `btoa`
-- **Web Crypto**: `crypto.*` (powered by
-  [@peculiar/webcrypto](https://github.com/PeculiarVentures/webcrypto) with
-  extra MD5 digest support)
+- **Web Crypto**: `crypto.*`
 - **Encoding:** `TextEncoder`, `TextDecoder`
-- **Fetch:** `fetch`, `Headers`, `Request`, `Response` (powered by
-  [@mrbbot/node-fetch](https://github.com/mrbbot/node-fetch/))
+- **Fetch:** `fetch`, `Headers`, `Request`, `Response`, `FormData`, `Blob`,
+  `File`, `URL`, `URLSearchParams` (powered by
+  [undici](https://github.com/nodejs/undici/))
 - **URL:** `URL`, `URLSearchParams`
-- **Form Data:** `FormData` (powered by
-  [formdata-node](https://github.com/octet-stream/form-data))
 - **Streams:** `ByteLengthQueuingStrategy`, `CountQueuingStrategy`,
   `ReadableByteStreamController`, `ReadableStream`, `ReadableStreamBYOBReader`,
   `ReadableStreamBYOBRequest`, `ReadableStreamDefaultController`,
   `ReadableStreamDefaultReader`, `TransformStream`,
   `TransformStreamDefaultController`, `WritableStream`,
-  `WritableStreamDefaultController`, `WritableStreamDefaultWriter` (powered by
-  [web-streams-polyfill](https://github.com/MattiasBuelens/web-streams-polyfill))
-- **Events:** `Event`, `EventTarget` (powered by
-  [event-target-shim](https://github.com/mysticatea/event-target-shim))
+  `WritableStreamDefaultController`, `WritableStreamDefaultWriter`
+- **Events:** `Event`, `EventTarget`, `AbortController`, `AbortSignal`

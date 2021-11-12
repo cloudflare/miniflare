@@ -11,11 +11,9 @@ $ miniflare --wasm MODULE1=module1.wasm --wasm MODULE2=module2.wasm
 
 ```toml
 # wrangler.toml
-[miniflare]
-wasm_bindings = [
-  { name = "MODULE1", path="module1.wasm" },
-  { name = "MODULE2", path="module2.wasm" }
-]
+[wasm_modules]
+MODULE1 = "module1.wasm"
+MODULE2 = "module2.wasm"
 ```
 
 ```js

@@ -57,7 +57,7 @@ Miniflare also supports using workers as WebSocket clients too via `fetch`:
 ```js{3-5}
 export default {
   async fetch(request) {
-    const res = await fetch("wss://echo.websocket.org", {
+    const res = await fetch("https://echo.websocket.org", {
       headers: { Upgrade: "websocket" },
     });
 

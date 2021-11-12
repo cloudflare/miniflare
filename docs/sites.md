@@ -3,15 +3,6 @@
 - [Workers Sites Worker Quickstart](https://developers.cloudflare.com/workers/platform/sites/start-from-worker)
 - [Workers Sites Configuration Reference](https://developers.cloudflare.com/workers/platform/sites/configuration)
 
-<!--prettier-ignore-start-->
-::: warning
-This page refers to
-[Workers Sites](https://developers.cloudflare.com/workers/platform/sites),
-**NOT** [Cloudflare Pages](https://pages.cloudflare.com/). Cloudflare Pages are
-not supported.
-:::
-<!--prettier-ignore-end-->
-
 ## Enabling Sites
 
 Workers Sites can be enabled by specifying a path to serve files from. You can
