@@ -50,6 +50,7 @@ module.exports = {
           { text: "📄 HTMLRewriter", link: "/html-rewriter.html" },
           { text: "⚡️ Live Reload", link: "/live-reload.html" },
           { text: "📅 Compatibility Dates", link: "/compatibility.html" },
+          { text: "🔌 Multiple Workers", link: "/mount.html" },
           { text: "🤹 Jest Environment", link: "/jest.html" },
         ],
       },

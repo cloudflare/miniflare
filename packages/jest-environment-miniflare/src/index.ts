@@ -52,8 +52,8 @@ const log = new NoOpLog();
 // Adapted from jest-environment-node:
 // https://github.com/facebook/jest/blob/8f2cdad7694f4c217ac779d3f4e3a150b5a3d74d/packages/jest-environment-node/src/index.ts
 export default class MiniflareEnvironment implements JestEnvironment {
-  config: Config.ProjectConfig;
-  context: vm.Context | null;
+  private readonly config: Config.ProjectConfig;
+  private context: vm.Context | null;
 
   fakeTimers: LegacyFakeTimers<Timer> | null;
   fakeTimersModern: ModernFakeTimers | null;
@@ -61,8 +61,8 @@ export default class MiniflareEnvironment implements JestEnvironment {
   global: Global.Global;
   moduleMocker: ModuleMocker | null;
 
-  storageFactory = new StackedMemoryStorageFactory();
-  scriptRunner: VMScriptRunner;
+  private readonly storageFactory = new StackedMemoryStorageFactory();
+  private readonly scriptRunner: VMScriptRunner;
 
   constructor(config: Config.ProjectConfig) {
     this.config = config;

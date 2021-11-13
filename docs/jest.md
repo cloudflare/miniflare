@@ -1,14 +1,14 @@
 # 🤹 Jest Environment
 
 Miniflare includes a custom Jest environment that allows you to run your unit
-tests within the Miniflare sandbox. Note that Jest &ge; 27 is required.
+tests within the Miniflare sandbox. Note that at least Jest 27 is required.
 
 ## Setup
 
 The Miniflare environment isn't installed by default, install it and Jest with:
 
 ```shell
-$ npm install -D jest-environment-miniflare jest
+$ npm install -D jest-environment-miniflare@next jest
 ```
 
 In the following examples, we'll assume your `package.json` contains
@@ -45,7 +45,7 @@ addEventListener("fetch", (event) => {
 });
 
 // Assuming you've got a build tool that removes `export`s when you actually
-// deploy your worker
+// deploy your worker (e.g. https://esbuild.github.io/api/#format-iife)
 export async function handleRequest(request) {
   return new Response(`URL: ${request.url} KEY: ${KEY}`);
 }

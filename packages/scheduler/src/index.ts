@@ -79,6 +79,6 @@ export async function startScheduler<Plugins extends SchedulerPluginSignatures>(
   cronScheduler?: Promise<CronScheduler>
 ): Promise<Scheduler<Plugins>> {
   const scheduler = new Scheduler(mf, cronScheduler);
-  await scheduler[kReload](new ReloadEvent(await mf.getPlugins()));
+  await scheduler[kReload](new ReloadEvent(await mf.getPlugins(), false));
   return scheduler;
 }

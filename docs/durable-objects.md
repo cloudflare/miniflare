@@ -158,6 +158,67 @@ res = await mf.dispatchFetch("http://localhost:8787/");
 console.log(await res.text()); // "2"
 ```
 
+## Using a Class Exported by Another Script
+
+Miniflare supports the `script_name` option for accessing Durable Objects
+exported by other scripts. This requires mounting the other worker as described
+in [🔌 Multiple Workers](/mount.html). With the following setup:
+
+```js
+// api/src/worker.mjs
+export class TestObject {
+  fetch() {
+    return new Response("API response");
+  }
+}
+```
+
+```toml
+# api/wrangler.toml
+name = "api"
+[build.upload]
+format = "modules"
+dir = "src"
+main = "./worker.mjs"
+```
+
+```js
+// worker.mjs
+export default {
+  fetch(request, env, ctx) {
+    const { TEST_OBJECT } = env.TEST_OBJECT;
+    const id = TEST_OBJECT.newUniqueId();
+    const stub = TEST_OBJECT.get(id);
+    return stub.fetch(request);
+  },
+};
+```
+
+Miniflare can be configured to load `TestObject` from the `api` worker with:
+
+```toml
+# wrangler.toml
+[durable_objects]
+bindings = [
+  # script_name must be the same as in [miniflare.mounts]
+  { name = "TEST_OBJECT", class_name = "TestObject", script_name = "api" },
+]
+[miniflare.mounts]
+api = "./api"
+```
+
+```js
+const mf = new Miniflare({
+  durableObjects: {
+    // scriptName must be the same as in mounts
+    TEST_OBJECT: { className: "TestObject", scriptName: "api" },
+  },
+  mounts: { api: "./api" },
+});
+```
+
+Note it's not possible to set `script_name` via the CLI.
+
 ## Internal Details
 
 Transactional semantics only hold within the same Miniflare instance. Therefore,
