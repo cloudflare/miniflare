@@ -16,9 +16,6 @@ export async function upgradingFetch(
 ): Promise<Response> {
   const request = new Request(input, init);
 
-  // Cloudflare ignores request Host
-  request.headers.delete("host");
-
   // Handle web socket upgrades
   if (
     request.method === "GET" &&

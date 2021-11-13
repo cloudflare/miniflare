@@ -405,7 +405,6 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
       }
     }
 
-    request.headers.delete("host");
     // noinspection ES6MissingAwait
     const waitUntil = Promise.all(event[kWaitUntil]) as Promise<WaitUntil>;
     return withWaitUntil(await fetch(request[kInner]), waitUntil);
