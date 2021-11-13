@@ -134,19 +134,13 @@ test("MiniflareCore: only passes plugins' options to plugin constructors", async
 });
 
 test("MiniflareCore: #init: loads wrangler config from default location", async (t) => {
-  const log = new NoOpLog();
   const tmp = await useTmp(t);
   const defaultConfigPath = path.join(tmp, "wrangler.toml");
 
-  const ctx: MiniflareCoreContext = {
-    log,
-    storageFactory,
-    scriptRunner,
-    defaultConfigPath,
-  };
-  const mf = new MiniflareCore({ CorePlugin, BindingsPlugin }, ctx, {
-    wranglerConfigPath: true,
-  });
+  const mf = useMiniflare(
+    { BindingsPlugin },
+    { rootPath: tmp, wranglerConfigPath: true }
+  );
   // Shouldn't throw if file doesn't exist
   await mf.getGlobalScope();
 
@@ -157,21 +151,15 @@ test("MiniflareCore: #init: loads wrangler config from default location", async 
   t.is(globalScope.KEY, "value");
 });
 test("MiniflareCore: #init: loads wrangler config from custom location", async (t) => {
-  const log = new NoOpLog();
   const tmp = await useTmp(t);
-  const defaultConfigPath = path.join(tmp, "wrangler.default.toml");
+  const defaultConfigPath = path.join(tmp, "wrangler.toml");
   const customConfigPath = path.join(tmp, "wrangler.custom.toml");
   await fs.writeFile(defaultConfigPath, '[vars]\nKEY = "default"');
 
-  const ctx: MiniflareCoreContext = {
-    log,
-    storageFactory,
-    scriptRunner,
-    defaultConfigPath,
-  };
-  let mf = new MiniflareCore({ CorePlugin, BindingsPlugin }, ctx, {
-    wranglerConfigPath: customConfigPath,
-  });
+  let mf = useMiniflare(
+    { BindingsPlugin },
+    { rootPath: tmp, wranglerConfigPath: customConfigPath }
+  );
   // Should throw if file doesn't exist
   await t.throwsAsync(mf.getGlobalScope(), {
     code: "ENOENT",
@@ -180,11 +168,12 @@ test("MiniflareCore: #init: loads wrangler config from custom location", async (
 
   // Create file and try again
   await fs.writeFile(customConfigPath, '[vars]\nKEY = "custom"');
-  // Have to create a new instance here as reload() awaits initPromise which
-  // will was rejected
-  mf = new MiniflareCore({ CorePlugin, BindingsPlugin }, ctx, {
-    wranglerConfigPath: customConfigPath,
-  });
+  // Have to create a new instance here as reload() awaits initPromise which was
+  // rejected
+  mf = useMiniflare(
+    { BindingsPlugin },
+    { rootPath: tmp, wranglerConfigPath: customConfigPath }
+  );
   const globalScope = await mf.getGlobalScope();
   t.is(globalScope.KEY, "custom");
 });
@@ -377,19 +366,19 @@ test("MiniflareCore: #init: re-runs setup for script-providing plugins if any be
     "- reload(TestPlugin)",
   ]);
 });
-test("MiniflareCore: #init: re-creates all plugins if compatibility data changed", async (t) => {
+test("MiniflareCore: #init: re-creates all plugins if compatibility data or root path changed", async (t) => {
+  const tmp1 = await useTmp(t);
+  const tmp2 = await useTmp(t);
+
   const log = new TestLog();
   const mf = useMiniflare(
     { TestPlugin, BindingsPlugin },
-    { script: "//", compatibilityDate: "1970-01-01" },
+    { script: "//", rootPath: tmp1, compatibilityDate: "1970-01-01" },
     log
   );
   await mf.getPlugins();
 
-  // Update compatibility date
-  log.logs = [];
-  await mf.setOptions({ script: "//", compatibilityDate: "2021-01-01" });
-  t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), [
+  const expectedLogs = [
     "- dispose(TestPlugin)",
     "- beforeSetup(TestPlugin)",
     "- setup(CorePlugin)",
@@ -398,7 +387,12 @@ test("MiniflareCore: #init: re-creates all plugins if compatibility data changed
     "- beforeReload(TestPlugin)",
     "Running script...",
     "- reload(TestPlugin)",
-  ]);
+  ];
+
+  // Update compatibility date
+  log.logs = [];
+  await mf.setOptions({ script: "//", compatibilityDate: "2021-01-01" });
+  t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), expectedLogs);
 
   // Update compatibility flags
   log.logs = [];
@@ -407,16 +401,12 @@ test("MiniflareCore: #init: re-creates all plugins if compatibility data changed
     compatibilityDate: "2021-01-01",
     compatibilityFlags: ["fetch_refuses_unknown_protocols"],
   });
-  t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), [
-    "- dispose(TestPlugin)",
-    "- beforeSetup(TestPlugin)",
-    "- setup(CorePlugin)",
-    "- setup(TestPlugin)",
-    "- setup(BindingsPlugin)",
-    "- beforeReload(TestPlugin)",
-    "Running script...",
-    "- reload(TestPlugin)",
-  ]);
+  t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), expectedLogs);
+
+  // Update root path
+  log.logs = [];
+  await mf.setOptions({ rootPath: tmp2 });
+  t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), expectedLogs);
 });
 test("MiniflareCore: #init: throws if script required but not provided", async (t) => {
   const log = new NoOpLog();

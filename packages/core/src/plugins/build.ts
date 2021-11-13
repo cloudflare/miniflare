@@ -5,12 +5,11 @@ import { fileURLToPath } from "url";
 import {
   Awaitable,
   BeforeSetupResult,
-  Compatibility,
-  Log,
   MiniflareError,
   Option,
   OptionType,
   Plugin,
+  PluginContext,
   WranglerConfig,
 } from "@miniflare/shared";
 
@@ -48,8 +47,8 @@ export class BuildPlugin extends Plugin<BuildOptions> implements BuildOptions {
   })
   buildWatchPaths?: string[];
 
-  constructor(log: Log, compat: Compatibility, options?: BuildOptions) {
-    super(log, compat);
+  constructor(ctx: PluginContext, options?: BuildOptions) {
+    super(ctx);
     this.assignOptions(options);
   }
 
@@ -75,7 +74,7 @@ export class BuildPlugin extends Plugin<BuildOptions> implements BuildOptions {
           return reject(error);
         }
 
-        this.log.info("Build succeeded");
+        this.ctx.log.info("Build succeeded");
         resolve({ watch: this.buildWatchPaths });
       });
     });

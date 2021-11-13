@@ -10,6 +10,7 @@ import {
   Compatibility,
   LogLevel,
   NoOpLog,
+  PluginContext,
   StoredValueMeta,
 } from "@miniflare/shared";
 import {
@@ -27,6 +28,8 @@ import { testResponse } from "./helpers";
 
 const log = new NoOpLog();
 const compat = new Compatibility();
+const rootPath = process.cwd();
+const ctx: PluginContext = { log, compat, rootPath };
 
 test("CacheStorage: provides default cache", async (t) => {
   const factory = new MemoryStorageFactory();
@@ -137,11 +140,10 @@ test("CachePlugin: logs options", (t) => {
 });
 
 test("CachePlugin: setup: includes CacheStorage in globals", async (t) => {
-  const log = new NoOpLog();
   const map = new Map<string, StoredValueMeta<CachedMeta>>();
   const factory = new MemoryStorageFactory({ ["map:default"]: map });
 
-  let plugin = new CachePlugin(log, compat, { cachePersist: "map" });
+  let plugin = new CachePlugin(ctx, { cachePersist: "map" });
   let result = plugin.setup(factory);
   let caches = result.globals?.caches;
   t.true(caches instanceof CacheStorage);
@@ -150,7 +152,7 @@ test("CachePlugin: setup: includes CacheStorage in globals", async (t) => {
   await caches.default.put("http://localhost:8787/", testResponse());
   t.true(map.has("http://localhost:8787/"));
 
-  plugin = new CachePlugin(log, compat, { cache: false });
+  plugin = new CachePlugin(ctx, { cache: false });
   result = plugin.setup(factory);
   caches = result.globals?.caches;
   t.true(caches instanceof CacheStorage);
@@ -163,7 +165,7 @@ test("CachePlugin: setup: Responses parse files in FormData as File objects only
   const formData = new FormData();
   formData.append("file", new File(["test"], "test.txt"));
 
-  let plugin = new CachePlugin(log, new Compatibility());
+  let plugin = new CachePlugin(ctx);
   let caches: CacheStorage = plugin.setup(factory).globals?.caches;
   await caches.default.put("http://localhost", testResponse(formData));
   let cache = await caches.open("test");
@@ -177,7 +179,7 @@ test("CachePlugin: setup: Responses parse files in FormData as File objects only
   const compat = new Compatibility(undefined, [
     "formdata_parser_supports_files",
   ]);
-  plugin = new CachePlugin(log, compat);
+  plugin = new CachePlugin({ log, compat, rootPath });
   caches = plugin.setup(factory).globals?.caches;
   cache = await caches.open("test");
 

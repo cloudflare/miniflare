@@ -1,6 +1,6 @@
 import assert from "assert";
 import { Request } from "@miniflare/core";
-import { Compatibility, NoOpLog } from "@miniflare/shared";
+import { Compatibility, NoOpLog, PluginContext } from "@miniflare/shared";
 import {
   noop,
   triggerPromise,
@@ -16,10 +16,13 @@ import {
 } from "@miniflare/web-sockets";
 import test from "ava";
 
+const log = new NoOpLog();
 const compat = new Compatibility();
+const rootPath = process.cwd();
+const ctx: PluginContext = { log, compat, rootPath };
 
 test("WebSocketPlugin: setup: includes WebSocket stuff in globals", (t) => {
-  const plugin = new WebSocketPlugin(new NoOpLog(), compat);
+  const plugin = new WebSocketPlugin(ctx);
   const globals = plugin.setup().globals!;
   t.is(globals.MessageEvent, MessageEvent);
   t.is(globals.CloseEvent, CloseEvent);
@@ -31,7 +34,7 @@ test("WebSocketPlugin: setup: fetch refuses unknown protocols if compatibility f
   const compat = new Compatibility(undefined, [
     "fetch_refuses_unknown_protocols",
   ]);
-  const plugin = new WebSocketPlugin(new NoOpLog(), compat);
+  const plugin = new WebSocketPlugin({ log, compat, rootPath });
   const { globals } = await plugin.setup();
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   upstream.protocol = "ftp:";
@@ -41,7 +44,7 @@ test("WebSocketPlugin: setup: fetch refuses unknown protocols if compatibility f
   });
 });
 test("WebSocketPlugin: setup: blocks direct WebSocket construction", (t) => {
-  const plugin = new WebSocketPlugin(new NoOpLog(), compat);
+  const plugin = new WebSocketPlugin(ctx);
   const WebSocketProxy: typeof WebSocket = plugin.setup().globals!.WebSocket;
   t.throws(() => new WebSocketProxy(), {
     instanceOf: Error,
@@ -60,7 +63,7 @@ test("WebSocketPlugin: setup: blocks direct WebSocket construction", (t) => {
 });
 
 test("WebSocketPlugin: fetch, reload, dispose: closes WebSockets", async (t) => {
-  const plugin = new WebSocketPlugin(new NoOpLog(), compat);
+  const plugin = new WebSocketPlugin(ctx);
   let [eventTrigger, eventPromise] =
     triggerPromise<{ code: number; reason: string }>();
   const server = await useServer(t, noop, (ws) => {
@@ -95,7 +98,7 @@ test("WebSocketPlugin: fetch, reload, dispose: closes WebSockets", async (t) => 
   t.is(event.reason, "Service Restart");
 });
 test("WebSocketPlugin: fetch, reload: ignores already closed WebSockets", async (t) => {
-  const plugin = new WebSocketPlugin(new NoOpLog(), compat);
+  const plugin = new WebSocketPlugin(ctx);
   const [eventTrigger, eventPromise] =
     triggerPromise<{ code: number; reason: string }>();
   const server = await useServer(t, noop, (ws) => {

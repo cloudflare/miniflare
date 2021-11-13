@@ -8,6 +8,7 @@ import {
   Log,
   Mutex,
   Options,
+  PluginContext,
   PluginEntries,
   PluginOptions,
   PluginOptionsUnion,
@@ -182,7 +183,6 @@ export interface MiniflareCoreContext {
   scriptRunner?: ScriptRunner;
   scriptRequired?: boolean;
   scriptRunForModuleExports?: boolean;
-  defaultConfigPath?: string;
 }
 
 export class ReloadEvent<Plugins extends PluginSignatures> extends Event {
@@ -209,9 +209,9 @@ export class MiniflareCore<
   readonly #scriptRunner?: ScriptRunner;
   readonly #scriptRequired?: boolean;
   readonly #scriptRunForModuleExports?: boolean;
-  readonly #defaultConfigPath: string;
 
   #compat?: Compatibility;
+  #previousRootPath?: string;
   #instances?: PluginInstances<Plugins>;
 
   #wranglerConfigPath?: string;
@@ -243,7 +243,6 @@ export class MiniflareCore<
     this.#scriptRunner = ctx.scriptRunner;
     this.#scriptRequired = ctx.scriptRequired;
     this.#scriptRunForModuleExports = ctx.scriptRunForModuleExports;
-    this.#defaultConfigPath = ctx.defaultConfigPath ?? "wrangler.toml";
 
     this.#initPromise = this.#init().then(() => this.#reload());
   }
@@ -288,12 +287,14 @@ export class MiniflareCore<
     const previous = this.#previousOptions;
     let options = this.#overrides;
 
+    const rootPath = options.CorePlugin.rootPath ?? process.cwd();
+
     // Merge in wrangler config if defined
     const originalConfigPath = options.CorePlugin.wranglerConfigPath;
     const configEnv = options.CorePlugin.wranglerConfigEnv;
     let configPath =
       originalConfigPath === true
-        ? this.#defaultConfigPath
+        ? path.join(rootPath, "wrangler.toml")
         : originalConfigPath;
     if (configPath) {
       configPath = path.resolve(configPath);
@@ -330,14 +331,23 @@ export class MiniflareCore<
     this.#watching ??= options.CorePlugin.watch ?? false;
 
     // Build compatibility manager, rebuild all plugins if compatibility data
-    // has changed
+    // or root path has changed
     const { compatibilityDate, compatibilityFlags } = options.CorePlugin;
-    let compatUpdate = false;
+    let ctxUpdate =
+      this.#previousRootPath && this.#previousRootPath !== rootPath;
+    this.#previousRootPath = rootPath;
     if (this.#compat) {
-      compatUpdate = this.#compat.update(compatibilityDate, compatibilityFlags);
+      if (this.#compat.update(compatibilityDate, compatibilityFlags)) {
+        ctxUpdate = true;
+      }
     } else {
       this.#compat = new Compatibility(compatibilityDate, compatibilityFlags);
     }
+    const ctx: PluginContext = {
+      log: this.log,
+      compat: this.#compat,
+      rootPath,
+    };
 
     // Create plugin instances and run beforeSetup hooks, recreating any plugins
     // with changed options
@@ -347,7 +357,7 @@ export class MiniflareCore<
     for (const [name, plugin] of this.#plugins) {
       if (
         previous !== undefined &&
-        !compatUpdate &&
+        !ctxUpdate &&
         _deepEqual(previous[name], options[name])
       ) {
         continue;
@@ -360,7 +370,7 @@ export class MiniflareCore<
         await existingInstance.dispose();
       }
 
-      const instance = new plugin(this.log, this.#compat, options[name]);
+      const instance = new plugin(ctx, options[name]);
       this.#instances[name] = instance as any;
       if (await this.#runBeforeSetup(name)) ranBeforeSetup = true;
     }
@@ -371,7 +381,7 @@ export class MiniflareCore<
     for (const [name] of this.#plugins) {
       if (
         previous !== undefined &&
-        !compatUpdate &&
+        !ctxUpdate &&
         _deepEqual(previous[name], options[name]) &&
         // Make sure if we ran any beforeSetups and this plugin previously
         // returned scripts, that we rerun its setup

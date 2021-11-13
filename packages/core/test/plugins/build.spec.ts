@@ -4,7 +4,12 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 import { BindingsPlugin, BuildError, BuildPlugin } from "@miniflare/core";
-import { Compatibility, LogLevel, NoOpLog } from "@miniflare/shared";
+import {
+  Compatibility,
+  LogLevel,
+  NoOpLog,
+  PluginContext,
+} from "@miniflare/shared";
 import {
   TestLog,
   logPluginOptions,
@@ -17,7 +22,10 @@ import test from "ava";
 import rimraf from "rimraf";
 import which from "which";
 
+const log = new NoOpLog();
 const compat = new Compatibility();
+const rootPath = process.cwd();
+const ctx: PluginContext = { log, compat, rootPath };
 
 const rimrafPromise = promisify(rimraf);
 
@@ -91,18 +99,20 @@ test("BuildPlugin: logs options", (t) => {
 });
 
 test("BuildPlugin: beforeSetup: does nothing without build command", async (t) => {
-  const log = new NoOpLog();
-  const plugin = new BuildPlugin(log, compat);
+  const plugin = new BuildPlugin(ctx);
   t.deepEqual(await plugin.beforeSetup(), {});
 });
 test("BuildPlugin: beforeSetup: runs build successfully", async (t) => {
   const tmp = await useTmp(t);
   const log = new TestLog();
-  const plugin = new BuildPlugin(log, compat, {
-    buildCommand: "echo test > test.txt",
-    buildBasePath: tmp,
-    buildWatchPaths: ["src1", "src2"],
-  });
+  const plugin = new BuildPlugin(
+    { log, compat, rootPath },
+    {
+      buildCommand: "echo test > test.txt",
+      buildBasePath: tmp,
+      buildWatchPaths: ["src1", "src2"],
+    }
+  );
   const result = await plugin.beforeSetup();
   t.deepEqual(result, { watch: ["src1", "src2"] });
   t.deepEqual(log.logs, [[LogLevel.INFO, "Build succeeded"]]);
@@ -111,8 +121,7 @@ test("BuildPlugin: beforeSetup: runs build successfully", async (t) => {
 });
 test("BuildPlugin: beforeSetup: includes MINIFLARE environment variable", async (t) => {
   const tmp = await useTmp(t);
-  const log = new NoOpLog();
-  const plugin = new BuildPlugin(log, compat, {
+  const plugin = new BuildPlugin(ctx, {
     // Cross-platform get environment variable
     buildCommand: `${process.execPath} -e "console.log(JSON.stringify(process.env))" > env.json`,
     buildBasePath: tmp,
@@ -125,8 +134,7 @@ test("BuildPlugin: beforeSetup: includes MINIFLARE environment variable", async 
   });
 });
 test("BuildPlugin: beforeSetup: throws with exit code if build fails", async (t) => {
-  const log = new NoOpLog();
-  const plugin = new BuildPlugin(log, compat, {
+  const plugin = new BuildPlugin(ctx, {
     buildCommand: "exit 42",
   });
   await t.throwsAsync(Promise.resolve(plugin.beforeSetup()), {

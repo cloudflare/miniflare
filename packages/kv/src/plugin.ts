@@ -1,10 +1,9 @@
 import {
-  Compatibility,
   Context,
-  Log,
   Option,
   OptionType,
   Plugin,
+  PluginContext,
   SetupResult,
   StorageFactory,
 } from "@miniflare/shared";
@@ -35,8 +34,8 @@ export class KVPlugin extends Plugin<KVOptions> implements KVOptions {
   })
   kvPersist?: boolean | string;
 
-  constructor(log: Log, compat: Compatibility, options?: KVOptions) {
-    super(log, compat);
+  constructor(ctx: PluginContext, options?: KVOptions) {
+    super(ctx);
     this.assignOptions(options);
   }
 

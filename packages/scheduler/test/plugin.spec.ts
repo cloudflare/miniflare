@@ -1,5 +1,5 @@
 import { SchedulerError, SchedulerPlugin } from "@miniflare/scheduler";
-import { Compatibility, NoOpLog } from "@miniflare/shared";
+import { Compatibility, NoOpLog, PluginContext } from "@miniflare/shared";
 import {
   logPluginOptions,
   parsePluginArgv,
@@ -7,7 +7,10 @@ import {
 } from "@miniflare/shared-test";
 import test from "ava";
 
+const log = new NoOpLog();
 const compat = new Compatibility();
+const rootPath = process.cwd();
+const ctx: PluginContext = { log, compat, rootPath };
 
 test("SchedulerPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(SchedulerPlugin, [
@@ -39,7 +42,7 @@ test("SchedulerPlugin: logs options", (t) => {
 });
 
 test("SchedulerPlugin: setup: accepts valid CRON expressions", async (t) => {
-  const plugin = new SchedulerPlugin(new NoOpLog(), compat, {
+  const plugin = new SchedulerPlugin(ctx, {
     crons: ["0 12 * * MON", "* * * * *"],
   });
   await plugin.setup();
@@ -49,7 +52,7 @@ test("SchedulerPlugin: setup: accepts valid CRON expressions", async (t) => {
   );
 });
 test("SchedulerPlugin: setup: throws on invalid CRON expressions", async (t) => {
-  let plugin = new SchedulerPlugin(new NoOpLog(), compat, {
+  let plugin = new SchedulerPlugin(ctx, {
     crons: ["* * * * BAD"],
   });
   await t.throwsAsync(plugin.setup(), {
@@ -57,7 +60,7 @@ test("SchedulerPlugin: setup: throws on invalid CRON expressions", async (t) => 
     code: "ERR_INVALID_CRON",
     message: /^Unable to parse CRON "\* \* \* \* BAD"/,
   });
-  plugin = new SchedulerPlugin(new NoOpLog(), compat, { crons: ["*"] });
+  plugin = new SchedulerPlugin(ctx, { crons: ["*"] });
   await t.throwsAsync(plugin.setup(), {
     instanceOf: SchedulerError,
     code: "ERR_INVALID_CRON",

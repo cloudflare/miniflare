@@ -75,6 +75,12 @@ export interface SetupResult extends BeforeSetupResult {
   additionalModules?: AdditionalModules;
 }
 
+export interface PluginContext {
+  log: Log;
+  compat: Compatibility;
+  rootPath: string;
+}
+
 export abstract class Plugin<Options extends Context = never> {
   // Required for PluginOptions type to be correct, no idea why
   // noinspection JSUnusedLocalSymbols
@@ -82,10 +88,7 @@ export abstract class Plugin<Options extends Context = never> {
   // Metadata added by @Option decorator
   opts?: Map<string | symbol, OptionMetadata>;
 
-  protected constructor(
-    protected readonly log: Log,
-    protected readonly compat: Compatibility
-  ) {
+  protected constructor(protected readonly ctx: PluginContext) {
     // Make sure this.optionMetadata isn't undefined and has the prototype's value
     this.opts = new.target.prototype.opts;
   }
@@ -113,7 +116,7 @@ export abstract class Plugin<Options extends Context = never> {
 }
 
 export type PluginSignature = {
-  new (log: Log, compat: Compatibility, options?: Context): Plugin<Context>;
+  new (ctx: PluginContext, options?: Context): Plugin<Context>;
   prototype: { opts?: Map<string | symbol, OptionMetadata> };
 };
 export type PluginSignatures = { [pluginName: string]: PluginSignature };

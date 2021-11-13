@@ -19,15 +19,14 @@ import {
 import { URL, URLSearchParams } from "url";
 import { TextEncoder } from "util";
 import {
-  Compatibility,
   CompatibilityFlag,
   Context,
-  Log,
   ModuleRule,
   ModuleRuleType,
   Option,
   OptionType,
   Plugin,
+  PluginContext,
   ProcessedModuleRule,
   STRING_SCRIPT_PATH,
   SetupResult,
@@ -68,6 +67,7 @@ function proxyStringFormDataFiles<
 export interface CoreOptions {
   script?: string;
   scriptPath?: string;
+  rootPath?: string;
   packagePath?: boolean | string;
   wranglerConfigPath?: boolean | string;
   wranglerConfigEnv?: string;
@@ -101,6 +101,13 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
         : undefined,
   })
   scriptPath?: string;
+
+  @Option({
+    type: OptionType.STRING,
+    name: "root",
+    description: "Path to resolve default config files relative to",
+  })
+  rootPath?: string;
 
   @Option({
     type: OptionType.STRING,
@@ -225,19 +232,16 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   readonly #globals: Context;
 
-  constructor(
-    log: Log,
-    compat: Compatibility,
-    options?: CoreOptions,
-    private readonly defaultPackagePath = "package.json"
-  ) {
-    super(log, compat);
+  constructor(ctx: PluginContext, options?: CoreOptions) {
+    super(ctx);
     this.assignOptions(options);
 
     // Make sure the kFormDataFiles flag is set correctly when constructing
     let CompatRequest = Request;
     let CompatResponse = Response;
-    const formDataFiles = compat.isEnabled("formdata_parser_supports_files");
+    const formDataFiles = ctx.compat.isEnabled(
+      "formdata_parser_supports_files"
+    );
     if (!formDataFiles) {
       CompatRequest = proxyStringFormDataFiles(CompatRequest);
       CompatResponse = proxyStringFormDataFiles(CompatResponse);
@@ -261,7 +265,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       TextDecoder,
       TextEncoder,
 
-      fetch: createCompatFetch(compat),
+      fetch: createCompatFetch(ctx.compat),
       Headers,
       Request: CompatRequest,
       Response: CompatResponse,
@@ -363,7 +367,9 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     // from package.json
     if (scriptPath === undefined) {
       const packagePath =
-        this.packagePath === true ? this.defaultPackagePath : this.packagePath;
+        this.packagePath === true
+          ? path.join(this.ctx.rootPath, "package.json")
+          : this.packagePath;
       if (packagePath) {
         try {
           const pkg = JSON.parse(await fs.readFile(packagePath, "utf8"));

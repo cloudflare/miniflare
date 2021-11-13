@@ -1,10 +1,10 @@
 import {
-  Compatibility,
   Log,
   MiniflareError,
   Option,
   OptionType,
   Plugin,
+  PluginContext,
   SetupResult,
   StorageFactory,
 } from "@miniflare/shared";
@@ -123,17 +123,17 @@ export class CachePlugin extends Plugin<CacheOptions> implements CacheOptions {
 
   #caches?: CacheStorage;
 
-  constructor(log: Log, compat: Compatibility, options?: CacheOptions) {
-    super(log, compat);
+  constructor(ctx: PluginContext, options?: CacheOptions) {
+    super(ctx);
     this.assignOptions(options);
   }
 
   setup(storageFactory: StorageFactory): SetupResult {
     this.#caches = new CacheStorage(
       this,
-      this.log,
+      this.ctx.log,
       storageFactory,
-      this.compat.isEnabled("formdata_parser_supports_files")
+      this.ctx.compat.isEnabled("formdata_parser_supports_files")
     );
     return { globals: { caches: this.#caches } };
   }
