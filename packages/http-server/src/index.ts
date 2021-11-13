@@ -18,7 +18,7 @@ import {
 import { randomHex } from "@miniflare/shared";
 import { coupleWebSocket } from "@miniflare/web-sockets";
 import { BodyInit, Headers } from "undici";
-import StandardWebSocket, { WebSocketServer } from "ws";
+import { WebSocketServer } from "ws";
 import { getAccessibleHosts } from "./helpers";
 import { HTTPPlugin, RequestMeta } from "./plugin";
 
@@ -305,38 +305,6 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
   };
 }
 
-export type WebSocketUpgradeListener = (
-  ws: StandardWebSocket,
-  req: http.IncomingMessage
-) => void;
-
-export function createWebSocketUpgradeListener<
-  Plugins extends CorePluginSignatures
->(
-  mf: MiniflareCore<Plugins>,
-  listener: RequestListener
-): WebSocketUpgradeListener {
-  return async (ws, req) => {
-    // Handle request in worker
-    const response = await listener(req);
-
-    // Check web socket response was returned
-    const webSocket = response?.webSocket;
-    if (response?.status !== 101 || !webSocket) {
-      ws.close(1002, "Protocol Error");
-      mf.log.error(
-        new TypeError(
-          "Web Socket request did not return status 101 Switching Protocols response with Web Socket"
-        )
-      );
-      return;
-    }
-
-    // Couple the web socket here
-    await coupleWebSocket(ws, webSocket);
-  };
-}
-
 export async function createServer<Plugins extends HTTPPluginSignatures>(
   mf: MiniflareCore<Plugins>,
   options?: http.ServerOptions & https.ServerOptions
@@ -355,17 +323,39 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
   }
 
   // Setup WebSocket servers
-  const upgrader = createWebSocketUpgradeListener(mf, listener);
   const webSocketServer = new WebSocketServer({ noServer: true });
-  webSocketServer.on("connection", upgrader);
   const liveReloadServer = new WebSocketServer({ noServer: true });
-  server.on("upgrade", (request, socket, head) => {
+  server.on("upgrade", async (request, socket, head) => {
+    // Only interested in pathname so base URL doesn't matter
     const { pathname } = new URL(request.url ?? "", "http://localhost");
-    const server =
-      pathname === "/cdn-cgi/mf/reload" ? liveReloadServer : webSocketServer;
-    server.handleUpgrade(request, socket as any, head, (ws) =>
-      server.emit("connection", ws, request)
-    );
+    if (pathname === "/cdn-cgi/mf/reload") {
+      // If this is the for live-reload, handle the request ourselves
+      liveReloadServer.handleUpgrade(request, socket as any, head, (ws) => {
+        liveReloadServer.emit("connection", ws, request);
+      });
+    } else {
+      // Otherwise, handle the request in the worker
+      const response = await listener(request);
+
+      // Check web socket response was returned
+      const webSocket = response?.webSocket;
+      if (response?.status !== 101 || !webSocket) {
+        socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+        socket.destroy();
+        mf.log.error(
+          new TypeError(
+            "Web Socket request did not return status 101 Switching Protocols response with Web Socket"
+          )
+        );
+        return;
+      }
+
+      // Accept and couple the Web Socket
+      webSocketServer.handleUpgrade(request, socket as any, head, (ws) => {
+        void coupleWebSocket(ws, webSocket);
+        webSocketServer.emit("connection", ws, request);
+      });
+    }
   });
   const reloadListener = () => {
     // Reload all connected live reload clients

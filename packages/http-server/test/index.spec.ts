@@ -32,7 +32,12 @@ import {
 } from "@miniflare/shared-test";
 import { MessageEvent, WebSocketPlugin } from "@miniflare/web-sockets";
 import test, { ExecutionContext, Macro } from "ava";
-import StandardWebSocket, { Data, Event as WebSocketEvent } from "ws";
+import StandardWebSocket, {
+  Data,
+  CloseEvent as WebSocketCloseEvent,
+  ErrorEvent as WebSocketErrorEvent,
+  Event as WebSocketEvent,
+} from "ws";
 
 function listen(
   t: ExecutionContext,
@@ -487,7 +492,10 @@ test("createServer: handles web socket upgrades", async (t) => {
   const mf = useMiniflareWithHandler(
     { HTTPPlugin, WebSocketPlugin },
     {},
-    (globals) => {
+    async (globals) => {
+      // Simulate slow response, WebSocket must not open until worker responds
+      await new Promise((resolve) => globals.setTimeout(resolve, 1000));
+
       const [client, worker] = Object.values(new globals.WebSocketPair());
       worker.accept();
       worker.addEventListener("message", (e: MessageEvent) => {
@@ -523,18 +531,18 @@ test("createServer: expects status 101 and web socket response for upgrades", as
   const port = await listen(t, await createServer(mf));
 
   const ws = new StandardWebSocket(`ws://localhost:${port}`);
-  const [eventTrigger, eventPromise] = triggerPromise<{
-    code: number;
-    reason: string;
-  }>();
-  ws.addEventListener("close", eventTrigger);
-  const event = await eventPromise;
+  const [closeTrigger, closePromise] = triggerPromise<WebSocketCloseEvent>();
+  const [errorTrigger, errorPromise] = triggerPromise<WebSocketErrorEvent>();
+  ws.addEventListener("close", closeTrigger);
+  ws.addEventListener("error", errorTrigger);
+  const closeEvent = await closePromise;
+  const errorEvent = await errorPromise;
 
   t.deepEqual(log.logsAtLevel(LogLevel.ERROR), [
     "TypeError: Web Socket request did not return status 101 Switching Protocols response with Web Socket",
   ]);
-  t.is(event.code, 1002);
-  t.is(event.reason, "Protocol Error");
+  t.is(closeEvent.code, 1006);
+  t.is(errorEvent.message, "Unexpected server response: 500");
 });
 test("createServer: notifies connected live reload clients on reload", async (t) => {
   const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {
