@@ -80,6 +80,7 @@ export interface CoreOptions {
   debug?: boolean;
   verbose?: boolean;
   updateCheck?: boolean;
+  mounts?: Record<string, string>;
 }
 
 export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
@@ -101,13 +102,6 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
         : undefined,
   })
   scriptPath?: string;
-
-  @Option({
-    type: OptionType.STRING,
-    name: "root",
-    description: "Path to resolve default config files relative to",
-  })
-  rootPath?: string;
 
   @Option({
     type: OptionType.STRING,
@@ -227,6 +221,21 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     fromWrangler: ({ miniflare }) => miniflare?.update_check,
   })
   updateCheck?: boolean;
+
+  @Option({
+    type: OptionType.STRING,
+    name: "root",
+    description: "Path to resolve default config files relative to",
+  })
+  rootPath?: string;
+
+  @Option({
+    type: OptionType.OBJECT,
+    typeFormat: "NAME=PATH",
+    description: "Mount additional named workers",
+    fromWrangler: ({ miniflare }) => miniflare?.mounts,
+  })
+  mounts?: Record<string, string>;
 
   readonly processedModuleRules: ProcessedModuleRule[] = [];
 

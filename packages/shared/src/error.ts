@@ -1,7 +1,7 @@
 export abstract class MiniflareError<
   Code extends string | number = string | number
 > extends Error {
-  constructor(public readonly code: Code, message?: string) {
+  constructor(readonly code: Code, message?: string, readonly cause?: Error) {
     super(message);
     // Restore prototype chain:
     // https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-2.html#support-for-newtarget

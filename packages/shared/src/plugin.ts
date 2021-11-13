@@ -108,7 +108,11 @@ export abstract class Plugin<Options extends Context = never> {
   beforeReload?(): Awaitable<void>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  reload?(moduleExports: Context, bindings: Context): Awaitable<void>;
+  reload?(
+    bindings: Context,
+    moduleExports: Context,
+    mountedModuleExports: Record<string, Context>
+  ): Awaitable<void>;
 
   // Called when a new instance of the plugin is about to be created,
   // likely delegates to beforeReload or reload

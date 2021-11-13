@@ -106,8 +106,9 @@ export class TestPlugin extends Plugin<TestOptions> implements TestOptions {
   setupWatch?: string[];
 
   readonly constructedOptions?: TestOptions;
-  reloadModuleExports?: Context;
   reloadBindings?: Context;
+  reloadModuleExports?: Context;
+  reloadMountedModuleExports?: Record<string, Context>;
 
   constructor(ctx: PluginContext, options?: TestOptions) {
     super(ctx);
@@ -141,10 +142,15 @@ export class TestPlugin extends Plugin<TestOptions> implements TestOptions {
     this.ctx.log.info("beforeReload");
   }
 
-  reload(moduleExports: Context, bindings: Context): void {
+  reload(
+    bindings: Context,
+    moduleExports: Context,
+    mountedModuleExports: Record<string, Context>
+  ): void {
     this.ctx.log.info("reload");
-    this.reloadModuleExports = moduleExports;
     this.reloadBindings = bindings;
+    this.reloadModuleExports = moduleExports;
+    this.reloadMountedModuleExports = mountedModuleExports;
   }
 
   dispose(): void {

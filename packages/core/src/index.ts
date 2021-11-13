@@ -1,11 +1,13 @@
 import fs from "fs/promises";
 import path from "path";
+import { URL } from "url";
 import {
   AdditionalModules,
   BeforeSetupResult,
   Compatibility,
   Context,
   Log,
+  MiniflareError,
   Mutex,
   Options,
   PluginContext,
@@ -78,6 +80,23 @@ type PluginData<Plugins extends PluginSignatures, Data> = Map<
   Data
 >;
 
+export type MiniflareCoreOptions<Plugins extends CorePluginSignatures> = Omit<
+  Options<Plugins>,
+  "mounts" // Replace Record<string, string> mount from CoreOptions...
+> & {
+  // ...with Record that allows any options to be specified, in addition to a
+  // different route path
+  mounts?: Record<string, string | Omit<Options<Plugins>, "mounts">>;
+};
+
+export type MiniflareCoreErrorCode =
+  | "ERR_NO_SCRIPT" // No script specified but one was required
+  | "ERR_MOUNT_NO_NAME" // Attempted to mount a worker with an empty string name
+  | "ERR_MOUNT_RECURSIVE" // Attempted to recursively mount workers
+  | "ERR_MOUNT"; // Error whilst mounting worker
+
+export class MiniflareCoreError extends MiniflareError<MiniflareCoreErrorCode> {}
+
 function getPluginEntries<Plugins extends PluginSignatures>(
   plugins: Plugins
 ): PluginEntries<Plugins> {
@@ -107,9 +126,9 @@ function getPluginEntries<Plugins extends PluginSignatures>(
   return entries;
 }
 
-function splitPluginOptions<Plugins extends PluginSignatures>(
+function splitPluginOptions<Plugins extends CorePluginSignatures>(
   plugins: PluginEntries<Plugins>,
-  options: Options<Plugins>
+  options: MiniflareCoreOptions<Plugins>
 ): PluginOptions<Plugins> {
   const result = {} as PluginOptions<Plugins>;
   for (const [name, plugin] of plugins) {
@@ -174,7 +193,7 @@ function throwNoScriptError(modules?: boolean) {
     );
   }
   lines.push("");
-  throw new TypeError(lines.join("\n"));
+  throw new MiniflareCoreError("ERR_NO_SCRIPT", lines.join("\n"));
 }
 
 export interface MiniflareCoreContext {
@@ -186,7 +205,10 @@ export interface MiniflareCoreContext {
 }
 
 export class ReloadEvent<Plugins extends PluginSignatures> extends Event {
-  constructor(readonly plugins: PluginInstances<Plugins>) {
+  constructor(
+    readonly plugins: PluginInstances<Plugins>,
+    readonly initial: boolean
+  ) {
     super("reload");
   }
 }
@@ -198,21 +220,19 @@ export type MiniflareCoreEventMap<Plugins extends PluginSignatures> = {
 export class MiniflareCore<
   Plugins extends CorePluginSignatures
 > extends TypedEventTarget<MiniflareCoreEventMap<Plugins>> {
+  readonly #originalPlugins: Plugins;
   readonly #plugins: PluginEntries<Plugins>;
-  #previousSetOptions: Options<Plugins>;
+  #previousSetOptions: MiniflareCoreOptions<Plugins>;
   #overrides: PluginOptions<Plugins>;
   #previousOptions?: PluginOptions<Plugins>;
 
-  readonly log: Log;
-  readonly #storage: StorageFactory;
+  readonly #ctx: MiniflareCoreContext;
   readonly #pluginStorages: PluginData<Plugins, PluginStorageFactory>;
-  readonly #scriptRunner?: ScriptRunner;
-  readonly #scriptRequired?: boolean;
-  readonly #scriptRunForModuleExports?: boolean;
 
   #compat?: Compatibility;
   #previousRootPath?: string;
   #instances?: PluginInstances<Plugins>;
+  #mounts?: Map<string, MiniflareCore<Plugins>>;
 
   #wranglerConfigPath?: string;
   #watching?: boolean;
@@ -221,8 +241,10 @@ export class MiniflareCore<
   #setupResults?: PluginData<Plugins, SetupResult>;
   readonly #scriptWatchPaths = new Set<string>();
 
+  #reloaded = false;
   #globalScope?: ServiceWorkerGlobalScope;
   #bindings?: Context;
+  #moduleExports?: Context;
   #watcher?: Watcher;
   #watcherCallbackMutex?: Mutex;
   #previousWatchPaths?: Set<string>;
@@ -230,19 +252,16 @@ export class MiniflareCore<
   constructor(
     plugins: Plugins,
     ctx: MiniflareCoreContext,
-    options: Options<Plugins> = {} as Options<Plugins>
+    options: MiniflareCoreOptions<Plugins> = {} as MiniflareCoreOptions<Plugins>
   ) {
     super();
+    this.#originalPlugins = plugins;
     this.#plugins = getPluginEntries(plugins);
     this.#previousSetOptions = options;
     this.#overrides = splitPluginOptions(this.#plugins, options);
 
-    this.log = ctx.log;
-    this.#storage = ctx.storageFactory;
+    this.#ctx = ctx;
     this.#pluginStorages = new Map<keyof Plugins, PluginStorageFactory>();
-    this.#scriptRunner = ctx.scriptRunner;
-    this.#scriptRequired = ctx.scriptRequired;
-    this.#scriptRunForModuleExports = ctx.scriptRunForModuleExports;
 
     this.#initPromise = this.#init().then(() => this.#reload());
   }
@@ -263,7 +282,7 @@ export class MiniflareCore<
   async #runBeforeSetup(name: keyof Plugins): Promise<boolean> {
     const instance = this.#instances![name];
     if (!instance.beforeSetup) return false;
-    this.log.verbose(`- beforeSetup(${name})`);
+    this.#ctx.log.verbose(`- beforeSetup(${name})`);
     const result = await instance.beforeSetup();
     this.#updateWatch(this.#beforeSetupWatch!, name, result);
     return true;
@@ -272,7 +291,7 @@ export class MiniflareCore<
   async #runSetup(name: keyof Plugins): Promise<boolean> {
     const instance = this.#instances![name];
     if (!instance.setup) return false;
-    this.log.verbose(`- setup(${name})`);
+    this.#ctx.log.verbose(`- setup(${name})`);
     const result = await instance.setup(this.getPluginStorage(name));
     this.#updateWatch(this.#setupWatch!, name, result);
     this.#setupResults!.set(name, result ?? {});
@@ -281,7 +300,7 @@ export class MiniflareCore<
 
   readonly #initPromise: Promise<void>;
   async #init(): Promise<void> {
-    this.log.debug("Initialising worker...");
+    this.#ctx.log.debug("Initialising worker...");
 
     // Get required options
     const previous = this.#previousOptions;
@@ -344,10 +363,18 @@ export class MiniflareCore<
       this.#compat = new Compatibility(compatibilityDate, compatibilityFlags);
     }
     const ctx: PluginContext = {
-      log: this.log,
+      log: this.#ctx.log,
       compat: this.#compat,
       rootPath,
     };
+
+    // Log options and compatibility flags every time they might've changed
+    logOptions(this.#plugins, this.#ctx.log, options);
+    const enabled = this.#compat.enabled;
+    this.#ctx.log.debug(
+      `Enabled Compatibility Flags:${enabled.length === 0 ? " <none>" : ""}`
+    );
+    for (const flag of enabled) this.#ctx.log.debug(`- ${flag}`);
 
     // Create plugin instances and run beforeSetup hooks, recreating any plugins
     // with changed options
@@ -366,7 +393,7 @@ export class MiniflareCore<
       // If we have an existing instance, run its cleanup first
       const existingInstance = this.#instances[name];
       if (existingInstance?.dispose) {
-        this.log.verbose(`- dispose(${name})`);
+        this.#ctx.log.verbose(`- dispose(${name})`);
         await existingInstance.dispose();
       }
 
@@ -398,21 +425,99 @@ export class MiniflareCore<
     this.#previousOptions = options;
 
     // Make sure we've got a script if it's required
-    if (this.#scriptRequired && !this.#setupResults.get("CorePlugin")?.script) {
+    if (
+      this.#ctx.scriptRequired &&
+      !this.#setupResults.get("CorePlugin")?.script
+    ) {
       throwNoScriptError(options.CorePlugin.modules);
     }
 
-    // Log options and compatibility flags every time they might've changed
-    logOptions(this.#plugins, this.log, options);
-    const enabled = this.#compat.enabled;
-    this.log.debug(
-      `Enabled Compatibility Flags:${enabled.length === 0 ? " <none>" : ""}`
-    );
-    for (const flag of enabled) this.log.debug(`- ${flag}`);
+    // Update mounts
+    this.#mounts ??= new Map();
+    const mounts = options.CorePlugin
+      .mounts as MiniflareCoreOptions<Plugins>["mounts"];
+    if (mounts) {
+      // Create new and update existing mounts
+      for (const [name, rawOptions] of Object.entries(mounts)) {
+        if (name === "") {
+          throw new MiniflareCoreError(
+            "ERR_MOUNT_NO_NAME",
+            "Mount name cannot be empty"
+          );
+        }
+
+        const options = (
+          typeof rawOptions === "string"
+            ? {
+                packagePath: true,
+                envPath: true,
+                wranglerConfigPath: true,
+                watch: this.#watching,
+                rootPath: rawOptions,
+              }
+            : rawOptions
+        ) as MiniflareCoreOptions<Plugins>;
+
+        if ("mounts" in options) {
+          throw new MiniflareCoreError(
+            "ERR_MOUNT_RECURSIVE",
+            "Recursive mounts are unsupported"
+          );
+        }
+
+        let mount = this.#mounts.get(name);
+        if (mount) {
+          this.#ctx.log.verbose(`Updating mount \"${name}\"...`);
+          await mount.setOptions(options);
+        } else {
+          this.#ctx.log.debug(`Mounting \"${name}\"...`);
+          let log = this.#ctx.log;
+          if (Object.getPrototypeOf(this.#ctx.log) === Log.prototype) {
+            log = new Log(this.#ctx.log.level, name);
+          }
+          const ctx: MiniflareCoreContext = {
+            ...this.#ctx,
+            log,
+            // Never run mounts just for module exports as there may be plugins
+            // in the parent depending on the mount's exports, and the mount
+            // might not have plugins depending on its own exports
+            scriptRunForModuleExports: false,
+          };
+          mount = new MiniflareCore(this.#originalPlugins, ctx, options);
+          mount.addEventListener("reload", (event) => {
+            // Reload parent (us) whenever mounted child reloads, ignoring the
+            // initial reload. This ensures the page is reloaded when live
+            // reloading, and also that we're using up-to-date Durable Object
+            // classes from mounts.
+            if (!event.initial) this.#reload();
+          });
+          try {
+            await mount.getPlugins();
+          } catch (e: any) {
+            // Make sure thrown error includes mount name for easier debugging
+            throw new MiniflareCoreError(
+              "ERR_MOUNT",
+              `Error mounting \"${name}\"`,
+              e
+            );
+          }
+          this.#mounts.set(name, mount);
+        }
+      }
+
+      // Dispose old mounts
+      for (const [name, mount] of [...this.#mounts]) {
+        if (!(name in mounts)) {
+          this.#ctx.log.debug(`Unmounting \"${name}\"...`);
+          await mount.dispose();
+          this.#mounts.delete(name);
+        }
+      }
+    }
   }
 
   async #reload(): Promise<void> {
-    this.log.debug("Reloading worker...");
+    this.#ctx.log.debug("Reloading worker...");
 
     const globals: Context = {};
     const bindings: Context = {};
@@ -427,7 +532,7 @@ export class MiniflareCore<
       // Run beforeReload hook
       const instance = this.#instances![name];
       if (instance.beforeReload) {
-        this.log.verbose(`- beforeReload(${name})`);
+        this.#ctx.log.verbose(`- beforeReload(${name})`);
         await instance.beforeReload();
       }
 
@@ -458,7 +563,7 @@ export class MiniflareCore<
     this.#globalScope?.[kDispose]();
     // Create new global scope on each reload
     const globalScope = new ServiceWorkerGlobalScope(
-      this.log,
+      this.#ctx.log,
       globals,
       bindings,
       modules
@@ -474,14 +579,15 @@ export class MiniflareCore<
       script &&
       // ...and either we're always running it, or we're in modules mode
       // and require its exports
-      (!this.#scriptRunForModuleExports || (modules && requiresModuleExports))
+      (!this.#ctx.scriptRunForModuleExports ||
+        (modules && requiresModuleExports))
     ) {
-      if (!this.#scriptRunner) {
+      if (!this.#ctx.scriptRunner) {
         throw new TypeError("Running scripts requires a script runner");
       }
 
-      this.log.verbose("Running script...");
-      res = await this.#scriptRunner.run(
+      this.#ctx.log.verbose("Running script...");
+      res = await this.#ctx.scriptRunner.run(
         globalScope,
         script,
         rules,
@@ -495,7 +601,8 @@ export class MiniflareCore<
         addAll(this.#scriptWatchPaths, res.watch);
       }
 
-      // Add module event listeners if any
+      // Record module exports and add module event listeners if any
+      this.#moduleExports = res.exports;
       if (res.exports) {
         const defaults = res.exports.default;
 
@@ -511,20 +618,29 @@ export class MiniflareCore<
       }
     }
 
-    // Run reload hooks
+    // Run reload hooks, getting module exports for each mount (we await
+    // getPlugins() for each mount before running #reload() so their scripts
+    // must've been run)
+    const moduleExports = res?.exports ?? {};
+    const mountedModuleExports: Record<string, Context> = {};
+    // this.#mounts is set in #init() which is always called before this
+    for (const [name, mount] of this.#mounts!) {
+      mountedModuleExports[name] = await mount.getModuleExports();
+    }
     for (const [name] of this.#plugins) {
       const instance = this.#instances![name];
       if (instance.reload) {
-        this.log.verbose(`- reload(${name})`);
-        await instance.reload(res?.exports ?? {}, bindings);
+        this.#ctx.log.verbose(`- reload(${name})`);
+        await instance.reload(bindings, moduleExports, mountedModuleExports);
       }
     }
     // Dispatch reload event
-    this.dispatchEvent(new ReloadEvent(this.#instances!));
+    this.dispatchEvent(new ReloadEvent(this.#instances!, !this.#reloaded));
+    this.#reloaded = true;
 
     // Log bundle size and warning if too big
     // noinspection JSObjectNullOrUndefined
-    this.log.info(
+    this.#ctx.log.info(
       `Worker reloaded!${
         res?.bundleSize !== undefined ? ` (${formatSize(res.bundleSize)})` : ""
       }`
@@ -532,7 +648,7 @@ export class MiniflareCore<
     // TODO (someday): compress asynchronously
     // noinspection JSObjectNullOrUndefined
     if (res?.bundleSize !== undefined && res.bundleSize > 1_048_576) {
-      this.log.warn(
+      this.#ctx.log.warn(
         "Worker's uncompressed size exceeds the 1MiB limit! " +
           "Note that your worker will be compressed during upload " +
           "so you may still be able to deploy it."
@@ -567,11 +683,11 @@ export class MiniflareCore<
       }
       // Apply and log changes
       if (unwatchedPaths.size > 0) {
-        this.log.debug(`Unwatching ${pathsToString(unwatchedPaths)}...`);
+        this.#ctx.log.debug(`Unwatching ${pathsToString(unwatchedPaths)}...`);
         watcher.unwatch(unwatchedPaths);
       }
       if (watchedPaths.size > 0) {
-        this.log.debug(`Watching ${pathsToString(newWatchPaths)}...`);
+        this.#ctx.log.debug(`Watching ${pathsToString(newWatchPaths)}...`);
         await watcher.watch(watchedPaths);
       }
       this.#previousWatchPaths = newWatchPaths;
@@ -581,9 +697,9 @@ export class MiniflareCore<
   #ignoreScriptUpdates = false;
   #ignoreScriptUpdatesTimeout!: NodeJS.Timeout;
   #watcherCallback(eventPath: string): void {
-    this.log.debug(`${path.relative("", eventPath)} changed...`);
+    this.#ctx.log.debug(`${path.relative("", eventPath)} changed...`);
     if (this.#ignoreScriptUpdates && this.#scriptWatchPaths.has(eventPath)) {
-      this.log.verbose("Ignoring script change after build...");
+      this.#ctx.log.verbose("Ignoring script change after build...");
       return;
     }
 
@@ -632,7 +748,11 @@ export class MiniflareCore<
         await this.#reload();
       }
     });
-    promise.catch((e) => this.log.error(e));
+    promise.catch((e) => this.#ctx.log.error(e));
+  }
+
+  get log(): Log {
+    return this.#ctx.log;
   }
 
   async reload(): Promise<void> {
@@ -641,9 +761,8 @@ export class MiniflareCore<
     await this.#reload();
   }
 
-  async setOptions(options: Options<Plugins>): Promise<void> {
+  async setOptions(options: MiniflareCoreOptions<Plugins>): Promise<void> {
     await this.#initPromise;
-    // @ts-expect-error Options is an object type
     options = { ...this.#previousSetOptions, ...options };
     this.#previousSetOptions = options;
     this.#overrides = splitPluginOptions(this.#plugins, options);
@@ -656,7 +775,10 @@ export class MiniflareCore<
     if (storage) return storage;
     this.#pluginStorages.set(
       name,
-      (storage = new PluginStorageFactory(this.#storage, name as string))
+      (storage = new PluginStorageFactory(
+        this.#ctx.storageFactory,
+        name as string
+      ))
     );
     return storage;
   }
@@ -676,16 +798,42 @@ export class MiniflareCore<
     return this.#bindings!;
   }
 
+  async getModuleExports(): Promise<Context> {
+    await this.#initPromise;
+    return this.#moduleExports!;
+  }
+
+  async getMount(name: string): Promise<MiniflareCore<Plugins>> {
+    await this.#initPromise;
+    return this.#mounts!.get(name)!;
+  }
+
   async dispatchFetch<WaitUntil extends any[] = unknown[]>(
     input: RequestInfo,
     init?: RequestInit
   ): Promise<Response<WaitUntil>> {
     await this.#initPromise;
-    const corePlugin = this.#instances!.CorePlugin;
-    const globalScope = this.#globalScope;
+
     // noinspection SuspiciousTypeOfGuard
     let request =
       input instanceof Request && !init ? input : new Request(input, init);
+
+    // Forward to matching mount if any
+    if (this.#mounts?.size) {
+      const url = new URL(request.url);
+      for (const [name, mount] of this.#mounts) {
+        const prefix = `/${name}`;
+        if (url.pathname === prefix || url.pathname.startsWith(`${prefix}/`)) {
+          // Trim mount prefix from request URL
+          url.pathname = url.pathname.slice(prefix.length);
+          return mount.dispatchFetch(new Request(url, request));
+        }
+      }
+    }
+
+    const corePlugin = this.#instances!.CorePlugin;
+    const globalScope = this.#globalScope;
+
     if (!this.#compat!.isEnabled("formdata_parser_supports_files")) {
       request = withStringFormDataFiles(request);
     }
@@ -709,11 +857,19 @@ export class MiniflareCore<
     for (const [name] of this.#plugins) {
       const instance = this.#instances?.[name];
       if (instance?.dispose) {
-        this.log.verbose(`- dispose(${name})`);
+        this.#ctx.log.verbose(`- dispose(${name})`);
         await instance.dispose();
       }
     }
     // Dispose of watcher
     this.#watcher?.dispose();
+    // Dispose of mounts
+    if (this.#mounts) {
+      for (const [name, mount] of this.#mounts) {
+        this.#ctx.log.debug(`Unmounting \"${name}\"...`);
+        await mount.dispose();
+      }
+      this.#mounts.clear();
+    }
   }
 }

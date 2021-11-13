@@ -7,6 +7,7 @@ import {
   CorePlugin,
   MiniflareCore,
   MiniflareCoreContext,
+  MiniflareCoreError,
   PluginStorageFactory,
   ReloadEvent,
   Request,
@@ -68,6 +69,8 @@ test("MiniflareCore: always loads CorePlugin first", async (t) => {
   const ctx: MiniflareCoreContext = { log, storageFactory, scriptRunner };
   const expectedLogs: LogEntry[] = [
     [LogLevel.DEBUG, "Initialising worker..."],
+    [LogLevel.DEBUG, "Options:"],
+    [LogLevel.DEBUG, "Enabled Compatibility Flags: <none>"],
     [LogLevel.VERBOSE, "- beforeSetup(TestPlugin)"],
     [LogLevel.INFO, "beforeSetup"],
     [LogLevel.VERBOSE, "- setup(CorePlugin)"],
@@ -90,6 +93,9 @@ test("MiniflareCore: always loads BindingsPlugin last", async (t) => {
   const ctx: MiniflareCoreContext = { log, storageFactory, scriptRunner };
   const expectedLogs: LogEntry[] = [
     [LogLevel.DEBUG, "Initialising worker..."],
+    [LogLevel.DEBUG, "Options:"],
+    [LogLevel.DEBUG, "- Custom Globals: BigUint64Array"],
+    [LogLevel.DEBUG, "Enabled Compatibility Flags: <none>"],
     [LogLevel.VERBOSE, "- beforeSetup(TestPlugin)"],
     [LogLevel.INFO, "beforeSetup"],
     [LogLevel.VERBOSE, "- setup(CorePlugin)"],
@@ -259,6 +265,8 @@ test("MiniflareCore: #init: creates all plugins on init", async (t) => {
     // Check all setup/beforeSetup hooks run, with all beforeSetup hooks running
     // before setups (INFOs come from TestPlugin)
     [LogLevel.DEBUG, "Initialising worker..."],
+    [LogLevel.DEBUG, "Options:"],
+    [LogLevel.DEBUG, "Enabled Compatibility Flags: <none>"],
     [LogLevel.VERBOSE, "- beforeSetup(TestPlugin1)"],
     [LogLevel.INFO, "beforeSetup"],
     [LogLevel.VERBOSE, "- beforeSetup(TestPlugin2)"],
@@ -425,9 +433,8 @@ test("MiniflareCore: #init: throws if script required but not provided", async (
   } catch (e: any) {
     error = e;
   }
-  assert(error);
-  // noinspection SuspiciousTypeOfGuard
-  t.true(error instanceof TypeError);
+  assert(error instanceof MiniflareCoreError);
+  t.is(error!.code, "ERR_NO_SCRIPT");
   t.regex(error?.stack ?? "", /No script defined/);
 
   // Check build.upload.main is only suggested in modules mode
@@ -435,7 +442,8 @@ test("MiniflareCore: #init: throws if script required but not provided", async (
   t.notRegex(error!.stack!, /build\.upload\.main/);
   mf = new MiniflareCore({ CorePlugin }, ctx, { modules: true });
   await t.throwsAsync(mf.getPlugins(), {
-    instanceOf: TypeError,
+    instanceOf: MiniflareCoreError,
+    code: "ERR_NO_SCRIPT",
     message: /build\.upload\.main/,
   });
 
@@ -572,6 +580,7 @@ test("MiniflareCore: #reload: reloads worker on init", async (t) => {
   const reloadEvent = await reloadPromise;
   const instances = await mf.getPlugins();
   t.is(instances, reloadEvent.plugins);
+  t.true(reloadEvent.initial);
 
   // Check reload hook parameters
   const exports = instances.TestPlugin1.reloadModuleExports;
@@ -839,6 +848,7 @@ test("MiniflareCore: dispatches reload events", async (t) => {
     ReloadEvent<{ CorePlugin: typeof CorePlugin }>
   > = (e) => {
     t.is(e.plugins, plugins);
+    t.false(e.initial);
     invocations++;
   };
   mf.addEventListener("reload", listener);
@@ -846,7 +856,7 @@ test("MiniflareCore: dispatches reload events", async (t) => {
   await mf.reload();
   t.is(invocations, 1);
 
-  mf.dispatchEvent(new ReloadEvent(plugins));
+  mf.dispatchEvent(new ReloadEvent(plugins, false));
   t.is(invocations, 2);
 
   mf.removeEventListener("reload", listener);
@@ -869,15 +879,15 @@ test("MiniflareCore: setOptions: updates options and reloads worker", async (t) 
 
   const expectedLogs: LogEntry[] = [
     [LogLevel.DEBUG, "Initialising worker..."],
+    [LogLevel.DEBUG, "Options:"],
+    [LogLevel.DEBUG, "- Number Option: 2"],
+    [LogLevel.DEBUG, "Enabled Compatibility Flags: <none>"],
     [LogLevel.VERBOSE, "- dispose(TestPlugin)"],
     [LogLevel.INFO, "dispose"],
     [LogLevel.VERBOSE, "- beforeSetup(TestPlugin)"],
     [LogLevel.INFO, "beforeSetup"],
     [LogLevel.VERBOSE, "- setup(TestPlugin)"],
     [LogLevel.INFO, "setup"],
-    [LogLevel.DEBUG, "Options:"],
-    [LogLevel.DEBUG, "- Number Option: 2"],
-    [LogLevel.DEBUG, "Enabled Compatibility Flags: <none>"],
     [LogLevel.DEBUG, "Reloading worker..."],
     [LogLevel.VERBOSE, "- beforeReload(TestPlugin)"],
     [LogLevel.INFO, "beforeReload"],

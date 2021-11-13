@@ -26,8 +26,6 @@ const ctx: PluginContext = { log, compat, rootPath };
 test("CorePlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(CorePlugin, [
     "script.js",
-    "--root",
-    "root",
     "--wrangler-config",
     "wrangler.custom.toml",
     "--wrangler-env",
@@ -50,10 +48,15 @@ test("CorePlugin: parses options from argv", (t) => {
     "--watch",
     "--debug",
     "--verbose",
+    "--root",
+    "root",
+    "--mount",
+    "api=./api",
+    "--mount",
+    "site=./site",
   ]);
   t.deepEqual(options, {
     scriptPath: "script.js",
-    rootPath: "root",
     wranglerConfigPath: "wrangler.custom.toml",
     wranglerConfigEnv: "dev",
     packagePath: "package.custom.json",
@@ -71,6 +74,8 @@ test("CorePlugin: parses options from argv", (t) => {
     watch: true,
     debug: true,
     verbose: true,
+    rootPath: "root",
+    mounts: { api: "./api", site: "./site" },
   });
   options = parsePluginArgv(CorePlugin, [
     "-c",
@@ -114,13 +119,13 @@ test("CorePlugin: parses options from wrangler config", (t) => {
         upstream: "https://miniflare.dev",
         watch: true,
         update_check: false,
+        mounts: { api: "./api", site: "./site" },
       },
     },
     configDir
   );
   t.deepEqual(options, {
     script: undefined,
-    rootPath: undefined,
     wranglerConfigPath: undefined,
     wranglerConfigEnv: undefined,
     packagePath: undefined,
@@ -140,6 +145,8 @@ test("CorePlugin: parses options from wrangler config", (t) => {
     debug: undefined,
     verbose: undefined,
     updateCheck: false,
+    rootPath: undefined,
+    mounts: { api: "./api", site: "./site" },
   });
   // Check build upload dir defaults to dist
   options = parsePluginWranglerConfig(
@@ -153,7 +160,6 @@ test("CorePlugin: logs options", (t) => {
   let logs = logPluginOptions(CorePlugin, {
     script: "console.log('Hello!')",
     scriptPath: "script.js",
-    rootPath: "root",
     wranglerConfigPath: "wrangler.custom.toml",
     wranglerConfigEnv: "dev",
     packagePath: "package.custom.json",
@@ -166,11 +172,12 @@ test("CorePlugin: logs options", (t) => {
     watch: true,
     debug: true,
     verbose: true,
+    rootPath: "root",
+    mounts: { api: "./api", site: "./site" },
   });
   t.deepEqual(logs, [
     // script is OptionType.NONE so omitted
     "Script Path: script.js",
-    "Root Path: root",
     "Wrangler Config Path: wrangler.custom.toml",
     "Wrangler Environment: dev",
     "Package Path: package.custom.json",
@@ -180,6 +187,8 @@ test("CorePlugin: logs options", (t) => {
     "Watch: true",
     "Debug: true",
     "Verbose: true",
+    "Root Path: root",
+    "Mounts: api, site",
   ]);
   // Check logs default wrangler config/package paths
   logs = logPluginOptions(CorePlugin, {
