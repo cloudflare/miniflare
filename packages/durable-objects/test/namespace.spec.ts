@@ -11,7 +11,12 @@ import {
   DurableObjectStub,
   DurableObjectsPlugin,
 } from "@miniflare/durable-objects";
-import { Compatibility, NoOpLog, StorageFactory } from "@miniflare/shared";
+import {
+  Compatibility,
+  NoOpLog,
+  PluginContext,
+  StorageFactory,
+} from "@miniflare/shared";
 import {
   MemoryStorageFactory,
   RecorderStorage,
@@ -26,6 +31,8 @@ import { TestObject, testId, testIdHex } from "./object";
 
 const log = new NoOpLog();
 const compat = new Compatibility();
+const rootPath = process.cwd();
+const ctx: PluginContext = { log, compat, rootPath };
 
 const throws = (): never => {
   throw new Error("Function should not be called!");
@@ -37,7 +44,7 @@ function getTestObjectNamespace(): [
   MemoryStorageFactory
 ] {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(log, compat, {
+  const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
   plugin.beforeReload();
@@ -71,7 +78,7 @@ test("DurableObjectState: waitUntil: does nothing", (t) => {
 });
 test("DurableObjectState: blockConcurrencyWhile: prevents fetch events dispatch to object", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(log, compat, {
+  const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
   const [trigger, promise] = triggerPromise<void>();
@@ -102,7 +109,7 @@ test("DurableObjectState: blockConcurrencyWhile: prevents fetch events dispatch 
 });
 test("DurableObjectState: kFetch: waits for writes to be confirmed before returning", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(log, compat, {
+  const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
 
@@ -164,9 +171,10 @@ test("DurableObjectStub: fetch: throws with relative urls if compatibility flag 
     "durable_object_fetch_requires_full_url",
   ]);
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(log, compat, {
-    durableObjects: { TEST: "TestObject" },
-  });
+  const plugin = new DurableObjectsPlugin(
+    { log, compat, rootPath },
+    { durableObjects: { TEST: "TestObject" } }
+  );
   plugin.beforeReload();
   plugin.reload({ TestObject }, {});
   const ns = plugin.getNamespace(factory, "TEST");
@@ -181,7 +189,7 @@ test("DurableObjectStub: fetch: throws with relative urls if compatibility flag 
 });
 test("DurableObjectStub: fetch: passes through web socket requests", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(log, compat, {
+  const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
 
@@ -210,7 +218,7 @@ test("DurableObjectStub: fetch: passes through web socket requests", async (t) =
 });
 test("DurableObjectStub: fetch: throws if handler doesn't return Response", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(log, compat, {
+  const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
 
@@ -399,7 +407,7 @@ class ExampleDurableObject implements DurableObject {
 
 function getExampleObjectStub(): DurableObjectStub {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(log, compat, {
+  const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { EXAMPLE: "ExampleDurableObject" },
   });
   plugin.beforeReload();
@@ -445,7 +453,7 @@ test("writes are coalesced", async (t) => {
   const storage = new RecorderStorage(new MemoryStorage());
   const storageFactory: StorageFactory = { storage: () => storage };
 
-  const plugin = new DurableObjectsPlugin(log, compat, {
+  const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { EXAMPLE: "ExampleDurableObject" },
   });
   plugin.beforeReload();

@@ -1,12 +1,11 @@
 import assert from "assert";
 import {
-  Compatibility,
   Context,
-  Log,
   MiniflareError,
   Option,
   OptionType,
   Plugin,
+  PluginContext,
   SetupResult,
   StorageFactory,
 } from "@miniflare/shared";
@@ -83,12 +82,8 @@ export class DurableObjectsPlugin
 
   readonly #objects = new Map<string, Promise<DurableObjectState>>();
 
-  constructor(
-    log: Log,
-    compat: Compatibility,
-    options?: DurableObjectsOptions
-  ) {
-    super(log, compat);
+  constructor(ctx: PluginContext, options?: DurableObjectsOptions) {
+    super(ctx);
     this.assignOptions(options);
 
     this.#processedObjects = Object.entries(this.durableObjects ?? {}).map(
@@ -103,7 +98,7 @@ export class DurableObjectsPlugin
         return { name, className, scriptName };
       }
     );
-    this.#requireFullUrl = compat.isEnabled(
+    this.#requireFullUrl = ctx.compat.isEnabled(
       "durable_object_fetch_requires_full_url"
     );
   }

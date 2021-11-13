@@ -1,12 +1,11 @@
 import fs from "fs/promises";
 import path from "path";
 import {
-  Compatibility,
   Context,
-  Log,
   Option,
   OptionType,
   Plugin,
+  PluginContext,
   SetupResult,
 } from "@miniflare/shared";
 import dotenv from "dotenv";
@@ -80,13 +79,8 @@ export class BindingsPlugin
   })
   wasmBindings?: Record<string, string>;
 
-  constructor(
-    log: Log,
-    compat: Compatibility,
-    options?: BindingsOptions,
-    private readonly defaultEnvPath: string = ".env"
-  ) {
-    super(log, compat);
+  constructor(ctx: PluginContext, options?: BindingsOptions) {
+    super(ctx);
     this.assignOptions(options);
   }
 
@@ -104,7 +98,10 @@ export class BindingsPlugin
     Object.assign(bindings, this[kWranglerBindings]);
 
     // Load bindings from .env file
-    const envPath = this.envPath === true ? this.defaultEnvPath : this.envPath;
+    const envPath =
+      this.envPath === true
+        ? path.join(this.ctx.rootPath, ".env")
+        : this.envPath;
     if (envPath) {
       try {
         Object.assign(

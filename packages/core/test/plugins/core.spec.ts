@@ -2,7 +2,12 @@ import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
 import { CorePlugin, Request, Response } from "@miniflare/core";
-import { Compatibility, NoOpLog, STRING_SCRIPT_PATH } from "@miniflare/shared";
+import {
+  Compatibility,
+  NoOpLog,
+  PluginContext,
+  STRING_SCRIPT_PATH,
+} from "@miniflare/shared";
 import {
   logPluginOptions,
   parsePluginArgv,
@@ -13,11 +18,16 @@ import {
 import test from "ava";
 import { File, FormData } from "undici";
 
+const log = new NoOpLog();
 const compat = new Compatibility();
+const rootPath = process.cwd();
+const ctx: PluginContext = { log, compat, rootPath };
 
 test("CorePlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(CorePlugin, [
     "script.js",
+    "--root",
+    "root",
     "--wrangler-config",
     "wrangler.custom.toml",
     "--wrangler-env",
@@ -43,6 +53,7 @@ test("CorePlugin: parses options from argv", (t) => {
   ]);
   t.deepEqual(options, {
     scriptPath: "script.js",
+    rootPath: "root",
     wranglerConfigPath: "wrangler.custom.toml",
     wranglerConfigEnv: "dev",
     packagePath: "package.custom.json",
@@ -109,6 +120,7 @@ test("CorePlugin: parses options from wrangler config", (t) => {
   );
   t.deepEqual(options, {
     script: undefined,
+    rootPath: undefined,
     wranglerConfigPath: undefined,
     wranglerConfigEnv: undefined,
     packagePath: undefined,
@@ -141,6 +153,7 @@ test("CorePlugin: logs options", (t) => {
   let logs = logPluginOptions(CorePlugin, {
     script: "console.log('Hello!')",
     scriptPath: "script.js",
+    rootPath: "root",
     wranglerConfigPath: "wrangler.custom.toml",
     wranglerConfigEnv: "dev",
     packagePath: "package.custom.json",
@@ -157,6 +170,7 @@ test("CorePlugin: logs options", (t) => {
   t.deepEqual(logs, [
     // script is OptionType.NONE so omitted
     "Script Path: script.js",
+    "Root Path: root",
     "Wrangler Config Path: wrangler.custom.toml",
     "Wrangler Environment: dev",
     "Package Path: package.custom.json",
@@ -187,7 +201,7 @@ test("CorePlugin: logs options", (t) => {
 });
 
 test("CorePlugin: setup: includes web standards", async (t) => {
-  const plugin = new CorePlugin(new NoOpLog(), compat);
+  const plugin = new CorePlugin(ctx);
   const { globals } = await plugin.setup();
   assert(globals);
 
@@ -269,7 +283,7 @@ test("CorePlugin: setup: fetch refuses unknown protocols only if compatibility f
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   upstream.protocol = "ftp:";
 
-  let plugin = new CorePlugin(new NoOpLog(), new Compatibility());
+  let plugin = new CorePlugin(ctx);
   let { globals } = await plugin.setup();
   const res = await globals?.fetch(upstream);
   t.is(await res.text(), "upstream");
@@ -277,7 +291,7 @@ test("CorePlugin: setup: fetch refuses unknown protocols only if compatibility f
   const compat = new Compatibility(undefined, [
     "fetch_refuses_unknown_protocols",
   ]);
-  plugin = new CorePlugin(new NoOpLog(), compat);
+  plugin = new CorePlugin({ log, compat, rootPath });
   globals = (await plugin.setup()).globals;
   await t.throwsAsync(async () => globals?.fetch(upstream), {
     instanceOf: TypeError,
@@ -288,7 +302,7 @@ test("CorePlugin: setup: Request parses files in FormData as File objects only i
   const formData = new FormData();
   formData.append("file", new File(["test"], "test.txt"));
 
-  let plugin = new CorePlugin(new NoOpLog(), new Compatibility());
+  let plugin = new CorePlugin(ctx);
   let CompatRequest: typeof Request = (await plugin.setup()).globals?.Request;
   let req = new CompatRequest("http://localhost", {
     method: "POST",
@@ -300,7 +314,7 @@ test("CorePlugin: setup: Request parses files in FormData as File objects only i
   const compat = new Compatibility(undefined, [
     "formdata_parser_supports_files",
   ]);
-  plugin = new CorePlugin(new NoOpLog(), compat);
+  plugin = new CorePlugin({ log, compat, rootPath });
   CompatRequest = (await plugin.setup()).globals?.Request;
   req = new CompatRequest("http://localhost", {
     method: "POST",
@@ -313,7 +327,7 @@ test("CorePlugin: setup: Response parses files in FormData as File objects only 
   const formData = new FormData();
   formData.append("file", new File(["test"], "test.txt"));
 
-  let plugin = new CorePlugin(new NoOpLog(), new Compatibility());
+  let plugin = new CorePlugin(ctx);
   let CompatResponse: typeof Response = (await plugin.setup()).globals
     ?.Response;
   let res = new CompatResponse(formData);
@@ -323,7 +337,7 @@ test("CorePlugin: setup: Response parses files in FormData as File objects only 
   const compat = new Compatibility(undefined, [
     "formdata_parser_supports_files",
   ]);
-  plugin = new CorePlugin(new NoOpLog(), compat);
+  plugin = new CorePlugin({ log, compat, rootPath });
   CompatResponse = (await plugin.setup()).globals?.Response;
   res = new CompatResponse(formData);
   resFormData = await res.formData();
@@ -331,7 +345,7 @@ test("CorePlugin: setup: Response parses files in FormData as File objects only 
 });
 
 test("CorePlugin: processedModuleRules: processes rules includes default module rules", (t) => {
-  const plugin = new CorePlugin(new NoOpLog(), compat, {
+  const plugin = new CorePlugin(ctx, {
     modules: true,
     modulesRules: [
       { type: "Text", include: ["**/*.txt"], fallthrough: true },
@@ -351,7 +365,7 @@ test("CorePlugin: processedModuleRules: processes rules includes default module 
   t.true(rules[3].include.test("test.cjs"));
 });
 test("CorePlugin: processedModuleRules: ignores rules with same type if no fallthrough", (t) => {
-  const plugin = new CorePlugin(new NoOpLog(), compat, {
+  const plugin = new CorePlugin(ctx, {
     modules: true,
     modulesRules: [{ type: "CommonJS", include: ["**/*.js"] }],
   });
@@ -363,7 +377,7 @@ test("CorePlugin: processedModuleRules: ignores rules with same type if no fallt
   t.true(rules[1].include.test("test.mjs"));
 });
 test("CorePlugin: processedModuleRules: defaults to default module rules", (t) => {
-  const plugin = new CorePlugin(new NoOpLog(), compat, { modules: true });
+  const plugin = new CorePlugin(ctx, { modules: true });
   const rules = plugin.processedModuleRules;
   t.is(rules.length, 2);
   t.is(rules[0].type, "ESModule");
@@ -373,19 +387,19 @@ test("CorePlugin: processedModuleRules: defaults to default module rules", (t) =
   t.true(rules[1].include.test("test.cjs"));
 });
 test("CorePlugin: processedModuleRules: empty if modules disabled", (t) => {
-  const plugin = new CorePlugin(new NoOpLog(), compat);
+  const plugin = new CorePlugin(ctx);
   const rules = plugin.processedModuleRules;
   t.is(rules.length, 0);
 });
 
 test("CorePlugin: setup: loads no script if none defined", async (t) => {
-  const plugin = new CorePlugin(new NoOpLog(), compat);
+  const plugin = new CorePlugin(ctx);
   const result = await plugin.setup();
   t.deepEqual(result.watch, []);
   t.is(result.script, undefined);
 });
 test("CorePlugin: setup: loads script from string", async (t) => {
-  const plugin = new CorePlugin(new NoOpLog(), compat, {
+  const plugin = new CorePlugin(ctx, {
     script: "console.log('Hello!')",
   });
   const result = await plugin.setup();
@@ -401,10 +415,8 @@ test("CorePlugin: setup: loads script from package.json in default location", as
   const scriptPath = path.join(tmp, "script.js");
   await fs.writeFile(scriptPath, "console.log(42)");
   const plugin = new CorePlugin(
-    new NoOpLog(),
-    compat,
-    { packagePath: true },
-    defaultPackagePath
+    { log, compat, rootPath: tmp },
+    { packagePath: true }
   );
 
   // Shouldn't throw if package.json doesn't exist...
@@ -428,16 +440,13 @@ test("CorePlugin: setup: loads script from package.json in default location", as
 test("CorePlugin: setup: loads script from package.json in custom location", async (t) => {
   const tmp = await useTmp(t);
 
-  const defaultPackagePath = path.join(tmp, "package.default.json");
   const customPackagePath = path.join(tmp, "package.custom.json");
   const scriptPath = path.join(tmp, "script.js");
   await fs.writeFile(scriptPath, "console.log('custom')");
 
   const plugin = new CorePlugin(
-    new NoOpLog(),
-    compat,
-    { packagePath: customPackagePath },
-    defaultPackagePath
+    { log, compat, rootPath: tmp },
+    { packagePath: customPackagePath }
   );
   // Should throw if package.json doesn't exist
   await t.throwsAsync(plugin.setup(), {
@@ -460,7 +469,7 @@ test("CorePlugin: setup: loads module from package.json", async (t) => {
   await fs.writeFile(packagePath, `{"module": "script.mjs"}`);
   const scriptPath = path.join(tmp, "script.mjs");
   await fs.writeFile(scriptPath, "export default 42");
-  const plugin = new CorePlugin(new NoOpLog(), compat, {
+  const plugin = new CorePlugin(ctx, {
     modules: true,
     packagePath,
   });
@@ -477,7 +486,7 @@ test("CorePlugin: setup: loads script from explicit path", async (t) => {
   await fs.writeFile(packagePath, `{"main": "bad.js"}`);
   const scriptPath = path.join(tmp, "script.js");
   await fs.writeFile(scriptPath, "console.log(42)");
-  const plugin = new CorePlugin(new NoOpLog(), compat, {
+  const plugin = new CorePlugin(ctx, {
     scriptPath,
     packagePath,
   });

@@ -3,7 +3,13 @@ import { existsSync } from "fs";
 import fs from "fs/promises";
 import path from "path";
 import { HTTPPlugin } from "@miniflare/http-server";
-import { Clock, Compatibility, LogLevel, NoOpLog } from "@miniflare/shared";
+import {
+  Clock,
+  Compatibility,
+  LogLevel,
+  NoOpLog,
+  PluginContext,
+} from "@miniflare/shared";
 import {
   TestLog,
   logPluginOptions,
@@ -14,7 +20,10 @@ import {
 } from "@miniflare/shared-test";
 import test from "ava";
 
+const log = new NoOpLog();
 const compat = new Compatibility();
+const rootPath = process.cwd();
+const ctx: PluginContext = { log, compat, rootPath };
 
 test("HTTPPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(HTTPPlugin, [
@@ -146,26 +155,21 @@ test("HTTPPlugin: logs options", (t) => {
 });
 
 test("HTTPPlugin: httpsEnabled: true iff any https option set", (t) => {
-  const log = new NoOpLog();
-  t.false(new HTTPPlugin(log, compat).httpsEnabled);
-  t.true(new HTTPPlugin(log, compat, { https: true }).httpsEnabled);
-  t.true(new HTTPPlugin(log, compat, { https: "./cert" }).httpsEnabled);
-  t.true(new HTTPPlugin(log, compat, { httpsKey: "key" }).httpsEnabled);
-  t.true(new HTTPPlugin(log, compat, { httpsKeyPath: "key.pem" }).httpsEnabled);
-  t.true(new HTTPPlugin(log, compat, { httpsCert: "cert" }).httpsEnabled);
-  t.true(
-    new HTTPPlugin(log, compat, { httpsCertPath: "cert.pem" }).httpsEnabled
-  );
-  t.true(new HTTPPlugin(log, compat, { httpsCa: "ca" }).httpsEnabled);
-  t.true(new HTTPPlugin(log, compat, { httpsCaPath: "ca.pem" }).httpsEnabled);
-  t.true(new HTTPPlugin(log, compat, { httpsPfx: "pfx" }).httpsEnabled);
-  t.true(
-    new HTTPPlugin(log, compat, { httpsPfxPath: "cert.pfx" }).httpsEnabled
-  );
+  t.false(new HTTPPlugin(ctx).httpsEnabled);
+  t.true(new HTTPPlugin(ctx, { https: true }).httpsEnabled);
+  t.true(new HTTPPlugin(ctx, { https: "./cert" }).httpsEnabled);
+  t.true(new HTTPPlugin(ctx, { httpsKey: "key" }).httpsEnabled);
+  t.true(new HTTPPlugin(ctx, { httpsKeyPath: "key.pem" }).httpsEnabled);
+  t.true(new HTTPPlugin(ctx, { httpsCert: "cert" }).httpsEnabled);
+  t.true(new HTTPPlugin(ctx, { httpsCertPath: "cert.pem" }).httpsEnabled);
+  t.true(new HTTPPlugin(ctx, { httpsCa: "ca" }).httpsEnabled);
+  t.true(new HTTPPlugin(ctx, { httpsCaPath: "ca.pem" }).httpsEnabled);
+  t.true(new HTTPPlugin(ctx, { httpsPfx: "pfx" }).httpsEnabled);
+  t.true(new HTTPPlugin(ctx, { httpsPfxPath: "cert.pfx" }).httpsEnabled);
 });
 
 test("HTTPPlugin: getRequestMeta: uses cfProvider if defined", async (t) => {
-  const plugin = new HTTPPlugin(new NoOpLog(), compat, {
+  const plugin = new HTTPPlugin(ctx, {
     metaProvider: async (req) => ({
       forwardedProto: "http",
       realIp: "127.0.0.1",
@@ -178,7 +182,7 @@ test("HTTPPlugin: getRequestMeta: uses cfProvider if defined", async (t) => {
   t.is(cf.cf?.httpProtocol, "HTTP/1.1");
 });
 test("HTTPPlugin: getRequestMeta: defaults to placeholder value", async (t) => {
-  const plugin = new HTTPPlugin(new NoOpLog(), compat);
+  const plugin = new HTTPPlugin(ctx);
   const { cf } = await plugin.getRequestMeta({} as any);
   t.like(cf, { colo: "DFW", country: "US", httpProtocol: "HTTP/1.1" });
 });
@@ -191,16 +195,14 @@ test("HTTPPlugin: setupCf: cf fetch disabled if explicitly disabled or cfProvide
 
   // Explicitly disable
   let plugin = new HTTPPlugin(
-    new NoOpLog(),
-    compat,
+    ctx,
     { cfFetch: false },
     { cfFetch: true, cfFetchEndpoint: upstream }
   );
   await plugin.setupCf();
   // Define cfProvider
   plugin = new HTTPPlugin(
-    new NoOpLog(),
-    compat,
+    ctx,
     { metaProvider: () => ({} as any) },
     { cfFetch: true, cfFetchEndpoint: upstream }
   );
@@ -215,8 +217,7 @@ test("HTTPPlugin: setupCf: cf fetch caches cf.json at default location", async (
   );
   const log = new TestLog();
   const plugin = new HTTPPlugin(
-    log,
-    compat,
+    { log, compat, rootPath },
     {},
     { cfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );
@@ -237,8 +238,7 @@ test("HTTPPlugin: setupCf: cf fetch caches cf.json at custom location", async (t
   );
   const log = new TestLog();
   const plugin = new HTTPPlugin(
-    log,
-    compat,
+    { log, compat, rootPath },
     { cfFetch: customCfPath },
     { cfPath: defaultCfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );
@@ -261,8 +261,7 @@ test("HTTPPlugin: setupCf: cf fetch reuses cf.json", async (t) => {
   });
   const log = new TestLog();
   const plugin = new HTTPPlugin(
-    log,
-    compat,
+    ctx,
     {},
     { cfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );
@@ -282,8 +281,7 @@ test("HTTPPlugin: setupCf: cf fetch refetches cf.json if stale", async (t) => {
   );
   const log = new TestLog();
   const plugin = new HTTPPlugin(
-    log,
-    compat,
+    { log, compat, rootPath },
     {},
     { cfPath, cfFetch: true, cfFetchEndpoint: upstream, clock }
   );
@@ -297,14 +295,14 @@ test("HTTPPlugin: setupCf: cf fetch refetches cf.json if stale", async (t) => {
 });
 
 test("HTTPPlugin: setupHttps: httpsOptions undefined if https disabled", async (t) => {
-  const plugin = new HTTPPlugin(new NoOpLog(), compat);
+  const plugin = new HTTPPlugin(ctx);
   await plugin.setupHttps();
   t.is(plugin.httpsOptions, undefined);
 });
 test("HTTPPlugin: setupHttps: prefers raw strings over paths", async (t) => {
   const tmp = await useTmp(t);
   const nonExistentPath = path.join(tmp, "bad.txt");
-  const plugin = new HTTPPlugin(new NoOpLog(), compat, {
+  const plugin = new HTTPPlugin(ctx, {
     httpsKey: "test_key",
     httpsKeyPath: nonExistentPath,
     httpsCert: "test_cert",
@@ -334,7 +332,7 @@ test("HTTPPlugin: setupHttps: reads all option file paths", async (t) => {
   await fs.writeFile(httpsCertPath, "test_cert", "utf8");
   await fs.writeFile(httpsCaPath, "test_ca", "utf8");
   await fs.writeFile(httpsPfxPath, "test_pfx", "utf8");
-  const plugin = new HTTPPlugin(new NoOpLog(), compat, {
+  const plugin = new HTTPPlugin(ctx, {
     httpsKeyPath,
     httpsCertPath,
     httpsCaPath,
@@ -355,7 +353,7 @@ test("HTTPPlugin: setupHttps: throws errors if cannot load option files path", a
   const httpsCertPath = path.join(tmp, "cert");
   const httpsCaPath = path.join(tmp, "ca");
   const httpsPfxPath = path.join(tmp, "pfx");
-  const plugin = new HTTPPlugin(new NoOpLog(), compat, {
+  const plugin = new HTTPPlugin(ctx, {
     httpsKeyPath,
     httpsCertPath,
     httpsCaPath,
@@ -375,8 +373,7 @@ test("HTTPPlugin: setupHttps: generates self-signed certificate at default locat
   const log = new TestLog();
   const tmp = await useTmp(t);
   const plugin = new HTTPPlugin(
-    log,
-    compat,
+    { log, compat, rootPath },
     { https: true },
     { certRoot: tmp }
   );
@@ -401,8 +398,7 @@ test("HTTPPlugin: setupHttps: generates self-signed certificate at custom locati
   const tmpDefault = await useTmp(t);
   const tmpCustom = await useTmp(t);
   const plugin = new HTTPPlugin(
-    log,
-    compat,
+    { log, compat, rootPath },
     { https: tmpCustom },
     { certRoot: tmpDefault }
   );
@@ -430,8 +426,7 @@ test("HTTPPlugin: setupHttps: reuses existing non-expired certificates", async (
   await fs.writeFile(path.join(tmp, "key.pem"), "existing_key", "utf8");
   await fs.writeFile(path.join(tmp, "cert.pem"), "existing_cert", "utf8");
   const plugin = new HTTPPlugin(
-    log,
-    compat,
+    { log, compat, rootPath },
     { https: true },
     { certRoot: tmp }
   );
@@ -453,8 +448,7 @@ test("HTTPPlugin: setupHttps: regenerates self-signed certificate if expired", a
   await fs.writeFile(path.join(tmp, "cert.pem"), "expired_cert", "utf8");
   const clock: Clock = () => Date.now() + 86400000 * 30; // now + 30 days
   const plugin = new HTTPPlugin(
-    log,
-    compat,
+    { log, compat, rootPath },
     { https: true },
     { certRoot: tmp, clock }
   );
@@ -482,8 +476,7 @@ test("HTTPPlugin: setup: sets up cf and https", async (t) => {
     res.end('{"colo": "LHR"}')
   );
   const plugin = new HTTPPlugin(
-    new NoOpLog(),
-    compat,
+    ctx,
     { cfFetch: true, https: true },
     { certRoot: tmp, cfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );

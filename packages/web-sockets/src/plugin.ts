@@ -4,7 +4,7 @@ import {
   Response,
   createCompatFetch,
 } from "@miniflare/core";
-import { Compatibility, Log, Plugin, SetupResult } from "@miniflare/shared";
+import { Plugin, PluginContext, SetupResult } from "@miniflare/shared";
 import { upgradingFetch } from "./fetch";
 import {
   CloseEvent,
@@ -21,9 +21,9 @@ export class WebSocketPlugin extends Plugin {
   #webSockets = new Set<WebSocket>();
   readonly #upgradingFetch: typeof upgradingFetch;
 
-  constructor(log: Log, compat: Compatibility) {
-    super(log, compat);
-    this.#upgradingFetch = createCompatFetch(compat, upgradingFetch);
+  constructor(ctx: PluginContext) {
+    super(ctx);
+    this.#upgradingFetch = createCompatFetch(ctx.compat, upgradingFetch);
   }
 
   setup(): SetupResult {

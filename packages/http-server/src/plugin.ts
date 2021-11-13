@@ -6,11 +6,10 @@ import { IncomingRequestCfProperties } from "@miniflare/core";
 import {
   Awaitable,
   Clock,
-  Compatibility,
-  Log,
   Option,
   OptionType,
   Plugin,
+  PluginContext,
   SetupResult,
   defaultClock,
 } from "@miniflare/shared";
@@ -233,12 +232,11 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
   #httpsOptions?: ProcessedHTTPSOptions;
 
   constructor(
-    log: Log,
-    compat: Compatibility,
+    ctx: PluginContext,
     options?: HTTPOptions,
     private readonly defaults: HTTPPluginDefaults = {}
   ) {
-    super(log, compat);
+    super(ctx);
     this.assignOptions(options);
 
     this.defaultCertRoot = defaults.certRoot ?? defaultCertRoot;
@@ -297,9 +295,9 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
       // Write cf so we can reuse it later
       await fs.mkdir(path.dirname(cfPath), { recursive: true });
       await fs.writeFile(cfPath, cfText, "utf8");
-      this.log.info("Updated Request cf object cache!");
+      this.ctx.log.info("Updated Request cf object cache!");
     } catch (e: any) {
-      this.log.error(e);
+      this.ctx.log.error(e);
     }
   }
 
@@ -327,7 +325,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
 
       // Generate self signed certificate if needed
       if (regenerate) {
-        this.log.info("Generating new self-signed certificate...");
+        this.ctx.log.info("Generating new self-signed certificate...");
         // selfsigned imports node-forge, which is a pretty big library.
         // To reduce startup time, only load this dynamically when needed.
         const selfSigned = await import("selfsigned");

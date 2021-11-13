@@ -1,13 +1,12 @@
 import { parseArgv } from "@miniflare/cli-parser";
 import {
   BeforeSetupResult,
-  Compatibility,
   Context,
   ExtractOptions,
-  Log,
   Option,
   OptionType,
   Plugin,
+  PluginContext,
   PluginSignature,
   SetupResult,
   StorageFactory,
@@ -110,19 +109,19 @@ export class TestPlugin extends Plugin<TestOptions> implements TestOptions {
   reloadModuleExports?: Context;
   reloadBindings?: Context;
 
-  constructor(log: Log, compat: Compatibility, options?: TestOptions) {
-    super(log, compat);
+  constructor(ctx: PluginContext, options?: TestOptions) {
+    super(ctx);
     this.constructedOptions = options;
     this.assignOptions(options);
   }
 
   beforeSetup(): BeforeSetupResult {
-    this.log.info("beforeSetup");
+    this.ctx.log.info("beforeSetup");
     return { watch: this.beforeSetupWatch };
   }
 
   setup(storageFactory: StorageFactory): SetupResult {
-    this.log.info("setup");
+    this.ctx.log.info("setup");
     return {
       globals: {
         // Test overriding a built-in, CorePlugin should be loaded first so
@@ -139,16 +138,16 @@ export class TestPlugin extends Plugin<TestOptions> implements TestOptions {
   }
 
   beforeReload(): void {
-    this.log.info("beforeReload");
+    this.ctx.log.info("beforeReload");
   }
 
   reload(moduleExports: Context, bindings: Context): void {
-    this.log.info("reload");
+    this.ctx.log.info("reload");
     this.reloadModuleExports = moduleExports;
     this.reloadBindings = bindings;
   }
 
   dispose(): void {
-    this.log.info("dispose");
+    this.ctx.log.info("dispose");
   }
 }

@@ -1,10 +1,9 @@
 import {
-  Compatibility,
-  Log,
   MiniflareError,
   Option,
   OptionType,
   Plugin,
+  PluginContext,
 } from "@miniflare/shared";
 import type { Cron } from "cron-schedule";
 
@@ -31,8 +30,8 @@ export class SchedulerPlugin
 
   #validatedCrons: Cron[] = [];
 
-  constructor(log: Log, compat: Compatibility, options?: SchedulerOptions) {
-    super(log, compat);
+  constructor(ctx: PluginContext, options?: SchedulerOptions) {
+    super(ctx);
     this.assignOptions(options);
   }
 

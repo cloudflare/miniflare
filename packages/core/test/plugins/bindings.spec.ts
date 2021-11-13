@@ -3,7 +3,7 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { BindingsPlugin } from "@miniflare/core";
-import { Compatibility, NoOpLog } from "@miniflare/shared";
+import { Compatibility, NoOpLog, PluginContext } from "@miniflare/shared";
 import {
   logPluginOptions,
   parsePluginArgv,
@@ -12,7 +12,10 @@ import {
 } from "@miniflare/shared-test";
 import test from "ava";
 
+const log = new NoOpLog();
 const compat = new Compatibility();
+const rootPath = process.cwd();
+const ctx: PluginContext = { log, compat, rootPath };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -80,8 +83,7 @@ test("BindingsPlugin: parses options from wrangler config", async (t) => {
   options = parsePluginWranglerConfig(BindingsPlugin, {
     vars: { KEY1: "value1", KEY2: "value2", KEY3: true, KEY4: 42 },
   });
-  const log = new NoOpLog();
-  const plugin = new BindingsPlugin(log, compat, options);
+  const plugin = new BindingsPlugin(ctx, options);
   const result = await plugin.setup();
   // Wrangler bindings should be stringified
   t.deepEqual(result.bindings, {
@@ -117,15 +119,12 @@ test("BindingsPlugin: logs options", (t) => {
 });
 
 test("BindingsPlugin: setup: loads .env bindings from default location", async (t) => {
-  const log = new NoOpLog();
   const tmp = await useTmp(t);
   const defaultEnvPath = path.join(tmp, ".env");
 
   let plugin = new BindingsPlugin(
-    log,
-    compat,
-    { envPath: true },
-    defaultEnvPath
+    { log, compat, rootPath: tmp },
+    { envPath: true }
   );
   // Shouldn't throw if file doesn't exist...
   let result = await plugin.setup();
@@ -146,22 +145,19 @@ test("BindingsPlugin: setup: loads .env bindings from default location", async (
   });
 
   // Check default .env only loaded when envPath set to true
-  plugin = new BindingsPlugin(log, compat, {}, defaultEnvPath);
+  plugin = new BindingsPlugin({ log, compat, rootPath: tmp }, {});
   result = await plugin.setup();
   t.deepEqual(result, { globals: undefined, bindings: {}, watch: [] });
 });
 test("BindingsPlugin: setup: loads .env bindings from custom location", async (t) => {
-  const log = new NoOpLog();
   const tmp = await useTmp(t);
-  const defaultEnvPath = path.join(tmp, ".env.default");
+  const defaultEnvPath = path.join(tmp, ".env");
   const customEnvPath = path.join(tmp, ".env.custom");
   await fs.writeFile(defaultEnvPath, "KEY=default");
 
   const plugin = new BindingsPlugin(
-    log,
-    compat,
-    { envPath: customEnvPath },
-    defaultEnvPath
+    { log, compat, rootPath: tmp },
+    { envPath: customEnvPath }
   );
   // Should throw if file doesn't exist
   await t.throwsAsync(plugin.setup(), {
@@ -179,16 +175,14 @@ test("BindingsPlugin: setup: loads .env bindings from custom location", async (t
   });
 });
 test("BindingsPlugin: setup: includes custom bindings", async (t) => {
-  const log = new NoOpLog();
   const obj = { a: 1 };
-  const plugin = new BindingsPlugin(log, compat, { bindings: { obj } });
+  const plugin = new BindingsPlugin(ctx, { bindings: { obj } });
   const result = await plugin.setup();
   t.is(result.bindings?.obj, obj);
   t.deepEqual(result.watch, []);
 });
 test("BindingsPlugin: setup: loads WebAssembly bindings", async (t) => {
-  const log = new NoOpLog();
-  const plugin = new BindingsPlugin(log, compat, {
+  const plugin = new BindingsPlugin(ctx, {
     wasmBindings: { ADD: addModulePath },
   });
   const result = await plugin.setup();
@@ -199,8 +193,6 @@ test("BindingsPlugin: setup: loads WebAssembly bindings", async (t) => {
   t.is(instance.exports.add(1, 2), 3);
 });
 test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
-  const log = new NoOpLog();
-
   // Bindings should be loaded in this order, from lowest to highest priority:
   // 1) Wrangler [vars]
   // 2) .env Variables
@@ -217,7 +209,7 @@ test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
   await fs.writeFile(envPath, "A=env\nB=env\nC=env");
 
   const obj = { ping: "pong" };
-  const plugin = new BindingsPlugin(log, compat, {
+  const plugin = new BindingsPlugin(ctx, {
     ...wranglerOptions,
     wasmBindings: {
       A: addModulePath,

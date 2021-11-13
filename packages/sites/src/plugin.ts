@@ -1,10 +1,9 @@
 import path from "path";
 import {
-  Compatibility,
-  Log,
   Option,
   OptionType,
   Plugin,
+  PluginContext,
   SetupResult,
   globsToMatcher,
 } from "@miniflare/shared";
@@ -45,8 +44,8 @@ export class SitesPlugin extends Plugin<SitesOptions> implements SitesOptions {
 
   readonly #setupResult: Promise<SetupResult>;
 
-  constructor(log: Log, compat: Compatibility, options?: SitesOptions) {
-    super(log, compat);
+  constructor(ctx: PluginContext, options?: SitesOptions) {
+    super(ctx);
     this.assignOptions(options);
 
     // setup() will be called each time a site file changes, but there's no need
