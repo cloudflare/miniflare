@@ -1,4 +1,10 @@
-import { CorePlugin, MiniflareCore, Request, Response } from "@miniflare/core";
+import {
+  CorePlugin,
+  MiniflareCore,
+  MiniflareCoreOptions,
+  Request,
+  Response,
+} from "@miniflare/core";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
   Awaitable,
@@ -15,7 +21,7 @@ const scriptRunner = new VMScriptRunner();
 
 export function useMiniflare<Plugins extends PluginSignatures>(
   extraPlugins: Plugins,
-  options: Options<{ CorePlugin: typeof CorePlugin } & Plugins>,
+  options: MiniflareCoreOptions<{ CorePlugin: typeof CorePlugin } & Plugins>,
   log: Log = new NoOpLog()
 ): MiniflareCore<{ CorePlugin: typeof CorePlugin } & Plugins> {
   return new MiniflareCore(

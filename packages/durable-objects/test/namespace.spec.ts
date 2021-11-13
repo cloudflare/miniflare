@@ -48,7 +48,7 @@ function getTestObjectNamespace(): [
     durableObjects: { TEST: "TestObject" },
   });
   plugin.beforeReload();
-  plugin.reload({ TestObject }, {});
+  plugin.reload({}, { TestObject }, {});
   return [plugin.getNamespace(factory, "TEST"), plugin, factory];
 }
 
@@ -99,7 +99,7 @@ test("DurableObjectState: blockConcurrencyWhile: prevents fetch events dispatch 
     }
   }
   plugin.beforeReload();
-  plugin.reload({ TestObject }, {});
+  plugin.reload({}, { TestObject }, {});
 
   const ns = plugin.getNamespace(factory, "TEST");
   const fetchPromise = ns.get(ns.newUniqueId()).fetch("http://localhost");
@@ -122,7 +122,7 @@ test("DurableObjectState: kFetch: waits for writes to be confirmed before return
     }
   }
   plugin.beforeReload();
-  plugin.reload({ TestObject }, {});
+  plugin.reload({}, { TestObject }, {});
 
   const ns = plugin.getNamespace(factory, "TEST");
   const id = ns.newUniqueId();
@@ -176,7 +176,7 @@ test("DurableObjectStub: fetch: throws with relative urls if compatibility flag 
     { durableObjects: { TEST: "TestObject" } }
   );
   plugin.beforeReload();
-  plugin.reload({ TestObject }, {});
+  plugin.reload({}, { TestObject }, {});
   const ns = plugin.getNamespace(factory, "TEST");
   const stub = ns.get(testId);
   await t.throwsAsync(stub.fetch("test"), {
@@ -206,7 +206,7 @@ test("DurableObjectStub: fetch: passes through web socket requests", async (t) =
     }
   }
   plugin.beforeReload();
-  plugin.reload({ TestObject }, {});
+  plugin.reload({}, { TestObject }, {});
 
   const ns = plugin.getNamespace(factory, "TEST");
   const res = await ns.get(testId).fetch("http://localhost");
@@ -228,7 +228,7 @@ test("DurableObjectStub: fetch: throws if handler doesn't return Response", asyn
     }
   }
   plugin.beforeReload();
-  plugin.reload({ TestObject }, {});
+  plugin.reload({}, { TestObject }, {});
 
   const ns = plugin.getNamespace(factory, "TEST");
   const stub = ns.get(testId);
@@ -411,7 +411,7 @@ function getExampleObjectStub(): DurableObjectStub {
     durableObjects: { EXAMPLE: "ExampleDurableObject" },
   });
   plugin.beforeReload();
-  plugin.reload({ ExampleDurableObject }, {});
+  plugin.reload({}, { ExampleDurableObject }, {});
   const ns = plugin.getNamespace(factory, "EXAMPLE");
   return ns.get(ns.newUniqueId());
 }
@@ -457,7 +457,7 @@ test("writes are coalesced", async (t) => {
     durableObjects: { EXAMPLE: "ExampleDurableObject" },
   });
   plugin.beforeReload();
-  plugin.reload({ ExampleDurableObject }, {});
+  plugin.reload({}, { ExampleDurableObject }, {});
   const ns = plugin.getNamespace(storageFactory, "EXAMPLE");
 
   const stub = ns.get(ns.newUniqueId());

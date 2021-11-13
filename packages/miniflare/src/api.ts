@@ -6,6 +6,7 @@ import {
   BuildPlugin,
   CorePlugin,
   MiniflareCore,
+  MiniflareCoreOptions,
 } from "@miniflare/core";
 import {
   DurableObjectId,
@@ -22,7 +23,7 @@ import {
   SchedulerPlugin,
   startScheduler,
 } from "@miniflare/scheduler";
-import { Log, NoOpLog, Options } from "@miniflare/shared";
+import { Log, NoOpLog } from "@miniflare/shared";
 import { SitesPlugin } from "@miniflare/sites";
 import { WebSocketPlugin } from "@miniflare/web-sockets";
 import sourceMap from "source-map-support";
@@ -52,7 +53,10 @@ export const PLUGINS = {
 
 export type Plugins = typeof PLUGINS;
 
-export type MiniflareOptions = Omit<Options<Plugins>, "debug" | "verbose"> & {
+export type MiniflareOptions = Omit<
+  MiniflareCoreOptions<Plugins>,
+  "debug" | "verbose"
+> & {
   log?: Log;
   sourceMap?: boolean;
 };

@@ -80,22 +80,6 @@ test("DurableObjectsPlugin: logs options", (t) => {
   ]);
 });
 
-test("DurableObjectsPlugin: for now, constructor throws if scriptName option used", (t) => {
-  t.throws(
-    () => {
-      new DurableObjectsPlugin(ctx, {
-        durableObjects: {
-          OBJECT: { className: "Object", scriptName: "other_script" },
-        },
-      });
-    },
-    {
-      instanceOf: Error,
-      message: "Durable Object scriptName is not yet supported",
-    }
-  );
-});
-
 test("DurableObjectsPlugin: getObject: waits for constructors and bindings", async (t) => {
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
@@ -105,7 +89,7 @@ test("DurableObjectsPlugin: getObject: waits for constructors and bindings", asy
   const promise = plugin.getObject(factory, testId);
   await setImmediate();
   t.is(factory.storages.size, 0);
-  plugin.reload({ TestObject }, {});
+  plugin.reload({}, { TestObject }, {});
   await promise;
   t.is(factory.storages.size, 1);
 });
@@ -119,7 +103,7 @@ test("DurableObjectsPlugin: getObject: object storage is namespaced by object na
     durableObjectsPersist: "map",
   });
   plugin.beforeReload();
-  plugin.reload({ TestObject }, {});
+  plugin.reload({}, { TestObject }, {});
   const state = await plugin.getObject(factory, testId);
   await state.storage.put("key", "value");
   t.true(map.has("key"));
@@ -130,7 +114,7 @@ test("DurableObjectsPlugin: getObject: reuses single instance of object", async 
     durableObjects: { TEST: "TestObject" },
   });
   plugin.beforeReload();
-  plugin.reload({ TestObject }, {});
+  plugin.reload({}, { TestObject }, {});
   const [object1, object2] = await Promise.all([
     plugin.getObject(factory, testId),
     plugin.getObject(factory, testId),
@@ -144,7 +128,7 @@ test("DurableObjectsPlugin: getNamespace: creates namespace for object, creating
     durableObjects: { TEST: "TestObject" },
   });
   plugin.beforeReload();
-  plugin.reload({ TestObject }, { KEY: "value" });
+  plugin.reload({ KEY: "value" }, { TestObject }, {});
   const ns = plugin.getNamespace(factory, "TEST");
   const res = await ns.get(testId).fetch("http://localhost/");
   t.is(await res.text(), `${testId.toString()}:request1:GET:http://localhost/`);
@@ -152,13 +136,24 @@ test("DurableObjectsPlugin: getNamespace: creates namespace for object, creating
   t.is(await state.storage.get("id"), testId.toString());
   t.deepEqual(await state.storage.get("env"), { KEY: "value" });
 });
+test("DurableObjectsPlugin: getNamespace: creates namespace for object in mounted script", async (t) => {
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: { className: "TestObject", scriptName: "test" } },
+  });
+  plugin.beforeReload();
+  plugin.reload({}, {}, { test: { TestObject } });
+  const ns = plugin.getNamespace(factory, "TEST");
+  const res = await ns.get(testId).fetch("http://localhost/");
+  t.is(await res.text(), `${testId.toString()}:request1:GET:http://localhost/`);
+});
 test("DurableObjectsPlugin: getNamespace: reuses single instance of object", async (t) => {
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
   plugin.beforeReload();
-  plugin.reload({ TestObject }, { KEY: "value" });
+  plugin.reload({ KEY: "value" }, { TestObject }, {});
   const ns = plugin.getNamespace(factory, "TEST");
   const [res1, res2] = await Promise.all([
     ns.get(testId).fetch("http://localhost:8787/instance"),
@@ -181,7 +176,7 @@ test("DurableObjectsPlugin: setup: includes namespaces for all objects", async (
 
   const result = plugin.setup(factory);
   plugin.beforeReload();
-  plugin.reload({ Object1, Object2 }, {});
+  plugin.reload({}, { Object1, Object2 }, {});
 
   const ns1: DurableObjectNamespace = result.bindings?.OBJECT1;
   const ns2: DurableObjectNamespace = result.bindings?.OBJECT2;
@@ -197,12 +192,12 @@ test("DurableObjectsPlugin: beforeReload: deletes all instances", async (t) => {
     durableObjects: { TEST: "TestObject" },
   });
   plugin.beforeReload();
-  plugin.reload({ TestObject }, {});
+  plugin.reload({}, { TestObject }, {});
   let ns = plugin.getNamespace(factory, "TEST");
   const res1 = await ns.get(testId).fetch("http://localhost:8787/instance");
 
   plugin.beforeReload();
-  plugin.reload({ TestObject }, {});
+  plugin.reload({}, { TestObject }, {});
   ns = plugin.getNamespace(factory, "TEST");
   const res2 = await ns.get(testId).fetch("http://localhost:8787/instance");
 
@@ -214,10 +209,31 @@ test("DurableObjectsPlugin: reload: throws if object constructor cannot be found
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
-  t.throws(() => plugin.reload({}, {}), {
+  t.throws(() => plugin.reload({}, {}, {}), {
     instanceOf: DurableObjectError,
     code: "ERR_CLASS_NOT_FOUND",
     message: "Class TestObject for Durable Object TEST not found",
+  });
+});
+test("DurableObjectPlugin: reload: throws if script cannot be found in mounts", (t) => {
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: { className: "TestObject", scriptName: "test" } },
+  });
+  t.throws(() => plugin.reload({}, {}, {}), {
+    instanceOf: DurableObjectError,
+    code: "ERR_SCRIPT_NOT_FOUND",
+    message: "Script test for Durable Object TEST not found",
+  });
+});
+test("DurableObjectsPlugin: reload: throws if object constructor cannot be found in mount exports", (t) => {
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: { className: "TestObject", scriptName: "test" } },
+  });
+  t.throws(() => plugin.reload({}, {}, { test: {} }), {
+    instanceOf: DurableObjectError,
+    code: "ERR_CLASS_NOT_FOUND",
+    message:
+      "Class TestObject in script test for Durable Object TEST not found",
   });
 });
 
@@ -227,12 +243,12 @@ test("DurableObjectsPlugin: dispose: deletes all instances", async (t) => {
     durableObjects: { TEST: "TestObject" },
   });
   plugin.beforeReload();
-  plugin.reload({ TestObject }, {});
+  plugin.reload({}, { TestObject }, {});
   let ns = plugin.getNamespace(factory, "TEST");
   const res1 = await ns.get(testId).fetch("http://localhost:8787/instance");
 
   plugin.dispose();
-  plugin.reload({ TestObject }, {});
+  plugin.reload({}, { TestObject }, {});
   ns = plugin.getNamespace(factory, "TEST");
   const res2 = await ns.get(testId).fetch("http://localhost:8787/instance");
 

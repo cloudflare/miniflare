@@ -59,6 +59,7 @@ export interface WranglerEnvironmentConfig {
         };
     live_reload?: boolean;
     update_check?: boolean;
+    mounts?: Record<string, string>;
   }; // inherited
 }
 

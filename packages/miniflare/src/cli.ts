@@ -80,7 +80,7 @@ async function main() {
     : options?.debug
     ? LogLevel.DEBUG
     : LogLevel.INFO;
-  const mfOptions: MiniflareOptions = options;
+  const mfOptions = options as MiniflareOptions;
   mfOptions.log = new Log(logLevel);
   mfOptions.sourceMap = true;
   const mf = new Miniflare(mfOptions);
@@ -90,6 +90,7 @@ async function main() {
     await mf.startScheduler();
   } catch (e: any) {
     mf.log.error(e);
+    if (e.cause) mf.log.error(e.cause);
     process.exitCode = 1;
     return;
   }

@@ -37,6 +37,7 @@ interface ProcessedDurableObject {
 }
 
 export type DurableObjectErrorCode =
+  | "ERR_SCRIPT_NOT_FOUND" // Missing mounted script for object
   | "ERR_CLASS_NOT_FOUND" // Missing constructor for object
   | "ERR_RESPONSE_TYPE"; // Fetch handler returned non-Response object;
 
@@ -92,9 +93,6 @@ export class DurableObjectsPlugin
           typeof options === "object" ? options.className : options;
         const scriptName =
           typeof options === "object" ? options.scriptName : undefined;
-        if (scriptName !== undefined) {
-          throw new Error("Durable Object scriptName is not yet supported");
-        }
         return { name, className, scriptName };
       }
     );
@@ -159,7 +157,6 @@ export class DurableObjectsPlugin
   setup(storageFactory: StorageFactory): SetupResult {
     const bindings: Context = {};
     for (const { name } of this.#processedObjects) {
-      // TODO: get namespace from scriptName instance, maybe watch it?
       bindings[name] = this.getNamespace(storageFactory, name);
     }
     return {
@@ -176,17 +173,35 @@ export class DurableObjectsPlugin
     );
   }
 
-  reload(moduleExports: Context, bindings: Context): void {
+  reload(
+    bindings: Context,
+    moduleExports: Context,
+    mountedModuleExports: Record<string, Context>
+  ): void {
     this.#constructors.clear();
     for (const { name, className, scriptName } of this.#processedObjects) {
-      assert(scriptName === undefined);
-      const constructor = moduleExports[className];
+      // Find constructor from main module exports or another scripts'
+      let constructor;
+      if (scriptName === undefined) {
+        constructor = moduleExports[className];
+      } else {
+        const scriptExports = mountedModuleExports[scriptName];
+        if (!scriptExports) {
+          throw new DurableObjectError(
+            "ERR_SCRIPT_NOT_FOUND",
+            `Script ${scriptName} for Durable Object ${name} not found`
+          );
+        }
+        constructor = scriptExports[className];
+      }
+
       if (constructor) {
         this.#constructors.set(name, constructor);
       } else {
+        const script = scriptName ? ` in script ${scriptName}` : "";
         throw new DurableObjectError(
           "ERR_CLASS_NOT_FOUND",
-          `Class ${className} for Durable Object ${name} not found`
+          `Class ${className}${script} for Durable Object ${name} not found`
         );
       }
     }

@@ -42,7 +42,7 @@ function dimInternalStackLine(line: string): string {
 }
 
 export class Log {
-  constructor(protected readonly level = LogLevel.INFO) {}
+  constructor(readonly level = LogLevel.INFO, readonly suffix?: string) {}
 
   log(message: string): void {
     console.log(message);
@@ -50,7 +50,13 @@ export class Log {
 
   logWithLevel(level: LogLevel, message: string): void {
     if (level <= this.level) {
-      this.log(LEVEL_COLOUR[level](`[mf:${LEVEL_PREFIX[level]}] ${message}`));
+      this.log(
+        LEVEL_COLOUR[level](
+          `[mf:${LEVEL_PREFIX[level]}${
+            this.suffix ? `:${this.suffix}` : ""
+          }] ${message}`
+        )
+      );
     }
   }
 

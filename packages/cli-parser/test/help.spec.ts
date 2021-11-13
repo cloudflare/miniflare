@@ -32,8 +32,6 @@ test("buildHelp: generates correctly formatted help text", (t) => {
 Core Options:
  -h, --help                  Show help                                 [boolean]
  -v, --version               Show version number                       [boolean]
-     --root                  Path to resolve default config files       [string]
-                             relative to
  -c, --wrangler-config       Path to wrangler.toml                      [string]
      --wrangler-env          Environment in wrangler.toml to use        [string]
      --package               Path to package.json                       [string]
@@ -49,6 +47,9 @@ Core Options:
  -V, --verbose               Enable verbose logging                    [boolean]
      --(no-)update-check     Enable update checker (enabled by         [boolean]
                              default)
+     --root                  Path to resolve default config files       [string]
+                             relative to
+     --mount                 Mount additional named workers    [array:NAME=PATH]
 
 Test Options:
  -b, --boolean-option        Boolean option                            [boolean]
