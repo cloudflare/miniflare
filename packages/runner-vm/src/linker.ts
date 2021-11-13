@@ -101,6 +101,7 @@ export class ModuleLinker {
         const exports = this.loadCommonJSModule(
           errorBase,
           identifier,
+          spec,
           referencing.context
         );
         module = new vm.SyntheticModule<{ default: Context }>(
@@ -151,12 +152,23 @@ export class ModuleLinker {
   private loadCommonJSModule(
     errorBase: string,
     identifier: string,
+    spec: string,
     context: vm.Context
   ): any {
     // If we've already seen a module with the same identifier, return it, to
     // handle import cycles
     const cached = this.#cjsModuleCache.get(identifier);
     if (cached) return cached.exports;
+
+    const additionalModule = this.additionalModules[spec];
+    const module: CommonJSModule = { exports: {} };
+
+    // If this is an additional module, return it immediately
+    if (additionalModule) {
+      module.exports.default = additionalModule.default;
+      this.#cjsModuleCache.set(identifier, module);
+      return module.exports;
+    }
 
     // Find first matching module rule ("ignore" requires relative paths)
     const relativeIdentifier = path.relative("", identifier);
@@ -170,9 +182,8 @@ export class ModuleLinker {
       );
     }
 
-    // Create module and store in cache now as require is sync, so may load
-    // this module again before this function returns
-    const module: CommonJSModule = { exports: {} };
+    // Store in cache now as require is sync, so may load this module again
+    // before this function returns
     this.#cjsModuleCache.set(identifier, module);
 
     // Load module based on rule type
@@ -221,7 +232,7 @@ export class ModuleLinker {
       const errorBase = `Unable to resolve "${relative}" dependency "${spec}"`;
       // Get path to specified module relative to referencing module
       const identifier = path.resolve(referencingDirname, spec);
-      return this.loadCommonJSModule(errorBase, identifier, context);
+      return this.loadCommonJSModule(errorBase, identifier, spec, context);
     };
   }
 }

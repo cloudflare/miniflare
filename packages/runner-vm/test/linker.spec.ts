@@ -207,6 +207,18 @@ test("ModuleLinker: stack trace references correct line for CommonJS modules", a
     t.regex(e.stack, /cjserror\.cjs:2:9/);
   }
 });
+test("ModuleLinker: links additional module via CommonJS module", async (t) => {
+  const callback = (defaultExport: string) => {
+    t.is(defaultExport, "CommonJS test");
+  };
+  const additionalModules = { ADDITIONAL: { default: "test" } };
+  await runner.run(
+    { callback },
+    { code: 'import s from "./cjsadditional.cjs"; callback(s);', filePath },
+    processedModuleRules,
+    additionalModules
+  );
+});
 
 const sizePath = path.join(fixturesPath, "size");
 const sizeEntryPath = path.join(sizePath, "entry.mjs");
