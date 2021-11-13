@@ -102,10 +102,12 @@ function request(
 }
 
 test("convertNodeRequest: uses request url, with upstream or host as base", async (t) => {
-  let [, url] = await buildConvertNodeRequest(t, {
+  // eslint-disable-next-line prefer-const
+  let [request, url] = await buildConvertNodeRequest(t, {
     path: "/test",
     upstream: "http://upstream.com",
   });
+  t.is(request.headers.get("host"), "upstream.com");
   t.is(url.toString(), "http://upstream.com/test");
 
   [, url] = await buildConvertNodeRequest(t, { path: "/test" });

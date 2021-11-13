@@ -87,6 +87,9 @@ export async function convertNodeRequest(
   req.headers["cf-ray"] ??= randomHex(16);
   req.headers["cf-visitor"] ??= `{"scheme":"${proto}"}`;
 
+  // Make sure we're using the correct host header (with custom upstream)
+  req.headers["host"] = url.host;
+
   // Build Headers object from request
   const headers = new Headers();
   for (const [name, values] of Object.entries(req.headers)) {
