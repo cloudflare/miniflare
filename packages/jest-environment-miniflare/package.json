@@ -1,5 +1,4 @@
 {
-  "private": true,
   "name": "jest-environment-miniflare",
   "version": "2.0.0-rc.1",
   "description": "Jest testing module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
