@@ -55,11 +55,11 @@ const mf = new Miniflare({
   wranglerConfigPath: true,
 });
 ```
-:::
-<!--prettier-ignore-end-->
 
 Note that options specified in the constructor have higher priority than those
 in `wrangler.toml`.
+:::
+<!--prettier-ignore-end-->
 
 ### String and File Scripts
 
@@ -91,7 +91,7 @@ You must also `dispose` if you're persisting KV, cache, or Durable Object data
 in Redis to close opened connections.
 
 You can also manually reload scripts (main and Durable Objects') and options
-(`.env`, `package.json` and `wrangler.toml`) too with `reload`:
+(`.env`, `package.json` and `wrangler.toml`) with `reload`:
 
 ```js
 const mf = new Miniflare({ ... });
@@ -128,7 +128,8 @@ await mf.setOptions({
 
 You can also access the global scope of the sandbox directly using the
 `getGlobalScope` method. Ideally, use should use the `setOptions` method when
-updating the environment dynamically though:
+updating the environment dynamically, as Miniflare creates a new global scope
+each reload, so your changes will be lost:
 
 ```js
 const mf = new Miniflare({
@@ -302,11 +303,10 @@ await scheduler.dispose();
 
 By default, `[mf:*]` logs as seen in the CLI are disabled when using the API. To
 enable these, set the `log` property to an instance of the `Log` class. Its only
-parameter is the log level indicating which messages should be logged:
+parameter is a log level indicating which messages should be logged:
 
 ```js{5}
-import { Log, LogLevel } from "@miniflare/shared";
-import { Miniflare } from "miniflare";
+import { Miniflare, Log, LogLevel } from "miniflare";
 
 const mf = new Miniflare({
   scriptPath: "worker.js",

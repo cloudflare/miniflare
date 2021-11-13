@@ -1,5 +1,64 @@
 # 🚧 Changelog
 
+## 2.0.0-rc.1
+
+### Breaking Changes
+
+- Changed the priority of bindings, so it matches Miniflare 1. The new order
+  (from lowest to highest priority) is:
+  1. Variables from `wrangler.toml` `[vars]`
+  2. Variables from `.env` files
+  3. WASM module bindings (`--wasm`, `[wasm_modules]`)
+  4. Custom bindings
+- The result of `dispatchScheduled` will no longer include `undefined` if a
+  module scheduled handler doesn't return a value
+
+### Features
+
+- Added a **custom Jest test environment for Miniflare**. This allows you to
+  **run unit tests in the Miniflare sandbox**, with **isolated storage** for
+  each test. Install the `jest-environment-miniflare` to get started and see
+  [🤹 Jest Environment](https://v2.miniflare.dev/jest.html) for more details.
+- Added support for **running multiple workers** in the same Miniflare instance.
+  See [🔌 Multiple Workers](https://v2.miniflare.dev/mount.html) for more
+  details.
+- Added support for the Durable Object `script_name` option. See
+  [📌 Durable Objects](https://v2.miniflare.dev/durable-objects.html#using-a-class-exported-by-another-script)
+  for more details.
+- Added support for the new `__STATIC_CONTENT_MANIFEST` text module for using
+  Workers Sites in modules mode
+- Throw an error when a Durable Object `fetch` handler doesn't return a
+  `Response`
+- Added `queueMicrotask` to the sandbox
+- Added the `Miniflare#getCaches` method for accessing the global `caches`
+  outside workers
+- Added back the `sourceMap` option to `Miniflare`
+- Changed the default location for the `update-check` and `cf.json` files to
+  inside `node_modules`
+- Switched the CRON validation and scheduling package from
+  [`node-cron`](https://www.npmjs.com/package/node-cron) to
+  [`cron-schedule`](https://www.npmjs.com/package/cron-schedule). This improves
+  error messages for invalid CRON expressions, and removes a transitive
+  dependency on `moment-timezone`, reducing the installation size by a further
+  5MB.
+
+### Fixes
+
+- Allow any close code when a client closes a WebSocket connection. Closes
+  [issue #86](https://github.com/cloudflare/miniflare/issues/86), thanks
+  [@TimTinkers](https://github.com/TimTinkers).
+- Wait for worker response before opening WebSocket in client, closes
+  [issue #88](https://github.com/cloudflare/miniflare/issues/88), thanks
+  [@TimTinkers](https://github.com/TimTinkers).
+- Pass the `--env` flag to `wrangler build` when `--wrangler-env` is set for
+  `type = "webpack"`/`"rust"` builds
+- Set correct `Host` header with `--upstream` flag set
+- Fixed memory leak in `HTMLRewriter` when passing non-`ArrayBuffer(View)`
+  chunks
+- Marked `@miniflare/core` and `@miniflare/storage-memory` as `dependencies` of
+  `@miniflare/durable-objects`
+- Removed `ServiceWorkerGlobalScope#dispose()` from global scope
+
 ## 2.0.0-next.3
 
 ### Fixes
@@ -121,8 +180,7 @@ The docs will be updated over the next few weeks.
   much information is logged to the console:
 
   ```js
-  import { Miniflare } from "miniflare";
-  import { Log, LogLevel } from "@miniflare/shared";
+  import { Miniflare, Log, LogLevel } from "miniflare";
 
   const mf = new Miniflare({
     log: new Log(LogLevel.DEBUG),
@@ -150,6 +208,8 @@ The docs will be updated over the next few weeks.
   MODULE2 = "module2.wasm"
   ```
 
+- Renamed the `buildWatchPath` option to `buildWatchPaths`. This is now an array
+  of string paths to watch as opposed to a single string.
 - Replaced the `Miniflare#reloadOptions()` method with the `Miniflare#reload()`
   and `Miniflare#setOptions({ ... })` methods. `reload()` will reload options
   from `wrangler.toml` (useful if not watching), and `setOptions()` accepts the

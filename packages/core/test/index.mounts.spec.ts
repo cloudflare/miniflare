@@ -82,8 +82,8 @@ test("MiniflareCore: #init: throws when attempting to mount recursively", async 
   );
   await t.throwsAsync(mf.getPlugins(), {
     instanceOf: MiniflareCoreError,
-    code: "ERR_MOUNT_RECURSIVE",
-    message: "Recursive mounts are unsupported",
+    code: "ERR_MOUNT_NESTED",
+    message: "Nested mounts are unsupported",
   });
 });
 test("MiniflareCore: #init: updates existing mount options", async (t) => {

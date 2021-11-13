@@ -110,6 +110,14 @@ load a different `wrangler.toml` file, use the `--wrangler-config`/`-c` flag:
 $ miniflare worker.js --wrangler-config wrangler.other.toml
 ```
 
+To change the directory these default files are resolved relative to, use the
+`--root` flag:
+
+```shell
+$ miniflare api/worker.js --root api
+# Miniflare will look for api/.env, api/package.json and api/wrangler.toml
+```
+
 ### Script Requirement
 
 The only required option is the script to run. This can either be passed as a
@@ -159,8 +167,8 @@ $ miniflare worker.js --https ./cert_cache # Cache in ./cert_cache instead
 ```
 
 To use an existing certificate instead, use the `--https-key`, `--https-cert`,
-`--https-ca` and `--https-pfx` to set the paths to it. If these are encrypted,
-use the `--https-passphrase` flag to set the passphrase:
+`--https-ca` and `--https-pfx` flags to set the paths to it. If these are
+encrypted, use the `--https-passphrase` flag to set the passphrase:
 
 ```shell
 $ miniflare worker.js --https-key ./key.pem --https-cert ./cert.pem
@@ -196,6 +204,9 @@ Core Options:
  -d, --debug             Enable debug logging                          [boolean]
  -V, --verbose           Enable verbose logging                        [boolean]
      --(no-)update-check Enable update checker (enabled by default)    [boolean]
+     --root              Path to resolve default config files relative  [string]
+                         to
+     --mount             Mount additional named workers        [array:NAME=PATH]
 
 HTTP Options:
  -H, --host              Host for HTTP(S) server to listen on           [string]
@@ -316,4 +327,6 @@ pfx = "./pfx.pfx"                  ## --https-pfx
 passphrase = "pfx passphrase"      ## --https-passphrase
 [miniflare.globals]                ## --global
 KEY = "value"
+[miniflare.mounts]                 ## --mount
+api = "./api"
 ```

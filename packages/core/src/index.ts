@@ -92,7 +92,7 @@ export type MiniflareCoreOptions<Plugins extends CorePluginSignatures> = Omit<
 export type MiniflareCoreErrorCode =
   | "ERR_NO_SCRIPT" // No script specified but one was required
   | "ERR_MOUNT_NO_NAME" // Attempted to mount a worker with an empty string name
-  | "ERR_MOUNT_RECURSIVE" // Attempted to recursively mount workers
+  | "ERR_MOUNT_NESTED" // Attempted to recursively mount workers
   | "ERR_MOUNT"; // Error whilst mounting worker
 
 export class MiniflareCoreError extends MiniflareError<MiniflareCoreErrorCode> {}
@@ -460,8 +460,8 @@ export class MiniflareCore<
 
         if ("mounts" in options) {
           throw new MiniflareCoreError(
-            "ERR_MOUNT_RECURSIVE",
-            "Recursive mounts are unsupported"
+            "ERR_MOUNT_NESTED",
+            "Nested mounts are unsupported"
           );
         }
 

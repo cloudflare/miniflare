@@ -29,8 +29,8 @@ goals:
    testing.
 2. ✨ **Lightweight:** Miniflare 1 included
    [122 third-party packages](http://npm.anvaka.com/#/view/2d/miniflare) with a
-   total install size of `88.3MB`. Miniflare 2 reduces this to **24 packages and
-   `11.5MB`** 🤯. This can probably be reduced further too.
+   total install size of `88.3MB`. Miniflare 2 reduces this to **23 packages and
+   `6.2MB`** 🤯.
 3. ✅ **Correct:** Miniflare 2 more accurately replicates the quirks and thrown
    errors of the real Workers runtime, so you'll know before you deploy if
    things are going to break.
@@ -114,6 +114,8 @@ Core Options:
  -d, --debug             Enable debug logging                                        [boolean]
  -V, --verbose           Enable verbose logging                                      [boolean]
      --(no-)update-check Enable update checker (enabled by default)                  [boolean]
+     --root              Path to resolve default config files relative to             [string]
+     --mount             Mount additional named workers                      [array:NAME=PATH]
 
 HTTP Options:
  -H, --host              Host for HTTP(S) server to listen on                         [string]
