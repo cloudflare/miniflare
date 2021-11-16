@@ -1,7 +1,9 @@
 # ⚡️ Developing with esbuild
 
 We'll now set up a worker development environment using Miniflare and
-[esbuild](https://esbuild.github.io/): an extremely fast JavaScript bundler.
+[esbuild](https://esbuild.github.io/): an extremely fast JavaScript bundler. See
+[this repository](https://github.com/mrbbot/miniflare-esbuild-ava) for a
+complete example.
 
 ## Dependencies
 

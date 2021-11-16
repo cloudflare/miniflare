@@ -1,7 +1,9 @@
 # 🚀 Testing with AVA
 
 We'll now add tests with [AVA](https://github.com/avajs/ava) to our
-[previous esbuild example](./esbuild.html).
+[previous esbuild example](./esbuild.html). See
+[this repository](https://github.com/mrbbot/miniflare-esbuild-ava) for a
+complete example.
 
 ## Dependencies
 
