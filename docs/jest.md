@@ -1,7 +1,9 @@
 # 🤹 Jest Environment
 
 Miniflare includes a custom Jest environment that allows you to run your unit
-tests within the Miniflare sandbox. Note that at least Jest 27 is required.
+tests within the Miniflare sandbox. Note that Jest 27 is required. See
+[this repository](https://github.com/mrbbot/miniflare-typescript-esbuild-jest)
+for an example using TypeScript.
 
 ## Setup
 
@@ -36,7 +38,7 @@ export default {
 ## Writing and Running Tests
 
 The Miniflare environment lets us import our worker's functions with regular
-`import` syntax. We can write a test the following worker like so:
+`import` syntax. We can write a test for the following worker like so:
 
 ```js
 // src/index.js
