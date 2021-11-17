@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { CachePlugin } from "@miniflare/cache";
 import {
   BindingsPlugin,
   CorePlugin,
@@ -8,15 +9,16 @@ import {
   ReloadEvent,
 } from "@miniflare/core";
 import { DurableObjectsPlugin } from "@miniflare/durable-objects";
+import { KVPlugin } from "@miniflare/kv";
 import { VMScriptRunner } from "@miniflare/runner-vm";
-import { LogLevel, NoOpLog } from "@miniflare/shared";
+import { LogLevel, NoOpLog, StoredValueMeta } from "@miniflare/shared";
 import {
   MemoryStorageFactory,
   TestLog,
   TestPlugin,
-  triggerPromise,
   useMiniflare,
   useTmp,
+  waitForReload,
 } from "@miniflare/shared-test";
 import test from "ava";
 
@@ -48,12 +50,92 @@ test("MiniflareCore: #init: mounts string-optioned mounts", async (t) => {
   t.is(await res.text(), "mounted:value");
 
   // Check mounted worker files watched
-  const [reloadTrigger, reloadPromise] = triggerPromise<unknown>();
-  mf.addEventListener("reload", reloadTrigger, { once: true });
+  const reloadPromise = waitForReload(mf);
   await fs.writeFile(envPath, "KEY=value2");
   await reloadPromise;
   res = await mf.dispatchFetch("http://localhost/tmp");
   t.is(await res.text(), "mounted:value2");
+});
+test("MiniflareCore: #init: string-optioned mounts share storage persistence options", async (t) => {
+  const tmp = await useTmp(t);
+  const scriptPath = path.join(tmp, "worker.js");
+  const packagePath = path.join(tmp, "package.json");
+  const wranglerConfigPath = path.join(tmp, "wrangler.toml");
+  await fs.writeFile(
+    scriptPath,
+    `
+export class TestObject {
+  constructor(state) {
+    this.storage = state.storage;
+  }
+  async fetch() {
+    await this.storage.put("key", "value");
+    return new Response();
+  }
+}
+
+export default {
+  async fetch(request, env) {
+    const { TEST_NAMESPACE, TEST_OBJECT } = env;
+    
+    await TEST_NAMESPACE.put("key", "value");
+    
+    await caches.default.put("http://localhost/", new Response("body", {
+      headers: { "Cache-Control": "max-age=3600" }
+    }));
+
+    const id = TEST_OBJECT.idFromName("test");
+    const stub = TEST_OBJECT.get(id);
+    await stub.fetch("http://localhost/");
+  
+    return new Response();
+  }
+}`
+  );
+  await fs.writeFile(packagePath, '{ "module": "worker.js" }');
+  await fs.writeFile(
+    wranglerConfigPath,
+    `
+kv_namespaces = [
+  { binding = "TEST_NAMESPACE" }
+]
+    
+[durable_objects]
+bindings = [
+  { name = "TEST_OBJECT", class_name = "TestObject" },
+]
+    
+[build.upload]
+format = "modules"`
+  );
+
+  const kvMap = new Map<string, StoredValueMeta>();
+  const cacheMap = new Map<string, StoredValueMeta>();
+  const durableObjectsMap = new Map<string, StoredValueMeta>();
+  const storageFactory = new MemoryStorageFactory({
+    "kv-persist:TEST_NAMESPACE": kvMap,
+    "cache-persist:default": cacheMap,
+    "durable-objects-persist:TEST_OBJECT:8f9973e23d7d465bb827b1ded10ae3e3d1e9b25f9e0763ab8ced46632d58ff07":
+      durableObjectsMap,
+  });
+  const mf = useMiniflare(
+    { KVPlugin, CachePlugin, DurableObjectsPlugin },
+    {
+      watch: true,
+      kvPersist: "kv-persist",
+      cachePersist: "cache-persist",
+      durableObjectsPersist: "durable-objects-persist",
+      mounts: { tmp },
+    },
+    new NoOpLog(),
+    storageFactory
+  );
+  await mf.dispatchFetch("http://localhost/tmp");
+
+  // Check data stored in persist maps
+  t.is(kvMap.size, 1);
+  t.is(cacheMap.size, 1);
+  t.is(durableObjectsMap.size, 1);
 });
 test("MiniflareCore: #init: mounts object-optioned mounts", async (t) => {
   const mf = useMiniflare(
@@ -272,8 +354,7 @@ test("MiniflareCore: reloads Durable Object classes used by parent when mounted 
   t.is(await res.text(), "1");
 
   // Update Durable Object script and check constructors in parent updated too
-  const [reloadTrigger, reloadPromise] = triggerPromise<unknown>();
-  mf.addEventListener("reload", reloadTrigger, { once: true });
+  const reloadPromise = waitForReload(mf);
   const mount = await mf.getMount("test");
   await mount.setOptions({ script: durableObjectScript("2") });
   await reloadPromise;

@@ -38,6 +38,7 @@ import {
   useTmp,
   utf8Decode,
   utf8Encode,
+  waitForReload,
 } from "@miniflare/shared-test";
 import test, { Macro } from "ava";
 import { Request as BaseRequest, File, FormData } from "undici";
@@ -47,12 +48,6 @@ const storageFactory = new MemoryStorageFactory();
 const scriptRunner = new VMScriptRunner();
 
 const relative = (p: string) => path.relative("", p);
-
-function waitForReload(mf: MiniflareCore<any>): Promise<unknown> {
-  const [reloadTrigger, reloadPromise] = triggerPromise<unknown>();
-  mf.addEventListener("reload", reloadTrigger, { once: true });
-  return reloadPromise;
-}
 
 test("_deepEqual: checks top-level symbol property equality", (t) => {
   const a = Symbol("a");
