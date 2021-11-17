@@ -2,6 +2,7 @@ import assert from "assert";
 import { setTimeout } from "timers/promises";
 import { serialize } from "v8";
 import {
+  DurableObjectError,
   DurableObjectListOptions,
   DurableObjectStorage,
   DurableObjectTransaction,
@@ -18,6 +19,7 @@ import {
   RecorderStorage,
   getObjectProperties,
   triggerPromise,
+  utf8Encode,
 } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
 import anyTest, {
@@ -167,6 +169,19 @@ test("get: returns map with non-existent keys omitted", async (t) => {
     ["key3", "value3"],
   ]);
   t.deepEqual(await storage.get(["key1", "key2", "key3"]), expected);
+});
+test("get: throws with helpful error when deserialization fails", async (t) => {
+  const { backing, storage } = t.context;
+  await backing.put("key", { value: utf8Encode("bad") });
+  const expectations: ThrowsExpectation = {
+    instanceOf: DurableObjectError,
+    code: "ERR_DESERIALIZATION",
+    message:
+      "Unable to deserialize stored Durable Object data due to an invalid or unsupported version.\n" +
+      "The Durable Object data storage format changed in Miniflare 2. You cannot load Durable Object data created with Miniflare 1 and must delete it.",
+  };
+  await t.throwsAsync(storage.get("key"), expectations);
+  await t.throwsAsync(storage.get(["key"]), expectations);
 });
 test("transaction: get: gets uncommitted values", async (t) => {
   t.plan(5);

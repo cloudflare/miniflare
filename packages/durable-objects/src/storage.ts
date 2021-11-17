@@ -8,6 +8,7 @@ import {
   viewToArray,
   waitUntilOnOutputGate,
 } from "@miniflare/shared";
+import { DurableObjectError } from "./error";
 import { ReadWriteMutex } from "./rwmutex";
 import { ShadowStorage } from "./shadow";
 
@@ -92,6 +93,21 @@ function assertValueSize(value: Buffer, key?: string) {
   throw new RangeError(`Values cannot be larger than ${MAX_VALUE_SIZE} bytes.`);
 }
 
+function helpfulDeserialize(buffer: NodeJS.TypedArray): any {
+  try {
+    return deserialize(buffer);
+  } catch (e: any) {
+    throw new DurableObjectError(
+      "ERR_DESERIALIZATION",
+      "Unable to deserialize stored Durable Object data due to an " +
+        "invalid or unsupported version.\nThe Durable Object data storage " +
+        "format changed in Miniflare 2. You cannot load Durable Object data " +
+        "created with Miniflare 1 and must delete it.",
+      e
+    );
+  }
+}
+
 async function get<Value = unknown>(
   storage: Storage,
   key: string
@@ -122,7 +138,9 @@ async function get<Value = unknown>(
     assert.strictEqual(defined.length, values.length);
     for (let i = 0; i < defined.length; i++) {
       const value = values[i];
-      if (value !== undefined) res.set(defined[i], deserialize(value.value));
+      if (value !== undefined) {
+        res.set(defined[i], helpfulDeserialize(value.value));
+      }
     }
     return res;
   }
@@ -130,7 +148,7 @@ async function get<Value = unknown>(
   // Otherwise, return a single result
   assertKeySize(keys);
   const value = await storage.get(keys);
-  return value && deserialize(value.value);
+  return value && helpfulDeserialize(value.value);
 }
 
 async function list<Value = unknown>(

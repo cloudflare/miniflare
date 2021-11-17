@@ -1,3 +1,4 @@
+export * from "./error";
 export {
   DurableObjectId,
   DurableObjectState,

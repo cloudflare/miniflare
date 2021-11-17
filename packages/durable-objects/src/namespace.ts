@@ -16,7 +16,7 @@ import {
   OutputGate,
 } from "@miniflare/shared";
 import { Request as BaseRequest, Response as BaseResponse } from "undici";
-import { DurableObjectError } from "./plugin";
+import { DurableObjectError } from "./error";
 import { DurableObjectStorage } from "./storage";
 
 function hexEncode(value: Uint8Array): string {
