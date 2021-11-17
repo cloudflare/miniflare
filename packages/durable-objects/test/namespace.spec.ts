@@ -1,4 +1,5 @@
 import assert from "assert";
+import { URL } from "url";
 import { deserialize } from "v8";
 import { Request, Response, fetch } from "@miniflare/core";
 import {
@@ -27,6 +28,7 @@ import {
 import { MemoryStorage } from "@miniflare/storage-memory";
 import { WebSocketPair } from "@miniflare/web-sockets";
 import test, { ThrowsExpectation } from "ava";
+import { Request as BaseRequest } from "undici";
 import { TestObject, testId, testIdHex } from "./object";
 
 const log = new NoOpLog();
@@ -186,6 +188,31 @@ test("DurableObjectStub: fetch: throws with relative urls if compatibility flag 
   // Check can still fetch with full urls
   const res = await stub.fetch("https://fake-host/test");
   t.is(await res.text(), `${testId}:request1:GET:https://fake-host/test`);
+});
+test("DurableObjectStub: fetch: throws with unknown protocols if compatibility flag enabled", async (t) => {
+  const compat = new Compatibility(undefined, [
+    "fetch_refuses_unknown_protocols",
+  ]);
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(
+    { log, compat, rootPath },
+    { durableObjects: { TEST: "TestObject" } }
+  );
+  plugin.beforeReload();
+  plugin.reload({}, { TestObject }, {});
+  const ns = plugin.getNamespace(factory, "TEST");
+  const stub = ns.get(testId);
+  await t.throwsAsync(stub.fetch("test://host.com/"), {
+    instanceOf: TypeError,
+    message: "Fetch API cannot load: test://host.com/",
+  });
+  // Check can still fetch with known protocols and all request types
+  // noinspection HttpUrlsUsage
+  await stub.fetch("http://host.com/");
+  await stub.fetch("https://host.com/");
+  await stub.fetch(new URL("https://host.com/"));
+  await stub.fetch(new Request("https://host.com/"));
+  await stub.fetch(new BaseRequest("https://host.com/"));
 });
 test("DurableObjectStub: fetch: passes through web socket requests", async (t) => {
   const factory = new MemoryStorageFactory();
