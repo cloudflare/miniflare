@@ -75,6 +75,7 @@ export default class MiniflareEnvironment implements JestEnvironment {
     const global = (this.global = vm.runInContext("this", this.context));
     global.global = global;
     global.self = global;
+    global.Buffer = Buffer;
     global.clearInterval = clearInterval;
     global.clearTimeout = clearTimeout;
     global.setInterval = setInterval;
