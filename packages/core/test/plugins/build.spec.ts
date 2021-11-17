@@ -119,6 +119,17 @@ test("BuildPlugin: beforeSetup: runs build successfully", async (t) => {
   const test = await fs.readFile(path.join(tmp, "test.txt"), "utf8");
   t.is(test.trim(), "test");
 });
+test("BuildPlugin: beforeSetup: builds in plugin context's rootPath", async (t) => {
+  const tmp = await useTmp(t);
+  const plugin = new BuildPlugin(
+    // This will be set to the mounted directory when mounting workers
+    { log, compat, rootPath: tmp },
+    { buildCommand: "echo test > test.txt" }
+  );
+  await plugin.beforeSetup();
+  const test = await fs.readFile(path.join(tmp, "test.txt"), "utf8");
+  t.is(test.trim(), "test");
+});
 test("BuildPlugin: beforeSetup: includes MINIFLARE environment variable", async (t) => {
   const tmp = await useTmp(t);
   const plugin = new BuildPlugin(ctx, {

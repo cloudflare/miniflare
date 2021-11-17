@@ -59,7 +59,7 @@ export class BuildPlugin extends Plugin<BuildOptions> implements BuildOptions {
     // Only run build if buildCommand specified
     return new Promise((resolve, reject) => {
       const build = childProcess.spawn(buildCommand, {
-        cwd: this.buildBasePath,
+        cwd: this.buildBasePath ?? this.ctx.rootPath,
         shell: true,
         // Pass-through stdin/stdout
         stdio: "inherit",
