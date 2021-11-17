@@ -13,24 +13,23 @@ import {
   NoOpLog,
   Options,
   PluginSignatures,
+  StorageFactory,
 } from "@miniflare/shared";
 import { Response as BaseResponse } from "undici";
 import { MemoryStorageFactory } from "./storage";
+import { triggerPromise } from "./sync";
 
 const scriptRunner = new VMScriptRunner();
 
 export function useMiniflare<Plugins extends PluginSignatures>(
   extraPlugins: Plugins,
   options: MiniflareCoreOptions<{ CorePlugin: typeof CorePlugin } & Plugins>,
-  log: Log = new NoOpLog()
+  log: Log = new NoOpLog(),
+  storageFactory: StorageFactory = new MemoryStorageFactory()
 ): MiniflareCore<{ CorePlugin: typeof CorePlugin } & Plugins> {
   return new MiniflareCore(
     { CorePlugin, ...extraPlugins },
-    {
-      log,
-      storageFactory: new MemoryStorageFactory(),
-      scriptRunner,
-    },
+    { log, storageFactory, scriptRunner },
     options
   );
 }
@@ -55,4 +54,10 @@ export function useMiniflareWithHandler<Plugins extends PluginSignatures>(
     },
     log
   );
+}
+
+export function waitForReload(mf: MiniflareCore<any>): Promise<unknown> {
+  const [reloadTrigger, reloadPromise] = triggerPromise<unknown>();
+  mf.addEventListener("reload", reloadTrigger, { once: true });
+  return reloadPromise;
 }

@@ -446,19 +446,27 @@ export class MiniflareCore<
           );
         }
 
-        const options = (
+        const mountOptions = (
           typeof rawOptions === "string"
             ? {
+                rootPath: rawOptions,
+                // Autoload configuration from files
                 packagePath: true,
                 envPath: true,
                 wranglerConfigPath: true,
+                // Copy watch options and storage persistence options when using
+                // string mounts (e.g. via CLI)
                 watch: this.#watching,
-                rootPath: rawOptions,
+                // This tight coupling makes me sad
+                kvPersist: options.KVPlugin?.kvPersist,
+                cachePersist: options.CachePlugin?.cachePersist,
+                durableObjectsPersist:
+                  options.DurableObjectsPlugin?.durableObjectsPersist,
               }
             : rawOptions
         ) as MiniflareCoreOptions<Plugins>;
 
-        if ("mounts" in options) {
+        if ("mounts" in mountOptions) {
           throw new MiniflareCoreError(
             "ERR_MOUNT_NESTED",
             "Nested mounts are unsupported"
@@ -468,7 +476,7 @@ export class MiniflareCore<
         let mount = this.#mounts.get(name);
         if (mount) {
           this.#ctx.log.verbose(`Updating mount \"${name}\"...`);
-          await mount.setOptions(options);
+          await mount.setOptions(mountOptions);
         } else {
           this.#ctx.log.debug(`Mounting \"${name}\"...`);
           let log = this.#ctx.log;
@@ -483,7 +491,7 @@ export class MiniflareCore<
             // might not have plugins depending on its own exports
             scriptRunForModuleExports: false,
           };
-          mount = new MiniflareCore(this.#originalPlugins, ctx, options);
+          mount = new MiniflareCore(this.#originalPlugins, ctx, mountOptions);
           mount.addEventListener("reload", (event) => {
             // Reload parent (us) whenever mounted child reloads, ignoring the
             // initial reload. This ensures the page is reloaded when live
