@@ -21,6 +21,7 @@ import {
   Response as BaseResponse,
   Headers,
 } from "undici";
+import { CacheError } from "./error";
 import { CacheInterface, CacheMatchOptions, CachedMeta } from "./helpers";
 
 function normaliseRequest(req: RequestInfo): BaseRequest | Request {
@@ -202,13 +203,25 @@ export class Cache implements CacheInterface {
     await waitForOpenInputGate();
     if (!cached) return;
 
+    // Check we're not trying to load cached data created in Miniflare 1.
+    // All cached responses should have metadata set as it includes the status.
+    if (!cached.metadata) {
+      throw new CacheError(
+        "ERR_DESERIALIZATION",
+        "Unable to deserialize stored cached data due to missing " +
+          "metadata.\nThe cached data storage format changed in Miniflare 2. " +
+          "You cannot load cached data created with Miniflare 1 and must " +
+          "delete it."
+      );
+    }
+
     // Build Response from cache
-    const headers = new Headers(cached.metadata?.headers);
+    const headers = new Headers(cached.metadata.headers);
     headers.set("CF-Cache-Status", "HIT");
     // Returning a @miniflare/core Response so we don't need to convert
     // BaseResponse to one when dispatching fetch events
     let res = new Response(cached.value, {
-      status: cached.metadata?.status,
+      status: cached.metadata.status,
       headers,
     });
     if (!this.#formDataFiles) res = withStringFormDataFiles(res);

@@ -1,6 +1,5 @@
 import {
   Log,
-  MiniflareError,
   Option,
   OptionType,
   Plugin,
@@ -9,16 +8,13 @@ import {
   StorageFactory,
 } from "@miniflare/shared";
 import { Cache } from "./cache";
+import { CacheError } from "./error";
 import { CacheInterface } from "./helpers";
 import { NoOpCache } from "./noop";
 
 const DEFAULT_CACHE_NAME = "default";
 const MAX_CACHE_NAME_SIZE = 1024;
 const NOOP_CACHE = new NoOpCache();
-
-export type CacheErrorCode = "ERR_RESERVED";
-
-export class CacheError extends MiniflareError<CacheErrorCode> {}
 
 export class CacheStorage {
   readonly #options: CacheOptions;

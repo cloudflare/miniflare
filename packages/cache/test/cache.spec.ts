@@ -1,11 +1,12 @@
 import assert from "assert";
 import { URL } from "url";
-import { Cache, CachedMeta } from "@miniflare/cache";
+import { Cache, CacheError, CachedMeta } from "@miniflare/cache";
 import { Request, RequestInitCfProperties, Response } from "@miniflare/core";
 import { Storage } from "@miniflare/shared";
 import {
   getObjectProperties,
   utf8Decode,
+  utf8Encode,
   waitsForInputGate,
   waitsForOutputGate,
 } from "@miniflare/shared-test";
@@ -250,6 +251,23 @@ test("Cache: match HIT waits for input gate to open before returning", async (t)
   const { cache } = t.context;
   await cache.put("http://localhost:8787/", testResponse());
   await waitsForInputGate(t, () => cache.match("http://localhost:8787/"));
+});
+test("Cache: match throws if attempting to load cached response created with Miniflare 1", async (t) => {
+  const { storage, cache } = t.context;
+  const value = JSON.stringify({
+    status: 200,
+    headers: { "Cache-Control": ["max-age=3600"] },
+    body: "Ym9keQ==", // body in base64
+  });
+  await storage.put("http://localhost:8787/test", { value: utf8Encode(value) });
+  await t.throwsAsync(cache.match("http://localhost:8787/test"), {
+    instanceOf: CacheError,
+    code: "ERR_DESERIALIZATION",
+    message:
+      "Unable to deserialize stored cached data due to missing metadata.\n" +
+      "The cached data storage format changed in Miniflare 2. You cannot " +
+      "load cached data created with Miniflare 1 and must delete it.",
+  });
 });
 
 const deleteMacro: Macro<[RequestInfo], Context> = async (t, req) => {
