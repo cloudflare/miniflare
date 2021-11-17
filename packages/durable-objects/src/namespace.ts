@@ -8,8 +8,14 @@ import {
   withImmutableHeaders,
   withInputGating,
 } from "@miniflare/core";
-import { Awaitable, Context, InputGate, OutputGate } from "@miniflare/shared";
-import { Response as BaseResponse } from "undici";
+import {
+  Awaitable,
+  Compatibility,
+  Context,
+  InputGate,
+  OutputGate,
+} from "@miniflare/shared";
+import { Request as BaseRequest, Response as BaseResponse } from "undici";
 import { DurableObjectError } from "./plugin";
 import { DurableObjectStorage } from "./storage";
 
@@ -83,15 +89,15 @@ export type DurableObjectFactory = (
 
 export class DurableObjectStub {
   readonly #factory: DurableObjectFactory;
-  readonly #requireFullUrl?: boolean;
+  readonly #compat?: Compatibility;
 
   constructor(
     factory: DurableObjectFactory,
     readonly id: DurableObjectId,
-    requireFullUrl?: boolean
+    compat?: Compatibility
   ) {
     this.#factory = factory;
-    this.#requireFullUrl = requireFullUrl;
+    this.#compat = compat;
   }
 
   get name(): string | undefined {
@@ -102,10 +108,30 @@ export class DurableObjectStub {
     // Get object
     const state = await this.#factory(this.id);
 
-    // Make sure relative URLs prefixed with https://fake-host
-    if (!this.#requireFullUrl && typeof input === "string") {
+    // Make sure relative URLs are prefixed with https://fake-host
+    if (
+      !this.#compat?.isEnabled("durable_object_fetch_requires_full_url") &&
+      typeof input === "string"
+    ) {
       input = new URL(input, "https://fake-host");
     }
+
+    // Disallow unknown protocols
+    if (this.#compat?.isEnabled("fetch_refuses_unknown_protocols")) {
+      // noinspection SuspiciousTypeOfGuard
+      const url =
+        input instanceof URL
+          ? input
+          : new URL(
+              input instanceof Request || input instanceof BaseRequest
+                ? input.url
+                : input.toString()
+            );
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        throw new TypeError(`Fetch API cannot load: ${url.toString()}`);
+      }
+    }
+
     // noinspection SuspiciousTypeOfGuard
     const request =
       input instanceof Request && !init ? input : new Request(input, init);
@@ -138,12 +164,12 @@ export class DurableObjectNamespace {
   readonly #factory: DurableObjectFactory;
   readonly #objectNameHash: Uint8Array;
   readonly #objectNameHashHex: string;
-  readonly #requireFullUrl?: boolean;
+  readonly #compat?: Compatibility;
 
   constructor(
     objectName: string,
     factory: DurableObjectFactory,
-    requireFullUrl?: boolean
+    compat?: Compatibility
   ) {
     this.#objectName = objectName;
     this.#factory = factory;
@@ -156,7 +182,7 @@ export class DurableObjectNamespace {
       .slice(0, 8);
     this.#objectNameHashHex = hexEncode(this.#objectNameHash);
 
-    this.#requireFullUrl = requireFullUrl;
+    this.#compat = compat;
   }
 
   newUniqueId(_options?: NewUniqueIdOptions): DurableObjectId {
@@ -210,6 +236,6 @@ export class DurableObjectNamespace {
     ) {
       throw new TypeError("ID is not for this Durable Object class.");
     }
-    return new DurableObjectStub(this.#factory, id, this.#requireFullUrl);
+    return new DurableObjectStub(this.#factory, id, this.#compat);
   }
 }
