@@ -350,7 +350,10 @@ export class Response<
 > extends Body<BaseResponse> {
   // Note Workers don't implement Response.error()
 
-  static redirect(url: string | URL, status: ResponseRedirectStatus): Response {
+  static redirect(
+    url: string | URL,
+    status: ResponseRedirectStatus = 302
+  ): Response {
     const res = BaseResponse.redirect(url, status);
     return new Response(res.body, res);
   }

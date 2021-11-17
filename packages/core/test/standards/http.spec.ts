@@ -394,9 +394,14 @@ test("withImmutableHeaders: makes Request's headers immutable", (t) => {
 });
 
 test("Response.redirect: creates redirect response", (t) => {
-  const res = Response.redirect("http://localhost/", 302);
+  let res = Response.redirect("http://localhost/", 307);
   // noinspection SuspiciousTypeOfGuard
   t.true(res instanceof Response);
+  t.is(res.headers.get("Location"), "http://localhost/");
+
+  // Check status defaults to 302
+  res = Response.redirect("http://localhost/");
+  t.is(res.status, 302);
   t.is(res.headers.get("Location"), "http://localhost/");
 });
 test("Response: constructing from BaseResponse doesn't create new BaseResponse unless required", async (t) => {
