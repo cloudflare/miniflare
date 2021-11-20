@@ -23,7 +23,6 @@ Miniflare supports the following Web Standards in its sandbox:
   [non-standard `getAll` method](https://developers.cloudflare.com/workers/runtime-apis/headers#differences)),
   `Request`, `Response`, `FormData`, `Blob`, `File`, `URL`, `URLSearchParams`
   (powered by [undici](https://github.com/nodejs/undici/))
-- **URL:** `URL`, `URLSearchParams`
 - **Streams:** `ByteLengthQueuingStrategy`, `CountQueuingStrategy`,
   `ReadableByteStreamController`, `ReadableStream`, `ReadableStreamBYOBReader`
   (including non-standard `readAtLeast` method), `ReadableStreamBYOBRequest`,
