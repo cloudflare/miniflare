@@ -64,6 +64,15 @@ function proxyStringFormDataFiles<
   });
 }
 
+// Approximations of atob and btoa for Jest, which doesn't include these in the
+// global scope with jest-environment-node :(
+function atobBuffer(s: string): string {
+  return Buffer.from(s, "base64").toString("binary");
+}
+function btoaBuffer(s: string): string {
+  return Buffer.from(s, "binary").toString("base64");
+}
+
 export interface CoreOptions {
   script?: string;
   scriptPath?: string;
@@ -257,6 +266,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     }
 
     // Build globals object
+    // noinspection JSDeprecatedSymbols
     this.#globals = {
       console,
 
@@ -266,8 +276,10 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       clearInterval,
       queueMicrotask,
 
-      atob,
-      btoa,
+      // Fix for Jest :(, jest-environment-node doesn't include atob/btoa in the
+      // global scope
+      atob: globalThis.atob ?? atobBuffer,
+      btoa: globalThis.btoa ?? btoaBuffer,
 
       crypto,
       CryptoKey: crypto.CryptoKey,
@@ -301,7 +313,12 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       Event,
       EventTarget,
       AbortController,
-      AbortSignal,
+      // Fix for Jest :(, jest-environment-node doesn't include AbortSignal in
+      // the global scope, but does include AbortController
+      AbortSignal:
+        globalThis.AbortSignal ??
+        Object.getPrototypeOf(new AbortController().signal).constructor,
+
       FetchEvent,
       ScheduledEvent,
 

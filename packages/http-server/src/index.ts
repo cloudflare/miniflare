@@ -18,7 +18,6 @@ import {
 import { randomHex } from "@miniflare/shared";
 import { coupleWebSocket } from "@miniflare/web-sockets";
 import { BodyInit, Headers } from "undici";
-import { WebSocketServer } from "ws";
 import { getAccessibleHosts } from "./helpers";
 import { HTTPPlugin, RequestMeta } from "./plugin";
 
@@ -324,6 +323,12 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
   } else {
     server = http.createServer(options ?? {}, listener);
   }
+
+  // Fix for Jest :(, Jest 27 doesn't support the "exports" field in
+  // package.json, so incorrectly loads the CommonJS ws module, which includes
+  // WebSocketServer in the default export, not as a named export.
+  const ws = await import("ws");
+  const WebSocketServer = ws.WebSocketServer ?? ws.default.WebSocketServer;
 
   // Setup WebSocket servers
   const webSocketServer = new WebSocketServer({ noServer: true });

@@ -94,3 +94,8 @@ test.serial(
     t.is(exitCode, 0, output);
   }
 );
+
+test.serial("NodeEnvironment: runs Miniflare integration tests", async (t) => {
+  const [exitCode, output] = await runJest("node.spec.js", {});
+  t.is(exitCode, 0, output);
+});
