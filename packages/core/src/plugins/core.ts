@@ -18,6 +18,7 @@ import {
 } from "stream/web";
 import { URL, URLSearchParams } from "url";
 import { TextEncoder } from "util";
+import { deserialize, serialize } from "v8";
 import {
   CompatibilityFlag,
   Context,
@@ -71,6 +72,11 @@ function atobBuffer(s: string): string {
 }
 function btoaBuffer(s: string): string {
   return Buffer.from(s, "binary").toString("base64");
+}
+
+// Approximation of structuredClone for Node < 17.0.0
+function structuredCloneBuffer<T>(value: T): T {
+  return deserialize(serialize(value));
 }
 
 export interface CoreOptions {
@@ -324,6 +330,10 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
       DOMException,
       WorkerGlobalScope,
+
+      // @ts-expect-error structuredClone was added to the global scope in
+      // Node 17.0.0. Approximate with serialize/deserialize if not there.
+      structuredClone: globalThis.structuredClone ?? structuredCloneBuffer,
 
       // The types below would be included automatically, but it's not possible
       // to create instances of them without using their constructors and they
