@@ -264,6 +264,8 @@ test("CorePlugin: setup: includes web standards", async (t) => {
   t.true(typeof globals.DOMException === "function");
   t.true(typeof globals.WorkerGlobalScope === "function");
 
+  t.true(typeof globals.structuredClone === "function");
+
   t.true(typeof globals.ArrayBuffer === "function");
   t.true(typeof globals.Atomics === "object");
   t.true(typeof globals.BigInt64Array === "function");
@@ -351,6 +353,20 @@ test("CorePlugin: setup: Response parses files in FormData as File objects only 
   res = new CompatResponse(formData);
   resFormData = await res.formData();
   t.true(resFormData.get("file") instanceof File);
+});
+test("CorePlugin: setup: structuredClone: creates deep-copy of value", async (t) => {
+  const plugin = new CorePlugin(ctx);
+  const { globals } = await plugin.setup();
+  assert(globals);
+
+  const thing = {
+    a: 1,
+    b: new Date(),
+    c: new Set([1, 2, 3]),
+  };
+  const copy = globals.structuredClone(thing);
+  t.not(thing, copy);
+  t.deepEqual(thing, copy);
 });
 
 test("CorePlugin: processedModuleRules: processes rules includes default module rules", (t) => {
