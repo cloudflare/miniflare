@@ -75,11 +75,16 @@ export default class MiniflareEnvironment implements JestEnvironment {
     const global = (this.global = vm.runInContext("this", this.context));
     global.global = global;
     global.self = global;
-    global.Buffer = Buffer;
     global.clearInterval = clearInterval;
     global.clearTimeout = clearTimeout;
     global.setInterval = setInterval;
     global.setTimeout = setTimeout;
+
+    // Lots of Node packages check for Buffer in an unsafe way, begrudgingly
+    // adding it as it also means Webpack users polyfilling Buffer can import
+    // their scripts without bundling first
+    global.Buffer = Buffer;
+
     installCommonGlobals(global, this.config.globals);
 
     this.moduleMocker = new ModuleMocker(global);
