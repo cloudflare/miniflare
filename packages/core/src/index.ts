@@ -158,9 +158,14 @@ function splitWranglerConfig<Plugins extends PluginSignatures>(
     const pluginResult = {} as PluginOptionsUnion<Plugins>;
     const pluginOverrides = overrides[name];
     for (const [key, meta] of plugin.prototype.opts?.entries() ?? []) {
-      // TODO: merge options
-      (pluginResult as any)[key] =
-        pluginOverrides[key] ?? meta.fromWrangler?.(config, configDir);
+      // TODO: merge object options (e.g. bindings)
+      // `in` check means users can pass `undefined` to unset options defined
+      // in wrangler.toml
+      if (key in pluginOverrides) {
+        (pluginResult as any)[key] = pluginOverrides[key];
+      } else {
+        (pluginResult as any)[key] = meta.fromWrangler?.(config, configDir);
+      }
     }
     result[name] = pluginResult;
   }

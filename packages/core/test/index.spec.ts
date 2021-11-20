@@ -4,6 +4,7 @@ import path from "path";
 import { setTimeout } from "timers/promises";
 import {
   BindingsPlugin,
+  BuildPlugin,
   CorePlugin,
   MiniflareCore,
   MiniflareCoreContext,
@@ -207,14 +208,22 @@ test("MiniflareCore: #init: options override wrangler config", async (t) => {
   const wranglerConfigPath = path.join(tmp, "wrangler.toml");
   await fs.writeFile(
     wranglerConfigPath,
-    '[miniflare]\nupstream = "http://localhost/"'
+    `[build]
+command = "npm run build"
+[miniflare]
+upstream = "http://localhost/"`
   );
   const mf = useMiniflare(
-    { CorePlugin },
-    { wranglerConfigPath, upstream: "https://miniflare.dev/" }
+    { CorePlugin, BuildPlugin },
+    {
+      wranglerConfigPath,
+      buildCommand: undefined,
+      upstream: "https://miniflare.dev/",
+    }
   );
   const plugins = await mf.getPlugins();
   t.is(plugins.CorePlugin.upstream, "https://miniflare.dev/");
+  t.is(plugins.BuildPlugin.buildCommand, undefined);
 });
 test("MiniflareCore: #init: gets watching option once", async (t) => {
   const tmp = await useTmp(t);
