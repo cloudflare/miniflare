@@ -479,11 +479,26 @@ export async function fetch(
   //  https://developers.cloudflare.com/workers/learning/how-the-cache-works#fetch
   //  https://developers.cloudflare.com/workers/examples/cache-using-fetch
 
+  await waitForOpenOutputGate();
+
   // Don't pass our strange hybrid Request to undici
   if (input instanceof Request) input = input[kInner];
-  await waitForOpenOutputGate();
-  const baseRes = await baseFetch(input, init);
+
+  // Set the headers guard to "none" so we can delete the "Host" header
+  const req = new BaseRequest(input, init);
+  // @ts-expect-error internal kGuard isn't included in type definitions
+  req.headers[fetchSymbols.kGuard] = "none";
+  // Delete the "Host" header, the correct value will be added by undici
+  req.headers.delete("host");
+  // Delete the "CF-Connecting-IP" header, if we didn't do this, we'd get a 403
+  // response when attempting to make requests to sites behind Cloudflare
+  req.headers.delete("cf-connecting-ip");
+
+  const baseRes = await baseFetch(req);
+
+  // Convert the response to our hybrid Response
   const res = new Response(baseRes.body, baseRes);
+
   await waitForOpenInputGate();
   return withInputGating(res);
 }

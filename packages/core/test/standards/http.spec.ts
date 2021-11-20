@@ -582,6 +582,23 @@ test("fetch: waits for output gate to open before fetching", async (t) => {
     () => fetched
   );
 });
+test("fetch: removes Host and CF-Connecting-IP headers from Request", async (t) => {
+  const upstream = (
+    await useServer(t, (req, res) => res.end(JSON.stringify(req.headers)))
+  ).http;
+  const res = await fetch(upstream, {
+    headers: {
+      Host: "miniflare.dev",
+      "CF-Connecting-IP": "127.0.0.1",
+      "X-Real-IP": "127.0.0.1",
+    },
+  });
+  const headers = await res.json();
+  t.like(headers, {
+    host: upstream.host,
+    "x-real-ip": "127.0.0.1",
+  });
+});
 test("fetch: waits for input gate to open before returning", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   await waitsForInputGate(t, () => fetch(upstream));

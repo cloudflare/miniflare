@@ -7,7 +7,7 @@ import {
   TypedEventListener,
   ValueOf,
 } from "@miniflare/shared";
-import { Response as BaseResponse, fetch } from "undici";
+import { Response as BaseResponse, fetch as baseFetch } from "undici";
 import { DOMException } from "./domexception";
 import { Request, Response, kInner, withWaitUntil } from "./http";
 
@@ -407,7 +407,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
 
     // noinspection ES6MissingAwait
     const waitUntil = Promise.all(event[kWaitUntil]) as Promise<WaitUntil>;
-    return withWaitUntil(await fetch(request[kInner]), waitUntil);
+    return withWaitUntil(await baseFetch(request[kInner]), waitUntil);
   }
 
   async [kDispatchScheduled]<WaitUntil extends any[] = any[]>(
