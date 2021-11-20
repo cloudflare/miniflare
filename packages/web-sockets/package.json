@@ -39,7 +39,7 @@
     "@miniflare/core": "2.0.0-rc.1",
     "@miniflare/shared": "2.0.0-rc.1",
     "ws": "^8.2.2",
-    "undici": "^4.9.3"
+    "undici": "^4.10.2"
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.0.0-rc.1",

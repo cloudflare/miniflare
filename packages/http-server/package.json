@@ -41,7 +41,7 @@
     "@miniflare/web-sockets": "2.0.0-rc.1",
     "kleur": "^4.1.4",
     "selfsigned": "^1.10.11",
-    "undici": "^4.9.3",
+    "undici": "^4.10.2",
     "ws": "^8.2.2",
     "youch": "^2.2.2"
   },
