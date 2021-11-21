@@ -100,6 +100,18 @@ test("VMScriptRunner: run: disallows WebAssembly compilation", async (t) => {
       "WebAssembly.compile(): Wasm code generation disallowed by embedder",
   });
 });
+test("VMScriptRunner: run: allows dynamic code generation if enabled", async (t) => {
+  const runner = new VMScriptRunner(undefined, false);
+  const addModule = await fs.readFile(path.join(fixturesPath, "add.wasm"));
+  await runner.run({}, { code: 'eval("1 + 1")', filePath: "test.js" });
+  await runner.run({}, { code: 'new Function("1 + 1")', filePath: "test.js" });
+  await runner.run(
+    { addModule },
+    { code: "await WebAssembly.compile(addModule)", filePath: "test.js" },
+    []
+  );
+  t.pass();
+});
 test("VMScriptRunner: run: supports cross-realm instanceof", async (t) => {
   const result = await runner.run(
     { outsideRegexp: /a/ },

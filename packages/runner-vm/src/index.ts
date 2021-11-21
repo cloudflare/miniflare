@@ -9,14 +9,17 @@ import {
 } from "@miniflare/shared";
 import { VMScriptRunnerError } from "./error";
 import { ModuleLinker } from "./linker";
-import { proxiedGlobals } from "./proxied";
+import { makeProxiedGlobals } from "./proxied";
 
 export * from "./error";
 export * from "./proxied";
 
 // noinspection JSMethodCanBeStatic
 export class VMScriptRunner implements ScriptRunner {
-  constructor(private context?: vm.Context) {}
+  constructor(
+    private context?: vm.Context,
+    private blockCodeGeneration = true
+  ) {}
 
   private runAsScript(context: vm.Context, blueprint: ScriptBlueprint) {
     const script = new vm.Script(blueprint.code, {
@@ -58,7 +61,7 @@ export class VMScriptRunner implements ScriptRunner {
 
     // Add proxied globals so cross-realm instanceof works correctly.
     // globalScope will be fresh for each call of run so it's fine to mutate it.
-    Object.assign(globalScope, proxiedGlobals);
+    Object.assign(globalScope, makeProxiedGlobals(this.blockCodeGeneration));
 
     let context = this.context;
     if (context) {
@@ -67,8 +70,9 @@ export class VMScriptRunner implements ScriptRunner {
       Object.assign(context, globalScope);
     } else {
       // Create a new context with eval/new Function/WASM compile disabled
+      const allow = !this.blockCodeGeneration;
       context = vm.createContext(globalScope, {
-        codeGeneration: { strings: false, wasm: false },
+        codeGeneration: { strings: allow, wasm: allow },
       });
     }
 

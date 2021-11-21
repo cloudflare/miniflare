@@ -38,30 +38,38 @@ function proxyHasInstance<T extends object>(
   });
 }
 
-export const proxiedGlobals = {
-  Object: proxyHasInstance(Object, isObject),
-  Array: proxyHasInstance(Array, Array.isArray),
-  Promise: proxyHasInstance(Promise, types.isPromise),
-  RegExp: proxyHasInstance(RegExp, types.isRegExp),
-  Error: proxyHasInstance(Error, isError(Error)),
-  EvalError: proxyHasInstance(EvalError, isError(EvalError)),
-  RangeError: proxyHasInstance(RangeError, isError(RangeError)),
-  ReferenceError: proxyHasInstance(ReferenceError, isError(ReferenceError)),
-  SyntaxError: proxyHasInstance(SyntaxError, isError(SyntaxError)),
-  TypeError: proxyHasInstance(TypeError, isError(TypeError)),
-  URIError: proxyHasInstance(URIError, isError(URIError)),
-  Function: proxyHasInstance(Function, isFunction, {
-    construct() {
-      // We set `codeGeneration: { strings: false }` in our vm context, but
-      // because we're passing the Function constructor from outside the realm,
-      // we have to prevent construction ourselves.
-      //
-      // Constructing with the Function constructor obtained from
-      // `Object.getPrototypeOf(function(){}).constructor` will still throw
-      // though because of `strings: false`.
-      throw new EvalError(
-        "Code generation from strings disallowed for this context"
-      );
-    },
-  }),
-};
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+export function makeProxiedGlobals(blockCodeGeneration?: boolean) {
+  if (!blockCodeGeneration) blockCodeGeneration = undefined;
+  return {
+    Object: proxyHasInstance(Object, isObject),
+    Array: proxyHasInstance(Array, Array.isArray),
+    Promise: proxyHasInstance(Promise, types.isPromise),
+    RegExp: proxyHasInstance(RegExp, types.isRegExp),
+    Error: proxyHasInstance(Error, isError(Error)),
+    EvalError: proxyHasInstance(EvalError, isError(EvalError)),
+    RangeError: proxyHasInstance(RangeError, isError(RangeError)),
+    ReferenceError: proxyHasInstance(ReferenceError, isError(ReferenceError)),
+    SyntaxError: proxyHasInstance(SyntaxError, isError(SyntaxError)),
+    TypeError: proxyHasInstance(TypeError, isError(TypeError)),
+    URIError: proxyHasInstance(URIError, isError(URIError)),
+    Function: proxyHasInstance(
+      Function,
+      isFunction,
+      blockCodeGeneration && {
+        construct() {
+          // We set `codeGeneration: { strings: false }` in our vm context, but
+          // because we're passing the Function constructor from outside the
+          // realm, we have to prevent construction ourselves.
+          //
+          // Constructing with the Function constructor obtained from
+          // `Object.getPrototypeOf(function(){}).constructor` will still throw
+          // though because of `strings: false`.
+          throw new EvalError(
+            "Code generation from strings disallowed for this context"
+          );
+        },
+      }
+    ),
+  };
+}
