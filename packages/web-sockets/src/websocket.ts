@@ -5,24 +5,36 @@ import {
 } from "@miniflare/shared";
 
 export class MessageEvent extends Event {
-  constructor(readonly data: ArrayBuffer | string) {
-    super("message");
+  readonly data: ArrayBuffer | string;
+
+  constructor(type: "message", init: { data: ArrayBuffer | string }) {
+    super(type);
+    this.data = init.data;
   }
 }
 
 export class CloseEvent extends Event {
+  readonly code: number;
+  readonly reason: string;
+  readonly wasClean: boolean;
+
   constructor(
-    readonly code = 1005,
-    readonly reason?: string,
-    readonly wasClean = false
+    type: "close",
+    init?: { code?: number; reason?: string; wasClean?: boolean }
   ) {
-    super("close");
+    super(type);
+    this.code = init?.code ?? 1005;
+    this.reason = init?.reason ?? "";
+    this.wasClean = init?.wasClean ?? false;
   }
 }
 
 export class ErrorEvent extends Event {
-  constructor(readonly error?: Error) {
-    super("error");
+  readonly error: Error | null;
+
+  constructor(type: "error", init?: { error?: Error }) {
+    super(type);
+    this.error = init?.error ?? null;
   }
 }
 
@@ -76,7 +88,7 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
       throw new TypeError("Can't call WebSocket send() after close().");
     }
 
-    const event = new MessageEvent(message);
+    const event = new MessageEvent("message", { data: message });
     void this.#dispatchMessageEvent(event);
   }
 
@@ -129,8 +141,8 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
   async #dispatchCloseEvent(code?: number, reason?: string): Promise<void> {
     await waitForOpenOutputGate();
     // See https://github.com/nodejs/node/pull/39772
-    this.dispatchEvent(new CloseEvent(code, reason));
-    this[kPair].dispatchEvent(new CloseEvent(code, reason));
+    this.dispatchEvent(new CloseEvent("close", { code, reason }));
+    this[kPair].dispatchEvent(new CloseEvent("close", { code, reason }));
   }
 }
 
