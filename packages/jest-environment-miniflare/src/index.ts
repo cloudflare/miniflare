@@ -11,7 +11,7 @@ import {
 } from "@miniflare/durable-objects";
 import { HTMLRewriterPlugin } from "@miniflare/html-rewriter";
 import { KVPlugin } from "@miniflare/kv";
-import { VMScriptRunner, proxiedGlobals } from "@miniflare/runner-vm";
+import { VMScriptRunner, makeProxiedGlobals } from "@miniflare/runner-vm";
 import { Context, NoOpLog } from "@miniflare/shared";
 import { SitesPlugin } from "@miniflare/sites";
 import { WebSocketPlugin } from "@miniflare/web-sockets";
@@ -66,11 +66,12 @@ export default class MiniflareEnvironment implements JestEnvironment {
 
   constructor(config: Config.ProjectConfig) {
     this.config = config;
-    this.context = vm.createContext(
-      {},
-      { codeGeneration: { strings: false, wasm: false } }
+    // Intentionally allowing code generation as some coverage tools require it
+    this.context = vm.createContext({});
+    this.scriptRunner = new VMScriptRunner(
+      this.context,
+      /* blockCodeGeneration */ false
     );
-    this.scriptRunner = new VMScriptRunner(this.context);
 
     const global = (this.global = vm.runInContext("this", this.context));
     global.global = global;
@@ -168,7 +169,7 @@ export default class MiniflareEnvironment implements JestEnvironment {
     // Make sure Miniflare's global scope is assigned to Jest's global context,
     // even if we didn't run a script because we had no Durable Objects
     Object.assign(global, mfGlobalScope);
-    Object.assign(global, proxiedGlobals);
+    Object.assign(global, makeProxiedGlobals(/* blockCodeGeneration */ false));
 
     // Add a way of getting bindings in modules mode to allow seeding data.
     // These names are intentionally verbose so they don't collide with anything

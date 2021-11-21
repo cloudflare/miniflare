@@ -10,10 +10,6 @@ test("includes custom globals", () => {
   expect(KEY).toBe("value");
 });
 
-test("dynamic code generation disallowed", () => {
-  expect(() => eval("console.log('evil')")).toThrow(EvalError);
-});
-
 test("uses Jest console", () => {
   console.log("hello!");
 });
