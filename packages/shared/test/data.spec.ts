@@ -89,8 +89,8 @@ test("sanitisePath: sanitises relative paths", (t) => {
   t.is(sanitisePath(".."), "__");
   t.is(sanitisePath("./"), "__");
   t.is(sanitisePath("../"), "___");
-  t.is(sanitisePath("/.."), `${s}__`);
-  t.is(sanitisePath("/../"), `${s}___`);
+  t.is(sanitisePath("./.."), `_${s}__`);
+  t.is(sanitisePath("./../"), `_${s}___`);
   t.is(
     sanitisePath("..\\./.../..\\..../.a./."),
     `__${s}_${s}___${s}__${s}____${s}.a.${s}_`
@@ -110,7 +110,8 @@ test("sanitisePath: sanitises reserved filenames", (t) => {
   t.is(sanitisePath("LpT9.text"), "_");
   t.is(sanitisePath("LPT10"), "LPT10");
 });
-test("sanitisePath: sanitises trailing characters", (t) => {
+test("sanitisePath: sanitises leading and trailing characters", (t) => {
+  t.is(sanitisePath(" /test"), "__test");
   t.is(sanitisePath("hello   "), "hello___");
   t.is(sanitisePath("file/ /"), "file___");
 });
