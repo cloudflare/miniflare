@@ -36,7 +36,7 @@ export async function coupleWebSocket(
     if (!pair[kClosed]) pair[kClose](code, reason.toString());
   });
   ws.on("error", (error) => {
-    pair.dispatchEvent(new ErrorEvent(error));
+    pair.dispatchEvent(new ErrorEvent("error", { error }));
   });
 
   // Forward events from worker to client
