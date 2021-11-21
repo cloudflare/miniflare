@@ -58,6 +58,23 @@ export function titleCase(s: string): string {
     .join(" ");
 }
 
+const urlRegexp = /^([a-z]+:)?\/\//i;
+
+export function resolveStoragePersist(
+  rootPath: string,
+  persist?: boolean | string
+): boolean | string | undefined {
+  if (typeof persist === "string") {
+    // If persist is a URL (e.g. Redis), don't resolve it relative to root,
+    // that doesn't make sense
+    if (urlRegexp.test(persist)) return persist;
+    // However, if it's a file path, resolve it relative to root
+    return path.resolve(rootPath, persist);
+  }
+  // If persist is a boolean or undefined, return as is
+  return persist;
+}
+
 /*! Path sanitisation regexps adapted from node-sanitize-filename:
  * https://github.com/parshap/node-sanitize-filename/blob/209c39b914c8eb48ee27bcbde64b2c7822fdf3de/index.js#L4-L37
  *

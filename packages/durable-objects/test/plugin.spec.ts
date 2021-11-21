@@ -96,12 +96,30 @@ test("DurableObjectsPlugin: getObject: waits for constructors and bindings", asy
 test("DurableObjectsPlugin: getObject: object storage is namespaced by object name", async (t) => {
   const map = new Map<string, StoredValue>();
   const factory = new MemoryStorageFactory({
-    [`map:TEST:${testId.toString()}`]: map,
+    [`test://map:TEST:${testId.toString()}`]: map,
   });
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
-    durableObjectsPersist: "map",
+    durableObjectsPersist: "test://map",
   });
+  plugin.beforeReload();
+  plugin.reload({}, { TestObject }, {});
+  const state = await plugin.getObject(factory, testId);
+  await state.storage.put("key", "value");
+  t.true(map.has("key"));
+});
+test("DurableObjectsPlugin: getObject: resolves persist path relative to rootPath", async (t) => {
+  const map = new Map<string, StoredValue>();
+  const factory = new MemoryStorageFactory({
+    [`/root/test:TEST:${testId.toString()}`]: map,
+  });
+  const plugin = new DurableObjectsPlugin(
+    { log, compat, rootPath: "/root" },
+    {
+      durableObjects: { TEST: "TestObject" },
+      durableObjectsPersist: "test",
+    }
+  );
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, {});
   const state = await plugin.getObject(factory, testId);

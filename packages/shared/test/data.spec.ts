@@ -7,6 +7,7 @@ import {
   globsToMatcher,
   kebabCase,
   nonCircularClone,
+  resolveStoragePersist,
   sanitisePath,
   spaceCase,
   titleCase,
@@ -73,6 +74,20 @@ test("spaceCase: converts string from PascalCase or camelCase to space case", (t
 test("titleCase: converts string from PascalCase or camelCase to Title Case", (t) => {
   t.is(titleCase("HTTPPlugin"), "HTTP Plugin");
   t.is(titleCase("optionOneName"), "Option One Name");
+});
+
+test("resolveStoragePersist: resolves file system paths relative to root", (t) => {
+  t.is(resolveStoragePersist("/root", "data"), "/root/data");
+  t.is(resolveStoragePersist("/root", "/another/root"), "/another/root");
+});
+test("resolveStoragePersist: leaves other paths untouched", (t) => {
+  t.is(resolveStoragePersist("/root"), undefined);
+  t.is(resolveStoragePersist("/root", false), false);
+  t.is(resolveStoragePersist("/root", true), true);
+  t.is(
+    resolveStoragePersist("/root", "redis://localhost:6379"),
+    "redis://localhost:6379"
+  );
 });
 
 test("sanitisePath: doesn't change safe paths", (t) => {

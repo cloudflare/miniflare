@@ -66,9 +66,21 @@ test("KVPlugin: logs options", (t) => {
 });
 test("KVPlugin: getNamespace: creates namespace", async (t) => {
   const map = new Map<string, StoredValueMeta>();
-  const factory = new MemoryStorageFactory({ ["map:NAMESPACE"]: map });
+  const factory = new MemoryStorageFactory({ ["test://map:NAMESPACE"]: map });
 
-  const plugin = new KVPlugin(ctx, { kvPersist: "map" });
+  const plugin = new KVPlugin(ctx, { kvPersist: "test://map" });
+  const namespace = await plugin.getNamespace(factory, "NAMESPACE");
+  await namespace.put("key", "value");
+  t.true(map.has("key"));
+});
+test("KVPlugin: getNamespace: resolves persist path relative to rootPath", async (t) => {
+  const map = new Map<string, StoredValueMeta>();
+  const factory = new MemoryStorageFactory({ ["/root/test:NAMESPACE"]: map });
+
+  const plugin = new KVPlugin(
+    { log, compat, rootPath: "/root" },
+    { kvPersist: "test" }
+  );
   const namespace = await plugin.getNamespace(factory, "NAMESPACE");
   await namespace.put("key", "value");
   t.true(map.has("key"));
@@ -77,12 +89,12 @@ test("KVPlugin: setup: includes namespaces in bindings", async (t) => {
   const map1 = new Map<string, StoredValueMeta>();
   const map2 = new Map<string, StoredValueMeta>();
   const factory = new MemoryStorageFactory({
-    ["map:NAMESPACE1"]: map1,
-    ["map:NAMESPACE2"]: map2,
+    ["test://map:NAMESPACE1"]: map1,
+    ["test://map:NAMESPACE2"]: map2,
   });
 
   const plugin = new KVPlugin(ctx, {
-    kvPersist: "map",
+    kvPersist: "test://map",
     kvNamespaces: ["NAMESPACE1", "NAMESPACE2"],
   });
   const result = await plugin.setup(factory);
