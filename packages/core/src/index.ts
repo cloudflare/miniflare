@@ -24,6 +24,7 @@ import {
   WranglerConfig,
   addAll,
   logOptions,
+  resolveStoragePersist,
 } from "@miniflare/shared";
 import type { Watcher } from "@miniflare/watcher";
 import { dequal } from "dequal/lite";
@@ -459,14 +460,23 @@ export class MiniflareCore<
                 packagePath: true,
                 envPath: true,
                 wranglerConfigPath: true,
-                // Copy watch options and storage persistence options when using
-                // string mounts (e.g. via CLI)
+                // Copy watch option
                 watch: this.#watching,
-                // This tight coupling makes me sad
-                kvPersist: options.KVPlugin?.kvPersist,
-                cachePersist: options.CachePlugin?.cachePersist,
-                durableObjectsPersist:
-                  options.DurableObjectsPlugin?.durableObjectsPersist,
+                // Copy storage persistence options, we want mounted workers to
+                // share the same underlying storage for shared namespaces.
+                // (this tight coupling makes me sad)
+                kvPersist: resolveStoragePersist(
+                  rootPath,
+                  options.KVPlugin?.kvPersist
+                ),
+                cachePersist: resolveStoragePersist(
+                  rootPath,
+                  options.CachePlugin?.cachePersist
+                ),
+                durableObjectsPersist: resolveStoragePersist(
+                  rootPath,
+                  options.DurableObjectsPlugin?.durableObjectsPersist
+                ),
               }
             : rawOptions
         ) as MiniflareCoreOptions<Plugins>;

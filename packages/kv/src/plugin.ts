@@ -6,6 +6,7 @@ import {
   PluginContext,
   SetupResult,
   StorageFactory,
+  resolveStoragePersist,
 } from "@miniflare/shared";
 import { KVNamespace } from "./namespace";
 
@@ -33,17 +34,19 @@ export class KVPlugin extends Plugin<KVOptions> implements KVOptions {
     fromWrangler: ({ miniflare }) => miniflare?.kv_persist,
   })
   kvPersist?: boolean | string;
+  readonly #persist?: boolean | string;
 
   constructor(ctx: PluginContext, options?: KVOptions) {
     super(ctx);
     this.assignOptions(options);
+    this.#persist = resolveStoragePersist(ctx.rootPath, this.kvPersist);
   }
 
   async getNamespace(
     storage: StorageFactory,
     namespace: string
   ): Promise<KVNamespace> {
-    return new KVNamespace(await storage.storage(namespace, this.kvPersist));
+    return new KVNamespace(await storage.storage(namespace, this.#persist));
   }
 
   async setup(storageFactory: StorageFactory): Promise<SetupResult> {

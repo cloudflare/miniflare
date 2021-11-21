@@ -141,9 +141,9 @@ test("CachePlugin: logs options", (t) => {
 
 test("CachePlugin: setup: includes CacheStorage in globals", async (t) => {
   const map = new Map<string, StoredValueMeta<CachedMeta>>();
-  const factory = new MemoryStorageFactory({ ["map:default"]: map });
+  const factory = new MemoryStorageFactory({ ["test://map:default"]: map });
 
-  let plugin = new CachePlugin(ctx, { cachePersist: "map" });
+  let plugin = new CachePlugin(ctx, { cachePersist: "test://map" });
   let result = plugin.setup(factory);
   let caches = result.globals?.caches;
   t.true(caches instanceof CacheStorage);
@@ -159,6 +159,19 @@ test("CachePlugin: setup: includes CacheStorage in globals", async (t) => {
   assert(caches instanceof CacheStorage);
   t.true(caches.default instanceof NoOpCache);
   t.true((await caches.open("test")) instanceof NoOpCache);
+});
+test("CachePlugin: setup: resolves persist path relative to rootPath", async (t) => {
+  const map = new Map<string, StoredValueMeta<CachedMeta>>();
+  const factory = new MemoryStorageFactory({ ["/root/test:default"]: map });
+
+  const plugin = new CachePlugin(
+    { log, compat, rootPath: "/root" },
+    { cachePersist: "test" }
+  );
+  plugin.setup(factory);
+  const caches = plugin.getCaches();
+  await caches.default.put("http://localhost:8787/", testResponse());
+  t.true(map.has("http://localhost:8787/"));
 });
 test("CachePlugin: setup: Responses parse files in FormData as File objects only if compatibility flag enabled", async (t) => {
   const factory = new MemoryStorageFactory();

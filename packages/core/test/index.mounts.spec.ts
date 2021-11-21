@@ -113,18 +113,18 @@ format = "modules"`
   const cacheMap = new Map<string, StoredValueMeta>();
   const durableObjectsMap = new Map<string, StoredValueMeta>();
   const storageFactory = new MemoryStorageFactory({
-    "kv-persist:TEST_NAMESPACE": kvMap,
-    "cache-persist:default": cacheMap,
-    "durable-objects-persist:TEST_OBJECT:8f9973e23d7d465bb827b1ded10ae3e3d1e9b25f9e0763ab8ced46632d58ff07":
+    "test://kv-persist:TEST_NAMESPACE": kvMap,
+    "test://cache-persist:default": cacheMap,
+    "test://durable-objects-persist:TEST_OBJECT:8f9973e23d7d465bb827b1ded10ae3e3d1e9b25f9e0763ab8ced46632d58ff07":
       durableObjectsMap,
   });
   const mf = useMiniflare(
     { KVPlugin, CachePlugin, DurableObjectsPlugin },
     {
       watch: true,
-      kvPersist: "kv-persist",
-      cachePersist: "cache-persist",
-      durableObjectsPersist: "durable-objects-persist",
+      kvPersist: "test://kv-persist",
+      cachePersist: "test://cache-persist",
+      durableObjectsPersist: "test://durable-objects-persist",
       mounts: { tmp },
     },
     new NoOpLog(),

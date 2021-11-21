@@ -6,6 +6,7 @@ import {
   PluginContext,
   SetupResult,
   StorageFactory,
+  resolveStoragePersist,
 } from "@miniflare/shared";
 import { Cache } from "./cache";
 import { CacheError } from "./error";
@@ -125,8 +126,13 @@ export class CachePlugin extends Plugin<CacheOptions> implements CacheOptions {
   }
 
   setup(storageFactory: StorageFactory): SetupResult {
+    const persist = resolveStoragePersist(this.ctx.rootPath, this.cachePersist);
     this.#caches = new CacheStorage(
-      this,
+      {
+        cache: this.cache,
+        cachePersist: persist,
+        cacheWarnUsage: this.cacheWarnUsage,
+      },
       this.ctx.log,
       storageFactory,
       this.ctx.compat.isEnabled("formdata_parser_supports_files")

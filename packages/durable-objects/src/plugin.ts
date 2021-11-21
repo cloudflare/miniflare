@@ -7,6 +7,7 @@ import {
   PluginContext,
   SetupResult,
   StorageFactory,
+  resolveStoragePersist,
 } from "@miniflare/shared";
 import { DurableObjectError } from "./error";
 import {
@@ -65,6 +66,7 @@ export class DurableObjectsPlugin
     fromWrangler: ({ miniflare }) => miniflare?.durable_objects_persist,
   })
   durableObjectsPersist?: boolean | string;
+  readonly #persist?: boolean | string;
 
   readonly #processedObjects: ProcessedDurableObject[];
   readonly #requireFullUrl: boolean;
@@ -79,6 +81,10 @@ export class DurableObjectsPlugin
   constructor(ctx: PluginContext, options?: DurableObjectsOptions) {
     super(ctx);
     this.assignOptions(options);
+    this.#persist = resolveStoragePersist(
+      ctx.rootPath,
+      this.durableObjectsPersist
+    );
 
     this.#processedObjects = Object.entries(this.durableObjects ?? {}).map(
       ([name, options]) => {
@@ -119,7 +125,7 @@ export class DurableObjectsPlugin
     // section protected with a mutex.
     statePromise = (async () => {
       const objectStorage = new DurableObjectStorage(
-        await storage.storage(key, this.durableObjectsPersist)
+        await storage.storage(key, this.#persist)
       );
       const state = new DurableObjectState(id, objectStorage);
 
