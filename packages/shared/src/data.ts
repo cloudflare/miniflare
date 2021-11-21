@@ -77,13 +77,14 @@ const namespaceRegexp = /[/\\:|]/g;
 const dotRegexp = /(^|\/|\\)(\.+)(\/|\\|$)/g;
 const illegalRegexp = /[?<>*"'^\x00-\x1f\x80-\x9f]/g;
 const windowsReservedRegexp = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
+const leadingRegexp = /^[ /\\]+/;
 const trailingRegexp = /[ /\\]+$/;
 
 function dotReplacement(match: string, g1: string, g2: string, g3: string) {
   return `${g1}${"".padStart(g2.length, "_")}${g3}`;
 }
 
-function trailingReplacement(match: string) {
+function underscoreReplacement(match: string) {
   return "".padStart(match.length, "_");
 }
 
@@ -94,6 +95,7 @@ export function sanitisePath(unsafe: string): string {
     .replace(dotRegexp, dotReplacement)
     .replace(illegalRegexp, "_")
     .replace(windowsReservedRegexp, "_")
-    .replace(trailingRegexp, trailingReplacement)
+    .replace(leadingRegexp, underscoreReplacement)
+    .replace(trailingRegexp, underscoreReplacement)
     .substring(0, 255);
 }
