@@ -113,7 +113,7 @@ test("ModuleLinker: throws error if no matching module rule via ES module", asyn
   await t.throwsAsync(result, {
     instanceOf: VMScriptRunnerError,
     code: "ERR_MODULE_RULE",
-    message: /no matching module rules$/,
+    message: /no matching module rules/,
   });
 });
 test("ModuleLinker: throws error for unsupported module type via ES module", async (t) => {
@@ -184,7 +184,7 @@ test("ModuleLinker: throws error if no matching module rule via CommonJS module"
   await t.throwsAsync(result, {
     instanceOf: VMScriptRunnerError,
     code: "ERR_MODULE_RULE",
-    message: /no matching module rules$/,
+    message: /no matching module rules/,
   });
 });
 test("ModuleLinker: throws error for unsupported module type via CommonJS module", async (t) => {

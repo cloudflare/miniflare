@@ -11,6 +11,9 @@ import {
 } from "@miniflare/shared";
 import { VMScriptRunnerError } from "./error";
 
+const SUGGEST_BUNDLE =
+  "If you're trying to import an npm package, you'll need to bundle your Worker first.";
+
 interface CommonJSModule {
   exports: any;
 }
@@ -86,7 +89,7 @@ export class ModuleLinker {
     if (rule === undefined) {
       throw new VMScriptRunnerError(
         "ERR_MODULE_RULE",
-        `${errorBase}: no matching module rules`
+        `${errorBase}: no matching module rules.\n${SUGGEST_BUNDLE}`
       );
     }
 
@@ -178,7 +181,7 @@ export class ModuleLinker {
     if (rule === undefined) {
       throw new VMScriptRunnerError(
         "ERR_MODULE_RULE",
-        `${errorBase}: no matching module rules`
+        `${errorBase}: no matching module rules.\n${SUGGEST_BUNDLE}`
       );
     }
 
