@@ -14,6 +14,7 @@ import {
   viewToArray,
   viewToBuffer,
 } from "@miniflare/shared";
+import { useTmp } from "@miniflare/shared-test";
 import test from "ava";
 
 test("nonCircularClone: creates copy of data", (t) => {
@@ -76,9 +77,11 @@ test("titleCase: converts string from PascalCase or camelCase to Title Case", (t
   t.is(titleCase("optionOneName"), "Option One Name");
 });
 
-test("resolveStoragePersist: resolves file system paths relative to root", (t) => {
-  t.is(resolveStoragePersist("/root", "data"), "/root/data");
-  t.is(resolveStoragePersist("/root", "/another/root"), "/another/root");
+test("resolveStoragePersist: resolves file system paths relative to root", async (t) => {
+  const tmp = await useTmp(t);
+  const tmp2 = await useTmp(t);
+  t.is(resolveStoragePersist(tmp, "data"), path.resolve(tmp, "data"));
+  t.is(resolveStoragePersist(tmp, tmp2), tmp2);
 });
 test("resolveStoragePersist: leaves other paths untouched", (t) => {
   t.is(resolveStoragePersist("/root"), undefined);

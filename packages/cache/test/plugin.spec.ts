@@ -1,4 +1,5 @@
 import assert from "assert";
+import path from "path";
 import {
   CacheError,
   CachePlugin,
@@ -20,6 +21,7 @@ import {
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  useTmp,
   utf8Decode,
 } from "@miniflare/shared-test";
 import test from "ava";
@@ -161,11 +163,14 @@ test("CachePlugin: setup: includes CacheStorage in globals", async (t) => {
   t.true((await caches.open("test")) instanceof NoOpCache);
 });
 test("CachePlugin: setup: resolves persist path relative to rootPath", async (t) => {
+  const tmp = await useTmp(t);
   const map = new Map<string, StoredValueMeta<CachedMeta>>();
-  const factory = new MemoryStorageFactory({ ["/root/test:default"]: map });
+  const factory = new MemoryStorageFactory({
+    [`${tmp}${path.sep}test:default`]: map,
+  });
 
   const plugin = new CachePlugin(
-    { log, compat, rootPath: "/root" },
+    { log, compat, rootPath: tmp },
     { cachePersist: "test" }
   );
   plugin.setup(factory);
