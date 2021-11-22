@@ -55,8 +55,8 @@ export class ReadWriteMutex {
   }
 
   async runWithWrite<T>(closure: () => Awaitable<T>): Promise<T> {
-    const acquirePromise = this.writeLock();
-    if (acquirePromise instanceof Promise) await acquirePromise;
+    const acquireAwaitable = this.writeLock();
+    if (acquireAwaitable instanceof Promise) await acquireAwaitable;
     try {
       const awaitable = closure();
       if (awaitable instanceof Promise) return await awaitable;
