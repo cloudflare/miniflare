@@ -32,3 +32,4 @@ Miniflare supports the following Web Standards in its sandbox:
 - **Events:** `Event`, `EventTarget`, `AbortController`, `AbortSignal`
 - **Event Types:** `fetch`, `scheduled`, `unhandledrejection`,
   `rejectionhandled`
+- **Misc:** `structuredClone`
