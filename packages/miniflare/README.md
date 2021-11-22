@@ -53,7 +53,10 @@ goals:
 - 🗺 Source Map Support
 - 🕸 Web Standards: Base64, Timers, Fetch, Encoding, URL, Streams, Crypto
 - 📄 HTMLRewriter
-- 👀 Automatic Reload on File Changes
+- ⚡️ Live Reload on File Changes
+- 📅 Compatibility Dates/Flags Support
+- 🔌 Multiple Workers Support
+- 🤹 Custom Jest Environment (with isolated per-test storage)
 - 💪 Written in TypeScript
 
 ## Install
