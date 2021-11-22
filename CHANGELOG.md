@@ -1,159 +1,6 @@
 # 🚧 Changelog
 
-## 2.0.0-rc.2
-
-### Features
-
-- Add `structuredClone` to the sandbox
-- Copy `--kv-persist`, `--cache-persist` and `--do-persist` options to
-  `--mount`s, so data is shared correctly
-- Resolve mount-custom storage persistence options relative to mounted directory
-- Add a more helpful error message on `DurableObjectStorage#get` deserialization
-  failure due to Miniflare 1 data
-- Add a more helpful error message on `Cache#match` deserialization failure due
-  to Miniflare 1 data
-- Add a more helpful error message when unable to find a matching module rule
-  that suggests bundling npm packages
-
-### Fixes
-
-- Bump `undici` to `4.10.2`, closes issues
-  [#84](https://github.com/cloudflare/miniflare/issues/84) and
-  [#91](https://github.com/cloudflare/miniflare/issues/91), thanks
-  [@gzuidhof](https://github.com/gzuidhof) and
-  [@tranzium](https://github.com/tranzium)
-- Remove `Host` and `CF-Connecting-IP` headers when `fetch`ing, closes issue
-  [#97](https://github.com/cloudflare/miniflare/issues/97), thanks
-  [@WalshyDev](https://github.com/WalshyDev)
-- Allow file-system persisted keys to start with `/`, thanks
-  [@eidam](https://github.com/eidam) for reporting this
-- Setting an option to `undefined` now overrides that option in `wrangler.toml`
-  like Miniflare 1
-- When building mounted workers, set the current working directory to the
-  mounted directory
-- Respect the `fetch_refuses_unknown_protocols` compatibility flag in
-  `DurableObjectStub#fetch`
-- Default `Response.redirect` status to `302` instead of throwing
-- Improve spec-compliance of WebSocket event constructors
-
-### Jest Fixes 🙁
-
-- Fix importing `miniflare` in Jest when using the `node` environment,
-  specifically fix `WebSocketServer` import and `atob`/`btoa`/`AbortSignal`
-  globals
-- Add `Buffer` to global in `jest-environment-node`, thanks
-  [@dan-lee](https://github.com/dan-lee) for the
-  [PR](https://github.com/cloudflare/miniflare/pull/95)
-- Allow dynamic code generation in `jest-environment-node` for coverage, thanks
-  [@dan-lee](https://github.com/dan-lee) for reporting this
-
-## 2.0.0-rc.1
-
-### Breaking Changes
-
-- Changed the priority of bindings, so it matches Miniflare 1. The new order
-  (from lowest to highest priority) is:
-  1. Variables from `wrangler.toml` `[vars]`
-  2. Variables from `.env` files
-  3. WASM module bindings (`--wasm`, `[wasm_modules]`)
-  4. Custom bindings
-- The result of `dispatchScheduled` will no longer include `undefined` if a
-  module scheduled handler doesn't return a value
-
-### Features
-
-- Added a **custom Jest test environment for Miniflare**. This allows you to
-  **run unit tests in the Miniflare sandbox**, with **isolated storage** for
-  each test. Install the `jest-environment-miniflare` to get started and see
-  [🤹 Jest Environment](https://v2.miniflare.dev/jest.html) for more details.
-- Added support for **running multiple workers** in the same Miniflare instance.
-  See [🔌 Multiple Workers](https://v2.miniflare.dev/mount.html) for more
-  details.
-- Added support for the Durable Object `script_name` option. See
-  [📌 Durable Objects](https://v2.miniflare.dev/durable-objects.html#using-a-class-exported-by-another-script)
-  for more details.
-- Added support for the new `__STATIC_CONTENT_MANIFEST` text module for using
-  Workers Sites in modules mode
-- Throw an error when a Durable Object `fetch` handler doesn't return a
-  `Response`
-- Added `queueMicrotask` to the sandbox
-- Added the `Miniflare#getCaches` method for accessing the global `caches`
-  outside workers
-- Added back the `sourceMap` option to `Miniflare`
-- Changed the default location for the `update-check` and `cf.json` files to
-  inside `node_modules`
-- Switched the CRON validation and scheduling package from
-  [`node-cron`](https://www.npmjs.com/package/node-cron) to
-  [`cron-schedule`](https://www.npmjs.com/package/cron-schedule). This improves
-  error messages for invalid CRON expressions, and removes a transitive
-  dependency on `moment-timezone`, reducing the installation size by a further
-  5MB.
-
-### Fixes
-
-- Allow any close code when a client closes a WebSocket connection. Closes
-  [issue #86](https://github.com/cloudflare/miniflare/issues/86), thanks
-  [@TimTinkers](https://github.com/TimTinkers).
-- Wait for worker response before opening WebSocket in client, closes
-  [issue #88](https://github.com/cloudflare/miniflare/issues/88), thanks
-  [@TimTinkers](https://github.com/TimTinkers).
-- Pass the `--env` flag to `wrangler build` when `--wrangler-env` is set for
-  `type = "webpack"`/`"rust"` builds
-- Set correct `Host` header with `--upstream` flag set
-- Fixed memory leak in `HTMLRewriter` when passing non-`ArrayBuffer(View)`
-  chunks
-- Marked `@miniflare/core` and `@miniflare/storage-memory` as `dependencies` of
-  `@miniflare/durable-objects`
-- Removed `ServiceWorkerGlobalScope#dispose()` from global scope
-
-## 2.0.0-next.3
-
-### Fixes
-
-- Remove `Content-Length` header from `HTMLRewriter` transformed `Response`s
-- Update `Content-Length` header if set and live-reload is enabled
-- Inject the live-reload script when there is no closing `</body>` tag. Closes
-  [issue #70](https://github.com/cloudflare/miniflare/issues/70), thanks
-  [@jed](https://github.com/jed) for reporting this, and
-  [@lukeed](https://github.com/lukeed) for the
-  [PR](https://github.com/cloudflare/miniflare/pull/79).
-- Bump `undici` to `4.9.3`, fixing iteration of `Headers`. Closes
-  [issue #64](https://github.com/cloudflare/miniflare/issues/64), thanks
-  [@Kikobeats](https://github.com/Kikobeats) for reporting this, and
-  [@lukeed](https://github.com/lukeed) for
-  [fixing this in `undici`](https://github.com/nodejs/undici/pull/1081).
-- Added install-time check for minimum supported Node.js version. Thanks
-  [@lukeed](https://github.com/lukeed) for the
-  [PR](https://github.com/cloudflare/miniflare/pull/78).
-- Updated build script to use ES module exports of dependencies where possible.
-  Thanks [@lukeed](https://github.com/lukeed) for the
-  [PR](https://github.com/cloudflare/miniflare/pull/77).
-
-## 2.0.0-next.2
-
-### Fixes
-
-- Added support for the
-  [`Response#encodeBody` property](https://developers.cloudflare.com/workers/runtime-apis/response#properties).
-  If this is omitted or set to `auto`, `Response`s with a `Content-Encoding`
-  header that includes `gzip`, `deflate` or `br` will be automatically encoded.
-  Closes [issue #72](https://github.com/cloudflare/miniflare/issues/72), thanks
-  [@SupremeTechnopriest](https://github.com/SupremeTechnopriest).
-- Getters on `Request`/`Response` are now enumerable, and headers added to
-  `Request`/`Response` instances after construction will now be retained if
-  those instances are used to construct new `Request`/`Response`s. Closes
-  [issue #73](https://github.com/cloudflare/miniflare/issues/73), thanks
-  [@maraisr](https://github.com/maraisr) and
-  [@somebody1234](https://github.com/somebody1234).
-- Variables defined in `.env` files now override those in `wrangler.toml`.
-  Closes [issue #75](https://github.com/cloudflare/miniflare/issues/75), thanks
-  [@payellodevsupport](https://github.com/payellodevsupport) for the
-  [PR](https://github.com/cloudflare/miniflare/pull/76).
-- `http` and `https` protocols are now required for WebSocket upgrades via
-  `fetch` as per the workers runtime
-- Miniflare-added `CF-*` headers are now included in the HTML error response
-
-## 2.0.0-next.1
+## 2.0.0
 
 Miniflare 2 has been completely redesigned from version 1 with 3 primary design
 goals:
@@ -165,28 +12,29 @@ goals:
 2. ✨ **Lightweight:** Miniflare 1 included
    [122 third-party packages](http://npm.anvaka.com/#/view/2d/miniflare) with a
    total install size of `88.3MB`. Miniflare 2 reduces this to **24 packages and
-   `11.5MB`** 🤯. This can probably be reduced further too.
-3. ✅ **Correct:** Miniflare 2 more accurately replicates the quirks and thrown
+   `6MB`** by leveraging features included with Node.js 16.
+3. ✅ **Accurate:** Miniflare 2 more accurately replicates the quirks and thrown
    errors of the real Workers runtime, so you'll know before you deploy if
    things are going to break.
-
-The docs will be updated over the next few weeks.
 
 ### Notable Changes
 
 - ✳️ Node.js 16.7.0 is now the minimum required version
-- 🎲 Added support for `crypto.randomUUID()`
-- 🔐 Added support for the `NODE-ED25519` algorithm
+- 🤹 Added a custom Jest test environment, allowing you to run unit tests in the
+  Miniflare sandbox, with isolated storage for each test
+- 🔌 Added support for running multiple workers in the same Miniflare instance
+- ⚡️ Added a live reload feature (`--live-reload`) that automatically refreshes
+  your browser when your worker reloads
+- 🚪 Added Durable Object input and output gates, and write coalescing
+- 🛑 Added the `DurableObjectState#blockConcurrencyWhile(callback)` method
 - 📅 Added support for compatibility dates and flags:
   `durable_object_fetch_requires_full_url`, `fetch_refuses_unknown_protocols`,
   `formdata_parser_supports_files`
 - 📚 Added a proper CommonJS module loader
-- 🚪 Added Durable Object input and output gates, and write coalescing
-- 🛑 Added the `DurableObjectState#blockConcurrencyWhile(callback)` method
-- ⚡️ Added a live reload feature (`--live-reload`) that automatically refreshes
-  your browser when your worker reloads
 - 🗺 Automatically fetch the incoming `Request#cf` object from a trusted
   Cloudflare endpoint
+- 🎲 Added support for `crypto.randomUUID()`
+- 🔐 Added support for the `NODE-ED25519` algorithm
 - ✉️ Added support for sending/receiving binary WebSocket messages
 
 ### Breaking Changes
@@ -200,13 +48,17 @@ The docs will be updated over the next few weeks.
   directories/namespaces.
 - Changed the Durable Object ID format to include a hash of the object name.
   Durable Object IDs generated in Miniflare 1 cannot be used with Miniflare 2.
-- Removed support for the Durable Object `script_name` option. This was
-  implemented incorrectly in Miniflare 1. It will be re-implemented correctly
-  soon.
+- Correctly implement the Durable Object `script_name` option. In Miniflare 1,
+  this incorrectly expected a script path instead of a script name. This now
+  relies on mounting the other worker. See
+  [📌 Durable Objects](https://v2.miniflare.dev/durable-objects.html#using-a-class-exported-by-another-script)
+  for more details.
 - Removed the non-standard `DurableObjectStub#storage()` method. To access
   Durable Object storage outside a worker, use the new
   `Miniflare#getDurableObjectStorage(id)` method, passing a `DurableObjectId`
-  obtained from a stub.
+  obtained from a stub. See
+  [📌 Durable Objects](https://v2.miniflare.dev/durable-objects.html#manipulating-outside-workers)
+  for more details.
 - Renamed the `--disable-cache`/`disableCache: true` option to
   `--no-cache`/`cache: false`
 - Renamed the `--disable-updater` option to `--no-update-check`
@@ -262,6 +114,9 @@ The docs will be updated over the next few weeks.
   from `wrangler.toml` (useful if not watching), and `setOptions()` accepts the
   same options object as the `new Miniflare` constructor, applies those options,
   then reloads the worker.
+- Replaced the `Miniflare#getCache()` method the `Miniflare#getCaches()` method.
+  This returns the global `caches` object. See
+  [✨ Cache ](https://v2.miniflare.dev/cache.html#manipulating-outside-workers).
 - `Miniflare#createServer()` now always returns a `Promise` which you must await
   to get a `http.Server`/`https.Server` instance. You may want to check out the
   new `Miniflare#startServer()` method which automatically starts a server using
@@ -274,6 +129,8 @@ The docs will be updated over the next few weeks.
   `@miniflare/storage-redis` optional peer dependency.
 - Replaced how Miniflare sanitises file paths for file-system storage so
   namespace separators (`/`, `\`, `:` and `|`) now create new directories.
+- The result of `Miniflare#dispatchScheduled` will no longer include `undefined`
+  if a module scheduled handler doesn't return a value
 
 ### Features and Fixes
 
@@ -296,83 +153,20 @@ The docs will be updated over the next few weeks.
 - Separated command line options into sections
 - Validate types of all command line options
 
-**Builds:**
-
-- When running your worker's build script, Miniflare will set the environment
-  variable `MINIFLARE=1`. Closes
-  [issue #65](https://github.com/cloudflare/miniflare/issues/65), thanks
-  [@maraisr](https://github.com/maraisr).
-- Added an alias, `-B`, for the `--build-command` option
-- Multiple build watch paths can now be specified. If any of them change, your
-  worker will rebuild and reload.
-- Fixed an issue where workers would not rebuild if the build watch path started
-  with `./`. Closes
-  [issue #53](https://github.com/cloudflare/miniflare/issues/53), thanks
-  [@janat08](https://github.com/janat08).
-
-**Standards:**
-
-- **Added support for
-  [`crypto.randomUUID()`](https://developer.mozilla.org/en-US/docs/Web/API/Crypto/randomUUID)**
-- **Added support for the `NODE-ED25519` algorithm** to `crypto.subtle.sign()`
-  and `crypto.subtle.verify()`
-- Throw an error when attempting to create a new `TextDecoder` with a non-UTF-8
-  encoding
-- Throw errors when attempting to use `FetchEvent`/`ScheduledEvent` methods with
-  incorrectly bound `this`
-- Throw errors when attempting to call `respondWith()` twice, or after the
-  `fetch` handler has finished executing synchronously. Closes
-  [issue #63](https://github.com/cloudflare/miniflare/issues/63), thanks
-  [@Kikobeats](https://github.com/Kikobeats).
-- Added support for the `unhandledrejection` and `rejectionhandled` events
-- Throw an error (with a suggested fix) when trying to access an `env` binding
-  globally in modules mode
-- Throw errors when trying to use `addEventListener()`, `removeEventListener()`
-  and `dispatchEvent()` globals in modules mode
-- Split the
-  `FetchError: No fetch handler responded and unable to proxy request to upstream?`
-  error into more specific errors with suggested fixes
-- Added the
-  [non-standard `Headers#getAll()` method](https://developers.cloudflare.com/workers/runtime-apis/headers#differences).
-  This can only be used with the `Set-Cookie` header.
-- Switch to a
-  [more spec-compliant `fetch` implementation](https://github.com/nodejs/undici/),
-  and get `crypto`, `EventTarget` and Web Streams from Node.js. Closes
-  [issues #56](https://github.com/cloudflare/miniflare/issues/56) and
-  [#59](https://github.com/cloudflare/miniflare/issues/59), thanks
-  [@jasnell](https://github.com/jasnell),
-  [@jonathannorris](https://github.com/jonathannorris) and
-  [@SupremeTechnopriest](https://github.com/SupremeTechnopriest).
-- Throw an error when attempting to construct a WebSocket response with a status
-  other than `101`
-- Throw an error when attempting to clone a WebSocket response
-- Added support for the non-standard
-  `ReadableStreamBYOBReader#readAtLeast(size, buffer)` method
-- Include `File` in the Miniflare sandbox. Closes
-  [issue #66](https://github.com/cloudflare/miniflare/issues/66), thanks
-  [@tranzium](https://github.com/tranzium).
-
-**Bindings:**
-
-- Added `--global KEY=VALUE`/`globals: { KEY: "value" }` option for binding
-  arbitrary values to the global scope. This behaves exactly like the
-  `--binding`/`bindings: { ... }` option, but always binds to the global scope,
-  even in modules mode.
-- Added a new global variable `MINIFLARE` to the Miniflare sandbox, which will
-  always have the value `true` when your script is running within Miniflare
-- Miniflare now stringifies all environment variables from `wrangler.toml`.
-  Closes [issue #50](https://github.com/cloudflare/miniflare/issues/50), thanks
-  [@ozburo](https://github.com/ozburo).
-
 **Core:**
 
+- **Added support for running multiple workers** in the same Miniflare instance.
+  See [🔌 Multiple Workers](https://v2.miniflare.dev/mount.html) for more
+  details.
 - **Added support for compatibility dates and flags**, specifically the flags
   `durable_object_fetch_requires_full_url`, `fetch_refuses_unknown_protocols`,
   **`formdata_parser_supports_files`** are now supported. This feature is
   exposed under the `--compat-date` and `--compat-flag` CLI options, in addition
   to the standard keys in `wrangler.toml`. Closes
   [issue #48](https://github.com/cloudflare/miniflare/issues/48), thanks
-  [@PaganMuffin](https://github.com/PaganMuffin).
+  [@PaganMuffin](https://github.com/PaganMuffin). See
+  [📅 Compatibility Dates ](https://v2.miniflare.dev/compatibility.html) for
+  more details.
 - **Added a proper CommonJS module loader.** Workers built with Webpack will be
   more likely to work with Miniflare now. Closes
   [issue #44](https://github.com/cloudflare/miniflare/issues/44), thanks
@@ -406,6 +200,91 @@ The docs will be updated over the next few weeks.
   [@cdloh](https://github.com/cdloh).
 - Added a new `Miniflare#startScheduler()` method that starts a CRON scheduler
   that dispatches `scheduled` events according to CRON expressions in options
+- Miniflare-added `CF-*` headers are now included in the HTML error response
+- Updated build script to use ES module exports of dependencies where possible.
+  Thanks [@lukeed](https://github.com/lukeed) for the
+  [PR](https://github.com/cloudflare/miniflare/pull/77).
+
+**Bindings:**
+
+- Added `--global KEY=VALUE`/`globals: { KEY: "value" }` option for binding
+  arbitrary values to the global scope. This behaves exactly like the
+  `--binding`/`bindings: { ... }` option, but always binds to the global scope,
+  even in modules mode.
+- Added a new global variable `MINIFLARE` to the Miniflare sandbox, which will
+  always have the value `true` when your script is running within Miniflare
+- Miniflare now stringifies all environment variables from `wrangler.toml`.
+  Closes [issue #50](https://github.com/cloudflare/miniflare/issues/50), thanks
+  [@ozburo](https://github.com/ozburo).
+
+**Builds:**
+
+- When running your worker's build script, Miniflare will set the environment
+  variable `MINIFLARE=1`. Closes
+  [issue #65](https://github.com/cloudflare/miniflare/issues/65), thanks
+  [@maraisr](https://github.com/maraisr).
+- Added an alias, `-B`, for the `--build-command` option
+- Multiple build watch paths can now be specified. If any of them change, your
+  worker will rebuild and reload.
+- Pass the `--env` flag to `wrangler build` when `--wrangler-env` is set for
+  `type = "webpack"`/`"rust"` builds
+- Fixed an issue where workers would not rebuild if the build watch path started
+  with `./`. Closes
+  [issue #53](https://github.com/cloudflare/miniflare/issues/53), thanks
+  [@janat08](https://github.com/janat08).
+
+**Standards:**
+
+- **Added support for
+  [`crypto.randomUUID()`](https://developer.mozilla.org/en-US/docs/Web/API/Crypto/randomUUID)**
+- **Added support for
+  [`structuredClone`](https://developer.mozilla.org/en-US/docs/Web/API/structuredClone)**
+- **Added support for
+  [`queueMicrotask`](https://developer.mozilla.org/en-US/docs/Web/API/queueMicrotask)**
+- **Added support for the `NODE-ED25519` algorithm** to `crypto.subtle.sign()`
+  and `crypto.subtle.verify()` Note the `transfer` option is only supported on
+  Node.js >= 17.
+- Throw an error when attempting to create a new `TextDecoder` with a non-UTF-8
+  encoding
+- Throw errors when attempting to use `FetchEvent`/`ScheduledEvent` methods with
+  incorrectly bound `this`
+- Throw errors when attempting to call `respondWith()` twice, or after the
+  `fetch` handler has finished executing synchronously. Closes
+  [issue #63](https://github.com/cloudflare/miniflare/issues/63), thanks
+  [@Kikobeats](https://github.com/Kikobeats).
+- Added support for the `unhandledrejection` and `rejectionhandled` events
+- Throw an error (with a suggested fix) when trying to access an `env` binding
+  globally in modules mode
+- Throw errors when trying to use `addEventListener()`, `removeEventListener()`
+  and `dispatchEvent()` globals in modules mode
+- Split the
+  `FetchError: No fetch handler responded and unable to proxy request to upstream?`
+  error into more specific errors with suggested fixes
+- Added the
+  [non-standard `Headers#getAll()` method](https://developers.cloudflare.com/workers/runtime-apis/headers#differences).
+  This can only be used with the `Set-Cookie` header.
+- Switch to a
+  [more spec-compliant `fetch` implementation](https://github.com/nodejs/undici/),
+  and get `crypto`, `EventTarget` and Web Streams from Node.js. Closes
+  [issues #56](https://github.com/cloudflare/miniflare/issues/56) and
+  [#59](https://github.com/cloudflare/miniflare/issues/59), thanks
+  [@jasnell](https://github.com/jasnell),
+  [@jonathannorris](https://github.com/jonathannorris) and
+  [@SupremeTechnopriest](https://github.com/SupremeTechnopriest).
+- Added support for the
+  [`Response#encodeBody` property](https://developers.cloudflare.com/workers/runtime-apis/response#properties).
+  If this is omitted or set to `auto`, `Response`s with a `Content-Encoding`
+  header that includes `gzip`, `deflate` or `br` will be automatically encoded.
+  Closes [issue #72](https://github.com/cloudflare/miniflare/issues/72), thanks
+  [@SupremeTechnopriest](https://github.com/SupremeTechnopriest).
+- Throw an error when attempting to construct a WebSocket response with a status
+  other than `101`
+- Throw an error when attempting to clone a WebSocket response
+- Added support for the non-standard
+  `ReadableStreamBYOBReader#readAtLeast(size, buffer)` method
+- Include `File` in the Miniflare sandbox. Closes
+  [issue #66](https://github.com/cloudflare/miniflare/issues/66), thanks
+  [@tranzium](https://github.com/tranzium).
 
 **Durable Objects:**
 
@@ -438,18 +317,29 @@ The docs will be updated over the next few weeks.
 - Throw an error when attempting to perform an operation in a rolledback
   transaction or in a transaction that has already committed
 - Throw an error when attempting to call `deleteAll()` in a transaction
+- Throw an error when a Durable Object `fetch` handler doesn't return a
+  `Response`
 - Use the same V8 serialization as Cloudflare Workers to store values
 - Fixed an issue where keys added in a transaction callback were not reported as
   deleted in the same transaction
 - Fixed an issue where keys added in a transaction callback were not included in
   the list of keys in the same transaction
 
+**HTMLRewriter:**
+
+- Remove `Content-Length` header from `HTMLRewriter` transformed `Response`s
+- Don't start transforming until transformed `Response` body is needed
+- Throw an error when attempting to transform body streams containing
+  non-ArrayBuffer/ArrayBufferView chunks
+
 **HTTP Server:**
 
-- **Added a live reload feature** (powered by `HTMLRewriter` 😄), that
-  automatically refreshes your browser when your worker reloads. For this to
-  work, pass the `--live-reload` option, and return an HTML response containing
-  a `<body>` tag with the `Content-Type` set to `text/html`:
+- **Added a live reload feature**, that automatically refreshes your browser
+  when your worker reloads. For this to work, pass the `--live-reload` option,
+  and return an HTML response containing a `<body>` tag with the `Content-Type`
+  set to `text/html`. See
+  [⚡️ Live Reload ](https://v2.miniflare.dev/live-reload.html) for more
+  details.
 
   ```js
   addEventListener("fetch", (event) => {
@@ -509,6 +399,12 @@ The docs will be updated over the next few weeks.
   [issue #57](https://github.com/cloudflare/miniflare/issues/57), thanks
   [@Rysertio](https://github.com/Rysertio).
 
+**Jest Environment:**
+
+- Added a custom Jest test environment, allowing you to run unit tests in the
+  Miniflare sandbox, with isolated storage for each test. See
+  [🤹 Jest Environment](https://v2.miniflare.dev/jest.html) for more details.
+
 **KV:**
 
 - Throw an error when keys are empty, `.`, `..`, `undefined`, or greater than
@@ -529,6 +425,16 @@ The docs will be updated over the next few weeks.
   `/cdn-cgi/mf/scheduled`. Closes
   [issue #42](https://github.com/cloudflare/miniflare/issues/42), thanks
   [@ObsidianMinor](https://github.com/ObsidianMinor).
+- Switched the CRON validation and scheduling package from
+  [`node-cron`](https://www.npmjs.com/package/node-cron) to
+  [`cron-schedule`](https://www.npmjs.com/package/cron-schedule). This improves
+  error messages for invalid CRON expressions, and removes a transitive
+  dependency on `moment-timezone`, reducing the installation size by 5MB.
+
+**Workers Sites:**
+
+- Added support for the new `__STATIC_CONTENT_MANIFEST` text module allowing you
+  to use Workers Sites in modules mode
 
 **Web Sockets:**
 
@@ -538,6 +444,11 @@ The docs will be updated over the next few weeks.
 - Removed the `WebSocket#readyState` property. Closes
   [issue #47](https://github.com/cloudflare/miniflare/issues/47), thanks
   [@aboodman](https://github.com/aboodman).
+- Wait for worker response before opening WebSocket in client, closes
+  [issue #88](https://github.com/cloudflare/miniflare/issues/88), thanks
+  [@TimTinkers](https://github.com/TimTinkers).
+- `http` and `https` protocols are now required for WebSocket upgrades via
+  `fetch` as per the workers runtime
 - Throw an error when attempting to use a `WebSocket` in a `Response` that has
   already been used
 - Throw an error when attempting to use a `WebSocket` in a `Response` after
@@ -554,6 +465,7 @@ The docs will be updated over the next few weeks.
   closed WebSocket
 - Throw an error when attempting to call `WebSocket#close()` with an invalid
   close code
+- Make WebSocket event constructors more spec-compliant
 
 ## 1.4.1
 
