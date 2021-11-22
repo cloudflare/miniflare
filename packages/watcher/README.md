@@ -17,7 +17,7 @@ const watcher = new Watcher((changedPath) => {
 await watcher.watch("./dir");
 
 // Add file watchers
-await watcher.watch(["./file1.txt", "./file2.txt"]);
+await watcher.watch(/* any iterable */ ["./file1.txt", "./file2.txt"]);
 
 // Remove watchers
 watcher.unwatch("./file1.txt");

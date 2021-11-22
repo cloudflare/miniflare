@@ -55,6 +55,6 @@ const mf = new MiniflareCore(plugins, ctx, {
 
 // Start the server yourself...
 const server = await createServer(mf);
-// ...or get Miniflare to start it for you, logging to port
+// ...or get Miniflare to start it for you, logging the port
 const server2 = await startServer(mf);
 ```
