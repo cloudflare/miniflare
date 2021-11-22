@@ -1,3 +1,4 @@
+import path from "path";
 import { setImmediate } from "timers/promises";
 import { Response } from "@miniflare/core";
 import {
@@ -17,6 +18,7 @@ import {
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  useTmp,
 } from "@miniflare/shared-test";
 import test from "ava";
 import { TestObject, testId } from "./object";
@@ -108,13 +110,14 @@ test("DurableObjectsPlugin: getObject: object storage is namespaced by object na
   await state.storage.put("key", "value");
   t.true(map.has("key"));
 });
-test("DurableObjectsPlugin: getObject: resolves persist path relative to rootPath", async (t) => {
+test("DurableObjectsPlugin: getObject: reresolves persist path relative to rootPath", async (t) => {
+  const tmp = await useTmp(t);
   const map = new Map<string, StoredValue>();
   const factory = new MemoryStorageFactory({
-    [`/root/test:TEST:${testId.toString()}`]: map,
+    [`${tmp}${path.sep}test:TEST:${testId.toString()}`]: map,
   });
   const plugin = new DurableObjectsPlugin(
-    { log, compat, rootPath: "/root" },
+    { log, compat, rootPath: tmp },
     {
       durableObjects: { TEST: "TestObject" },
       durableObjectsPersist: "test",

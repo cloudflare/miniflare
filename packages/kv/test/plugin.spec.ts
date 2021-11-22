@@ -1,4 +1,5 @@
 import assert from "assert";
+import path from "path";
 import { KVNamespace, KVPlugin } from "@miniflare/kv";
 import {
   Compatibility,
@@ -11,6 +12,7 @@ import {
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  useTmp,
 } from "@miniflare/shared-test";
 import test from "ava";
 
@@ -74,11 +76,14 @@ test("KVPlugin: getNamespace: creates namespace", async (t) => {
   t.true(map.has("key"));
 });
 test("KVPlugin: getNamespace: resolves persist path relative to rootPath", async (t) => {
+  const tmp = await useTmp(t);
   const map = new Map<string, StoredValueMeta>();
-  const factory = new MemoryStorageFactory({ ["/root/test:NAMESPACE"]: map });
+  const factory = new MemoryStorageFactory({
+    [`${tmp}${path.sep}test:NAMESPACE`]: map,
+  });
 
   const plugin = new KVPlugin(
-    { log, compat, rootPath: "/root" },
+    { log, compat, rootPath: tmp },
     { kvPersist: "test" }
   );
   const namespace = await plugin.getNamespace(factory, "NAMESPACE");
