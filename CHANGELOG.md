@@ -1,5 +1,52 @@
 # 🚧 Changelog
 
+## 2.0.0-rc.2
+
+### Features
+
+- Add `structuredClone` to the sandbox
+- Copy `--kv-persist`, `--cache-persist` and `--do-persist` options to
+  `--mount`s, so data is shared correctly
+- Resolve mount-custom storage persistence options relative to mounted directory
+- Add a more helpful error message on `DurableObjectStorage#get` deserialization
+  failure due to Miniflare 1 data
+- Add a more helpful error message on `Cache#match` deserialization failure due
+  to Miniflare 1 data
+- Add a more helpful error message when unable to find a matching module rule
+  that suggests bundling npm packages
+
+### Fixes
+
+- Bump `undici` to `4.10.2`, closes issues
+  [#84](https://github.com/cloudflare/miniflare/issues/84) and
+  [#91](https://github.com/cloudflare/miniflare/issues/91), thanks
+  [@gzuidhof](https://github.com/gzuidhof) and
+  [@tranzium](https://github.com/tranzium)
+- Remove `Host` and `CF-Connecting-IP` headers when `fetch`ing, closes issue
+  [#97](https://github.com/cloudflare/miniflare/issues/97), thanks
+  [@WalshyDev](https://github.com/WalshyDev)
+- Allow file-system persisted keys to start with `/`, thanks
+  [@eidam](https://github.com/eidam) for reporting this
+- Setting an option to `undefined` now overrides that option in `wrangler.toml`
+  like Miniflare 1
+- When building mounted workers, set the current working directory to the
+  mounted directory
+- Respect the `fetch_refuses_unknown_protocols` compatibility flag in
+  `DurableObjectStub#fetch`
+- Default `Response.redirect` status to `302` instead of throwing
+- Improve spec-compliance of WebSocket event constructors
+
+### Jest Fixes 🙁
+
+- Fix importing `miniflare` in Jest when using the `node` environment,
+  specifically fix `WebSocketServer` import and `atob`/`btoa`/`AbortSignal`
+  globals
+- Add `Buffer` to global in `jest-environment-node`, thanks
+  [@dan-lee](https://github.com/dan-lee) for the
+  [PR](https://github.com/cloudflare/miniflare/pull/95)
+- Allow dynamic code generation in `jest-environment-node` for coverage, thanks
+  [@dan-lee](https://github.com/dan-lee) for reporting this
+
 ## 2.0.0-rc.1
 
 ### Breaking Changes
