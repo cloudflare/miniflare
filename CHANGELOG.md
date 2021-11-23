@@ -62,8 +62,8 @@ goals:
 - Renamed the `--disable-cache`/`disableCache: true` option to
   `--no-cache`/`cache: false`
 - Renamed the `--disable-updater` option to `--no-update-check`
-- When using the API, `wrangler.toml`, `package.json` and `.env` are now no
-  longer automatically loaded from their default locations. To re-enable this
+- When using the API, `wrangler.toml`, `package.json` and `.env` are no longer
+  automatically loaded from their default locations. To re-enable this
   behaviour, set these options to `true`:
 
   ```js
@@ -75,8 +75,8 @@ goals:
   ```
 
 - Replaced the `ConsoleLog` class with the `Log` class from `@miniflare/shared`.
-  You can construct this with a member from the `LogLevel` `enum` to control how
-  much information is logged to the console:
+  You can construct this with a `LogLevel` to control how much information is
+  logged to the console:
 
   ```js
   import { Miniflare, Log, LogLevel } from "miniflare";

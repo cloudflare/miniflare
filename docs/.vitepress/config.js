@@ -52,6 +52,7 @@ module.exports = {
           { text: "📅 Compatibility Dates", link: "/compatibility.html" },
           { text: "🔌 Multiple Workers", link: "/mount.html" },
           { text: "🤹 Jest Environment", link: "/jest.html" },
+          { text: "⬆️ Migrating from Version 1", link: "/migrating.html" },
         ],
       },
       {
