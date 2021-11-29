@@ -376,6 +376,10 @@ export class Response<
     } else {
       if (init instanceof Response) {
         encodeBody = init.#encodeBody;
+        // No need to check status here, will have been validated when
+        // constructing response in the first place
+        status = init.#status;
+        webSocket = init.#webSocket;
         // Don't pass our strange hybrid Response to undici
         init = init[kInner];
       } else if (!(init instanceof BaseResponse) /* ResponseInit */ && init) {
