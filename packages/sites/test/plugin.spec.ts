@@ -74,7 +74,10 @@ test("SitesPlugin: setup: returns empty result if no site", async (t) => {
 });
 test("SitesPlugin: setup: includes read-only content namespace and watches files", async (t) => {
   const tmp = await useTmp(t);
-  const plugin = new SitesPlugin(ctx, { sitePath: tmp });
+  const plugin = new SitesPlugin(
+    { log, compat, rootPath: tmp },
+    { sitePath: "site" }
+  );
   const result = await plugin.setup();
 
   // Check namespace is read-only
@@ -89,7 +92,7 @@ test("SitesPlugin: setup: includes read-only content namespace and watches files
   });
 
   // Check files watched
-  t.deepEqual(result.watch, [tmp]);
+  t.deepEqual(result.watch, [path.join(tmp, "site")]);
 
   // Check same setup result is always returned
   t.is(await plugin.setup(), result);

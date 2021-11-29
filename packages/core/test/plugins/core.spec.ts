@@ -471,7 +471,8 @@ test("CorePlugin: setup: loads script from package.json in custom location", asy
 
   const plugin = new CorePlugin(
     { log, compat, rootPath: tmp },
-    { packagePath: customPackagePath }
+    // Should resolve packagePath relative to rootPath
+    { packagePath: "package.custom.json" }
   );
   // Should throw if package.json doesn't exist
   await t.throwsAsync(plugin.setup(), {
@@ -511,10 +512,14 @@ test("CorePlugin: setup: loads script from explicit path", async (t) => {
   await fs.writeFile(packagePath, `{"main": "bad.js"}`);
   const scriptPath = path.join(tmp, "script.js");
   await fs.writeFile(scriptPath, "console.log(42)");
-  const plugin = new CorePlugin(ctx, {
-    scriptPath,
-    packagePath,
-  });
+  const plugin = new CorePlugin(
+    { log, compat, rootPath: tmp },
+    {
+      // Should resolve scriptPath relative to rootPath
+      scriptPath: "script.js",
+      packagePath,
+    }
+  );
   // packagePath should be ignored if an explicit scriptPath is set
   const result = await plugin.setup();
   t.deepEqual(result.watch, [scriptPath]); // No packagePath

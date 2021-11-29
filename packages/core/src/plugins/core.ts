@@ -402,11 +402,10 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     // If there's no script path from options or wrangler config, try get it
     // from package.json
     if (scriptPath === undefined) {
-      const packagePath =
-        this.packagePath === true
-          ? path.join(this.ctx.rootPath, "package.json")
-          : this.packagePath;
+      let packagePath =
+        this.packagePath === true ? "package.json" : this.packagePath;
       if (packagePath) {
+        packagePath = path.resolve(this.ctx.rootPath, packagePath);
         try {
           const pkg = JSON.parse(await fs.readFile(packagePath, "utf8"));
           scriptPath = this.modules ? pkg.module : pkg.main;
@@ -422,7 +421,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     // If we managed to get a script path from options, wrangler config or
     // package.json, load it
     if (scriptPath !== undefined) {
-      scriptPath = path.resolve(scriptPath);
+      scriptPath = path.resolve(this.ctx.rootPath, scriptPath);
       const code = await fs.readFile(scriptPath, "utf8");
       watch.push(scriptPath);
       return { globals, script: { filePath: scriptPath, code }, watch };

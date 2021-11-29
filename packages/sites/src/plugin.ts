@@ -59,7 +59,8 @@ export class SitesPlugin extends Plugin<SitesOptions> implements SitesOptions {
     // Create file KV storage with sanitisation DISABLED so paths containing
     // /'s resolve correctly
     const { FileStorage } = await import("@miniflare/storage-file");
-    const storage = new FileStorage(path.resolve(this.sitePath), false);
+    const sitePath = path.resolve(this.ctx.rootPath, this.sitePath);
+    const storage = new FileStorage(sitePath, false);
     const bindings = {
       __STATIC_CONTENT: new FilteredKVNamespace(storage, {
         readOnly: true,
@@ -77,7 +78,7 @@ export class SitesPlugin extends Plugin<SitesOptions> implements SitesOptions {
 
     // Whilst FileStorage will always serve the latest files, we want to
     // force a reload when these files change for live reload.
-    return { bindings, watch: [this.sitePath], additionalModules };
+    return { bindings, watch: [sitePath], additionalModules };
   }
 
   async setup(): Promise<SetupResult> {
