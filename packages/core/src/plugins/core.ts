@@ -240,7 +240,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
   @Option({
     type: OptionType.STRING,
     name: "root",
-    description: "Path to resolve default config files relative to",
+    description: "Path to resolve files relative to",
   })
   rootPath?: string;
 
