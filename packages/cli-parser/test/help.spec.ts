@@ -47,8 +47,7 @@ Core Options:
  -V, --verbose               Enable verbose logging                    [boolean]
      --(no-)update-check     Enable update checker (enabled by         [boolean]
                              default)
-     --root                  Path to resolve default config files       [string]
-                             relative to
+     --root                  Path to resolve files relative to          [string]
      --mount                 Mount additional named workers    [array:NAME=PATH]
 
 Test Options:
