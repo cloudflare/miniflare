@@ -90,7 +90,8 @@ export class BuildPlugin extends Plugin<BuildOptions> implements BuildOptions {
   }
 }
 
-export function populateBuildConfig(
+/** @internal */
+export function _populateBuildConfig(
   config: WranglerConfig,
   configDir: string,
   configEnv?: string

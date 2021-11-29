@@ -180,7 +180,7 @@ const rustInstalled = which.sync("rustc", { nothrow: true });
 
 const webpackTest = wranglerInstalled ? test : test.skip;
 webpackTest(
-  'populateBuildConfig: builds type "webpack" projects',
+  '_populateBuildConfig: builds type "webpack" projects',
   async (t) => {
     await rimrafPromise(path.join(webpackPath, "worker"));
     const mf = useMiniflare(
@@ -201,7 +201,7 @@ webpackTest(
 );
 
 const rustTest = wranglerInstalled && rustInstalled ? test : test.skip;
-rustTest('populateBuildConfig: builds type "rust" projects', async (t) => {
+rustTest('_populateBuildConfig: builds type "rust" projects', async (t) => {
   await rimrafPromise(path.join(rustPath, "worker", "generated"));
   const mf = useMiniflare(
     // BindingsPlugin required for wasm binding

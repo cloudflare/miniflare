@@ -13,7 +13,8 @@ import {
 import { listFilterMatch, listPaginate } from "@miniflare/storage-memory";
 import { Commands, Pipeline } from "ioredis";
 
-export function bufferFromArray(value: Uint8Array): Buffer {
+/** @internal */
+export function _bufferFromArray(value: Uint8Array): Buffer {
   return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
 }
 
@@ -174,7 +175,7 @@ export class RedisStorage extends Storage {
     const now = Date.now();
     for (const [key, { value, expiration, metadata }] of data) {
       const redisKey = this.#key(key);
-      const buffer = bufferFromArray(value);
+      const buffer = _bufferFromArray(value);
       // Work out millisecond TTL if defined (there are probably some rounding
       // errors here, but we'll only be off by a second so it's hopefully ok)
       const ttl =

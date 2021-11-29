@@ -11,7 +11,7 @@ import {
   TestStorageFactory,
   storageMacros,
 } from "@miniflare/shared-test";
-import { RedisStorage, bufferFromArray } from "@miniflare/storage-redis";
+import { RedisStorage, _bufferFromArray } from "@miniflare/storage-redis";
 import test, { ExecutionContext } from "ava";
 import IORedis from "ioredis";
 
@@ -44,7 +44,7 @@ class RedisStorageFactory extends TestStorageFactory {
       else if (expiration !== undefined) assert.fail();
 
       const redisKey = `${ns}:value:${key}`;
-      await redis.setBuffer(redisKey, bufferFromArray(value));
+      await redis.setBuffer(redisKey, _bufferFromArray(value));
       if (ttl !== undefined) await redis.expire(redisKey, ttl);
       if (metadata) {
         const redisMetaKey = `${ns}:meta:${key}`;

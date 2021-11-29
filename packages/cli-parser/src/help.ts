@@ -25,7 +25,8 @@ const versionMeta: OptionMetadata = {
   description: "Show version number",
 };
 
-export function wrapLines(text: string, length: number): string[] {
+/** @internal */
+export function _wrapLines(text: string, length: number): string[] {
   const lines = [text];
   let lastLine: string;
   while ((lastLine = lines[lines.length - 1]).length > length) {
@@ -117,7 +118,7 @@ export function buildHelp<Plugins extends PluginSignatures>(
       // Calculate maximum line length of description and wrap lines to that
       const lineLength =
         columns - (leftPaddingLength + typeName.length + 3); /* len(" []") */
-      const lines = wrapLines(description, lineLength);
+      const lines = _wrapLines(description, lineLength);
 
       // Pad first line to max line length so typeName aligned correctly
       out += lines[0].padEnd(lineLength, " ");
