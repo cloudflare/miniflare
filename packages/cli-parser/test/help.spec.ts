@@ -1,25 +1,25 @@
-import { buildHelp, wrapLines } from "@miniflare/cli-parser";
+import { _wrapLines, buildHelp } from "@miniflare/cli-parser";
 import { CorePlugin } from "@miniflare/core";
 import { TestPlugin } from "@miniflare/shared-test";
 import test from "ava";
 
 const plugins = { CorePlugin, TestPlugin };
 
-test("wrapLines: wraps long lines", (t) => {
+test("_wrapLines: wraps long lines", (t) => {
   // Check with single line text that is the max length
-  let lines = wrapLines("Short text", 10);
+  let lines = _wrapLines("Short text", 10);
   t.deepEqual(lines, ["Short text"]);
 
   // Check with long text
-  lines = wrapLines("I'm a long line with lots of long text", 10);
+  lines = _wrapLines("I'm a long line with lots of long text", 10);
   t.deepEqual(lines, ["I'm a long", "line with", "lots of", "long text"]);
 
   // Check with long text where the last line is the max length
-  lines = wrapLines("01234 56789", 5);
+  lines = _wrapLines("01234 56789", 5);
   t.deepEqual(lines, ["01234", "56789"]);
 
   // Check aborts if wrapping on spaces is impossible
-  lines = wrapLines("01234 5678901234", 5);
+  lines = _wrapLines("01234 5678901234", 5);
   t.deepEqual(lines, ["01234", "5678901234"]);
 });
 

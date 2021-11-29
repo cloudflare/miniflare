@@ -30,7 +30,7 @@ import type { Watcher } from "@miniflare/watcher";
 import { dequal } from "dequal/lite";
 import { dim } from "kleur/colors";
 import { formatSize, pathsToString } from "./helpers";
-import { BindingsPlugin, CorePlugin, populateBuildConfig } from "./plugins";
+import { BindingsPlugin, CorePlugin, _populateBuildConfig } from "./plugins";
 import {
   Request,
   RequestInfo,
@@ -333,7 +333,7 @@ export class MiniflareCore<
         const configDir = path.dirname(configPath);
 
         // Add build configuration for webpack and rust builds
-        populateBuildConfig(config, configDir, configEnv);
+        _populateBuildConfig(config, configDir, configEnv);
 
         options = splitWranglerConfig(
           this.#plugins,

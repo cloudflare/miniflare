@@ -7,7 +7,7 @@ const fsp = fs.promises;
 // TODO: maybe remove this?
 const log = debuglog("mf-watch");
 
-export function withinDir(dir: string, file: string): boolean {
+function withinDir(dir: string, file: string): boolean {
   // Returns true iff <file> is contained within the <dir>ectory
   // https://stackoverflow.com/a/45242825/
   const rel = path.relative(dir, file);
