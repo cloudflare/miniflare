@@ -157,7 +157,8 @@ test("BindingsPlugin: setup: loads .env bindings from custom location", async (t
 
   const plugin = new BindingsPlugin(
     { log, compat, rootPath: tmp },
-    { envPath: customEnvPath }
+    // Should resolve envPath relative to rootPath
+    { envPath: ".env.custom" }
   );
   // Should throw if file doesn't exist
   await t.throwsAsync(plugin.setup(), {
@@ -182,15 +183,23 @@ test("BindingsPlugin: setup: includes custom bindings", async (t) => {
   t.deepEqual(result.watch, []);
 });
 test("BindingsPlugin: setup: loads WebAssembly bindings", async (t) => {
-  const plugin = new BindingsPlugin(ctx, {
+  let plugin = new BindingsPlugin(ctx, {
     wasmBindings: { ADD: addModulePath },
   });
-  const result = await plugin.setup();
+  let result = await plugin.setup();
   t.not(result.bindings?.ADD, undefined);
   assert(result.bindings?.ADD);
   const instance = new WebAssembly.Instance(result.bindings.ADD);
   assert(typeof instance.exports.add === "function");
   t.is(instance.exports.add(1, 2), 3);
+
+  // Check resolves wasmBindings path relative to rootPath
+  plugin = new BindingsPlugin(
+    { log, compat, rootPath: path.dirname(addModulePath) },
+    { wasmBindings: { ADD: path.basename(addModulePath) } }
+  );
+  result = await plugin.setup();
+  t.not(result.bindings?.ADD, undefined);
 });
 test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
   // Bindings should be loaded in this order, from lowest to highest priority:

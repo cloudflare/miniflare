@@ -114,20 +114,33 @@ test("BuildPlugin: beforeSetup: runs build successfully", async (t) => {
     }
   );
   const result = await plugin.beforeSetup();
-  t.deepEqual(result, { watch: ["src1", "src2"] });
+  t.deepEqual(result, {
+    watch: [path.join(rootPath, "src1"), path.join(rootPath, "src2")],
+  });
   t.deepEqual(log.logs, [[LogLevel.INFO, "Build succeeded"]]);
   const test = await fs.readFile(path.join(tmp, "test.txt"), "utf8");
   t.is(test.trim(), "test");
 });
 test("BuildPlugin: beforeSetup: builds in plugin context's rootPath", async (t) => {
   const tmp = await useTmp(t);
-  const plugin = new BuildPlugin(
+  let plugin = new BuildPlugin(
     // This will be set to the mounted directory when mounting workers
     { log, compat, rootPath: tmp },
     { buildCommand: "echo test > test.txt" }
   );
   await plugin.beforeSetup();
-  const test = await fs.readFile(path.join(tmp, "test.txt"), "utf8");
+  let test = await fs.readFile(path.join(tmp, "test.txt"), "utf8");
+  t.is(test.trim(), "test");
+
+  // Check resolves buildBasePath relative to rootPath
+  const dir = path.join(tmp, "dir");
+  await fs.mkdir(dir);
+  plugin = new BuildPlugin(
+    { log, compat, rootPath: tmp },
+    { buildCommand: "echo test > test.txt", buildBasePath: "dir" }
+  );
+  await plugin.beforeSetup();
+  test = await fs.readFile(path.join(dir, "test.txt"), "utf8");
   t.is(test.trim(), "test");
 });
 test("BuildPlugin: beforeSetup: includes MINIFLARE environment variable", async (t) => {

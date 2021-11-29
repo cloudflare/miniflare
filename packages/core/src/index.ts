@@ -318,11 +318,9 @@ export class MiniflareCore<
     const originalConfigPath = options.CorePlugin.wranglerConfigPath;
     const configEnv = options.CorePlugin.wranglerConfigEnv;
     let configPath =
-      originalConfigPath === true
-        ? path.join(rootPath, "wrangler.toml")
-        : originalConfigPath;
+      originalConfigPath === true ? "wrangler.toml" : originalConfigPath;
     if (configPath) {
-      configPath = path.resolve(configPath);
+      configPath = path.resolve(rootPath, configPath);
       this.#wranglerConfigPath = configPath;
       try {
         const configData = await fs.readFile(configPath, "utf8");
@@ -460,6 +458,8 @@ export class MiniflareCore<
                 packagePath: true,
                 envPath: true,
                 wranglerConfigPath: true,
+                // TODO: wranglerConfigEnv: maybe get by splitting rawOptions on
+                //  last ":" or "@" character?
                 // Copy watch option
                 watch: this.#watching,
                 // Copy storage persistence options, we want mounted workers to

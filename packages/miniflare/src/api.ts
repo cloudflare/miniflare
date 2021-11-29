@@ -55,7 +55,7 @@ export type Plugins = typeof PLUGINS;
 
 export type MiniflareOptions = Omit<
   MiniflareCoreOptions<Plugins>,
-  "debug" | "verbose"
+  "debug" | "verbose" | "updateCheck"
 > & {
   log?: Log;
   sourceMap?: boolean;

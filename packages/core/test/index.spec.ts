@@ -160,7 +160,11 @@ test("MiniflareCore: #init: loads wrangler config from custom location", async (
 
   let mf = useMiniflare(
     { BindingsPlugin },
-    { rootPath: tmp, wranglerConfigPath: customConfigPath }
+    {
+      rootPath: tmp,
+      // Should resolve wranglerConfigPath relative to rootPath
+      wranglerConfigPath: "wrangler.custom.toml",
+    }
   );
   // Should throw if file doesn't exist
   await t.throwsAsync(mf.getGlobalScope(), {

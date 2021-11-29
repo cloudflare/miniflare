@@ -98,11 +98,9 @@ export class BindingsPlugin
     Object.assign(bindings, this[kWranglerBindings]);
 
     // Load bindings from .env file
-    const envPath =
-      this.envPath === true
-        ? path.join(this.ctx.rootPath, ".env")
-        : this.envPath;
+    let envPath = this.envPath === true ? ".env" : this.envPath;
     if (envPath) {
+      envPath = path.resolve(this.ctx.rootPath, envPath);
       try {
         Object.assign(
           bindings,
@@ -117,7 +115,9 @@ export class BindingsPlugin
 
     // Load WebAssembly module bindings from files
     if (this.wasmBindings) {
-      for (const [name, wasmPath] of Object.entries(this.wasmBindings)) {
+      // eslint-disable-next-line prefer-const
+      for (let [name, wasmPath] of Object.entries(this.wasmBindings)) {
+        wasmPath = path.resolve(this.ctx.rootPath, wasmPath);
         bindings[name] = new WebAssembly.Module(await fs.readFile(wasmPath));
         watch.push(wasmPath);
       }

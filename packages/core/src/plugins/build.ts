@@ -59,7 +59,11 @@ export class BuildPlugin extends Plugin<BuildOptions> implements BuildOptions {
     // Only run build if buildCommand specified
     return new Promise((resolve, reject) => {
       const build = childProcess.spawn(buildCommand, {
-        cwd: this.buildBasePath ?? this.ctx.rootPath,
+        // Resolve build cwd relative to plugin root path,
+        // defaulting to root path if not specified
+        cwd: this.buildBasePath
+          ? path.resolve(this.ctx.rootPath, this.buildBasePath)
+          : this.ctx.rootPath,
         shell: true,
         // Pass-through stdin/stdout
         stdio: "inherit",
@@ -75,7 +79,12 @@ export class BuildPlugin extends Plugin<BuildOptions> implements BuildOptions {
         }
 
         this.ctx.log.info("Build succeeded");
-        resolve({ watch: this.buildWatchPaths });
+
+        // Resolve all watch paths relative to plugin root
+        const watch = this.buildWatchPaths?.map((watchPath) =>
+          path.resolve(this.ctx.rootPath, watchPath)
+        );
+        resolve({ watch });
       });
     });
   }
