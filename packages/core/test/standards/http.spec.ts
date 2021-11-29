@@ -490,6 +490,18 @@ test("Response: clones non-standard properties", async (t) => {
   t.is(await res2.text(), "body");
   t.is(await res3.text(), "body");
 });
+test("Response: constructing from Response copies non-standard properties", (t) => {
+  const pair = new WebSocketPair();
+  const res = new Response("body1", {
+    encodeBody: "manual",
+    status: 101,
+    webSocket: pair["0"],
+  });
+  const res2 = new Response("body2", res);
+  t.is(res2.encodeBody, "manual");
+  t.is(res2.status, 101);
+  t.is(res2.webSocket, pair["0"]);
+});
 test("Response: fails to clone WebSocket response", (t) => {
   const pair = new WebSocketPair();
   const res = new Response(null, {
