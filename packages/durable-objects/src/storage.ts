@@ -110,19 +110,22 @@ function helpfulDeserialize(buffer: NodeJS.TypedArray): any {
 
 async function get<Value = unknown>(
   storage: Storage,
-  key: string
+  key: string,
+  checkMaxKeys?: boolean
 ): Promise<Value | undefined>;
 // noinspection JSUnusedLocalSymbols
 async function get<Value = unknown>(
   storage: Storage,
-  keys: string[]
+  keys: string[],
+  checkMaxKeys?: boolean
 ): Promise<Map<string, Value>>;
 async function get<Value = unknown>(
   storage: Storage,
-  keys: string | string[]
+  keys: string | string[],
+  checkMaxKeys = true
 ): Promise<Value | undefined | Map<string, Value>> {
   if (Array.isArray(keys)) {
-    if (keys.length > MAX_KEYS) {
+    if (checkMaxKeys && keys.length > MAX_KEYS) {
       throw new RangeError(`Maximum number of keys is ${MAX_KEYS}.`);
     }
     // Filter out undefined keys
@@ -161,7 +164,9 @@ async function list<Value = unknown>(
   const { keys } = await storage.list(options);
   return get(
     storage,
-    keys.map(({ name }) => name)
+    keys.map(({ name }) => name),
+    // Allow listing more than MAX_KEYS keys
+    false /* checkMaxKeys */
   );
 }
 

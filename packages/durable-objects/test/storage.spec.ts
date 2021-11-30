@@ -792,6 +792,23 @@ test("list: returns empty list with no keys", async (t) => {
   const { storage } = t.context;
   t.deepEqual(await storage.list(), new Map());
 });
+test("list: can list more than 128 keys", async (t) => {
+  // Put 384 keys
+  const { storage } = t.context;
+  for (let group = 0; group < 3; group++) {
+    const entries: Record<string, number> = {};
+    for (let key = 0; key < 128; key++) {
+      const i = group * 128 + key;
+      entries[`key${i}`] = i;
+    }
+    await storage.put(entries);
+  }
+
+  // Check can list them all
+  const result = await storage.list();
+  t.is(result.size, 384);
+  for (let i = 0; i < 384; i++) t.is(result.get(`key${i}`), i);
+});
 test("list: closes input gate unless allowConcurrency", async (t) => {
   const { storage } = t.context;
   await closesInputGate(t, (allowConcurrency) =>
