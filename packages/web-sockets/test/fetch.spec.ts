@@ -59,6 +59,26 @@ test("upgradingFetch: performs web socket upgrade", async (t) => {
   await eventPromise;
   t.deepEqual(messages, ["hello client", "Test", "hello server"]);
 });
+test("upgradingFetch: performs web socket upgrade with Sec-WebSocket-Protocol header", async (t) => {
+  const server = await useServer(t, noop, (ws, req) => {
+    ws.send(req.headers["sec-websocket-protocol"]);
+  });
+  const res = await upgradingFetch(server.http, {
+    headers: {
+      upgrade: "websocket",
+      "Sec-WebSocket-Protocol": "protocol1, proto2,p3",
+    },
+  });
+  const webSocket = res.webSocket;
+  t.not(webSocket, undefined);
+  assert(webSocket);
+  const [eventTrigger, eventPromise] = triggerPromise<MessageEvent>();
+  webSocket.addEventListener("message", eventTrigger);
+  webSocket.accept();
+
+  const event = await eventPromise;
+  t.is(event.data, "protocol1,proto2,p3");
+});
 test("upgradingFetch: throws on ws(s) protocols", async (t) => {
   await t.throwsAsync(
     upgradingFetch("ws://localhost/", {

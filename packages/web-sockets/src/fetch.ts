@@ -23,8 +23,13 @@ export async function upgradingFetch(
   ) {
     // Establish web socket connection
     const headers: Record<string, string> = {};
+    let protocols: string[] | undefined;
     for (const [key, value] of request.headers.entries()) {
-      headers[key] = value;
+      if (key.toLowerCase() === "sec-websocket-protocol") {
+        protocols = value.split(",").map((protocol) => protocol.trim());
+      } else {
+        headers[key] = value;
+      }
     }
     const url = new URL(request.url);
     if (url.protocol !== "http:" && url.protocol !== "https:") {
@@ -33,7 +38,7 @@ export async function upgradingFetch(
       );
     }
     url.protocol = url.protocol.replace("http", "ws");
-    const ws = new StandardWebSocket(url, {
+    const ws = new StandardWebSocket(url, protocols, {
       followRedirects: request.redirect === "follow",
       headers,
     });
