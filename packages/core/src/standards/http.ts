@@ -335,6 +335,9 @@ export interface ResponseInit extends BaseResponseInit {
 
 const kWaitUntil = Symbol("kWaitUntil");
 
+// From https://github.com/nodejs/undici/blob/3f6b564b7d3023d506cad75b16207006b23956a8/lib/fetch/constants.js#L28, minus 101
+const nullBodyStatus = new Set<number | undefined>([204, 205, 304]);
+
 const enumerableResponseKeys: (keyof Response)[] = [
   "encodeBody",
   "webSocket",
@@ -384,6 +387,7 @@ export class Response<
         init = init[kInner];
       } else if (!(init instanceof BaseResponse) /* ResponseInit */ && init) {
         encodeBody = init.encodeBody;
+
         // Status 101 Switching Protocols would normally throw a RangeError, but we
         // need to allow it for WebSockets
         if (init.webSocket) {
@@ -396,6 +400,14 @@ export class Response<
           webSocket = init.webSocket;
           init = { ...init, status: 200 };
         }
+
+        // If a null-body status has been passed, and body is the empty string,
+        // set it to null. Undici will correctly complain if we don't do this.
+        //
+        // This zero-length body behavior is allowed because it was previously
+        // the only way to construct a Response with a null body status. It may
+        // change in the future.
+        if (nullBodyStatus.has(init.status) && body === "") body = null;
       }
       super(new BaseResponse(body, init));
     }
