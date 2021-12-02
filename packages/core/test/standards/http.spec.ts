@@ -472,6 +472,13 @@ test("Response: only allows status 101 for WebSocket response", (t) => {
       "Failed to construct 'Response': The status provided (101) is outside the range [200, 599].",
   });
 });
+test("Response: allows empty string for null body", (t) => {
+  for (const nullBodyStatus of [204, 205, 304]) {
+    const res = new Response("", { status: nullBodyStatus });
+    t.is(res.status, nullBodyStatus);
+    t.is(res.body, null, nullBodyStatus.toString());
+  }
+});
 test("Response: clones non-standard properties", async (t) => {
   const res = new Response("body", { encodeBody: "manual" });
   const waitUntil = [1, "2", true];
