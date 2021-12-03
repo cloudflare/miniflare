@@ -1,7 +1,6 @@
 # ⬆️ Migrating from Version 1
 
-Miniflare 2 includes
-[breaking changes](http://localhost:3000/changelog.html#_2-0-0). This guide
+Miniflare 2 includes [breaking changes](/changelog.html#_2-0-0). This guide
 walks you through how to upgrade your app.
 
 ## CLI & API Changes
@@ -202,7 +201,7 @@ const storage = await stub.storage(); // ❌
 const mf = new Miniflare({ ... });
 const ns = await mf.getDurableObjectNamespace("TEST");
 const id = ns.newUniqueId();
-const storage = await mf.getDurableObjectStorage(); // ✅
+const storage = await mf.getDurableObjectStorage(id); // ✅
 ```
 
 ### Replace `getCache()` with `getCaches()`
