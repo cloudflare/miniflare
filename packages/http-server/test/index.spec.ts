@@ -5,6 +5,7 @@ import https from "https";
 import { AddressInfo } from "net";
 import { Readable } from "stream";
 import { buffer, text } from "stream/consumers";
+import { TransformStream } from "stream/web";
 import { setTimeout } from "timers/promises";
 import zlib from "zlib";
 import {
@@ -29,6 +30,7 @@ import {
   useMiniflare,
   useMiniflareWithHandler,
   useTmp,
+  utf8Encode,
 } from "@miniflare/shared-test";
 import { MessageEvent, WebSocketPlugin } from "@miniflare/web-sockets";
 import test, { ExecutionContext, Macro } from "ava";
@@ -480,6 +482,44 @@ test("createRequestListener: skips encoding already encoded data", async (t) => 
       resolve();
     });
   });
+});
+test("createRequestListener: should allow connection close before stream finishes", async (t) => {
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  // noinspection ES6MissingAwait
+  void writer.write(utf8Encode("data: hello\n\n"));
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin, BindingsPlugin },
+    { globals: { readable } },
+    (globals) => {
+      return new globals.Response(globals.readable, {
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    }
+  );
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+  const res = await new Promise<http.IncomingMessage>((resolve) => {
+    http.get({ port }, resolve);
+  });
+
+  function waitForData(): Promise<string> {
+    return new Promise((resolve) =>
+      res.once("data", (chunk) => resolve(chunk.toString().trim()))
+    );
+  }
+
+  t.is(await waitForData(), "data: hello");
+
+  await writer.write(utf8Encode("data: test\n\n"));
+  t.is(await waitForData(), "data: test");
+
+  // Force-fully close the connection
+  res.destroy();
+
+  // Wait long enough for the stream to close
+  await setTimeout(1000);
+  // This shouldn't throw a premature close
+  await writer.write(utf8Encode("data: test\n\n"));
 });
 
 test("createServer: handles regular requests", async (t) => {
