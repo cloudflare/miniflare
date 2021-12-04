@@ -14,7 +14,7 @@ import {
   withStringFormDataFiles,
   withWaitUntil,
 } from "@miniflare/core";
-import { Compatibility, InputGate, LogLevel } from "@miniflare/shared";
+import { Compatibility, InputGate, LogLevel, NoOpLog } from "@miniflare/shared";
 import {
   TestLog,
   triggerPromise,
@@ -632,28 +632,45 @@ test("fetch: Response body is input gated", async (t) => {
 });
 
 test("createCompatFetch: refuses unknown protocols if compatibility flag enabled", async (t) => {
+  const log = new TestLog();
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   upstream.protocol = "ftp:";
   // Check with flag disabled first
   let fetch = createCompatFetch(
+    log,
     new Compatibility(undefined, ["fetch_treats_unknown_protocols_as_http"])
   );
   const res = await fetch(upstream);
   t.is(await res.text(), "upstream");
   // Check original URL copied and protocol not mutated
   t.is(upstream.protocol, "ftp:");
+  // Check warning logged
+  const warnings = log.logsAtLevel(LogLevel.WARN);
+  t.is(warnings.length, 1);
+  t.regex(
+    warnings[0],
+    /URLs passed to fetch\(\) must begin with either 'http:' or 'https:', not 'ftp:'/
+  );
+  t.notRegex(
+    warnings[0],
+    /fetch\(\) treats WebSockets as a special kind of HTTP request/
+  );
 
   // Check with flag enabled
+  log.logs = [];
   fetch = createCompatFetch(
+    log,
     new Compatibility(undefined, ["fetch_refuses_unknown_protocols"])
   );
   await t.throwsAsync(async () => fetch(upstream), {
     instanceOf: TypeError,
     message: `Fetch API cannot load: ${upstream.toString()}`,
   });
+  t.is(log.logs.length, 0);
 });
 test("createCompatFetch: recognises http and https as known protocols", async (t) => {
   const fetch = createCompatFetch(
+    new NoOpLog(),
     new Compatibility(undefined, ["fetch_refuses_unknown_protocols"]),
     async () => new Response("upstream")
   );
@@ -670,6 +687,7 @@ test("createCompatFetch: rewrites urls of all types of fetch inputs", async (t) 
   });
   upstream.protocol = "ftp:";
   const fetch = createCompatFetch(
+    new NoOpLog(),
     new Compatibility(undefined, ["fetch_treats_unknown_protocols_as_http"])
   );
 
@@ -741,11 +759,13 @@ test("createCompatFetch: Responses parse files in FormData as File objects only 
     );
   });
 
-  let fetch = createCompatFetch(new Compatibility());
+  const log = new NoOpLog();
+  let fetch = createCompatFetch(log, new Compatibility());
   let formData = await (await fetch(upstream)).formData();
   t.is(formData.get("key"), "file contents");
 
   fetch = createCompatFetch(
+    log,
     new Compatibility(undefined, ["formdata_parser_supports_files"])
   );
   formData = await (await fetch(upstream)).formData();

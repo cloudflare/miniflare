@@ -5,6 +5,7 @@ import {
   RequestInfo,
   RequestInit,
   Response,
+  _buildUnknownProtocolWarning,
   withImmutableHeaders,
   withInputGating,
 } from "@miniflare/core";
@@ -13,6 +14,7 @@ import {
   Compatibility,
   Context,
   InputGate,
+  Log,
   OutputGate,
 } from "@miniflare/shared";
 import { Request as BaseRequest, Response as BaseResponse } from "undici";
@@ -90,14 +92,17 @@ export type DurableObjectFactory = (
 export class DurableObjectStub {
   readonly #factory: DurableObjectFactory;
   readonly #compat?: Compatibility;
+  readonly #log?: Log;
 
   constructor(
     factory: DurableObjectFactory,
     readonly id: DurableObjectId,
-    compat?: Compatibility
+    compat?: Compatibility,
+    log?: Log
   ) {
     this.#factory = factory;
     this.#compat = compat;
+    this.#log = log;
   }
 
   get name(): string | undefined {
@@ -117,18 +122,20 @@ export class DurableObjectStub {
     }
 
     // Disallow unknown protocols
-    if (this.#compat?.isEnabled("fetch_refuses_unknown_protocols")) {
-      // noinspection SuspiciousTypeOfGuard
-      const url =
-        input instanceof URL
-          ? input
-          : new URL(
-              input instanceof Request || input instanceof BaseRequest
-                ? input.url
-                : input.toString()
-            );
-      if (url.protocol !== "http:" && url.protocol !== "https:") {
+    // noinspection SuspiciousTypeOfGuard
+    const url =
+      input instanceof URL
+        ? input
+        : new URL(
+            input instanceof Request || input instanceof BaseRequest
+              ? input.url
+              : input.toString()
+          );
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      if (this.#compat?.isEnabled("fetch_refuses_unknown_protocols")) {
         throw new TypeError(`Fetch API cannot load: ${url.toString()}`);
+      } else {
+        this.#log?.warn(_buildUnknownProtocolWarning(url));
       }
     }
 
@@ -165,11 +172,13 @@ export class DurableObjectNamespace {
   readonly #objectNameHash: Uint8Array;
   readonly #objectNameHashHex: string;
   readonly #compat?: Compatibility;
+  readonly #log?: Log;
 
   constructor(
     objectName: string,
     factory: DurableObjectFactory,
-    compat?: Compatibility
+    compat?: Compatibility,
+    log?: Log
   ) {
     this.#objectName = objectName;
     this.#factory = factory;
@@ -183,6 +192,7 @@ export class DurableObjectNamespace {
     this.#objectNameHashHex = hexEncode(this.#objectNameHash);
 
     this.#compat = compat;
+    this.#log = log;
   }
 
   newUniqueId(_options?: NewUniqueIdOptions): DurableObjectId {
@@ -236,6 +246,6 @@ export class DurableObjectNamespace {
     ) {
       throw new TypeError("ID is not for this Durable Object class.");
     }
-    return new DurableObjectStub(this.#factory, id, this.#compat);
+    return new DurableObjectStub(this.#factory, id, this.#compat, this.#log);
   }
 }

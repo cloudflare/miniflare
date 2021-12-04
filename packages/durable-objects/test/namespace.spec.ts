@@ -14,6 +14,7 @@ import {
 } from "@miniflare/durable-objects";
 import {
   Compatibility,
+  LogLevel,
   NoOpLog,
   PluginContext,
   StorageFactory,
@@ -21,6 +22,7 @@ import {
 import {
   MemoryStorageFactory,
   RecorderStorage,
+  TestLog,
   getObjectProperties,
   triggerPromise,
   useServer,
@@ -183,7 +185,7 @@ test("DurableObjectStub: fetch: throws with relative urls if compatibility flag 
   const stub = ns.get(testId);
   await t.throwsAsync(stub.fetch("test"), {
     instanceOf: TypeError,
-    message: "Failed to parse URL from test",
+    message: "Invalid URL",
   });
   // Check can still fetch with full urls
   const res = await stub.fetch("https://fake-host/test");
@@ -213,6 +215,27 @@ test("DurableObjectStub: fetch: throws with unknown protocols if compatibility f
   await stub.fetch(new URL("https://host.com/"));
   await stub.fetch(new Request("https://host.com/"));
   await stub.fetch(new BaseRequest("https://host.com/"));
+});
+test("DurableObjectStub: fetch: logs warning with unknown protocol if compatibility flag disabled", async (t) => {
+  const log = new TestLog();
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(
+    { log, compat, rootPath },
+    { durableObjects: { TEST: "TestObject" } }
+  );
+  plugin.beforeReload();
+  plugin.reload({}, { TestObject }, {});
+  const ns = plugin.getNamespace(factory, "TEST");
+  const stub = ns.get(testId);
+  await stub.fetch("test://host.com/");
+
+  // Check warning logged
+  const warnings = log.logsAtLevel(LogLevel.WARN);
+  t.is(warnings.length, 1);
+  t.regex(
+    warnings[0],
+    /URLs passed to fetch\(\) must begin with either 'http:' or 'https:', not 'test:'/
+  );
 });
 test("DurableObjectStub: fetch: passes through web socket requests", async (t) => {
   const factory = new MemoryStorageFactory();

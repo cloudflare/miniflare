@@ -519,7 +519,27 @@ export async function fetch(
   return withInputGating(res);
 }
 
+/** @internal */
+export function _buildUnknownProtocolWarning(url: URL): string {
+  let warning =
+    "Worker passed an invalid URL to fetch(). URLs passed to fetch() " +
+    "must begin with either 'http:' or 'https:', not '" +
+    url.protocol +
+    "'. Due to a historical bug, any other protocol used here will " +
+    "be treated the same as 'http:'. We plan to correct this bug in " +
+    "the future, so please update your Worker to use 'http:' or " +
+    "'https:' for all fetch() URLs.";
+  if (url.protocol === "ws:" || url.protocol === "wss:") {
+    warning +=
+      " Note that fetch() treats WebSockets as a special kind of HTTP " +
+      "request, therefore WebSockets should use 'http:'/'https:', not " +
+      "'ws:'/'wss:'.";
+  }
+  return warning;
+}
+
 export function createCompatFetch(
+  log: Log,
   compat: Compatibility,
   inner: typeof fetch = fetch
 ): typeof fetch {
@@ -535,6 +555,8 @@ export function createCompatFetch(
       if (refusesUnknown) {
         throw new TypeError(`Fetch API cannot load: ${url.toString()}`);
       } else {
+        log.warn(_buildUnknownProtocolWarning(url));
+
         if (init) {
           init = new Request(input, init);
         } else if (input instanceof BaseRequest) {
@@ -545,6 +567,8 @@ export function createCompatFetch(
         }
         // Free to mutate this as we created url at the start of the function
         url.protocol = "http:";
+        // TODO: make sure this protocol is actually http://, seems to be some
+        //  issue if protocol is originally something non-standard/unknown
         input = url;
       }
     }
