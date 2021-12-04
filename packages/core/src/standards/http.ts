@@ -162,12 +162,12 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
 
   async arrayBuffer(): Promise<ArrayBuffer> {
     const body = await this[kInner].arrayBuffer();
-    this[kInputGated] && (await waitForOpenInputGate());
+    if (this[kInputGated]) await waitForOpenInputGate();
     return body;
   }
   async blob(): Promise<Blob> {
     const body = await this[kInner].blob();
-    this[kInputGated] && (await waitForOpenInputGate());
+    if (this[kInputGated]) await waitForOpenInputGate();
     return body;
   }
   async formData(): Promise<FormData> {
@@ -212,17 +212,17 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
       if (body !== null) for await (const chunk of body) busboy.write(chunk);
       busboy.end();
     });
-    this[kInputGated] && (await waitForOpenInputGate());
+    if (this[kInputGated]) await waitForOpenInputGate();
     return formData;
   }
   async json<T>(): Promise<T> {
     const body = await this[kInner].json();
-    this[kInputGated] && (await waitForOpenInputGate());
+    if (this[kInputGated]) await waitForOpenInputGate();
     return body as T;
   }
   async text(): Promise<string> {
     const body = await this[kInner].text();
-    this[kInputGated] && (await waitForOpenInputGate());
+    if (this[kInputGated]) await waitForOpenInputGate();
     return body;
   }
 }

@@ -211,11 +211,16 @@ export interface MiniflareCoreContext {
 }
 
 export class ReloadEvent<Plugins extends PluginSignatures> extends Event {
+  readonly plugins: PluginInstances<Plugins>;
+  readonly initial: boolean;
+
   constructor(
-    readonly plugins: PluginInstances<Plugins>,
-    readonly initial: boolean
+    type: "reload",
+    init: { plugins: PluginInstances<Plugins>; initial: boolean }
   ) {
-    super("reload");
+    super(type);
+    this.plugins = init.plugins;
+    this.initial = init.initial;
   }
 }
 
@@ -658,7 +663,11 @@ export class MiniflareCore<
       }
     }
     // Dispatch reload event
-    this.dispatchEvent(new ReloadEvent(this.#instances!, !this.#reloaded));
+    const reloadEvent = new ReloadEvent("reload", {
+      plugins: this.#instances!,
+      initial: !this.#reloaded,
+    });
+    this.dispatchEvent(reloadEvent);
     this.#reloaded = true;
 
     // Log bundle size and warning if too big
