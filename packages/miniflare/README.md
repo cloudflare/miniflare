@@ -117,7 +117,7 @@ Core Options:
  -d, --debug             Enable debug logging                                        [boolean]
  -V, --verbose           Enable verbose logging                                      [boolean]
      --(no-)update-check Enable update checker (enabled by default)                  [boolean]
-     --root              Path to resolve default config files relative to             [string]
+     --root              Path to resolve files relative to                            [string]
      --mount             Mount additional named workers                      [array:NAME=PATH]
 
 HTTP Options:
