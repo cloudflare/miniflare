@@ -3,9 +3,8 @@
 import assert from "assert";
 import http, { OutgoingHttpHeaders } from "http";
 import https from "https";
-import { PassThrough, Transform } from "stream";
+import { Transform, Writable } from "stream";
 import { arrayBuffer } from "stream/consumers";
-import { pipeline } from "stream/promises";
 import { URL } from "url";
 import zlib from "zlib";
 import {
@@ -236,21 +235,32 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
 
         // Response body may be null if empty
         if (res) {
-          const passThrough = new PassThrough();
-          // @ts-expect-error passThrough is definitely a PipelineSource
-          const pipelinePromise = pipeline(passThrough, ...encoders, res);
+          // `initialStream` is the stream we'll write the response to. It
+          // should end up as the first encoder, piping to the next encoder,
+          // and finally piping to the response:
+          //
+          // encoders[0] (initialStream) -> encoders[1] -> res
+          //
+          // Not using `pipeline(passThrough, ...encoders, res)` here as that
+          // gives a premature close error with server sent events. This also
+          // avoids creating an extra stream even when we're not encoding.
+          let initialStream: Writable = res;
+          for (let i = encoders.length - 1; i >= 0; i--) {
+            encoders[i].pipe(initialStream);
+            initialStream = encoders[i];
+          }
+
           if (response.body) {
             for await (const chunk of response.body) {
-              if (chunk) passThrough.write(chunk);
+              if (chunk) initialStream.write(chunk);
             }
 
             if (liveReloadEnabled) {
-              passThrough.write(liveReloadScript);
+              initialStream.write(liveReloadScript);
             }
           }
 
-          passThrough.end();
-          await pipelinePromise;
+          initialStream.end();
         }
       } catch (e: any) {
         // MIME types aren't case sensitive
