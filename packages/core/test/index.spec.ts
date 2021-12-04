@@ -864,7 +864,7 @@ test("MiniflareCore: dispatches reload events", async (t) => {
   await mf.reload();
   t.is(invocations, 1);
 
-  mf.dispatchEvent(new ReloadEvent(plugins, false));
+  mf.dispatchEvent(new ReloadEvent("reload", { plugins, initial: false }));
   t.is(invocations, 2);
 
   mf.removeEventListener("reload", listener);

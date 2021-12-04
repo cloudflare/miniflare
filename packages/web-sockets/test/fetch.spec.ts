@@ -2,8 +2,13 @@ import assert from "assert";
 import { Blob } from "buffer";
 import { URLSearchParams } from "url";
 import { createCompatFetch } from "@miniflare/core";
-import { Compatibility } from "@miniflare/shared";
-import { noop, triggerPromise, useServer } from "@miniflare/shared-test";
+import { Compatibility, LogLevel } from "@miniflare/shared";
+import {
+  TestLog,
+  noop,
+  triggerPromise,
+  useServer,
+} from "@miniflare/shared-test";
 import { MessageEvent, upgradingFetch } from "@miniflare/web-sockets";
 import test from "ava";
 import { FormData } from "undici";
@@ -102,8 +107,9 @@ test("upgradingFetch: throws on ws(s) protocols", async (t) => {
   );
 });
 test("upgradingFetch: allows ws protocol with createCompatFetch", async (t) => {
+  const log = new TestLog();
   const compat = new Compatibility();
-  const fetch = createCompatFetch(compat, upgradingFetch);
+  const fetch = createCompatFetch(log, compat, upgradingFetch);
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("message", ({ data }) => ws.send(data));
   });
@@ -114,6 +120,14 @@ test("upgradingFetch: allows ws protocol with createCompatFetch", async (t) => {
   const webSocket = res.webSocket;
   t.not(webSocket, undefined);
   assert(webSocket);
+
+  // Check warning logged
+  const warnings = log.logsAtLevel(LogLevel.WARN);
+  t.is(warnings.length, 1);
+  t.regex(
+    warnings[0],
+    /URLs passed to fetch\(\) must begin with either 'http:' or 'https:', not 'ws:'.+fetch\(\) treats WebSockets as a special kind of HTTP request/
+  );
 
   const [eventTrigger, eventPromise] = triggerPromise<MessageEvent>();
   webSocket.addEventListener("message", eventTrigger);

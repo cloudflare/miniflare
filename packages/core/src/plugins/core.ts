@@ -292,7 +292,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       TextDecoder,
       TextEncoder,
 
-      fetch: createCompatFetch(ctx.compat),
+      fetch: createCompatFetch(ctx.log, ctx.compat),
       Headers,
       Request: CompatRequest,
       Response: CompatResponse,

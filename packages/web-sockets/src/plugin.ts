@@ -23,7 +23,11 @@ export class WebSocketPlugin extends Plugin {
 
   constructor(ctx: PluginContext) {
     super(ctx);
-    this.#upgradingFetch = createCompatFetch(ctx.compat, upgradingFetch);
+    this.#upgradingFetch = createCompatFetch(
+      ctx.log,
+      ctx.compat,
+      upgradingFetch
+    );
   }
 
   setup(): SetupResult {
