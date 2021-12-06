@@ -1,6 +1,7 @@
 import assert from "assert";
 import { text } from "stream/consumers";
 import { ReadableStream, TransformStream, WritableStream } from "stream/web";
+import { URL } from "url";
 import {
   Body,
   IncomingRequestCfProperties,
@@ -633,8 +634,8 @@ test("fetch: Response body is input gated", async (t) => {
 
 test("createCompatFetch: refuses unknown protocols if compatibility flag enabled", async (t) => {
   const log = new TestLog();
-  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
-  upstream.protocol = "ftp:";
+  let upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  upstream = new URL(upstream.toString().replace("http:", "random:"));
   // Check with flag disabled first
   let fetch = createCompatFetch(
     log,
@@ -643,13 +644,13 @@ test("createCompatFetch: refuses unknown protocols if compatibility flag enabled
   const res = await fetch(upstream);
   t.is(await res.text(), "upstream");
   // Check original URL copied and protocol not mutated
-  t.is(upstream.protocol, "ftp:");
+  t.is(upstream.protocol, "random:");
   // Check warning logged
   const warnings = log.logsAtLevel(LogLevel.WARN);
   t.is(warnings.length, 1);
   t.regex(
     warnings[0],
-    /URLs passed to fetch\(\) must begin with either 'http:' or 'https:', not 'ftp:'/
+    /URLs passed to fetch\(\) must begin with either 'http:' or 'https:', not 'random:'/
   );
   t.notRegex(
     warnings[0],

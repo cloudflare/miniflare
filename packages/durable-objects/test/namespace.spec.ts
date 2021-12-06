@@ -227,7 +227,8 @@ test("DurableObjectStub: fetch: logs warning with unknown protocol if compatibil
   plugin.reload({}, { TestObject }, {});
   const ns = plugin.getNamespace(factory, "TEST");
   const stub = ns.get(testId);
-  await stub.fetch("test://host.com/");
+  const res = await stub.fetch("test://host.com/");
+  t.is(await res.text(), `${testIdHex}:request1:GET:test://host.com/`);
 
   // Check warning logged
   const warnings = log.logsAtLevel(LogLevel.WARN);

@@ -520,6 +520,15 @@ export async function fetch(
 }
 
 /** @internal */
+export function _urlFromRequestInput(input: RequestInfo): URL {
+  if (input instanceof URL) return input;
+  if (input instanceof Request || input instanceof BaseRequest) {
+    return new URL(input.url);
+  }
+  return new URL(input);
+}
+
+/** @internal */
 export function _buildUnknownProtocolWarning(url: URL): string {
   let warning =
     "Worker passed an invalid URL to fetch(). URLs passed to fetch() " +
@@ -546,17 +555,14 @@ export function createCompatFetch(
   const refusesUnknown = compat.isEnabled("fetch_refuses_unknown_protocols");
   const formDataFiles = compat.isEnabled("formdata_parser_supports_files");
   return async (input, init) => {
-    const url = new URL(
-      input instanceof Request || input instanceof BaseRequest
-        ? input.url
-        : input.toString()
-    );
+    const url = _urlFromRequestInput(input);
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       if (refusesUnknown) {
         throw new TypeError(`Fetch API cannot load: ${url.toString()}`);
       } else {
         log.warn(_buildUnknownProtocolWarning(url));
 
+        // Make sure we don't lose any data when we override input
         if (init) {
           init = new Request(input, init);
         } else if (input instanceof BaseRequest) {
@@ -565,11 +571,13 @@ export function createCompatFetch(
         } else if (input instanceof Request) {
           init = input;
         }
-        // Free to mutate this as we created url at the start of the function
-        url.protocol = "http:";
-        // TODO: make sure this protocol is actually http://, seems to be some
-        //  issue if protocol is originally something non-standard/unknown
-        input = url;
+
+        // If url.protocol is not a special scheme, it cannot be changed to a
+        // special scheme (e.g. "http:"), so we can't just do
+        // `url.protocol = "http:"` here.
+        //
+        // See https://nodejs.org/api/url.html#special-schemes
+        input = url.toString().replace(url.protocol, "http:");
       }
     }
     let res = await inner(input, init);

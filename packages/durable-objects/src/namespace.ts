@@ -6,6 +6,7 @@ import {
   RequestInit,
   Response,
   _buildUnknownProtocolWarning,
+  _urlFromRequestInput,
   withImmutableHeaders,
   withInputGating,
 } from "@miniflare/core";
@@ -17,7 +18,7 @@ import {
   Log,
   OutputGate,
 } from "@miniflare/shared";
-import { Request as BaseRequest, Response as BaseResponse } from "undici";
+import { Response as BaseResponse } from "undici";
 import { DurableObjectError } from "./error";
 import { DurableObjectStorage } from "./storage";
 
@@ -123,14 +124,7 @@ export class DurableObjectStub {
 
     // Disallow unknown protocols
     // noinspection SuspiciousTypeOfGuard
-    const url =
-      input instanceof URL
-        ? input
-        : new URL(
-            input instanceof Request || input instanceof BaseRequest
-              ? input.url
-              : input.toString()
-          );
+    const url = _urlFromRequestInput(input);
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       if (this.#compat?.isEnabled("fetch_refuses_unknown_protocols")) {
         throw new TypeError(`Fetch API cannot load: ${url.toString()}`);
