@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { TextDecoder, TextEncoder } from "util";
 import { randomHex, sanitisePath } from "@miniflare/shared";
 import { ExecutionContext } from "ava";
 

@@ -121,7 +121,7 @@ test("MiniflareCore: includes global self-references", async (t) => {
 });
 test("MiniflareCore: adds fetch event listener", async (t) => {
   const script = `(${(() => {
-    const sandbox = self as any;
+    const sandbox = globalThis as any;
     sandbox.addEventListener("fetch", (e: FetchEvent) => {
       e.respondWith(new sandbox.Response(e.request.url));
     });
@@ -132,7 +132,7 @@ test("MiniflareCore: adds fetch event listener", async (t) => {
 });
 test("MiniflareCore: adds scheduled event listener", async (t) => {
   const script = `(${(() => {
-    const sandbox = self as any;
+    const sandbox = globalThis as any;
     sandbox.addEventListener("scheduled", (e: ScheduledEvent) => {
       e.waitUntil(Promise.resolve(e.scheduledTime));
       e.waitUntil(Promise.resolve(e.cron));

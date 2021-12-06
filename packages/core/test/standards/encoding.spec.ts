@@ -1,3 +1,4 @@
+import { TextEncoder } from "util";
 import { TextDecoder } from "@miniflare/core";
 import test, { ThrowsExpectation } from "ava";
 

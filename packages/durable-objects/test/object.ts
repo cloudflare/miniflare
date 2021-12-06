@@ -1,3 +1,4 @@
+import { URL } from "url";
 import { Request, Response } from "@miniflare/core";
 import {
   DurableObject,

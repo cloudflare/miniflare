@@ -1,5 +1,6 @@
 import assert from "assert";
 import { Request } from "@miniflare/core";
+import type { FetchEvent } from "@miniflare/core";
 import { Compatibility, NoOpLog, PluginContext } from "@miniflare/shared";
 import {
   noop,
@@ -121,7 +122,7 @@ test("WebSocketPlugin: fetch, reload: ignores already closed WebSockets", async 
 
 test("MiniflareCore: sends and responds to web socket messages", async (t) => {
   const script = `(${(() => {
-    const sandbox = self as any;
+    const sandbox = globalThis as any;
     sandbox.addEventListener("fetch", (e: FetchEvent) => {
       const [client, worker] = Object.values(new sandbox.WebSocketPair());
       worker.accept();

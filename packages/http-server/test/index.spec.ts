@@ -5,8 +5,9 @@ import https from "https";
 import { AddressInfo } from "net";
 import { Readable } from "stream";
 import { buffer, text } from "stream/consumers";
-import { TransformStream } from "stream/web";
+import { ReadableStreamDefaultController, TransformStream } from "stream/web";
 import { setTimeout } from "timers/promises";
+import { URL } from "url";
 import zlib from "zlib";
 import {
   BindingsPlugin,
@@ -238,7 +239,9 @@ test("createRequestListener: handles string http worker response", async (t) => 
 });
 test("createRequestListener: handles buffer http worker response", async (t) => {
   const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {
-    return new globals.Response(new TextEncoder().encode("buffer").buffer);
+    return new globals.Response(
+      new globals.TextEncoder().encode("buffer").buffer
+    );
   });
   const port = await listen(t, http.createServer(createRequestListener(mf)));
   const [body] = await request(port);

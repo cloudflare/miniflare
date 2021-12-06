@@ -2,7 +2,7 @@
   "compilerOptions": {
     "module": "esnext",
     "target": "esnext",
-    "lib": ["esnext", "webworker"],
+    "lib": ["esnext"],
     "strict": true,
     "moduleResolution": "node",
     "esModuleInterop": true,
@@ -29,5 +29,8 @@
     "packages/*/test/**/*.ts",
     "packages/miniflare/bootstrap.js",
     "types"
+  ],
+  "exclude": [
+    "packages/core/test/fixtures/wrangler"
   ]
 }

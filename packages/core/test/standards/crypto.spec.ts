@@ -1,3 +1,4 @@
+import { TextEncoder } from "util";
 import { crypto } from "@miniflare/core";
 import { utf8Encode } from "@miniflare/shared-test";
 import test, { Macro } from "ava";
