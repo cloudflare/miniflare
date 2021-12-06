@@ -367,10 +367,10 @@ test("Request: clone retains form data file parsing option", async (t) => {
   t.is(resFormData.get("file"), "test");
 });
 test("Request: Object.keys() returns getters", async (t) => {
-  const res = new Request("http://localhost", {
+  const req = new Request("http://localhost", {
     headers: { "X-Key": "value " },
   });
-  const keys = Object.keys(res);
+  const keys = Object.keys(req);
   const expectedKeys = [
     "body",
     "bodyUsed",
@@ -382,6 +382,45 @@ test("Request: Object.keys() returns getters", async (t) => {
     "method",
   ];
   t.deepEqual(keys.sort(), expectedKeys.sort());
+});
+test("Request: can mutate forbidden headers after construction", async (t) => {
+  // From https://github.com/nodejs/undici/blob/cd566ccf65c18b8405793a752247f3e350a50fcf/lib/fetch/constants.js#L3-L24
+  const forbiddenHeaderNames = [
+    "accept-charset",
+    "accept-encoding",
+    "access-control-request-headers",
+    "access-control-request-method",
+    "connection",
+    "content-length",
+    "cookie",
+    "cookie2",
+    "date",
+    "dnt",
+    "expect",
+    "host",
+    "keep-alive",
+    "origin",
+    "referer",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+    "via",
+  ];
+
+  const req = new Request("http://localhost");
+  for (const header of forbiddenHeaderNames) {
+    req.headers.set(header, "value");
+    t.is(req.headers.get(header), "value");
+  }
+
+  // Check this still works on a clone
+  const req2 = req.clone();
+  for (const header of forbiddenHeaderNames) {
+    t.is(req2.headers.get(header), "value");
+    req2.headers.set(header, "value2");
+    t.is(req2.headers.get(header), "value2");
+  }
 });
 
 test("withImmutableHeaders: makes Request's headers immutable", (t) => {
@@ -569,6 +608,24 @@ test("Response: Object.keys() returns getters", async (t) => {
     "type",
   ];
   t.deepEqual(keys.sort(), expectedKeys.sort());
+});
+test("Response: can mutate forbidden headers after construction", async (t) => {
+  // From https://github.com/nodejs/undici/blob/cd566ccf65c18b8405793a752247f3e350a50fcf/lib/fetch/constants.js#L61
+  const forbiddenResponseHeaderNames = ["set-cookie", "set-cookie2"];
+
+  const res = new Response("body");
+  for (const header of forbiddenResponseHeaderNames) {
+    res.headers.set(header, "value");
+    t.is(res.headers.get(header), "value");
+  }
+
+  // Check this still works on a clone
+  const res2 = res.clone();
+  for (const header of forbiddenResponseHeaderNames) {
+    t.is(res2.headers.get(header), "value");
+    res2.headers.set(header, "value2");
+    t.is(res2.headers.get(header), "value2");
+  }
 });
 
 test("withWaitUntil: adds wait until to (Base)Response", async (t) => {

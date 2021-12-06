@@ -101,6 +101,10 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
   #inputGatedBody?: ReadableStream;
 
   constructor(inner: Inner) {
+    // Allow forbidden header mutation after construction
+    // @ts-expect-error internal kGuard isn't included in type definitions
+    inner.headers[fetchSymbols.kGuard] = "none";
+
     this[kInner] = inner;
 
     makeEnumerable(Body.prototype, this, enumerableBodyKeys);
