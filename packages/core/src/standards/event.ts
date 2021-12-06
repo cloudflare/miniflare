@@ -28,7 +28,8 @@ const SUGGEST_RES_MODULES = "returning a `Response` in your handler";
 const SUGGEST_GLOBAL_BINDING_MODULES =
   "Attempted to access binding using global in modules." +
   "\nYou must use the 2nd `env` parameter passed to exported " +
-  "handlers or Durable Object constructors.";
+  "handlers/Durable Object constructors, or `context.env` with " +
+  "Pages Functions.";
 
 const kResponse = Symbol("kResponse");
 const kPassThrough = Symbol("kPassThrough");
