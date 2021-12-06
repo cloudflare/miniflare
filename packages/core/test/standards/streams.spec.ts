@@ -1,15 +1,11 @@
 import assert from "assert";
-import {
-  ReadableByteStream,
-  ReadableStream,
-  ReadableStreamBYOBReadResult,
-} from "stream/web";
+import { ReadableStream, ReadableStreamBYOBReadResult } from "stream/web";
 import { ArrayBufferViewConstructor } from "@miniflare/core";
 import test from "ava";
 
 import "@miniflare/core";
 
-function chunkedStream(chunks: number[][]): ReadableByteStream {
+function chunkedStream(chunks: number[][]): ReadableStream<Uint8Array> {
   return new ReadableStream({
     type: "bytes",
     pull(controller) {
@@ -22,7 +18,7 @@ function chunkedStream(chunks: number[][]): ReadableByteStream {
 }
 
 async function* byobReadAtLeast<Ctor extends ArrayBufferViewConstructor>(
-  stream: ReadableByteStream,
+  stream: ReadableStream<Uint8Array>,
   readAtLeastBytes: number,
   bufferLength: number,
   ctor: Ctor

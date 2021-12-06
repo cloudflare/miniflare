@@ -75,6 +75,7 @@ test("Body: body isn't input gated by default", async (t) => {
     void inputGate.runWithClosed(() => openPromise);
     const body = new Body(new BaseResponse("body")).body;
     assert(body);
+    // @ts-expect-error @types/node stream/consumers doesn't accept ReadableStream
     t.is(await text(body), "body");
   });
   openTrigger();

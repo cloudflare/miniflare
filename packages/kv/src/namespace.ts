@@ -1,5 +1,6 @@
 import { arrayBuffer } from "stream/consumers";
-import { ReadableByteStream, ReadableStream } from "stream/web";
+import { ReadableStream } from "stream/web";
+import { TextDecoder, TextEncoder } from "util";
 import {
   Clock,
   Storage,
@@ -125,7 +126,7 @@ function convertStoredToGetValue(stored: Uint8Array, type: KVGetValueType) {
       return JSON.parse(decoder.decode(stored));
     case "stream":
       return new ReadableStream<Uint8Array>({
-        type: "bytes",
+        type: "bytes" as any,
         // Delay enqueuing chunk until it's actually requested so we can wait
         // for the input gate to open before delivering it
         async pull(controller) {
@@ -161,7 +162,7 @@ export class KVNamespace {
   get(
     key: string,
     options: "stream" | KVGetOptions<"stream">
-  ): KVValue<ReadableByteStream>;
+  ): KVValue<ReadableStream<Uint8Array>>;
   async get<Value = unknown>(
     key: string,
     options?: KVGetValueType | Partial<KVGetOptions>
@@ -199,7 +200,7 @@ export class KVNamespace {
   getWithMetadata<Metadata = unknown>(
     key: string,
     options: "stream" | KVGetOptions<"stream">
-  ): KVValueMeta<ReadableByteStream, Metadata>;
+  ): KVValueMeta<ReadableStream<Uint8Array>, Metadata>;
   async getWithMetadata<Value = unknown, Metadata = unknown>(
     key: string,
     options?: KVGetValueType | Partial<KVGetOptions>
@@ -240,6 +241,7 @@ export class KVNamespace {
     if (typeof value === "string") {
       stored = encoder.encode(value);
     } else if (value instanceof ReadableStream) {
+      // @ts-expect-error @types/node stream/consumers doesn't accept ReadableStream
       stored = new Uint8Array(await arrayBuffer(value));
     } else if (value instanceof ArrayBuffer) {
       stored = new Uint8Array(value);
