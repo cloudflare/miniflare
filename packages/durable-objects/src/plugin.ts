@@ -43,10 +43,25 @@ export class DurableObjectsPlugin
 {
   @Option({
     type: OptionType.OBJECT,
-    typeFormat: "NAME=CLASS",
+    typeFormat: "NAME=CLASS[@MOUNT]",
     name: "do",
     alias: "o",
     description: "Durable Object to bind",
+    fromEntries: (entries) =>
+      Object.fromEntries(
+        // Allow specifying the scriptName on the CLI, e.g.
+        // --durable-object COUNTER=Counter@api
+        entries.map(([name, classScriptName]) => {
+          const atIndex = classScriptName.lastIndexOf("@");
+          if (atIndex === -1) {
+            return [name, classScriptName];
+          } else {
+            const className = classScriptName.substring(0, atIndex);
+            const scriptName = classScriptName.substring(atIndex + 1);
+            return [name, { className, scriptName }];
+          }
+        })
+      ),
     fromWrangler: ({ durable_objects }) =>
       durable_objects?.bindings?.reduce(
         (objects, { name, class_name, script_name }) => {

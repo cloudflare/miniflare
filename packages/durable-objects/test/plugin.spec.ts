@@ -33,23 +33,29 @@ test("DurableObjectsPlugin: parses options from argv", (t) => {
     "--do",
     "OBJECT1=Object1",
     "--do",
-    "OBJECT2=Object2",
+    "OBJECT2=Object2@api",
     "--do-persist",
     "path",
   ]);
   t.deepEqual(options, {
-    durableObjects: { OBJECT1: "Object1", OBJECT2: "Object2" },
+    durableObjects: {
+      OBJECT1: "Object1",
+      OBJECT2: { className: "Object2", scriptName: "api" },
+    },
     durableObjectsPersist: "path",
   });
   options = parsePluginArgv(DurableObjectsPlugin, [
     "-o",
     "OBJECT1=Object1",
     "-o",
-    "OBJECT2=Object2",
+    "OBJECT2=Object2@api",
     "--do-persist",
   ]);
   t.deepEqual(options, {
-    durableObjects: { OBJECT1: "Object1", OBJECT2: "Object2" },
+    durableObjects: {
+      OBJECT1: "Object1",
+      OBJECT2: { className: "Object2", scriptName: "api" },
+    },
     durableObjectsPersist: true,
   });
 });
