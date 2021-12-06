@@ -1,3 +1,4 @@
+import { utf8Encode } from "@miniflare/shared-test";
 import { Macro } from "ava";
 import { MIXED_SEED, TestStorageFactory } from "./shared";
 
@@ -31,6 +32,17 @@ export const deleteExpiredMacro: Macro<[TestStorageFactory]> = async (
 };
 deleteExpiredMacro.title = (providedTitle, { name }) =>
   `${name}: delete: respects expiration`;
+
+export const deleteInKeyNamespaceMacro: Macro<[TestStorageFactory]> = async (
+  t,
+  { factory }
+) => {
+  const storage = await factory(t, {});
+  await storage.put("key", { value: utf8Encode("value") });
+  t.false(await storage.delete("key/thing"));
+};
+deleteInKeyNamespaceMacro.title = (providedTitle, { name }) =>
+  `${name}: delete: returns false for non-existent key in namespace that is also a key`;
 
 export const deleteManyMacro: Macro<[TestStorageFactory]> = async (
   t,
