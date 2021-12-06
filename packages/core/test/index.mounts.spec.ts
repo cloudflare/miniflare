@@ -56,7 +56,7 @@ test("MiniflareCore: #init: mounts string-optioned mounts", async (t) => {
   res = await mf.dispatchFetch("http://localhost/tmp");
   t.is(await res.text(), "mounted:value2");
 });
-test("MiniflareCore: #init: string-optioned mounts share storage persistence options", async (t) => {
+test("MiniflareCore: #init: mounts share storage persistence options", async (t) => {
   const tmp = await useTmp(t);
   const scriptPath = path.join(tmp, "worker.js");
   const packagePath = path.join(tmp, "package.json");
@@ -118,10 +118,9 @@ format = "modules"`
     "test://durable-objects-persist:TEST_OBJECT:8f9973e23d7d465bb827b1ded10ae3e3d1e9b25f9e0763ab8ced46632d58ff07":
       durableObjectsMap,
   });
-  const mf = useMiniflare(
+  let mf = useMiniflare(
     { KVPlugin, CachePlugin, DurableObjectsPlugin },
     {
-      watch: true,
       kvPersist: "test://kv-persist",
       cachePersist: "test://cache-persist",
       durableObjectsPersist: "test://durable-objects-persist",
@@ -133,6 +132,33 @@ format = "modules"`
   await mf.dispatchFetch("http://localhost/tmp");
 
   // Check data stored in persist maps
+  t.is(kvMap.size, 1);
+  t.is(cacheMap.size, 1);
+  t.is(durableObjectsMap.size, 1);
+
+  // Check storage persistence options also shared with object-optioned mounts
+  kvMap.clear();
+  cacheMap.clear();
+  durableObjectsMap.clear();
+
+  mf = useMiniflare(
+    { KVPlugin, CachePlugin, DurableObjectsPlugin },
+    {
+      kvPersist: "test://kv-persist",
+      cachePersist: "test://cache-persist",
+      durableObjectsPersist: "test://durable-objects-persist",
+      mounts: {
+        tmp: {
+          rootPath: tmp,
+          wranglerConfigPath: true,
+          packagePath: true,
+        },
+      },
+    },
+    new NoOpLog(),
+    storageFactory
+  );
+  await mf.dispatchFetch("http://localhost/tmp");
   t.is(kvMap.size, 1);
   t.is(cacheMap.size, 1);
   t.is(durableObjectsMap.size, 1);

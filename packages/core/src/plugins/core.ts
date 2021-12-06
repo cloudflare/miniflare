@@ -48,6 +48,7 @@ import {
   inputGatedSetTimeout,
   withStringFormDataFiles,
 } from "../standards";
+import type { BindingsOptions } from "./bindings";
 
 const DEFAULT_MODULE_RULES: ModuleRule[] = [
   { type: "ESModule", include: ["**/*.mjs"] },
@@ -95,7 +96,31 @@ export interface CoreOptions {
   debug?: boolean;
   verbose?: boolean;
   updateCheck?: boolean;
-  mounts?: Record<string, string>;
+  // Replaced in MiniflareCoreOptions with something plugins-specific
+  mounts?: Record<string, string | CoreOptions | BindingsOptions>;
+}
+
+function mapMountEntries([name, pathEnv]: [string, string]): [
+  string,
+  CoreOptions | BindingsOptions
+] {
+  let wranglerConfigEnv;
+  const atIndex = pathEnv.lastIndexOf("@");
+  if (atIndex !== -1) {
+    wranglerConfigEnv = pathEnv.substring(atIndex + 1);
+    pathEnv = pathEnv.substring(0, atIndex);
+  }
+  return [
+    name,
+    {
+      rootPath: pathEnv,
+      wranglerConfigEnv,
+      // Autoload configuration from files
+      packagePath: true,
+      envPath: true,
+      wranglerConfigPath: true,
+    },
+  ];
 }
 
 export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
@@ -246,11 +271,14 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   @Option({
     type: OptionType.OBJECT,
-    typeFormat: "NAME=PATH",
+    typeFormat: "NAME=PATH[@ENV]",
     description: "Mount additional named workers",
-    fromWrangler: ({ miniflare }) => miniflare?.mounts,
+    fromEntries: (entries) => Object.fromEntries(entries.map(mapMountEntries)),
+    fromWrangler: ({ miniflare }) =>
+      miniflare?.mounts &&
+      Object.fromEntries(Object.entries(miniflare.mounts).map(mapMountEntries)),
   })
-  mounts?: Record<string, string>;
+  mounts?: Record<string, string | CoreOptions | BindingsOptions>;
 
   readonly processedModuleRules: ProcessedModuleRule[] = [];
 

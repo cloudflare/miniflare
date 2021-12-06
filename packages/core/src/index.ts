@@ -83,10 +83,10 @@ type PluginData<Plugins extends PluginSignatures, Data> = Map<
 
 export type MiniflareCoreOptions<Plugins extends CorePluginSignatures> = Omit<
   Options<Plugins>,
-  "mounts" // Replace Record<string, string> mount from CoreOptions...
+  "mounts" // Replace Record<string, string | ...> from CoreOptions...
 > & {
-  // ...with Record that allows any options to be specified, in addition to a
-  // different route path
+  // ...with Record that allows any options from Plugins to be specified,
+  // disallowing nesting
   mounts?: Record<string, string | Omit<Options<Plugins>, "mounts">>;
 };
 
@@ -446,6 +446,23 @@ export class MiniflareCore<
     const mounts = options.CorePlugin
       .mounts as MiniflareCoreOptions<Plugins>["mounts"];
     if (mounts) {
+      const defaultMountOptions = {
+        // Copy watch option
+        watch: this.#watching || undefined,
+        // Copy storage persistence options, we want mounted workers to share
+        // the same underlying storage for shared namespaces.
+        // (this tight coupling makes me sad)
+        kvPersist: resolveStoragePersist(rootPath, options.KVPlugin?.kvPersist),
+        cachePersist: resolveStoragePersist(
+          rootPath,
+          options.CachePlugin?.cachePersist
+        ),
+        durableObjectsPersist: resolveStoragePersist(
+          rootPath,
+          options.DurableObjectsPlugin?.durableObjectsPersist
+        ),
+      };
+
       // Create new and update existing mounts
       for (const [name, rawOptions] of Object.entries(mounts)) {
         if (name === "") {
@@ -455,37 +472,20 @@ export class MiniflareCore<
           );
         }
 
-        const mountOptions = (
+        const mountOptions: MiniflareCoreOptions<Plugins> =
           typeof rawOptions === "string"
-            ? {
+            ? ({
+                ...defaultMountOptions,
                 rootPath: rawOptions,
                 // Autoload configuration from files
                 packagePath: true,
                 envPath: true,
                 wranglerConfigPath: true,
-                // TODO: wranglerConfigEnv: maybe get by splitting rawOptions on
-                //  last ":" or "@" character?
-                // Copy watch option
-                watch: this.#watching,
-                // Copy storage persistence options, we want mounted workers to
-                // share the same underlying storage for shared namespaces.
-                // (this tight coupling makes me sad)
-                kvPersist: resolveStoragePersist(
-                  rootPath,
-                  options.KVPlugin?.kvPersist
-                ),
-                cachePersist: resolveStoragePersist(
-                  rootPath,
-                  options.CachePlugin?.cachePersist
-                ),
-                durableObjectsPersist: resolveStoragePersist(
-                  rootPath,
-                  options.DurableObjectsPlugin?.durableObjectsPersist
-                ),
-              }
-            : rawOptions
-        ) as MiniflareCoreOptions<Plugins>;
-
+              } as any)
+            : {
+                ...defaultMountOptions,
+                ...rawOptions,
+              };
         if ("mounts" in mountOptions) {
           throw new MiniflareCoreError(
             "ERR_MOUNT_NESTED",
