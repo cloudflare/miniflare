@@ -21,7 +21,20 @@ export async function upgradingFetch(
     request.method === "GET" &&
     request.headers.get("upgrade") === "websocket"
   ) {
-    // Establish web socket connection
+    // Check request protocol. Note, upgradingFetch will be wrapped with
+    // createCompatFetch, which will rewrite the protocol to "http:" (e.g. when
+    // it's set to "ws:") if the fetch_refuses_unknown_protocols compatibility
+    // flag isn't enabled, so we don't need to handle that here.
+    const url = new URL(request.url);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      throw new TypeError(
+        `Fetch API cannot load: ${url.toString()}.\nMake sure you're using http(s):// URLs for WebSocket requests via fetch.`
+      );
+    }
+    url.protocol = url.protocol.replace("http", "ws");
+
+    // Normalise request headers to a format ws understands, extracting the
+    // Sec-WebSocket-Protocol header as ws treats this differently
     const headers: Record<string, string> = {};
     let protocols: string[] | undefined;
     for (const [key, value] of request.headers.entries()) {
@@ -31,13 +44,8 @@ export async function upgradingFetch(
         headers[key] = value;
       }
     }
-    const url = new URL(request.url);
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      throw new TypeError(
-        `Fetch API cannot load: ${url.toString()}.\nMake sure you're using http(s):// URLs for WebSocket requests via fetch.`
-      );
-    }
-    url.protocol = url.protocol.replace("http", "ws");
+
+    // Establish web socket connection
     const ws = new StandardWebSocket(url, protocols, {
       followRedirects: request.redirect === "follow",
       headers,

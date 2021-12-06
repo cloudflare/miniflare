@@ -12,6 +12,7 @@ export {
   Response,
   withWaitUntil,
   fetch,
+  _urlFromRequestInput,
   _buildUnknownProtocolWarning,
   createCompatFetch,
   logResponse,
