@@ -40,6 +40,19 @@ for (const macro of storageMacros) {
   test(macro, storageFactory);
 }
 
+test("FileStorage: put: recognises limitation when putting into namespace that is also a key", async (t) => {
+  const storage = await storageFactory.factory(t, {});
+  await storage.put("key", { value: utf8Encode("value") });
+  await t.throwsAsync(
+    async () => storage.put("key/thing", { value: utf8Encode("value") }),
+    {
+      instanceOf: FileStorageError,
+      code: "ERR_NAMESPACE_KEY_CHILD",
+      message:
+        /^Cannot put key "key\/thing" as a parent namespace is also a key/,
+    }
+  );
+});
 test("FileStorage: list: returns original keys if sanitised", async (t) => {
   const storage = await storageFactory.factory(t, {});
   const unsafeKey = "namespace:<a>/../c?   ";

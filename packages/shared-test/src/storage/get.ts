@@ -51,6 +51,18 @@ export const getExpiredMacro: Macro<[TestStorageFactory]> = async (
 getExpiredMacro.title = (providedTitle, { name }) =>
   `${name}: get: respects expiration`;
 
+export const getInKeyNamespaceMacro: Macro<[TestStorageFactory]> = async (
+  t,
+  { factory }
+) => {
+  const storage = await factory(t, {});
+  await storage.put("key", { value: utf8Encode("value") });
+  const value = await storage.get("key/thing");
+  t.is(value, undefined);
+};
+getInKeyNamespaceMacro.title = (providedTitle, { name }) =>
+  `${name}: get: returns undefined for non-existent key in namespace that is also a key`;
+
 export const getSkipsMetadataMacro: Macro<[TestStorageFactory]> = async (
   t,
   { usesSkipMetadata, factory }

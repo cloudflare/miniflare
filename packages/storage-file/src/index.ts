@@ -14,7 +14,9 @@ import { deleteFile, readFile, walk, writeFile } from "./helpers";
 
 const metaSuffix = ".meta.json";
 
-export type FileStorageErrorCode = "ERR_TRAVERSAL"; // Store value outside root
+export type FileStorageErrorCode =
+  | "ERR_TRAVERSAL" // Store value outside root
+  | "ERR_NAMESPACE_KEY_CHILD"; // Store key in namespace that is also a key
 
 export class FileStorageError extends MiniflareError<FileStorageErrorCode> {}
 
@@ -64,14 +66,23 @@ export class FileStorage extends LocalStorage {
   ): Promise<StoredValueMeta<Meta> | undefined> {
     const [filePath] = this.keyPath(key);
     if (!filePath) return;
-    const value = await readFile(filePath);
-    if (value === undefined) return;
-    const meta = await this.meta<Meta>(filePath);
-    return {
-      value: viewToArray(value),
-      expiration: meta.expiration,
-      metadata: meta.metadata,
-    };
+    try {
+      const value = await readFile(filePath);
+
+      if (value === undefined) return;
+      const meta = await this.meta<Meta>(filePath);
+      return {
+        value: viewToArray(value),
+        expiration: meta.expiration,
+        metadata: meta.metadata,
+      };
+    } catch (e: any) {
+      // We'll get this error if we try to get a namespaced key, where the
+      // namespace itself is also a key (e.g. trying to get "key/sub-key" where
+      // "key" is also a key). In this case, "key/sub-key" doesn't exist.
+      if (e.code === "ENOTDIR") return;
+      throw e;
+    }
   }
 
   async put<Meta = unknown>(
@@ -87,8 +98,22 @@ export class FileStorage extends LocalStorage {
         "Cannot store values outside of storage root directory"
       );
     }
-    // Write value to file
-    await writeFile(filePath, value);
+    try {
+      // Write value to file
+      await writeFile(filePath, value);
+    } catch (e: any) {
+      if (e.code !== "EEXIST") throw e;
+      // TODO: fix this limitation
+      throw new FileStorageError(
+        "ERR_NAMESPACE_KEY_CHILD",
+        'Cannot put key "' +
+          key +
+          '" as a parent namespace is also a key.\n' +
+          "This is a limitation of Miniflare's file-system storage. Please " +
+          "use in-memory/Redis storage instead, or change your key layout.",
+        e
+      );
+    }
 
     // Write metadata to file if there is any, otherwise delete old metadata,
     // also store key if it was sanitised so list results are correct
@@ -106,9 +131,17 @@ export class FileStorage extends LocalStorage {
   async deleteMaybeExpired(key: string): Promise<boolean> {
     const [filePath] = this.keyPath(key);
     if (!filePath) return false;
-    const existed = await deleteFile(filePath);
-    await deleteFile(filePath + metaSuffix);
-    return existed;
+    try {
+      const existed = await deleteFile(filePath);
+      await deleteFile(filePath + metaSuffix);
+      return existed;
+    } catch (e: any) {
+      // We'll get this error if we try to get a namespaced key, where the
+      // namespace itself is also a key (e.g. trying to get "key/sub-key" where
+      // "key" is also a key). In this case, "key/sub-key" doesn't exist.
+      if (e.code === "ENOTDIR") return false;
+      throw e;
+    }
   }
 
   async listAllMaybeExpired<Meta>(): Promise<StoredKeyMeta<Meta>[]> {
