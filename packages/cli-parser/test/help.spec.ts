@@ -48,7 +48,8 @@ Core Options:
      --(no-)update-check     Enable update checker (enabled by         [boolean]
                              default)
      --root                  Path to resolve files relative to          [string]
-     --mount                 Mount additional named workers    [array:NAME=PATH]
+     --mount                 Mount additional named      [array:NAME=PATH[@ENV]]
+                             workers
 
 Test Options:
  -b, --boolean-option        Boolean option                            [boolean]

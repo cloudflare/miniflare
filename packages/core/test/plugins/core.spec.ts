@@ -53,7 +53,7 @@ test("CorePlugin: parses options from argv", (t) => {
     "--mount",
     "api=./api",
     "--mount",
-    "site=./site",
+    "site=./site@dev",
   ]);
   t.deepEqual(options, {
     scriptPath: "script.js",
@@ -75,7 +75,22 @@ test("CorePlugin: parses options from argv", (t) => {
     debug: true,
     verbose: true,
     rootPath: "root",
-    mounts: { api: "./api", site: "./site" },
+    mounts: {
+      api: {
+        rootPath: "./api",
+        wranglerConfigEnv: undefined,
+        packagePath: true,
+        envPath: true,
+        wranglerConfigPath: true,
+      },
+      site: {
+        rootPath: "./site",
+        wranglerConfigEnv: "dev",
+        packagePath: true,
+        envPath: true,
+        wranglerConfigPath: true,
+      },
+    },
   });
   options = parsePluginArgv(CorePlugin, [
     "-c",
@@ -119,7 +134,7 @@ test("CorePlugin: parses options from wrangler config", (t) => {
         upstream: "https://miniflare.dev",
         watch: true,
         update_check: false,
-        mounts: { api: "./api", site: "./site" },
+        mounts: { api: "./api", site: "./site@dev" },
       },
     },
     configDir
@@ -146,7 +161,22 @@ test("CorePlugin: parses options from wrangler config", (t) => {
     verbose: undefined,
     updateCheck: false,
     rootPath: undefined,
-    mounts: { api: "./api", site: "./site" },
+    mounts: {
+      api: {
+        rootPath: "./api",
+        wranglerConfigEnv: undefined,
+        packagePath: true,
+        envPath: true,
+        wranglerConfigPath: true,
+      },
+      site: {
+        rootPath: "./site",
+        wranglerConfigEnv: "dev",
+        packagePath: true,
+        envPath: true,
+        wranglerConfigPath: true,
+      },
+    },
   });
   // Check build upload dir defaults to dist
   options = parsePluginWranglerConfig(
