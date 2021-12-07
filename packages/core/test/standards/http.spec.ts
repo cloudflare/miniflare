@@ -7,6 +7,7 @@ import {
   IncomingRequestCfProperties,
   Request,
   Response,
+  _isByteStream,
   createCompatFetch,
   fetch,
   logResponse,
@@ -20,6 +21,8 @@ import {
   TestLog,
   triggerPromise,
   useServer,
+  utf8Decode,
+  utf8Encode,
   waitsForInputGate,
   waitsForOutputGate,
 } from "@miniflare/shared-test";
@@ -36,6 +39,13 @@ import {
 
 // @ts-expect-error filling out all properties is annoying
 const cf: IncomingRequestCfProperties = { country: "GB" };
+
+async function byobReadFirstChunk(body: ReadableStream<Uint8Array> | null) {
+  assert(body);
+  const reader = body.getReader({ mode: "byob" });
+  const result = await reader.read(new Uint8Array(32));
+  return utf8Decode(result.value);
+}
 
 test('Headers: getAll: throws if key not "Set-Cookie"', (t) => {
   const headers = new Headers();
@@ -66,6 +76,24 @@ test("Headers: getAll: returns separated Set-Cookie values", (t) => {
   t.deepEqual(headers.getAll("set-CoOkiE"), [cookie1, cookie2, cookie3]);
 });
 
+test("_isByteStream: determines if a ReadableStream is a byte stream", (t) => {
+  const regularStream = new ReadableStream({
+    pull(controller) {
+      controller.enqueue(new Uint8Array([1, 2, 3]));
+      controller.close();
+    },
+  });
+  const byteStream = new ReadableStream({
+    type: "bytes",
+    pull(controller) {
+      controller.enqueue(new Uint8Array([1, 2, 3]));
+      controller.close();
+    },
+  });
+  t.false(_isByteStream(regularStream));
+  t.true(_isByteStream(byteStream));
+});
+
 // These tests also implicitly test withInputGating
 test("Body: body isn't input gated by default", async (t) => {
   const inputGate = new InputGate();
@@ -81,15 +109,31 @@ test("Body: body isn't input gated by default", async (t) => {
   openTrigger();
 });
 test("Body: body returns null with null body", (t) => {
-  const body = withInputGating(new Body(new BaseResponse(null)));
+  const body = new Body(new BaseResponse(null));
   t.is(body.body, null);
 });
 test("Body: same body instance is always returned", (t) => {
-  const body = withInputGating(new Body(new BaseResponse("body")));
+  const body = new Body(new BaseResponse("body"));
+  t.not(body.body, null);
   t.is(body.body, body.body);
 });
+test("Body: reuses byte stream if not input gated", (t) => {
+  const bodyStream = new ReadableStream({
+    type: "bytes",
+    pull(controller) {
+      controller.enqueue(utf8Encode("chunk"));
+      controller.close();
+    },
+  });
+
+  let res = new Response(bodyStream);
+  t.is(res.body, bodyStream);
+
+  res = withInputGating(new Response(bodyStream));
+  t.not(res.body, bodyStream);
+});
 test("Body: body isn't locked until read from", async (t) => {
-  const res = withInputGating(new Response("body"));
+  const res = new Response("body");
   // noinspection SuspiciousTypeOfGuard
   t.true(res instanceof Body);
   // noinspection SuspiciousTypeOfGuard
@@ -101,6 +145,79 @@ test("Body: body isn't locked until read from", async (t) => {
   const clone = res.clone();
   t.is(await clone.text(), "body");
 });
+test("Body: can pause, resume and cancel body stream", async (t) => {
+  const chunks = ["123", "456", "789"];
+  const bodyStream = new ReadableStream({
+    pull(controller) {
+      const chunk = chunks.shift();
+      if (chunk) {
+        controller.enqueue(utf8Encode(chunk));
+      } else {
+        controller.close();
+      }
+    },
+  });
+  const { body } = new Response(bodyStream);
+  assert(body);
+
+  let reader = body.getReader();
+  let result = await reader.read();
+  t.false(result.done);
+  t.is(utf8Decode(result.value), "123");
+
+  reader.releaseLock();
+  reader = body.getReader();
+  result = await reader.read();
+  t.false(result.done);
+  t.is(utf8Decode(result.value), "456");
+
+  await reader.cancel(new Error("Cancelled!"));
+  result = await reader.read();
+  t.true(result.done);
+  t.is(result.value, undefined);
+
+  reader.releaseLock();
+  reader = body.getReader();
+  result = await reader.read();
+  t.true(result.done);
+  t.is(result.value, undefined);
+});
+test("Body: throws on string chunks", async (t) => {
+  const inputStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue("I'm a string");
+      controller.close();
+    },
+  });
+  const { body } = new Response(inputStream);
+  assert(body);
+  await t.throwsAsync(body.getReader().read(), {
+    instanceOf: TypeError,
+    message:
+      "This TransformStream is being used as a byte stream, " +
+      "but received a string on its writable side. " +
+      "If you wish to write a string, you'll probably want to " +
+      "explicitly UTF-8-encode it with TextEncoder.",
+  });
+});
+test("Body: throws on non-ArrayBuffer/ArrayBufferView chunks", async (t) => {
+  const inputStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(42);
+      controller.close();
+    },
+  });
+  const { body } = new Response(inputStream);
+  assert(body);
+  await t.throwsAsync(body.getReader().read(), {
+    instanceOf: TypeError,
+    message:
+      "This TransformStream is being used as a byte stream, " +
+      "but received an object of non-ArrayBuffer/ArrayBufferView " +
+      "type on its writable side.",
+  });
+});
+
 const inputGatedBodyMacro: Macro<[(body: ReadableStream) => Promise<any>]> =
   async (t, closure) => {
     const res = withInputGating(new Body(new BaseResponse("body")));
@@ -262,9 +379,11 @@ test("Request: constructing from BaseRequest doesn't create new BaseRequest unle
     signal: controller.signal,
   });
   let req = new Request(base);
-  // Wouldn't be the same instance if cloned
+  // Headers wouldn't be the same instance if cloned
+  t.is(req.headers, base.headers);
+  // Bodies are different, as we create a readable byte stream for each Request
   // @ts-expect-error our bodies are typed ReadableStream
-  t.is(req.body, base.body);
+  t.not(req.body, base.body);
 
   t.is(req.cache, base.cache);
   t.is(req.credentials, base.credentials);
@@ -422,6 +541,25 @@ test("Request: can mutate forbidden headers after construction", async (t) => {
     t.is(req2.headers.get(header), "value2");
   }
 });
+test("Request: can use byob reader for body", async (t) => {
+  const { body } = new Request("https://a", { method: "POST", body: "body" });
+  assert(body);
+  const reader = body.getReader({ mode: "byob" });
+  const result = await reader.read(new Uint8Array(32));
+  t.is(utf8Decode(result.value), "body");
+});
+test("Request: can use byob reader when cloning", async (t) => {
+  let req = new Request("https://a", { method: "POST", body: "body" });
+  let clone = req.clone();
+  t.is(await byobReadFirstChunk(req.body), "body");
+  t.is(await byobReadFirstChunk(clone.body), "body");
+
+  // Check reading the clone first too
+  req = new Request("https://a", { method: "POST", body: "body" });
+  clone = req.clone();
+  t.is(await byobReadFirstChunk(clone.body), "body");
+  t.is(await byobReadFirstChunk(req.body), "body");
+});
 
 test("withImmutableHeaders: makes Request's headers immutable", (t) => {
   const req = new Request("http://localhost");
@@ -452,9 +590,11 @@ test("Response: constructing from BaseResponse doesn't create new BaseResponse u
     headers: { "Content-Type": "text/html" },
   });
   let res = new Response(base.body, base);
-  // Wouldn't be the same if cloned
+  // Headers wouldn't be the same if cloned
+  t.is(res.headers, base.headers);
+  // Bodies are different, as we create a readable byte stream for each Request
   // @ts-expect-error our bodies are typed ReadableStream
-  t.is(res.body, base.body);
+  t.not(res.body, base.body);
 
   t.is(res.status, base.status);
   t.is(res.ok, base.ok);
@@ -626,6 +766,25 @@ test("Response: can mutate forbidden headers after construction", async (t) => {
     res2.headers.set(header, "value2");
     t.is(res2.headers.get(header), "value2");
   }
+});
+test("Response: can use byob reader for body", async (t) => {
+  const { body } = new Response("body");
+  assert(body);
+  const reader = body.getReader({ mode: "byob" });
+  const result = await reader.read(new Uint8Array(32));
+  t.is(utf8Decode(result.value), "body");
+});
+test("Response: can use byob reader when cloning", async (t) => {
+  let res = new Response("body");
+  let clone = res.clone();
+  t.is(await byobReadFirstChunk(res.body), "body");
+  t.is(await byobReadFirstChunk(clone.body), "body");
+
+  // Check reading the clone first too
+  res = new Response("body");
+  clone = res.clone();
+  t.is(await byobReadFirstChunk(clone.body), "body");
+  t.is(await byobReadFirstChunk(res.body), "body");
 });
 
 test("withWaitUntil: adds wait until to (Base)Response", async (t) => {

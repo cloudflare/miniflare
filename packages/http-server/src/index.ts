@@ -4,7 +4,7 @@ import assert from "assert";
 import http, { OutgoingHttpHeaders } from "http";
 import https from "https";
 import { Transform, Writable } from "stream";
-import { arrayBuffer } from "stream/consumers";
+import { ReadableStream } from "stream/web";
 import { URL } from "url";
 import zlib from "zlib";
 import {
@@ -55,14 +55,28 @@ export async function convertNodeRequest(
 
   let body: BodyInit | null = null;
   if (req.method !== "GET" && req.method !== "HEAD") {
-    // If the Transfer-Encoding is not chunked, buffer the request. If we
-    // didn't do this and tried to make a fetch with this body in the worker,
-    // it would be sent with chunked Transfer-Encoding, since req is a stream.
-    if (req.headers["transfer-encoding"]?.includes("chunked")) {
-      body = req;
-    } else if (req.headers["content-length"] !== "0") {
-      body = await arrayBuffer(req);
-    }
+    // Adapted from https://github.com/nodejs/undici/blob/ebea0f7084bb1efdb66c46409d1bfc87054b2870/lib/core/util.js#L269-L304
+    // to create a byte stream instead of a regular one. This means we don't
+    // create another "byte-TransformStream" later on to allow byob reads.
+    let iterator: AsyncIterableIterator<any>;
+    body = new ReadableStream({
+      type: "bytes",
+      start() {
+        iterator = req[Symbol.asyncIterator]();
+      },
+      async pull(controller) {
+        const { done, value } = await iterator.next();
+        if (done) {
+          queueMicrotask(() => controller.close());
+        } else {
+          const buffer = Buffer.isBuffer(value) ? value : Buffer.from(value);
+          controller.enqueue(new Uint8Array(buffer));
+        }
+      },
+      async cancel() {
+        await iterator.return?.();
+      },
+    });
   }
 
   // Add additional Cloudflare specific headers:

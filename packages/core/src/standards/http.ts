@@ -3,11 +3,15 @@
 import assert from "assert";
 import { Blob } from "buffer";
 import http from "http";
-import { ReadableStream } from "stream/web";
+import {
+  ReadableByteStreamController,
+  ReadableStream,
+  ReadableStreamDefaultReader,
+  UnderlyingByteSource,
+} from "stream/web";
 import { URL } from "url";
 import {
   Compatibility,
-  InputGatedTransformStream,
   Log,
   nonCircularClone,
   waitForOpenInputGate,
@@ -88,89 +92,160 @@ Headers.prototype.getAll = function (key: string): string[] {
 // applied if the user called tee() themselves on the `body`.
 //
 // Finally, it allows us to easily remove methods Workers don't implement.
-export const kInner = Symbol("kInner");
+/** @internal */
+export const _kInner = Symbol("kInner");
 
 const kInputGated = Symbol("kInputGated");
 const kFormDataFiles = Symbol("kFormDataFiles");
+const kCloned = Symbol("kCloned");
+
+/** @internal */
+export function _isByteStream(
+  stream: ReadableStream
+): stream is ReadableStream<Uint8Array> {
+  // Try to determine if stream is a byte stream by inspecting its state.
+  // It doesn't matter too much if the internal representation changes in the
+  // future: this code shouldn't throw. Currently we only use this as an
+  // optimisation to avoid creating a byte stream if it's already one.
+  for (const symbol of Object.getOwnPropertySymbols(stream)) {
+    if (symbol.description === "kState") {
+      // @ts-expect-error symbol properties are not included type definitions
+      const controller = stream[symbol].controller;
+      return controller instanceof ReadableByteStreamController;
+    }
+  }
+  return false;
+}
+
+function isBufferSource(chunk: unknown): chunk is BufferSource {
+  return chunk instanceof ArrayBuffer || ArrayBuffer.isView(chunk);
+}
+
+function bufferSourceToArray(chunk: BufferSource): Uint8Array {
+  if (chunk instanceof Uint8Array) {
+    return chunk;
+  } else if (chunk instanceof ArrayBuffer) {
+    return new Uint8Array(chunk);
+  } else {
+    return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+  }
+}
 
 const enumerableBodyKeys: (keyof Body<any>)[] = ["body", "bodyUsed", "headers"];
 export class Body<Inner extends BaseRequest | BaseResponse> {
-  [kInner]: Inner;
+  [_kInner]: Inner;
   [kInputGated] = false;
   [kFormDataFiles] = true; // Default to enabling form-data File parsing
-  #inputGatedBody?: ReadableStream;
+  [kCloned] = false;
+  #bodyStream?: ReadableStream<Uint8Array>;
 
   constructor(inner: Inner) {
     // Allow forbidden header mutation after construction
     // @ts-expect-error internal kGuard isn't included in type definitions
     inner.headers[fetchSymbols.kGuard] = "none";
 
-    this[kInner] = inner;
+    this[_kInner] = inner;
 
     makeEnumerable(Body.prototype, this, enumerableBodyKeys);
-    Object.defineProperty(this, kInner, nonEnumerable);
+    Object.defineProperty(this, _kInner, nonEnumerable);
     Object.defineProperty(this, kInputGated, nonEnumerable);
     Object.defineProperty(this, kFormDataFiles, nonEnumerable);
   }
 
   [inspect](): Inner {
-    return this[kInner];
+    return this[_kInner];
   }
 
   get headers(): Headers {
-    return this[kInner].headers;
+    return this[_kInner].headers;
   }
 
-  get body(): ReadableStream | null {
-    const body = this[kInner].body;
-    // @ts-expect-error ReadableStreams are basically ControlledAsyncIterables.
-    if (!this[kInputGated] || body === null) return body;
+  get body(): ReadableStream<Uint8Array> | null {
+    const body = this[_kInner].body;
 
-    // Only proxy body once
-    //  Users' Workers code will also expect ReadableStreams.
-    if (this.#inputGatedBody) return this.#inputGatedBody;
-
+    if (body === null) return body;
+    // Only transform body stream once
+    if (this.#bodyStream) return this.#bodyStream;
     assert(body instanceof ReadableStream);
-    let bodyStream: ReadableStream = body; // Keep TypeScript happy later on
-    let bodyPiped = false;
-    this.#inputGatedBody = new Proxy(bodyStream, {
-      get(target, propertyKey: keyof ReadableStream, receiver) {
-        // Only call pipeThrough once we start reading the body. This means
-        // if the user just gets it (maybe to check it's not null?), but doesn't
-        // read anything from it, the stream won't be locked.
-        //
-        // locked (and cancel, but it doesn't matter if we cancel the piped
-        // stream) is the only property that doesn't read stream data.
-        // The rest do: getReader, pipeThrough, pipeTo, tee, values,
-        //  [Symbol.asyncIterator]
-        if (
-          !bodyPiped &&
-          (propertyKey === Symbol.asyncIterator ||
-            propertyKey === "getReader" ||
-            propertyKey === "pipeThrough" ||
-            propertyKey === "pipeTo" ||
-            propertyKey === "tee" ||
-            propertyKey === "values")
-        ) {
-          bodyPiped = true;
-          bodyStream = bodyStream.pipeThrough(new InputGatedTransformStream());
+
+    // Cloudflare Workers allows you to byob-read all Request/Response bodies,
+    // (e.g. incoming requests, user-created ones, clones, fetches, etc).
+    // Therefore, we need to make sure the body is a byte stream.
+    //
+    // If this is an input gated body too, we also need to wait for the input
+    // gate to open before delivering each chunk.
+
+    // If we're not input gating, and body is already a byte stream, we're set,
+    // just return it as is (this will be the case for incoming http requests)
+    if (!this[kInputGated] && _isByteStream(body)) {
+      return (this.#bodyStream = body);
+    }
+
+    // Otherwise, we need to create a "byte-TransformStream" that makes sure
+    // all chunks are BufferSources, converts them to Uint8Arrays, and waits
+    // for the input gate to open before delivering each chunk if needed.
+    let reader: ReadableStreamDefaultReader<unknown>;
+    const source: UnderlyingByteSource = {
+      type: "bytes",
+      pull: async (controller) => {
+        // Don't get reader until we need it (i.e. until first pull)
+        if (reader === undefined) reader = body.getReader();
+
+        // Keep reading until we get a non-empty chunk, or we're done
+        let { done, value } = await reader.read();
+        while (!done && isBufferSource(value) && value.byteLength === 0) {
+          ({ done, value } = await reader.read());
         }
-        return Reflect.get(bodyStream, propertyKey, receiver);
+
+        // Before delivering the chunk, wait for the input gate if needed
+        if (this[kInputGated]) await waitForOpenInputGate();
+
+        if (isBufferSource(value)) {
+          // Deliver the chunk if it's a non-empty ArrayBuffer(View)
+          if (value.byteLength) {
+            let array = bufferSourceToArray(value);
+            // controller.enqueue() will detach array's buffer, so if we've
+            // cloned this response, or this response is cloned, we must copy
+            // the array to a new buffer, so the other side can still access it.
+            if (this[kCloned]) array = array.slice();
+            controller.enqueue(array);
+          }
+        } else if (value) {
+          // Otherwise, if it's not an ArrayBuffer(View), throw
+          const isString = typeof value === "string";
+          return controller.error(
+            new TypeError(
+              "This TransformStream is being used as a byte stream, but received " +
+                (isString
+                  ? "a string on its writable side. If you wish to write a string, " +
+                    "you'll probably want to explicitly UTF-8-encode it with TextEncoder."
+                  : "an object of non-ArrayBuffer/ArrayBufferView type on its writable side.")
+            )
+          );
+        }
+
+        // If the body is finished, close this stream too
+        if (done) controller.close();
       },
-    });
-    return this.#inputGatedBody;
+      cancel: (reason) => reader.cancel(reason),
+    };
+    // TODO: maybe set { highWaterMark: 0 } as a strategy here?
+    return (this.#bodyStream = new ReadableStream(source));
   }
   get bodyUsed(): boolean {
-    return this[kInner].bodyUsed;
+    return this[_kInner].bodyUsed;
   }
 
+  // TODO: we probably need to check chunks are BufferSource's for these
+  //  consumers too
+
   async arrayBuffer(): Promise<ArrayBuffer> {
-    const body = await this[kInner].arrayBuffer();
+    const body = await this[_kInner].arrayBuffer();
     if (this[kInputGated]) await waitForOpenInputGate();
     return body;
   }
   async blob(): Promise<Blob> {
-    const body = await this[kInner].blob();
+    const body = await this[_kInner].blob();
     if (this[kInputGated]) await waitForOpenInputGate();
     return body;
   }
@@ -212,7 +287,7 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
       });
       busboy.on("finish", resolve);
 
-      const body = this[kInner].body;
+      const body = this[_kInner].body;
       if (body !== null) for await (const chunk of body) busboy.write(chunk);
       busboy.end();
     });
@@ -220,12 +295,12 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
     return formData;
   }
   async json<T>(): Promise<T> {
-    const body = await this[kInner].json();
+    const body = await this[_kInner].json();
     if (this[kInputGated]) await waitForOpenInputGate();
     return body as T;
   }
   async text(): Promise<string> {
-    const body = await this[kInner].text();
+    const body = await this[_kInner].text();
     if (this[kInputGated]) await waitForOpenInputGate();
     return body;
   }
@@ -269,7 +344,7 @@ export class Request extends Body<BaseRequest> {
       super(input);
     } else {
       // Don't pass our strange hybrid Request to undici
-      if (input instanceof Request) input = input[kInner];
+      if (input instanceof Request) input = input[_kInner];
       super(new BaseRequest(input, init));
     }
     this.#cf = cf ? nonCircularClone(cf) : undefined;
@@ -278,11 +353,17 @@ export class Request extends Body<BaseRequest> {
   }
 
   clone(): Request {
-    const innerClone = this[kInner].clone();
+    const innerClone = this[_kInner].clone();
     const clone = new Request(innerClone);
     clone[kInputGated] = this[kInputGated];
     clone[kFormDataFiles] = this[kFormDataFiles];
     clone.#cf = this.cf ? nonCircularClone(this.cf) : undefined;
+
+    // Mark both this and the new request as cloned, so we copy array buffers
+    // before detaching them by enqueuing to a byte stream controller
+    this[kCloned] = true;
+    clone[kCloned] = true;
+
     return clone;
   }
 
@@ -292,37 +373,37 @@ export class Request extends Body<BaseRequest> {
 
   // Pass-through standard properties
   get cache(): RequestCache {
-    return this[kInner].cache;
+    return this[_kInner].cache;
   }
   get credentials(): RequestCredentials {
-    return this[kInner].credentials;
+    return this[_kInner].credentials;
   }
   get destination(): RequestDestination {
-    return this[kInner].destination;
+    return this[_kInner].destination;
   }
   get integrity(): string {
-    return this[kInner].integrity;
+    return this[_kInner].integrity;
   }
   get method(): string {
-    return this[kInner].method;
+    return this[_kInner].method;
   }
   get mode(): RequestMode {
-    return this[kInner].mode;
+    return this[_kInner].mode;
   }
   get redirect(): RequestRedirect {
-    return this[kInner].redirect;
+    return this[_kInner].redirect;
   }
   get referrerPolicy(): string {
-    return this[kInner].referrerPolicy;
+    return this[_kInner].referrerPolicy;
   }
   get url(): string {
-    return this[kInner].url;
+    return this[_kInner].url;
   }
   get keepalive(): boolean {
-    return this[kInner].keepalive;
+    return this[_kInner].keepalive;
   }
   get signal(): AbortSignal {
-    return this[kInner].signal;
+    return this[_kInner].signal;
   }
 }
 
@@ -388,7 +469,7 @@ export class Response<
         status = init.#status;
         webSocket = init.#webSocket;
         // Don't pass our strange hybrid Response to undici
-        init = init[kInner];
+        init = init[_kInner];
       } else if (!(init instanceof BaseResponse) /* ResponseInit */ && init) {
         encodeBody = init.encodeBody;
 
@@ -433,7 +514,7 @@ export class Response<
     if (this.#webSocket) {
       throw new TypeError("Cannot clone a response to a WebSocket handshake.");
     }
-    const innerClone = this[kInner].clone();
+    const innerClone = this[_kInner].clone();
     const clone = new Response(innerClone.body, innerClone);
     clone[kInputGated] = this[kInputGated];
     clone[kFormDataFiles] = this[kFormDataFiles];
@@ -442,6 +523,12 @@ export class Response<
     // WebSocket handshake responses
     clone.#status = this.#status;
     clone[kWaitUntil] = this[kWaitUntil];
+
+    // Mark both this and the new response as cloned, so we copy array buffers
+    // before detaching them by enqueuing to a byte stream controller
+    this[kCloned] = true;
+    clone[kCloned] = true;
+
     return clone;
   }
 
@@ -458,24 +545,24 @@ export class Response<
   }
 
   get status(): number {
-    return this.#status ?? this[kInner].status;
+    return this.#status ?? this[_kInner].status;
   }
 
   // Pass-through standard properties
   get ok(): boolean {
-    return this[kInner].ok;
+    return this[_kInner].ok;
   }
   get statusText(): string {
-    return this[kInner].statusText;
+    return this[_kInner].statusText;
   }
   get type(): ResponseType {
-    return this[kInner].type;
+    return this[_kInner].type;
   }
   get url(): string {
-    return this[kInner].url;
+    return this[_kInner].url;
   }
   get redirected(): boolean {
-    return this[kInner].redirected;
+    return this[_kInner].redirected;
   }
 }
 
@@ -502,7 +589,7 @@ export async function fetch(
   await waitForOpenOutputGate();
 
   // Don't pass our strange hybrid Request to undici
-  if (input instanceof Request) input = input[kInner];
+  if (input instanceof Request) input = input[_kInner];
 
   // Set the headers guard to "none" so we can delete the "Host" header
   const req = new BaseRequest(input, init);

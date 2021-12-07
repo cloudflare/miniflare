@@ -14,6 +14,8 @@ import {
   IncomingRequestCfProperties,
   Request,
   ScheduledEvent,
+  _isByteStream,
+  _kInner,
   fetch,
 } from "@miniflare/core";
 import {
@@ -120,7 +122,19 @@ test("convertNodeRequest: builds requests without bodies", async (t) => {
   const [req] = await buildConvertNodeRequest(t);
   t.is(req.body, null);
 });
-test("convertNodeRequest: buffers non-chunked request bodies", async (t) => {
+test("convertNodeRequest: builds byte stream for body", async (t) => {
+  const body = new Readable({ read() {} });
+  body.push("a");
+  body.push("b");
+  body.push(null);
+  const [request] = await buildConvertNodeRequest(t, {
+    method: "POST",
+    headers: { "content-length": "2" },
+    body,
+  });
+  t.true(_isByteStream(request[_kInner].body as any));
+});
+test("convertNodeRequest: sends non-chunked request bodies", async (t) => {
   // Start server to check transfer encoding and chunks received by upstream
   let headers: http.IncomingHttpHeaders | undefined;
   let chunks: string[] = [];
@@ -252,8 +266,9 @@ test("createRequestListener: handles stream http worker response", async (t) => 
     return new globals.Response(
       new globals.ReadableStream({
         start(controller: ReadableStreamDefaultController) {
-          controller.enqueue("str");
-          controller.enqueue("eam");
+          const encoder = new globals.TextEncoder();
+          controller.enqueue(encoder.encode("str"));
+          controller.enqueue(encoder.encode("eam"));
           controller.close();
         },
       })
