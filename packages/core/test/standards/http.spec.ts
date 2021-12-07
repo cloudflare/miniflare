@@ -731,6 +731,11 @@ test("Response: clone retains form data file parsing option", async (t) => {
   resFormData = await clone.formData();
   t.is(resFormData.get("file"), "test");
 });
+test("Response: clones null body", async (t) => {
+  const res = new Response(null, { status: 201 });
+  const clone = res.clone();
+  t.is(clone.body, null);
+});
 test("Response: Object.keys() returns getters", async (t) => {
   const res = new Response("body", { headers: { "X-Key": "value " } });
   const keys = Object.keys(res);
