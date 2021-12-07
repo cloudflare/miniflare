@@ -1,18 +1,16 @@
 // noinspection ES6MissingAwait
 
-import { ReadableStream } from "stream/web";
 import { setTimeout } from "timers/promises";
 import {
   InputGate,
   InputGatedEventTarget,
-  InputGatedTransformStream,
   OutputGate,
   runWithInputGateClosed,
   waitForOpenInputGate,
   waitForOpenOutputGate,
   waitUntilOnOutputGate,
 } from "@miniflare/shared";
-import { TestInputGate, noop, triggerPromise } from "@miniflare/shared-test";
+import { noop, triggerPromise } from "@miniflare/shared-test";
 import test from "ava";
 
 test("waitForOpenInputGate: waits for input gate in context to open", async (t) => {
@@ -296,71 +294,6 @@ test("OutputGate: waitForOpen/waitUntil: waits for gate to open", async (t) => {
   openTrigger2();
   await runWithPromise;
   t.deepEqual(events, [2, 1]);
-});
-
-test("InputGatedTransformStream: delivers chunks with no input gate in context", async (t) => {
-  const transformStream = new InputGatedTransformStream<number>();
-  const stream = new ReadableStream<number>({
-    start(controller) {
-      controller.enqueue(1);
-    },
-    pull(controller) {
-      controller.enqueue(2);
-      controller.close();
-    },
-  }).pipeThrough(transformStream);
-  const reader = stream.getReader();
-  t.is((await reader.read()).value, 1);
-  t.is((await reader.read()).value, 2);
-  t.is((await reader.read()).value, undefined);
-});
-test("InputGatedTransformStream: waits for input gate to open before delivering chunks", async (t) => {
-  const inputGate = new TestInputGate();
-  const events: number[] = [];
-
-  // Check with first chunk
-  let [openTrigger, openPromise] = triggerPromise<void>();
-  const readerPromise = inputGate.runWith(async () => {
-    // Close input gate
-    // noinspection ES6MissingAwait
-    void inputGate.runWithClosed(() => openPromise);
-
-    const transformStream = new InputGatedTransformStream<number>();
-    const stream = new ReadableStream<number>({
-      start(controller) {
-        controller.enqueue(1);
-      },
-      pull(controller) {
-        controller.enqueue(2);
-        controller.close();
-      },
-    }).pipeThrough(transformStream);
-    const reader = stream.getReader();
-    t.is((await reader.read()).value, 1);
-    events.push(1);
-    return reader;
-  });
-  await inputGate.waitedPromise;
-  inputGate.resetWaitedPromise();
-  events.push(2);
-  openTrigger();
-  const reader = await readerPromise;
-  t.deepEqual(events, [2, 1]);
-
-  // Check with second/final chunk
-  [openTrigger, openPromise] = triggerPromise<void>();
-  const finalChunkPromise = inputGate.runWith(async () => {
-    // Close input gate again
-    // noinspection ES6MissingAwait
-    void inputGate.runWithClosed(() => openPromise);
-    t.is((await reader.read()).value, 2);
-    events.push(3);
-  });
-  await inputGate.waitedPromise;
-  events.push(4);
-  openTrigger();
-  await finalChunkPromise;
-  t.deepEqual(events, [2, 1, 4, 3]);
 });
 
 test("InputGatedEventTarget: dispatches events with no input gate in context", async (t) => {

@@ -1,6 +1,5 @@
 import assert from "assert";
 import { AsyncLocalStorage } from "async_hooks";
-import { TransformStream } from "stream/web";
 import { setImmediate as setImmediatePromise } from "timers/promises";
 import { TypedEventListener, TypedEventTarget, kWrapListener } from "../event";
 import { Awaitable } from "./awaitable";
@@ -160,17 +159,6 @@ export class OutputGate {
    */
   waitUntil(promise: Promise<any>): void {
     this.#waitUntil.push(promise);
-  }
-}
-
-export class InputGatedTransformStream<T = any> extends TransformStream<T, T> {
-  constructor() {
-    super({
-      async transform(chunk, controller) {
-        await waitForOpenInputGate();
-        controller.enqueue(chunk);
-      },
-    });
   }
 }
 

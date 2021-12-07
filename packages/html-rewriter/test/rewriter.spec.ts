@@ -735,6 +735,20 @@ test.serial("HTMLRewriter: rethrows error thrown in handler", async (t) => {
     })
     .transform(new Response("<p>test</p>"));
   await t.throwsAsync(res.text(), { message: "Whoops!" });
+  await setTimeout();
+  t.true(freed.freed);
+});
+test.serial("HTMLRewriter: rethrows error thrown in end handler", async (t) => {
+  const freed = recordFree(t);
+  const res = new HTMLRewriter()
+    .onDocument({
+      end() {
+        throw new Error("Whoops!");
+      },
+    })
+    .transform(new Response("<p>test</p>"));
+  await t.throwsAsync(res.text(), { message: "Whoops!" });
+  await setTimeout();
   t.true(freed.freed);
 });
 
@@ -982,8 +996,8 @@ test(
   "<div><h1><span>1</span></h1><span>new</span><b>3</b></div>"
 );
 
-test("HTMLRewriter: throws error on unsupported selector", async (t) => {
-  t.plan(1);
+test.serial("HTMLRewriter: throws error on unsupported selector", async (t) => {
+  const freed = recordFree(t);
   const res = new HTMLRewriter()
     .on("p:last-child", {
       element(element) {
@@ -994,9 +1008,11 @@ test("HTMLRewriter: throws error on unsupported selector", async (t) => {
   // Cannot use t.throwsAsync here as promise rejects with string not error type
   try {
     await res.text();
+    t.fail();
   } catch (e) {
     t.is(e, "Unsupported pseudo-class or pseudo-element in selector.");
   }
+  t.true(freed.freed);
 });
 
 // endregion: SELECTORS
