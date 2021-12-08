@@ -430,14 +430,6 @@ export class MiniflareCore<
     // changes
     this.#previousOptions = options;
 
-    // Make sure we've got a script if it's required
-    if (
-      this.#ctx.scriptRequired &&
-      !this.#setupResults.get("CorePlugin")?.script
-    ) {
-      throwNoScriptError(options.CorePlugin.modules);
-    }
-
     // Update mounts
     this.#mounts ??= new Map();
     const mounts = options.CorePlugin
@@ -543,6 +535,16 @@ export class MiniflareCore<
       }
     }
     await this.#updateRouter();
+
+    // Make sure we've got a script if it's required (if we've got mounts,
+    // allow no script, as we might always route to those)
+    if (
+      this.#ctx.scriptRequired &&
+      !this.#setupResults.get("CorePlugin")?.script &&
+      this.#mounts.size === 0
+    ) {
+      throwNoScriptError(options.CorePlugin.modules);
+    }
   }
 
   async #updateRouter(): Promise<void> {
