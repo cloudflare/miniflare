@@ -43,6 +43,8 @@ import {
   ScheduledEvent,
   TextDecoder,
   WorkerGlobalScope,
+  atob,
+  btoa,
   createCompatFetch,
   crypto,
   inputGatedSetInterval,
@@ -65,15 +67,6 @@ function proxyStringFormDataFiles<
       return withStringFormDataFiles(value);
     },
   });
-}
-
-// Approximations of atob and btoa for Jest, which doesn't include these in the
-// global scope with jest-environment-node :(
-function atobBuffer(s: string): string {
-  return Buffer.from(s, "base64").toString("binary");
-}
-function btoaBuffer(s: string): string {
-  return Buffer.from(s, "binary").toString("base64");
 }
 
 // Approximation of structuredClone for Node < 17.0.0
@@ -338,10 +331,8 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       clearInterval,
       queueMicrotask,
 
-      // Fix for Jest :(, jest-environment-node doesn't include atob/btoa in the
-      // global scope
-      atob: globalThis.atob ?? atobBuffer,
-      btoa: globalThis.btoa ?? btoaBuffer,
+      atob,
+      btoa,
 
       crypto,
       CryptoKey: crypto.CryptoKey,
