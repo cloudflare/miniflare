@@ -60,18 +60,13 @@ function listen(
 function buildConvertNodeRequest(
   t: ExecutionContext,
   options: http.RequestOptions & {
-    upstream?: string;
     meta?: RequestMeta;
     body?: NodeJS.ReadableStream;
   } = {}
 ): Promise<[Request, URL]> {
   return new Promise(async (resolve) => {
     const server = http.createServer(async (req, res) => {
-      const { request, url } = await convertNodeRequest(
-        req,
-        options.upstream,
-        options.meta
-      );
+      const { request, url } = await convertNodeRequest(req, options.meta);
       resolve([request, url]);
       res.end();
     });
@@ -106,11 +101,11 @@ function request(
   });
 }
 
-test("convertNodeRequest: uses request url, with upstream or host as base", async (t) => {
+test("convertNodeRequest: uses request url, with host as origin", async (t) => {
   // eslint-disable-next-line prefer-const
   let [request, url] = await buildConvertNodeRequest(t, {
     path: "/test",
-    upstream: "http://upstream.com",
+    headers: { host: "upstream.com" },
   });
   t.is(request.headers.get("host"), "upstream.com");
   t.is(url.toString(), "http://upstream.com/test");
@@ -154,8 +149,7 @@ test("convertNodeRequest: sends non-chunked request bodies", async (t) => {
   body.push(null);
   let [req] = await buildConvertNodeRequest(t, {
     method: "POST",
-    headers: { "transfer-encoding": "chunked" },
-    upstream: `http://localhost:${port}`,
+    headers: { "transfer-encoding": "chunked", host: `localhost:${port}` },
     body,
   });
   await (await fetch(req)).text();
@@ -169,8 +163,7 @@ test("convertNodeRequest: sends non-chunked request bodies", async (t) => {
   body.push(null);
   [req] = await buildConvertNodeRequest(t, {
     method: "POST",
-    headers: { "content-length": "2" },
-    upstream: `http://localhost:${port}`,
+    headers: { "content-length": "2", host: `localhost:${port}` },
     body,
   });
   await (await fetch(req)).text();
@@ -541,12 +534,12 @@ test("createRequestListener: should allow connection close before stream finishe
 });
 
 test("createServer: handles regular requests", async (t) => {
-  const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {
-    return new globals.Response("body");
+  const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals, req) => {
+    return new globals.Response(`body:${req.url}`);
   });
   const port = await listen(t, await createServer(mf));
   const [body] = await request(port);
-  t.is(body, "body");
+  t.is(body, `body:http://localhost:${port}/`);
 });
 test("createServer: handles web socket upgrades", async (t) => {
   const mf = useMiniflareWithHandler(
@@ -636,9 +629,11 @@ test("createServer: handles https requests", async (t) => {
   const mf = useMiniflareWithHandler(
     { HTTPPlugin },
     { https: tmp },
-    (globals) => new globals.Response("test")
+    (globals, req) => {
+      return new globals.Response(`body:${req.url}`);
+    }
   );
   const port = await listen(t, await createServer(mf));
   const [body] = await request(port, "", {}, true);
-  t.is(body, "test");
+  t.is(body, `body:https://localhost:${port}/`);
 });

@@ -47,11 +47,12 @@ const liveReloadScriptLength = Buffer.byteLength(liveReloadScript);
 
 export async function convertNodeRequest(
   req: http.IncomingMessage,
-  upstream?: string,
   meta?: RequestMeta
 ): Promise<{ request: Request; url: URL }> {
-  // noinspection HttpUrlsUsage
-  const url = new URL(req.url ?? "", upstream ?? `http://${req.headers.host}`);
+  // @ts-expect-error encrypted is only defined in tls.TLSSocket
+  const protocol = req.socket.encrypted ? "https" : "http";
+  const origin = `${protocol}://${req.headers.host ?? "localhost"}`;
+  const url = new URL(req.url ?? "", origin);
 
   let body: BodyInit | null = null;
   if (req.method !== "GET" && req.method !== "HEAD") {
@@ -98,8 +99,6 @@ export async function convertNodeRequest(
   req.headers["cf-ipcountry"] ??= meta?.cf?.country ?? "US";
   req.headers["cf-ray"] ??= randomHex(16);
   req.headers["cf-visitor"] ??= `{"scheme":"${proto}"}`;
-
-  // Make sure we're using the correct host header (with custom upstream)
   req.headers["host"] = url.host;
 
   // Build Headers object from request
@@ -142,11 +141,10 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
   mf: MiniflareCore<Plugins>
 ): RequestListener {
   return async (req, res) => {
-    const { CorePlugin, HTTPPlugin } = await mf.getPlugins();
+    const { HTTPPlugin } = await mf.getPlugins();
     const start = process.hrtime();
     const { request, url } = await convertNodeRequest(
       req,
-      CorePlugin.upstream,
       await HTTPPlugin.getRequestMeta(req)
     );
 

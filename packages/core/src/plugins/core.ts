@@ -34,6 +34,7 @@ import {
   globsToMatcher,
 } from "@miniflare/shared";
 import { File, FormData, Headers } from "undici";
+import { MiniflareCoreError } from "../error";
 import {
   DOMException,
   FetchEvent,
@@ -98,6 +99,7 @@ export interface CoreOptions {
   updateCheck?: boolean;
   // Replaced in MiniflareCoreOptions with something plugins-specific
   mounts?: Record<string, string | CoreOptions | BindingsOptions>;
+  routes?: string[];
 }
 
 function mapMountEntries([name, pathEnv]: [string, string]): [
@@ -280,8 +282,22 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
   })
   mounts?: Record<string, string | CoreOptions | BindingsOptions>;
 
+  @Option({
+    type: OptionType.NONE,
+    fromWrangler: ({ route, routes, miniflare }) => {
+      const result: string[] = [];
+      if (route) result.push(route);
+      if (routes) result.push(...routes);
+      if (miniflare?.route) result.push(miniflare.route);
+      if (miniflare?.routes) result.push(...miniflare.routes);
+      return result.length ? result : undefined;
+    },
+  })
+  routes?: string[];
+
   readonly processedModuleRules: ProcessedModuleRule[] = [];
 
+  readonly upstreamURL?: URL;
   readonly #globals: Context;
 
   constructor(ctx: PluginContext, options?: CoreOptions) {
@@ -297,6 +313,18 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     if (!formDataFiles) {
       CompatRequest = proxyStringFormDataFiles(CompatRequest);
       CompatResponse = proxyStringFormDataFiles(CompatResponse);
+    }
+
+    // Try to parse upstream URL if set
+    try {
+      this.upstreamURL =
+        this.upstream === undefined ? undefined : new URL(this.upstream);
+    } catch (e: any) {
+      // Throw with a more helpful error message
+      throw new MiniflareCoreError(
+        "ERR_INVALID_UPSTREAM",
+        `Invalid upstream URL: \"${this.upstream}\". Make sure you've included the protocol.`
+      );
     }
 
     // Build globals object

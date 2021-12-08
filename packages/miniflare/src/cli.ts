@@ -92,6 +92,8 @@ async function main() {
     mf.log.error(e);
     if (e.cause) mf.log.error(e.cause);
     process.exitCode = 1;
+    // Unmount any mounted workers
+    await mf.dispose();
     return;
   }
 

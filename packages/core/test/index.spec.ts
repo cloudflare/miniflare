@@ -1022,6 +1022,26 @@ test(
   dispatchFetchMacro,
   new BaseRequest("http://localhost/", { method: "POST", body: "body" })
 );
+test("MiniflareCore: dispatchFetch: rewrites url to match upstream if different", async (t) => {
+  const mf = useMiniflareWithHandler(
+    {},
+    { upstream: "https://miniflare.dev" },
+    (globals, req) =>
+      new globals.Response(`${req.url}:${req.headers.get("host")}`)
+  );
+  // Check url and host header are correct
+  let res = await mf.dispatchFetch("http://localhost/a");
+  t.is(await res.text(), "https://miniflare.dev/a:miniflare.dev");
+
+  // Check includes query string
+  res = await mf.dispatchFetch("http://localhost/a?b=c");
+  t.is(await res.text(), "https://miniflare.dev/a?b=c:miniflare.dev");
+
+  // Check includes subpath
+  await mf.setOptions({ upstream: "https://miniflare.dev/subpath/" });
+  res = await mf.dispatchFetch("http://localhost/a");
+  t.is(await res.text(), "https://miniflare.dev/subpath/a:miniflare.dev");
+});
 test("MiniflareCore: dispatchFetch: request gets immutable headers", async (t) => {
   const mf = useMiniflareWithHandler({}, {}, (globals, req) => {
     req.headers.delete("content-type");

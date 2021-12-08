@@ -130,11 +130,15 @@ test("CorePlugin: parses options from wrangler config", (t) => {
           ],
         },
       },
+      route: "miniflare.dev/*",
+      routes: ["dev.miniflare.dev/*"],
       miniflare: {
         upstream: "https://miniflare.dev",
         watch: true,
         update_check: false,
         mounts: { api: "./api", site: "./site@dev" },
+        route: "http://localhost:8787/*",
+        routes: ["miniflare.mf:8787/*"],
       },
     },
     configDir
@@ -177,6 +181,12 @@ test("CorePlugin: parses options from wrangler config", (t) => {
         wranglerConfigPath: true,
       },
     },
+    routes: [
+      "miniflare.dev/*",
+      "dev.miniflare.dev/*",
+      "http://localhost:8787/*",
+      "miniflare.mf:8787/*",
+    ],
   });
   // Check build upload dir defaults to dist
   options = parsePluginWranglerConfig(
@@ -185,6 +195,7 @@ test("CorePlugin: parses options from wrangler config", (t) => {
     configDir
   );
   t.is(options.scriptPath, path.resolve(configDir, "dist", "script.js"));
+  t.is(options.routes, undefined);
 });
 test("CorePlugin: logs options", (t) => {
   let logs = logPluginOptions(CorePlugin, {

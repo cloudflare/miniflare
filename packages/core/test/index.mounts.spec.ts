@@ -1,5 +1,9 @@
 import fs from "fs/promises";
+import http from "http";
+import { AddressInfo } from "net";
 import path from "path";
+import { text } from "stream/consumers";
+import { setTimeout } from "timers/promises";
 import { CachePlugin } from "@miniflare/cache";
 import {
   BindingsPlugin,
@@ -9,6 +13,7 @@ import {
   ReloadEvent,
 } from "@miniflare/core";
 import { DurableObjectsPlugin } from "@miniflare/durable-objects";
+import { HTTPPlugin, createServer } from "@miniflare/http-server";
 import { KVPlugin } from "@miniflare/kv";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import { LogLevel, NoOpLog, StoredValueMeta } from "@miniflare/shared";
@@ -23,6 +28,10 @@ import {
 import test from "ava";
 
 // Specific tests for `mounts` option
+
+const constantBodyScript = (body: string) =>
+  `addEventListener("fetch", (e) => e.respondWith(new Response("${body}")))`;
+
 test("MiniflareCore: #init: throws if mount has empty name", async (t) => {
   const mf = useMiniflare({}, { mounts: { "": {} } });
   await t.throwsAsync(mf.getPlugins(), {
@@ -43,7 +52,16 @@ test("MiniflareCore: #init: mounts string-optioned mounts", async (t) => {
   );
   await fs.writeFile(packagePath, '{ "module": "worker.js" }');
   await fs.writeFile(envPath, "KEY=value");
-  await fs.writeFile(wranglerConfigPath, '[build.upload]\nformat = "modules"');
+  await fs.writeFile(
+    wranglerConfigPath,
+    `
+[build.upload]
+format = "modules"
+
+[miniflare]
+route = "localhost/tmp*"
+`
+  );
 
   const mf = useMiniflare({ BindingsPlugin }, { watch: true, mounts: { tmp } });
   let res = await mf.dispatchFetch("http://localhost/tmp");
@@ -106,7 +124,11 @@ bindings = [
 ]
     
 [build.upload]
-format = "modules"`
+format = "modules"
+
+[miniflare]
+route = "localhost/tmp*"
+`
   );
 
   const kvMap = new Map<string, StoredValueMeta>();
@@ -173,6 +195,7 @@ test("MiniflareCore: #init: mounts object-optioned mounts", async (t) => {
         test: {
           modules: true,
           script: 'export default { fetch: () => new Response("mounted") }',
+          routes: ["localhost/test*"],
         },
       },
     }
@@ -195,14 +218,12 @@ test("MiniflareCore: #init: throws when attempting to mount recursively", async 
   });
 });
 test("MiniflareCore: #init: updates existing mount options", async (t) => {
-  const script = (body: string) =>
-    `addEventListener("fetch", (e) => e.respondWith(new Response("${body}")))`;
   const mf = useMiniflare(
     {},
     {
-      script: script("parent"),
+      script: constantBodyScript("parent"),
       mounts: {
-        a: { script: script("a1") },
+        a: { script: constantBodyScript("a1"), routes: ["localhost/a*"] },
       },
     }
   );
@@ -214,12 +235,14 @@ test("MiniflareCore: #init: updates existing mount options", async (t) => {
 
   await mf.setOptions({
     mounts: {
-      a: { script: script("a2") },
-      b: { script: script("b") },
+      a: { script: constantBodyScript("a2"), routes: ["localhost/new-a*"] },
+      b: { script: constantBodyScript("b"), routes: ["localhost/b*"] },
     },
   });
 
   res = await mf.dispatchFetch("http://localhost/a");
+  t.is(await res.text(), "parent");
+  res = await mf.dispatchFetch("http://localhost/new-a");
   t.is(await res.text(), "a2");
   res = await mf.dispatchFetch("http://localhost/b");
   t.is(await res.text(), "b");
@@ -229,16 +252,34 @@ test("MiniflareCore: #init: reloads parent on all but initial mount reloads", as
   const mf = useMiniflare(
     {},
     {
-      mounts: { test: { script: "// 1" } },
+      script: constantBodyScript("parent"),
+      mounts: {
+        test: {
+          script: constantBodyScript("1"),
+          routes: ["localhost/1*"],
+        },
+      },
     }
   );
   mf.addEventListener("reload", (e) => events.push(e));
   await mf.getPlugins();
   t.is(events.length, 1);
+  let res = await mf.dispatchFetch("http://localhost/1");
+  t.is(await res.text(), "1");
 
   const mount = await mf.getMount("test");
-  await mount.setOptions({ script: "// 2" });
+  await mount.setOptions({
+    script: constantBodyScript("2"),
+    routes: ["localhost/2*"],
+  });
+  await setTimeout(); // Wait for microtasks to finish
   t.is(events.length, 2);
+
+  // Check routes reloaded too (even though we haven't called setOptions on parent)
+  res = await mf.dispatchFetch("http://localhost/1");
+  t.is(await res.text(), "parent");
+  res = await mf.dispatchFetch("http://localhost/2");
+  t.is(await res.text(), "2");
 });
 test("MiniflareCore: #init: wraps error with mount name if mount setup throws", async (t) => {
   const mf = useMiniflare({}, { mounts: { test: { script: "(" } } });
@@ -253,15 +294,13 @@ test("MiniflareCore: #init: wraps error with mount name if mount setup throws", 
   t.is(error?.cause?.name, "SyntaxError");
 });
 test("MiniflareCore: #init: disposes removed mounts", async (t) => {
-  const script = (body: string) =>
-    `addEventListener("fetch", (e) => e.respondWith(new Response("${body}")))`;
   const mf = useMiniflare(
     {},
     {
-      script: script("parent"),
+      script: constantBodyScript("parent"),
       mounts: {
-        a: { script: script("a") },
-        b: { script: script("b") },
+        a: { script: constantBodyScript("a"), routes: ["localhost/a*"] },
+        b: { script: constantBodyScript("b"), routes: ["localhost/b*"] },
       },
     }
   );
@@ -272,7 +311,7 @@ test("MiniflareCore: #init: disposes removed mounts", async (t) => {
   t.is(await res.text(), "b");
 
   await mf.setOptions({
-    mounts: { b: { script: script("b") } },
+    mounts: { b: { script: constantBodyScript("b") } },
   });
 
   res = await mf.dispatchFetch("http://localhost/a");
@@ -300,31 +339,6 @@ test("MiniflareCore: getMount: gets mounted worker instance", async (t) => {
   t.is(globalScope.KEY, "value");
 });
 
-test("MiniflareCore: dispatchFetch: forwards to mount if pathname prefix matches", async (t) => {
-  const mf = useMiniflare(
-    {},
-    {
-      modules: true,
-      script: 'export default { fetch: (request) => new Response("parent") }',
-      mounts: {
-        test: {
-          modules: true,
-          script:
-            "export default { fetch: (request) => new Response(request.url) }",
-        },
-      },
-    }
-  );
-  let res = await mf.dispatchFetch("http://localhost/test");
-  t.is(await res.text(), "http://localhost/");
-  res = await mf.dispatchFetch("http://localhost/test/");
-  t.is(await res.text(), "http://localhost/");
-  res = await mf.dispatchFetch("http://localhost/test/a");
-  t.is(await res.text(), "http://localhost/a");
-  res = await mf.dispatchFetch("http://localhost/test/a/b");
-  t.is(await res.text(), "http://localhost/a/b");
-});
-
 test("MiniflareCore: dispose: disposes of mounts too", async (t) => {
   const log = new TestLog();
   const mf = useMiniflare({}, { mounts: { test: { script: "//" } } }, log);
@@ -343,6 +357,7 @@ test("MiniflareCore: dispose: disposes of mounts too", async (t) => {
     [LogLevel.DEBUG, "Reloading worker..."],
     [LogLevel.VERBOSE, "Running script..."],
     [LogLevel.INFO, "Worker reloaded! (2B)"],
+    [LogLevel.DEBUG, "Mount Routes: <none>"],
     [LogLevel.DEBUG, "Reloading worker..."],
     [LogLevel.INFO, "Worker reloaded!"],
   ]);
@@ -350,6 +365,41 @@ test("MiniflareCore: dispose: disposes of mounts too", async (t) => {
   log.logs = [];
   await mf.dispose();
   t.deepEqual(log.logs, [[LogLevel.DEBUG, 'Unmounting "test"...']]);
+});
+
+test("MiniflareCore: uses original protocol and host when matching mount routes", async (t) => {
+  const mf = useMiniflare(
+    { HTTPPlugin },
+    {
+      script: constantBodyScript("parent"),
+      upstream: "https://miniflare.dev",
+      mounts: {
+        a: {
+          modules: true,
+          // Should use this upstream instead of parent
+          upstream: "https://example.com",
+          script: `export default {
+            async fetch(request) {
+              return new Response(\`\${request.url}:\${request.headers.get("host")}\`);
+            }
+          }`,
+          // Should match against this host, not the upstream's
+          routes: ["http://custom.mf/*"],
+        },
+      },
+    }
+  );
+  const server = await createServer(mf);
+  const port = await new Promise<number>((resolve) => {
+    server.listen(0, () => resolve((server.address() as AddressInfo).port));
+  });
+  const body = await new Promise<string>((resolve) => {
+    http.get(
+      { host: "localhost", port, path: "/a", headers: { host: "custom.mf" } },
+      async (res) => resolve(await text(res))
+    );
+  });
+  t.is(body, "https://example.com/a:example.com");
 });
 
 // Durable Objects script_name integration tests

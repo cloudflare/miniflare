@@ -60,6 +60,8 @@ export interface WranglerEnvironmentConfig {
     live_reload?: boolean;
     update_check?: boolean;
     mounts?: Record<string, string>;
+    route?: string;
+    routes?: string[];
   }; // inherited
 }
 
