@@ -196,6 +196,10 @@ export default {
 
 Miniflare can be configured to load `TestObject` from the `api` worker with:
 
+```shell
+$ miniflare --mount api=./api --do TEST_OBJECT=TestObject@api
+```
+
 ```toml
 # wrangler.toml
 [durable_objects]
@@ -216,8 +220,6 @@ const mf = new Miniflare({
   mounts: { api: "./api" },
 });
 ```
-
-Note it's not possible to set `script_name` via the CLI.
 
 ## Internal Details
 

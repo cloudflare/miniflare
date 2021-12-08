@@ -17,6 +17,9 @@ goals:
    errors of the real Workers runtime, so you'll know before you deploy if
    things are going to break.
 
+Check out the [migration guide](https://v2.miniflare.dev/migrating.html) if
+you're upgrading from version 1.
+
 ### Notable Changes
 
 - ✳️ Node.js 16.7.0 is now the minimum required version
@@ -277,6 +280,8 @@ goals:
   header that includes `gzip`, `deflate` or `br` will be automatically encoded.
   Closes [issue #72](https://github.com/cloudflare/miniflare/issues/72), thanks
   [@SupremeTechnopriest](https://github.com/SupremeTechnopriest).
+- `Request`/`Response` `body`s are now byte streams, allowing them to be read
+  with bring-your-own-buffer readers
 - Throw an error when attempting to construct a WebSocket response with a status
   other than `101`
 - Throw an error when attempting to clone a WebSocket response
@@ -386,7 +391,7 @@ goals:
   ```
 
 - Split out the Node request to `Request` object conversion logic into a
-  `convertNodeRequest(req, upstream?, meta?)` function. You can import this from
+  `convertNodeRequest(req, meta?)` function. You can import this from
   `@miniflare/http-server`.
 - Only return a pretty-error page when the request `Accept` header includes
   `text/html`

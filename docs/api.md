@@ -335,3 +335,154 @@ const mf = new Miniflare({
 const res = await mf.dispatchFetch("http://localhost:8787/");
 console.log(await res.text()); // Hello Miniflare!
 ```
+
+## Reference
+
+```js
+import { Miniflare, Log, LogLevel } from "miniflare";
+
+const mf = new Miniflare({
+  // All options are optional, but one of script or scriptPath is required
+
+  log: new Log(LogLevel.INFO), // Logger Miniflare uses for debugging
+  sourceMap: true, // Enable source map support globally
+
+  script: `export default {
+    async fetch(request, env, ctx) {
+      return new Response("Hello Miniflare!");
+    }
+  }`,
+  scriptPath: "./index.mjs",
+
+  wranglerConfigPath: true, // Load configuration from wrangler.toml
+  wranglerConfigPath: "./wrangler.custom.toml", // ...or custom wrangler.toml path
+
+  wranglerConfigEnv: "dev", // Environment in wrangler.toml to use
+
+  packagePath: true, // Load script from package.json
+  packagePath: "./package.custom.json", // ...or custom package.json path
+
+  modules: true, // Enable modules
+  modulesRules: [
+    // Modules import rule
+    { type: "ESModule", include: ["**/*.js"], fallthrough: true },
+    { type: "Text", include: ["**/*.text"] },
+  ],
+  compatibilityDate: "2021-11-23", // Opt into backwards-incompatible changes from
+  compatibilityFlags: ["formdata_parser_supports_files"], // Control specific backwards-incompatible changes
+  upstream: "https://miniflare.dev", // URL of upstream origin
+  watch: true, // Watch files for changes
+  mounts: {
+    // Mount additional named workers
+    api: "./api",
+    site: {
+      rootPath: "./site", // Path to resolve files relative to
+      scriptPath: "./index.js", // Resolved as ./site/index.js
+      sitePath: "./public", // Resolved as ./site/public
+      routes: ["site.mf/*"], // Route requests matching site.mf/* to this worker
+    },
+  },
+
+  host: "127.0.0.1", // Host for HTTP(S) server to listen on
+  port: 8787, // Port for HTTP(S) server to listen on
+  https: true, // Enable self-signed HTTPS (with optional cert path)
+  httpsKey: "-----BEGIN RSA PRIVATE KEY-----...",
+  httpsKeyPath: "./key.pem", // Path to PEM SSL key
+  httpsCert: "-----BEGIN CERTIFICATE-----...",
+  httpsCertPath: "./cert.pem", // Path to PEM SSL cert chain
+  httpsCa: "...",
+  httpsCaPath: "./ca.pem", // Path to SSL trusted CA certs
+  httpsPfx: "...",
+  httpsPfxPath: "./pfx.pfx", // Path to PFX/PKCS12 SSL key/cert chain
+  httpsPassphrase: "pfx passphrase", // Passphrase to decrypt SSL files
+  cfFetch: "./node_modules/.mf/cf.json", // Path for cached Request cf object from Cloudflare
+  async metaProvider(req) {
+    // Custom request metadata provider taking Node `http.IncomingMessage`
+    return {
+      forwardedProto: req.headers["X-Forwarded-Proto"],
+      realIp: req.headers["X-Forwarded-For"],
+      cf: {
+        colo: "SFO",
+        country: "US",
+        // ...
+      },
+    };
+  },
+  liveReload: true, // Reload HTML pages whenever worker is reloaded
+
+  crons: ["30 * * * *"], // CRON expression for triggering scheduled events
+
+  buildCommand: "npm run build", // Command to build project
+  buildBasePath: "./build", // Working directory for build command
+  buildWatchPaths: ["./src"], // Directory to watch for rebuilding on changes
+
+  kvNamespaces: ["TEST_NAMESPACE"], // KV namespace to bind
+  kvPersist: "./kv-data", // Persist KV data (to optional path)
+
+  durableObjects: {
+    // Durable Object to bind
+    TEST_OBJECT: "TestObject", // className
+    API_OBJECT: { className: "ApiObject", scriptName: "api" },
+  },
+  durableObjectsPersist: "./durable-objects-data", // Persist Durable Object data (to optional path)
+
+  cache: false, // Enable default/named caches (enabled by default)
+  cachePersist: "./cache-data", // Persist cached data (to optional path)
+  cacheWarnUsage: true, // Warn on cache usage, for workers.dev subdomains
+
+  sitePath: "./site", // Path to serve Workers Site files from
+  siteInclude: ["**/*.html", "**/*.css", "**/*.js"], // Glob pattern of site files to serve
+  siteExclude: ["node_modules"], // Glob pattern of site files not to serve
+
+  envPath: true, // Load environment variables from .env
+  envPath: "./env.custom", // ...or custom .env path
+
+  bindings: { SECRET: "sssh" }, // Binds variable/secret to environment
+  globals: { LOG: () => console.log("magic") }, // Binds variable/secret to global scope
+  wasmBindings: { ADD_MODULE: "./add.wasm" }, // WASM module to bind
+});
+
+await mf.reload(); // Reload scripts and configuration files
+
+await mf.setOptions({ kvNamespaces: ["TEST_NAMESPACE2"] }); // Apply options and reload
+
+const globalScope = await mf.getGlobalScope(); // Get sandbox's global scope
+const bindings = await mf.getBindings(); // Get bindings (KV/Durable Object namespaces, variables, etc)
+
+const exports = await mf.getModuleExports(); // Get exports from entry module
+
+const mount = await mf.getMount("api"); // Get mounted MiniflareCore instance
+await mount.getBindings();
+
+// Dispatch "fetch" event to worker
+const res = await mf.dispatchFetch("http://localhost:8787/", {
+  headers: { Authorization: "Bearer ..." },
+});
+const text = await res.text();
+const resWaitUntil = await res.waitUntil(); // Get `waitUntil`ed promises
+
+// Dispatch "scheduled" event to worker
+const waitUntil = await mf.dispatchScheduled(Date.now(), "30 * * * *");
+
+const TEST_NAMESPACE = await mf.getKVNamespace("TEST_NAMESPACE");
+
+const caches = await mf.getCaches(); // Get global `CacheStorage` instance
+const defaultCache = caches.default;
+const namedCache = await caches.open("name");
+
+// Get Durable Object namespace and storage for ID
+const TEST_OBJECT = await mf.getDurableObjectNamespace("TEST_OBJECT");
+const id = TEST_OBJECT.newUniqueId();
+const storage = await mf.getDurableObjectStorage(id);
+
+const server = await mf.createServer(); // Create http.Server instance
+server.listen(8787, () => {});
+
+const server2 = await mf.startServer(); // Create and start http.Server instance
+server2.close();
+
+const scheduler = await mf.startScheduler(); // Start CRON scheduler
+await scheduler.dispose();
+
+await mf.dispose(); // Cleanup storage database connections and watcher
+```

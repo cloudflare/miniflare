@@ -133,6 +133,7 @@ function bufferSourceToArray(chunk: BufferSource): Uint8Array {
 
 const enumerableBodyKeys: (keyof Body<any>)[] = ["body", "bodyUsed", "headers"];
 export class Body<Inner extends BaseRequest | BaseResponse> {
+  /** @internal */
   [_kInner]: Inner;
   [kInputGated] = false;
   [kFormDataFiles] = true; // Default to enabling form-data File parsing
