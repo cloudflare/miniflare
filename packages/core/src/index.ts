@@ -7,7 +7,6 @@ import {
   Compatibility,
   Context,
   Log,
-  MiniflareError,
   Mutex,
   Options,
   PluginContext,
@@ -29,8 +28,10 @@ import {
 import type { Watcher } from "@miniflare/watcher";
 import { dequal } from "dequal/lite";
 import { dim } from "kleur/colors";
+import { MiniflareCoreError } from "./error";
 import { formatSize, pathsToString } from "./helpers";
 import { BindingsPlugin, CorePlugin, _populateBuildConfig } from "./plugins";
+import { Router } from "./router";
 import {
   Request,
   RequestInfo,
@@ -49,6 +50,9 @@ import { PluginStorageFactory } from "./storage";
 
 export * from "./plugins";
 export * from "./standards";
+
+export * from "./error";
+export * from "./router";
 export * from "./storage";
 
 /** @internal */
@@ -89,14 +93,6 @@ export type MiniflareCoreOptions<Plugins extends CorePluginSignatures> = Omit<
   // disallowing nesting
   mounts?: Record<string, string | Omit<Options<Plugins>, "mounts">>;
 };
-
-export type MiniflareCoreErrorCode =
-  | "ERR_NO_SCRIPT" // No script specified but one was required
-  | "ERR_MOUNT_NO_NAME" // Attempted to mount a worker with an empty string name
-  | "ERR_MOUNT_NESTED" // Attempted to recursively mount workers
-  | "ERR_MOUNT"; // Error whilst mounting worker
-
-export class MiniflareCoreError extends MiniflareError<MiniflareCoreErrorCode> {}
 
 function getPluginEntries<Plugins extends PluginSignatures>(
   plugins: Plugins
@@ -244,6 +240,7 @@ export class MiniflareCore<
   #previousRootPath?: string;
   #instances?: PluginInstances<Plugins>;
   #mounts?: Map<string, MiniflareCore<Plugins>>;
+  #router?: Router;
 
   #wranglerConfigPath?: string;
   #watching?: boolean;
@@ -512,12 +509,15 @@ export class MiniflareCore<
             scriptRunForModuleExports: false,
           };
           mount = new MiniflareCore(this.#originalPlugins, ctx, mountOptions);
-          mount.addEventListener("reload", (event) => {
+          mount.addEventListener("reload", async (event) => {
             // Reload parent (us) whenever mounted child reloads, ignoring the
             // initial reload. This ensures the page is reloaded when live
             // reloading, and also that we're using up-to-date Durable Object
             // classes from mounts.
-            if (!event.initial) this.#reload();
+            if (!event.initial) {
+              await this.#updateRouter();
+              await this.#reload();
+            }
           });
           try {
             await mount.getPlugins();
@@ -540,6 +540,26 @@ export class MiniflareCore<
           await mount.dispose();
           this.#mounts.delete(name);
         }
+      }
+    }
+    await this.#updateRouter();
+  }
+
+  async #updateRouter(): Promise<void> {
+    const allRoutes = new Map<string, string[]>();
+    for (const [name, mount] of this.#mounts!) {
+      const routes = (await mount.getPlugins()).CorePlugin.routes;
+      if (routes) allRoutes.set(name, routes);
+    }
+    this.#router ??= new Router();
+    this.#router.update(allRoutes);
+    if (this.#mounts!.size) {
+      this.#ctx.log.debug(
+        `Mount Routes:${this.#router.routes.length === 0 ? " <none>" : ""}`
+      );
+      for (let i = 0; i < this.#router.routes.length; i++) {
+        const route = this.#router.routes[i];
+        this.#ctx.log.debug(`${i + 1}. ${route.route} => ${route.target}`);
       }
     }
   }
@@ -849,29 +869,38 @@ export class MiniflareCore<
     // noinspection SuspiciousTypeOfGuard
     let request =
       input instanceof Request && !init ? input : new Request(input, init);
+    const url = new URL(request.url);
 
     // Forward to matching mount if any
     if (this.#mounts?.size) {
-      const url = new URL(request.url);
-      for (const [name, mount] of this.#mounts) {
-        const prefix = `/${name}`;
-        if (url.pathname === prefix || url.pathname.startsWith(`${prefix}/`)) {
-          // Trim mount prefix from request URL
-          url.pathname = url.pathname.slice(prefix.length);
-          return mount.dispatchFetch(new Request(url, request));
-        }
+      const mountMatch = this.#router!.match(url);
+      if (mountMatch !== null) {
+        const mount = this.#mounts.get(mountMatch);
+        if (mount) return mount.dispatchFetch(request);
       }
     }
 
-    const corePlugin = this.#instances!.CorePlugin;
-    const globalScope = this.#globalScope;
+    // If upstream set, and the request URL doesn't begin with it, rewrite it
+    const { upstreamURL } = this.#instances!.CorePlugin;
+    if (upstreamURL && !url.toString().startsWith(upstreamURL.toString())) {
+      let path = url.pathname + url.search;
+      // Remove leading slash so we resolve relative to upstream's path
+      if (path.startsWith("/")) path = path.substring(1);
+      const newURL = new URL(path, upstreamURL);
+      request = new Request(newURL, request);
+      // Make sure Host header is correct
+      request.headers.set("host", upstreamURL.host);
+    }
 
+    // Parse form data files as strings if the compatibility flag isn't set
     if (!this.#compat!.isEnabled("formdata_parser_supports_files")) {
       request = withStringFormDataFiles(request);
     }
+
+    const globalScope = this.#globalScope;
     return globalScope![kDispatchFetch]<WaitUntil>(
       withImmutableHeaders(request),
-      !!corePlugin.upstream
+      !!upstreamURL // only proxy if upstream URL set
     );
   }
 
