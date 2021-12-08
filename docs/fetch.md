@@ -127,7 +127,8 @@ const mf = new Miniflare({
   `,
   upstream: "https://miniflare.dev",
 });
-// MUST use same upstream URL when dispatching
+// If you don't use the same upstream URL when dispatching, Miniflare will
+// rewrite it to match the upstream
 const res = await mf.dispatchFetch("https://miniflare.dev/fetch.html");
 console.log(await res.text()); // Source code of this page
 ```

@@ -204,9 +204,8 @@ Core Options:
  -d, --debug             Enable debug logging                          [boolean]
  -V, --verbose           Enable verbose logging                        [boolean]
      --(no-)update-check Enable update checker (enabled by default)    [boolean]
-     --root              Path to resolve default config files relative  [string]
-                         to
-     --mount             Mount additional named workers        [array:NAME=PATH]
+     --root              Path to resolve files relative to              [string]
+     --mount             Mount additional named workers  [array:NAME=PATH[@ENV]]
 
 HTTP Options:
  -H, --host              Host for HTTP(S) server to listen on           [string]
@@ -235,7 +234,7 @@ KV Options:
      --kv-persist        Persist KV data (to optional path)     [boolean/string]
 
 Durable Objects Options:
- -o, --do                Durable Object to bind               [array:NAME=CLASS]
+ -o, --do                Durable Object to bind       [array:NAME=CLASS[@MOUNT]]
      --do-persist        Persist Durable Object data (to        [boolean/string]
                          optional path)
 

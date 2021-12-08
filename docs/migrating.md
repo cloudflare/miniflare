@@ -109,7 +109,7 @@ const mf = new Miniflare({
 ```
 
 See
-[📌 Durable Objects](http://localhost:3000/durable-objects.html#using-a-class-exported-by-another-script)
+[📌 Durable Objects](/durable-objects.html#using-a-class-exported-by-another-script)
 for more details.
 
 ### Install the optional `@miniflare/storage-redis` package
