@@ -9,6 +9,7 @@ import {
   BindingsPlugin,
   CorePlugin,
   MiniflareCore,
+  MiniflareCoreContext,
   MiniflareCoreError,
   ReloadEvent,
 } from "@miniflare/core";
@@ -318,6 +319,20 @@ test("MiniflareCore: #init: disposes removed mounts", async (t) => {
   t.is(await res.text(), "parent");
   res = await mf.dispatchFetch("http://localhost/b");
   t.is(await res.text(), "b");
+});
+test("MiniflareCore: #init: doesn't throw if script required, parent script not provided, but has mounts", async (t) => {
+  const ctx: MiniflareCoreContext = {
+    log: new NoOpLog(),
+    storageFactory: new MemoryStorageFactory(),
+    scriptRunner: new VMScriptRunner(),
+    scriptRequired: true,
+  };
+
+  const mf = new MiniflareCore({ CorePlugin }, ctx, {
+    mounts: { a: { script: constantBodyScript("a") } },
+  });
+  await mf.getPlugins();
+  t.pass();
 });
 
 test("MiniflareCore: #reload: includes mounted module exports when calling plugin reload hooks", async (t) => {
