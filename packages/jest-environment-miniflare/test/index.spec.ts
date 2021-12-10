@@ -22,13 +22,12 @@ async function findJest() {
   return path.resolve(pkgPath, pkg.bin);
 }
 
-const jestPath = await findJest();
-
-function runJest(
+async function runJest(
   match: string,
   options: MiniflareOptions = {},
   cwd = fixturesPath
 ): Promise<[exitCode: number, output: string]> {
+  const jestPath = await findJest();
   return new Promise((resolve) => {
     const jest = childProcess.spawn(
       process.execPath,
