@@ -45,7 +45,7 @@ function getPackageDependencies(pkg, includeDev) {
  * @type {esbuild.BuildOptions}
  */
 const buildOptions = {
-  format: "esm",
+  format: "cjs",
   // outExtension: { ".js": ".mjs" },
   platform: "neutral",
   target: "esnext",
