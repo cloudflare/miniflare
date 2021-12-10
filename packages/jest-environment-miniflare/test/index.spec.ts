@@ -29,7 +29,7 @@ async function runJest(
   options: MiniflareOptions = {},
   cwd = fixturesPath
 ): Promise<[exitCode: number, output: string]> {
-  const jestPath = await findJestPromise;
+  const jestPath = await jestPathPromise;
   return new Promise((resolve) => {
     const jest = childProcess.spawn(
       process.execPath,
