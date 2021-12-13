@@ -47,7 +47,7 @@ Consider using a Node.js version manager such as https://volta.sh/ or https://gi
       ],
       { stdio: "inherit" }
     )
-    .on("exit", (code) => process.exit(code ?? 0));
+    .on("exit", (code) => process.exit(code === null ? 1 : code));
 }
 
 void main();
