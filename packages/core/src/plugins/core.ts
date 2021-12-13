@@ -36,6 +36,7 @@ import {
 import { File, FormData, Headers } from "undici";
 import { MiniflareCoreError } from "../error";
 import {
+  AbortSignal,
   DOMException,
   FetchEvent,
   Request,
@@ -366,11 +367,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       Event,
       EventTarget,
       AbortController,
-      // Fix for Jest :(, jest-environment-node doesn't include AbortSignal in
-      // the global scope, but does include AbortController
-      AbortSignal:
-        globalThis.AbortSignal ??
-        Object.getPrototypeOf(new AbortController().signal).constructor,
+      AbortSignal,
 
       FetchEvent,
       ScheduledEvent,

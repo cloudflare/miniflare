@@ -5,7 +5,7 @@ import {
   triggerPromise,
   waitsForInputGate,
 } from "@miniflare/shared-test";
-import test from "ava";
+import test, { ThrowsExpectation } from "ava";
 
 test("inputGatedSetTimeout: calls callback with no input gate in context", async (t) => {
   const [trigger, promise] = triggerPromise<[number, string]>();
@@ -91,4 +91,32 @@ test("inputGatedSetInterval: waits for input gate to open before calling callbac
   t.deepEqual(events, [2, 1, 4, 3]);
 
   clearInterval(handle);
+});
+
+test("AbortSignal.timeout: triggers signal after timeout", async (t) => {
+  // @ts-expect-error `timeout` isn't included in Node.js yet
+  const signal = AbortSignal.timeout(50);
+  let aborted;
+  signal.addEventListener("abort", () => (aborted = true));
+  t.false(signal.aborted);
+  await setTimeout(100);
+  t.true(signal.aborted);
+  t.true(aborted);
+});
+test("AbortSignal.timeout: requires numeric timeout", (t) => {
+  const expectations: ThrowsExpectation = {
+    instanceOf: TypeError,
+    message:
+      "Failed to execute 'timeout' on 'AbortSignal': parameter 1 is not of type 'integer'.",
+  };
+  // @ts-expect-error `timeout` isn't included in Node.js yet
+  t.throws(() => AbortSignal.timeout(), expectations);
+  // @ts-expect-error `timeout` isn't included in Node.js yet
+  t.throws(() => AbortSignal.timeout("42"), expectations);
+});
+test("AbortSignal.timeout: included on constructor obtained via AbortController#signal prototype", (t) => {
+  const controller = new AbortController();
+  const constructor = Object.getPrototypeOf(controller.signal).constructor;
+  // @ts-expect-error `timeout` isn't included in Node.js yet
+  t.is(constructor.timeout, AbortSignal.timeout);
 });
