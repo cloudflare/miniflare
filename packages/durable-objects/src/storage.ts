@@ -14,9 +14,9 @@ import { ShadowStorage } from "./shadow";
 
 const MAX_KEYS = 128;
 const MAX_KEY_SIZE = 2048; /* 2KiB */
-const MAX_VALUE_SIZE = 32 * 1024; /* 32KiB */
+const MAX_VALUE_SIZE = 128 * 1024; /* 128KiB */
 // As V8 serialisation adds some tagging information, Workers actually allows
-// values to be 32 bytes greater than the advertised limit. This allows 32KiB
+// values to be 32 bytes greater than the advertised limit. This allows 128KiB
 // byte arrays to be stored for example.
 const ENFORCED_MAX_VALUE_SIZE = MAX_VALUE_SIZE + 32;
 

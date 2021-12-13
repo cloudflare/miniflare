@@ -404,15 +404,15 @@ test("put: validates values", async (t) => {
   };
   const largeValueSingleExpectation: ThrowsExpectation = {
     instanceOf: RangeError,
-    message: "Values cannot be larger than 32768 bytes.",
+    message: "Values cannot be larger than 131072 bytes.",
   };
   const largeValueManyExpectation: ThrowsExpectation = {
     instanceOf: RangeError,
-    message: 'Value for key "large" is above the limit of 32768 bytes.',
+    message: 'Value for key "large" is above the limit of 131072 bytes.',
   };
 
-  const maxValue = new Uint8Array(32 * 1024); // This should be storable
-  const largeValue = new Uint8Array(32 * 1024 + 32);
+  const maxValue = new Uint8Array(128 * 1024); // This should be storable
+  const largeValue = new Uint8Array(128 * 1024 + 32);
 
   // Note we're checking put throws synchronously
   t.throws(() => storage.put("key", undefined), undefinedExpectation);
