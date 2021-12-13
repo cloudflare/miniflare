@@ -1,3 +1,4 @@
+import { DOMException } from "@miniflare/core";
 import { waitForOpenInputGate } from "@miniflare/shared";
 
 export function inputGatedSetTimeout<Args extends any[]>(
@@ -49,3 +50,27 @@ AbortSignal.timeout ??= (ms?: number) => {
   setTimeout(() => controller.abort(), ms);
   return controller.signal;
 };
+
+export interface SchedulerWaitOptions {
+  signal?: AbortSignal;
+}
+
+export class Scheduler {
+  wait(ms?: number, options?: SchedulerWaitOptions): Promise<void> {
+    if (typeof ms !== "number") {
+      throw new TypeError(
+        "Failed to execute 'wait' on 'Scheduler': parameter 1 is not of type 'integer'."
+      );
+    }
+    return new Promise((resolve, reject) => {
+      let resolved = false;
+      const timeout = setTimeout(() => (resolved = true) && resolve(), ms);
+      // @ts-expect-error AbortSignal in @types/node is missing EventTarget types
+      options?.signal?.addEventListener("abort", () => {
+        if (resolved) return;
+        clearTimeout(timeout);
+        reject(new DOMException("The operation was aborted", "AbortError"));
+      });
+    });
+  }
+}

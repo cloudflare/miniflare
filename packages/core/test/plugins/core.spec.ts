@@ -262,6 +262,7 @@ test("CorePlugin: setup: includes web standards", async (t) => {
   t.true(typeof globals.clearTimeout === "function");
   t.true(typeof globals.clearInterval === "function");
   t.true(typeof globals.queueMicrotask === "function");
+  t.true(typeof globals.scheduler.wait === "function");
 
   t.true(typeof globals.atob === "function");
   t.true(typeof globals.btoa === "function");
