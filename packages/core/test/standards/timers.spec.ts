@@ -1,5 +1,10 @@
 import { setTimeout } from "timers/promises";
-import { inputGatedSetInterval, inputGatedSetTimeout } from "@miniflare/core";
+import {
+  DOMException,
+  Scheduler,
+  inputGatedSetInterval,
+  inputGatedSetTimeout,
+} from "@miniflare/core";
 import {
   TestInputGate,
   triggerPromise,
@@ -119,4 +124,42 @@ test("AbortSignal.timeout: included on constructor obtained via AbortController#
   const constructor = Object.getPrototypeOf(controller.signal).constructor;
   // @ts-expect-error `timeout` isn't included in Node.js yet
   t.is(constructor.timeout, AbortSignal.timeout);
+});
+
+const scheduler = new Scheduler();
+test("scheduler.wait: resolves after timeout", async (t) => {
+  let resolved = false;
+  scheduler.wait(100).then(() => (resolved = true));
+  t.false(resolved);
+  await setTimeout(10);
+  t.false(resolved);
+  await setTimeout(200);
+  t.true(resolved);
+});
+test("scheduler.wait: rejects on abort", async (t) => {
+  const controller = new AbortController();
+  const promise = scheduler.wait(1000, { signal: controller.signal });
+  await setTimeout(10);
+  controller.abort();
+  await t.throwsAsync(promise, {
+    instanceOf: DOMException,
+    name: "AbortError",
+    message: "The operation was aborted",
+  });
+});
+test("scheduler.wait: does nothing if aborted after resolve", async (t) => {
+  const controller = new AbortController();
+  await scheduler.wait(10, { signal: controller.signal });
+  controller.abort();
+  t.pass();
+});
+test("scheduler.wait: requires numeric timeout", (t) => {
+  const expectations: ThrowsExpectation = {
+    instanceOf: TypeError,
+    message:
+      "Failed to execute 'wait' on 'Scheduler': parameter 1 is not of type 'integer'.",
+  };
+  t.throws(() => scheduler.wait(), expectations);
+  // @ts-expect-error `timeout` isn't included in Node.js yet
+  t.throws(() => scheduler.wait("42"), expectations);
 });

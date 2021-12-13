@@ -42,6 +42,7 @@ import {
   Request,
   Response,
   ScheduledEvent,
+  Scheduler,
   TextDecoder,
   WorkerGlobalScope,
   atob,
@@ -331,6 +332,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       clearTimeout,
       clearInterval,
       queueMicrotask,
+      scheduler: new Scheduler(),
 
       atob,
       btoa,
