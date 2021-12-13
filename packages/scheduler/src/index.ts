@@ -9,7 +9,7 @@ import { SchedulerPlugin } from "./plugin";
 
 export * from "./plugin";
 
-export interface CronScheduler {
+export interface CronSchedulerImpl {
   setInterval(cron: Cron, task: () => any): ITimerHandle;
   clearTimeoutOrInterval(handle: ITimerHandle): void;
 }
@@ -20,14 +20,14 @@ export type SchedulerPluginSignatures = CorePluginSignatures & {
 
 const kReload = Symbol("kReload");
 
-export class Scheduler<Plugins extends SchedulerPluginSignatures> {
+export class CronScheduler<Plugins extends SchedulerPluginSignatures> {
   // noinspection JSMismatchedCollectionQueryUpdate
   private previousValidatedCrons?: Cron[];
   private scheduledHandles?: ITimerHandle[];
 
   constructor(
     private readonly mf: MiniflareCore<Plugins>,
-    private readonly cronScheduler: Promise<CronScheduler> = import(
+    private readonly cronScheduler: Promise<CronSchedulerImpl> = import(
       "cron-schedule"
     ).then((module) => module.TimerBasedCronScheduler)
   ) {
@@ -76,9 +76,9 @@ export class Scheduler<Plugins extends SchedulerPluginSignatures> {
 
 export async function startScheduler<Plugins extends SchedulerPluginSignatures>(
   mf: MiniflareCore<Plugins>,
-  cronScheduler?: Promise<CronScheduler>
-): Promise<Scheduler<Plugins>> {
-  const scheduler = new Scheduler(mf, cronScheduler);
+  cronScheduler?: Promise<CronSchedulerImpl>
+): Promise<CronScheduler<Plugins>> {
+  const scheduler = new CronScheduler(mf, cronScheduler);
   const reloadEvent = new ReloadEvent("reload", {
     plugins: await mf.getPlugins(),
     initial: false,

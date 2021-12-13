@@ -19,7 +19,7 @@ import { HTTPPlugin, createServer, startServer } from "@miniflare/http-server";
 import { KVNamespace, KVPlugin } from "@miniflare/kv";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
-  Scheduler,
+  CronScheduler,
   SchedulerPlugin,
   startScheduler,
 } from "@miniflare/scheduler";
@@ -131,7 +131,7 @@ export class Miniflare extends MiniflareCore<Plugins> {
     return startServer(this, options);
   }
 
-  startScheduler(): Promise<Scheduler<Plugins>> {
+  startScheduler(): Promise<CronScheduler<Plugins>> {
     return startScheduler(this);
   }
 }
