@@ -2,7 +2,7 @@ import { setImmediate } from "timers/promises";
 import { BindingsPlugin, ScheduledEvent } from "@miniflare/core";
 import {
   CronScheduler,
-  Scheduler,
+  CronSchedulerImpl,
   SchedulerPlugin,
   startScheduler,
 } from "@miniflare/scheduler";
@@ -14,10 +14,10 @@ import { Cron, ITimerHandle } from "cron-schedule";
 // Waiting for CRONs is slow, so mock out a scheduler with manual dispatch
 function createCronScheduler(): [
   dispatch: (cron: string) => Promise<void>,
-  scheduler: Promise<CronScheduler>
+  scheduler: Promise<CronSchedulerImpl>
 ] {
   const crons = new Map<string, Set<() => Awaitable<void>>>();
-  const scheduler: CronScheduler = {
+  const scheduler: CronSchedulerImpl = {
     setInterval(cron: Cron, task: () => Awaitable<void>): ITimerHandle {
       const spec = cron.toString();
       const set = crons.get(spec) ?? new Set();
@@ -37,7 +37,7 @@ function createCronScheduler(): [
   return [dispatch, Promise.resolve(scheduler)];
 }
 
-test("Scheduler: schedules tasks for validated CRONs on reload", async (t) => {
+test("CronScheduler: schedules tasks for validated CRONs on reload", async (t) => {
   let events: ScheduledEvent[] = [];
   const log = new TestLog();
   const mf = useMiniflare(
@@ -51,7 +51,7 @@ test("Scheduler: schedules tasks for validated CRONs on reload", async (t) => {
   );
   await mf.getPlugins(); // Wait for initial reload
   const [dispatch, cronScheduler] = createCronScheduler();
-  new Scheduler(mf, cronScheduler);
+  new CronScheduler(mf, cronScheduler);
   await setImmediate();
 
   // Check scheduler requires reload to schedule tasks
@@ -73,7 +73,7 @@ test("Scheduler: schedules tasks for validated CRONs on reload", async (t) => {
   t.is(events[0].cron, "30 * * * *");
   t.regex(log.logs[0][1], /^SCHD 30 \* \* \* \* \(\d+\.\d+ms\)$/);
 });
-test("Scheduler: destroys tasks when CRONs change", async (t) => {
+test("CronScheduler: destroys tasks when CRONs change", async (t) => {
   const events: ScheduledEvent[] = [];
   // noinspection JSUnusedGlobalSymbols
   const options = {
@@ -84,7 +84,7 @@ test("Scheduler: destroys tasks when CRONs change", async (t) => {
   const mf = useMiniflare({ SchedulerPlugin, BindingsPlugin }, options);
   await mf.getPlugins(); // Wait for initial reload
   const [dispatch, cronScheduler] = createCronScheduler();
-  new Scheduler(mf, cronScheduler);
+  new CronScheduler(mf, cronScheduler);
   await mf.reload(); // Schedule tasks
 
   t.is(events.length, 0);
@@ -99,7 +99,7 @@ test("Scheduler: destroys tasks when CRONs change", async (t) => {
   t.is(events.length, 2);
 });
 
-test("Scheduler: dispose: destroys tasks and removes reload listener", async (t) => {
+test("CronScheduler: dispose: destroys tasks and removes reload listener", async (t) => {
   const events: ScheduledEvent[] = [];
   const mf = useMiniflare(
     { SchedulerPlugin, BindingsPlugin },
@@ -111,7 +111,7 @@ test("Scheduler: dispose: destroys tasks and removes reload listener", async (t)
   );
   await mf.getPlugins(); // Wait for initial reload
   const [dispatch, cronScheduler] = createCronScheduler();
-  const scheduler = new Scheduler(mf, cronScheduler);
+  const scheduler = new CronScheduler(mf, cronScheduler);
   await mf.reload(); // Schedule tasks
 
   t.is(events.length, 0);
