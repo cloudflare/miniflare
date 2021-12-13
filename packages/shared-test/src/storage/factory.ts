@@ -10,14 +10,11 @@ export class MemoryStorageFactory implements StorageFactory {
   ) {}
 
   storage(namespace: string, persist?: boolean | string): Storage {
-    let storage = this.storages.get(namespace);
+    assert(typeof persist !== "boolean");
+    const key = persist ? `${persist}:${namespace}` : namespace;
+    let storage = this.storages.get(key);
     if (!storage) {
-      assert(typeof persist !== "boolean");
-      const map =
-        persist === undefined
-          ? undefined
-          : this.persist[`${persist}:${namespace}`];
-      this.storages.set(namespace, (storage = new MemoryStorage(map)));
+      this.storages.set(key, (storage = new MemoryStorage(this.persist[key])));
     }
     return storage;
   }

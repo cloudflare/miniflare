@@ -435,22 +435,38 @@ export class MiniflareCore<
     const mounts = options.CorePlugin
       .mounts as MiniflareCoreOptions<Plugins>["mounts"];
     if (mounts) {
-      const defaultMountOptions = {
-        // Copy watch option
-        watch: this.#watching || undefined,
-        // Copy storage persistence options, we want mounted workers to share
-        // the same underlying storage for shared namespaces.
-        // (this tight coupling makes me sad)
-        kvPersist: resolveStoragePersist(rootPath, options.KVPlugin?.kvPersist),
-        cachePersist: resolveStoragePersist(
-          rootPath,
-          options.CachePlugin?.cachePersist
-        ),
-        durableObjectsPersist: resolveStoragePersist(
-          rootPath,
-          options.DurableObjectsPlugin?.durableObjectsPersist
-        ),
-      };
+      // Always copy watch option
+      const defaultMountOptions: {
+        watch?: boolean;
+        kvPersist?: boolean | string;
+        cachePersist?: boolean | string;
+        durableObjectsPersist?: boolean | string;
+      } = { watch: this.#watching || undefined };
+
+      // Copy defined storage persistence options, we want mounted workers to
+      // share the same underlying storage for shared namespaces.
+      // (this tight coupling makes me sad)
+      const kvPersist = resolveStoragePersist(
+        rootPath,
+        options.KVPlugin?.kvPersist
+      );
+      const cachePersist = resolveStoragePersist(
+        rootPath,
+        options.CachePlugin?.cachePersist
+      );
+      const durableObjectsPersist = resolveStoragePersist(
+        rootPath,
+        options.DurableObjectsPlugin?.durableObjectsPersist
+      );
+      if (kvPersist !== undefined) {
+        defaultMountOptions.kvPersist = kvPersist;
+      }
+      if (cachePersist !== undefined) {
+        defaultMountOptions.cachePersist = cachePersist;
+      }
+      if (durableObjectsPersist !== undefined) {
+        defaultMountOptions.durableObjectsPersist = durableObjectsPersist;
+      }
 
       // Create new and update existing mounts
       for (const [name, rawOptions] of Object.entries(mounts)) {
