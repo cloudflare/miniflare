@@ -26,7 +26,8 @@ import {
   useTmp,
   waitForReload,
 } from "@miniflare/shared-test";
-import test from "ava";
+import test, { Macro } from "ava";
+import { MiniflareOptions } from "miniflare";
 
 // Specific tests for `mounts` option
 
@@ -74,117 +75,6 @@ route = "localhost/tmp*"
   await reloadPromise;
   res = await mf.dispatchFetch("http://localhost/tmp");
   t.is(await res.text(), "mounted:value2");
-});
-test("MiniflareCore: #init: mounts share storage persistence options", async (t) => {
-  const tmp = await useTmp(t);
-  const scriptPath = path.join(tmp, "worker.js");
-  const packagePath = path.join(tmp, "package.json");
-  const wranglerConfigPath = path.join(tmp, "wrangler.toml");
-  await fs.writeFile(
-    scriptPath,
-    `
-export class TestObject {
-  constructor(state) {
-    this.storage = state.storage;
-  }
-  async fetch() {
-    await this.storage.put("key", "value");
-    return new Response();
-  }
-}
-
-export default {
-  async fetch(request, env) {
-    const { TEST_NAMESPACE, TEST_OBJECT } = env;
-    
-    await TEST_NAMESPACE.put("key", "value");
-    
-    await caches.default.put("http://localhost/", new Response("body", {
-      headers: { "Cache-Control": "max-age=3600" }
-    }));
-
-    const id = TEST_OBJECT.idFromName("test");
-    const stub = TEST_OBJECT.get(id);
-    await stub.fetch("http://localhost/");
-  
-    return new Response();
-  }
-}`
-  );
-  await fs.writeFile(packagePath, '{ "module": "worker.js" }');
-  await fs.writeFile(
-    wranglerConfigPath,
-    `
-kv_namespaces = [
-  { binding = "TEST_NAMESPACE" }
-]
-    
-[durable_objects]
-bindings = [
-  { name = "TEST_OBJECT", class_name = "TestObject" },
-]
-    
-[build.upload]
-format = "modules"
-
-[miniflare]
-route = "localhost/tmp*"
-`
-  );
-
-  const kvMap = new Map<string, StoredValueMeta>();
-  const cacheMap = new Map<string, StoredValueMeta>();
-  const durableObjectsMap = new Map<string, StoredValueMeta>();
-  const storageFactory = new MemoryStorageFactory({
-    "test://kv-persist:TEST_NAMESPACE": kvMap,
-    "test://cache-persist:default": cacheMap,
-    "test://durable-objects-persist:TEST_OBJECT:8f9973e23d7d465bb827b1ded10ae3e3d1e9b25f9e0763ab8ced46632d58ff07":
-      durableObjectsMap,
-  });
-  let mf = useMiniflare(
-    { KVPlugin, CachePlugin, DurableObjectsPlugin },
-    {
-      kvPersist: "test://kv-persist",
-      cachePersist: "test://cache-persist",
-      durableObjectsPersist: "test://durable-objects-persist",
-      mounts: { tmp },
-    },
-    new NoOpLog(),
-    storageFactory
-  );
-  await mf.dispatchFetch("http://localhost/tmp");
-
-  // Check data stored in persist maps
-  t.is(kvMap.size, 1);
-  t.is(cacheMap.size, 1);
-  t.is(durableObjectsMap.size, 1);
-
-  // Check storage persistence options also shared with object-optioned mounts
-  kvMap.clear();
-  cacheMap.clear();
-  durableObjectsMap.clear();
-
-  mf = useMiniflare(
-    { KVPlugin, CachePlugin, DurableObjectsPlugin },
-    {
-      kvPersist: "test://kv-persist",
-      cachePersist: "test://cache-persist",
-      durableObjectsPersist: "test://durable-objects-persist",
-      mounts: {
-        tmp: {
-          rootPath: tmp,
-          wranglerConfigPath: true,
-          packagePath: true,
-        },
-      },
-    },
-    new NoOpLog(),
-    storageFactory
-  );
-  await mf.dispatchFetch("http://localhost/tmp");
-  t.is(kvMap.size, 1);
-  t.is(cacheMap.size, 1);
-  t.is(durableObjectsMap.size, 1);
 });
 test("MiniflareCore: #init: mounts object-optioned mounts", async (t) => {
   const mf = useMiniflare(
@@ -416,6 +306,219 @@ test("MiniflareCore: uses original protocol and host when matching mount routes"
   });
   t.is(body, "https://example.com/a:example.com");
 });
+
+// Shared storage persistence tests
+type PersistOptions = Pick<
+  MiniflareOptions,
+  "kvPersist" | "cachePersist" | "durableObjectsPersist"
+>;
+const mountStorageMacro: Macro<
+  [
+    parentPersist: PersistOptions | undefined,
+    childPersist: PersistOptions | undefined,
+    resolvedPersistFunction: (
+      tmp: string,
+      mount: string
+    ) => {
+      kvPersist: string;
+      cachePersist: string;
+      durableObjectsPersist: string;
+    }
+  ]
+> = async (t, parentPersist, childPersist, resolvedPersistFunction) => {
+  const tmp = await useTmp(t);
+
+  const mount = path.join(tmp, "mount");
+  await fs.mkdir(mount);
+  const scriptPath = path.join(mount, "worker.js");
+  const packagePath = path.join(mount, "package.json");
+  const wranglerConfigPath = path.join(mount, "wrangler.toml");
+  await fs.writeFile(
+    scriptPath,
+    `
+export class TestObject {
+  constructor(state) {
+    this.storage = state.storage;
+  }
+  async fetch() {
+    await this.storage.put("key", "value");
+    return new Response();
+  }
+}
+
+export default {
+  async fetch(request, env) {
+    const { TEST_NAMESPACE, TEST_OBJECT } = env;
+    
+    await TEST_NAMESPACE.put("key", "value");
+    
+    await caches.default.put("http://localhost/", new Response("body", {
+      headers: { "Cache-Control": "max-age=3600" }
+    }));
+
+    const id = TEST_OBJECT.idFromName("test");
+    const stub = TEST_OBJECT.get(id);
+    await stub.fetch("http://localhost/");
+  
+    return new Response();
+  }
+}`
+  );
+
+  await fs.writeFile(packagePath, '{ "module": "worker.js" }');
+
+  let { kvPersist, cachePersist, durableObjectsPersist } = childPersist ?? {};
+  kvPersist &&= JSON.stringify(kvPersist);
+  cachePersist &&= JSON.stringify(cachePersist);
+  durableObjectsPersist &&= JSON.stringify(durableObjectsPersist);
+  await fs.writeFile(
+    wranglerConfigPath,
+    `
+kv_namespaces = [
+  { binding = "TEST_NAMESPACE" }
+]
+    
+[durable_objects]
+bindings = [
+  { name = "TEST_OBJECT", class_name = "TestObject" },
+]
+    
+[build.upload]
+format = "modules"
+
+[miniflare]
+route = "localhost/mount*"
+${kvPersist ? `kv_persist = ${kvPersist}` : ""}
+${cachePersist ? `cache_persist = ${cachePersist}` : ""}
+${
+  durableObjectsPersist
+    ? `durable_objects_persist = ${durableObjectsPersist}`
+    : ""
+}
+`
+  );
+
+  const kvMap = new Map<string, StoredValueMeta>();
+  const cacheMap = new Map<string, StoredValueMeta>();
+  const durableObjectsMap = new Map<string, StoredValueMeta>();
+  const resolvedPersist = resolvedPersistFunction(tmp, mount);
+  const storageFactory = new MemoryStorageFactory({
+    [`${resolvedPersist.kvPersist}:TEST_NAMESPACE`]: kvMap,
+    [`${resolvedPersist.cachePersist}:default`]: cacheMap,
+    [`${resolvedPersist.durableObjectsPersist}:TEST_OBJECT:8f9973e23d7d465bb827b1ded10ae3e3d1e9b25f9e0763ab8ced46632d58ff07`]:
+      durableObjectsMap,
+  });
+  const mf = useMiniflare(
+    { KVPlugin, CachePlugin, DurableObjectsPlugin },
+    {
+      rootPath: tmp,
+      ...parentPersist,
+      mounts: { mount },
+    },
+    new NoOpLog(),
+    storageFactory
+  );
+  await mf.dispatchFetch("http://localhost/mount");
+
+  // Check data stored in persist maps
+  t.is(kvMap.size, 1);
+  t.is(cacheMap.size, 1);
+  t.is(durableObjectsMap.size, 1);
+};
+mountStorageMacro.title = (providedTitle) =>
+  `MiniflareCore: #init: ${providedTitle}`;
+// ...in parent
+test(
+  "resolves boolean persistence in parent relative to working directory",
+  mountStorageMacro,
+  {
+    kvPersist: true,
+    cachePersist: true,
+    durableObjectsPersist: true,
+  },
+  undefined,
+  () => ({
+    kvPersist: path.join(".mf", "kv"),
+    cachePersist: path.join(".mf", "cache"),
+    durableObjectsPersist: path.join(".mf", "durableobjects"),
+  })
+);
+test(
+  "resolves string persistence in parent relative to parent's root",
+  mountStorageMacro,
+  {
+    kvPersist: "kv",
+    cachePersist: "cache",
+    durableObjectsPersist: "durable-objects",
+  },
+  undefined,
+  (tmp) => ({
+    kvPersist: path.join(tmp, "kv"),
+    cachePersist: path.join(tmp, "cache"),
+    durableObjectsPersist: path.join(tmp, "durable-objects"),
+  })
+);
+test(
+  "uses url persistence in parent as is",
+  mountStorageMacro,
+  {
+    kvPersist: "test://kv",
+    cachePersist: "test://cache",
+    durableObjectsPersist: "test://durable-objects",
+  },
+  undefined,
+  () => ({
+    kvPersist: "test://kv",
+    cachePersist: "test://cache",
+    durableObjectsPersist: "test://durable-objects",
+  })
+);
+// ...in mount
+test(
+  "resolves boolean persistence in mount relative to working directory",
+  mountStorageMacro,
+  undefined,
+  {
+    kvPersist: true,
+    cachePersist: true,
+    durableObjectsPersist: true,
+  },
+  () => ({
+    kvPersist: path.join(".mf", "kv"),
+    cachePersist: path.join(".mf", "cache"),
+    durableObjectsPersist: path.join(".mf", "durableobjects"),
+  })
+);
+test(
+  "resolves string persistence in mount relative to mount's root",
+  mountStorageMacro,
+  undefined,
+  {
+    kvPersist: "kv",
+    cachePersist: "cache",
+    durableObjectsPersist: "durable-objects",
+  },
+  (tmp, mount) => ({
+    kvPersist: path.join(mount, "kv"),
+    cachePersist: path.join(mount, "cache"),
+    durableObjectsPersist: path.join(mount, "durable-objects"),
+  })
+);
+test(
+  "uses url persistence in mount as is",
+  mountStorageMacro,
+  undefined,
+  {
+    kvPersist: "test://kv",
+    cachePersist: "test://cache",
+    durableObjectsPersist: "test://durable-objects",
+  },
+  () => ({
+    kvPersist: "test://kv",
+    cachePersist: "test://cache",
+    durableObjectsPersist: "test://durable-objects",
+  })
+);
 
 // Durable Objects script_name integration tests
 test("MiniflareCore: reloads Durable Object classes used by parent when mounted worker reloads", async (t) => {
