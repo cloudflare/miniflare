@@ -43,6 +43,11 @@ import {
 // @ts-expect-error we need these for making Request's Headers immutable
 import fetchSymbols from "undici/lib/fetch/symbols.js";
 import { IncomingRequestCfProperties, RequestInitCfProperties } from "./cf";
+import {
+  bufferSourceToArray,
+  buildNotBufferSourceError,
+  isBufferSource,
+} from "./helpers";
 
 const inspect = Symbol.for("nodejs.util.inspect.custom");
 const nonEnumerable = Object.create(null);
@@ -115,20 +120,6 @@ export function _isByteStream(
     }
   }
   return false;
-}
-
-function isBufferSource(chunk: unknown): chunk is BufferSource {
-  return chunk instanceof ArrayBuffer || ArrayBuffer.isView(chunk);
-}
-
-function bufferSourceToArray(chunk: BufferSource): Uint8Array {
-  if (chunk instanceof Uint8Array) {
-    return chunk;
-  } else if (chunk instanceof ArrayBuffer) {
-    return new Uint8Array(chunk);
-  } else {
-    return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
-  }
 }
 
 const enumerableBodyKeys: (keyof Body<any>)[] = ["body", "bodyUsed", "headers"];
@@ -213,15 +204,8 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
           }
         } else if (value) {
           // Otherwise, if it's not an ArrayBuffer(View), throw
-          const isString = typeof value === "string";
           return controller.error(
-            new TypeError(
-              "This TransformStream is being used as a byte stream, but received " +
-                (isString
-                  ? "a string on its writable side. If you wish to write a string, " +
-                    "you'll probably want to explicitly UTF-8-encode it with TextEncoder."
-                  : "an object of non-ArrayBuffer/ArrayBufferView type on its writable side.")
-            )
+            new TypeError(buildNotBufferSourceError(value))
           );
         }
 
@@ -422,7 +406,7 @@ export interface ResponseInit extends BaseResponseInit {
 const kWaitUntil = Symbol("kWaitUntil");
 
 // From https://github.com/nodejs/undici/blob/3f6b564b7d3023d506cad75b16207006b23956a8/lib/fetch/constants.js#L28, minus 101
-const nullBodyStatus = new Set<number | undefined>([204, 205, 304]);
+const nullBodyStatus: (number | undefined)[] = [204, 205, 304];
 
 const enumerableResponseKeys: (keyof Response)[] = [
   "encodeBody",
@@ -493,7 +477,7 @@ export class Response<
         // This zero-length body behavior is allowed because it was previously
         // the only way to construct a Response with a null body status. It may
         // change in the future.
-        if (nullBodyStatus.has(init.status) && body === "") body = null;
+        if (nullBodyStatus.includes(init.status) && body === "") body = null;
       }
       super(new BaseResponse(body, init));
     }

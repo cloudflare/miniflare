@@ -45,5 +45,10 @@ declare module "crypto" {
   namespace webcrypto {
     const subtle: SubtleCrypto;
     function getRandomValues<T extends ArrayBufferView>(array: T): T;
+
+    class DigestStream {
+      constructor(algorithm: AlgorithmIdentifier);
+      readonly digest: Promise<ArrayBuffer>;
+    }
   }
 }
