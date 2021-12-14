@@ -1,6 +1,5 @@
 import fs from "fs/promises";
 import path from "path";
-import { fileURLToPath } from "url";
 import { CachePlugin } from "@miniflare/cache";
 import { Request } from "@miniflare/core";
 import { Compatibility, NoOpLog, PluginContext } from "@miniflare/shared";
@@ -13,9 +12,6 @@ import {
 } from "@miniflare/shared-test";
 import { SitesOptions, SitesPlugin } from "@miniflare/sites";
 import test, { Macro } from "ava";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const log = new NoOpLog();
 const compat = new Compatibility();

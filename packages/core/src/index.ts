@@ -326,7 +326,7 @@ export class MiniflareCore<
       this.#wranglerConfigPath = configPath;
       try {
         const configData = await fs.readFile(configPath, "utf8");
-        const toml = await import("@iarna/toml");
+        const toml: typeof import("@iarna/toml") = require("@iarna/toml");
         const config: WranglerConfig = toml.parse(configData);
         if (configEnv && config.env && configEnv in config.env) {
           // TODO: take into account option inheritance properly
@@ -730,9 +730,11 @@ export class MiniflareCore<
       let watcher = this.#watcher;
       // Make sure we've created the watcher
       if (!watcher) {
-        const { Watcher } = await import("@miniflare/watcher");
+        const {
+          Watcher,
+        }: typeof import("@miniflare/watcher") = require("@miniflare/watcher");
         this.#watcherCallbackMutex = new Mutex();
-        watcher = new Watcher(this.#watcherCallback.bind(this)); // , this.log
+        watcher = new Watcher(this.#watcherCallback.bind(this));
         this.#watcher = watcher;
       }
 

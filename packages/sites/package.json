@@ -11,8 +11,7 @@
   ],
   "author": "MrBBot <me@mrbbot.dev>",
   "license": "MIT",
-  "type": "module",
-  "exports": "./dist/src/index.js",
+  "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "files": [
     "dist/src"
@@ -37,7 +36,7 @@
   },
   "entryPoints": [
     "test/fixtures/plugin.assetHandler.js",
-    "test/fixtures/plugin.assetHandler.modules.js"
+    "test/fixtures/plugin.assetHandler.modules.mjs"
   ],
   "dependencies": {
     "@miniflare/kv": "2.0.0-rc.3",

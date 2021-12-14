@@ -1,18 +1,13 @@
 import childProcess from "child_process";
 import { existsSync } from "fs";
 import fs from "fs/promises";
-import { createRequire } from "module";
 import path from "path";
-import { fileURLToPath } from "url";
 import test from "ava";
 import { MiniflareOptions } from "miniflare";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const fixturesPath = path.join(__dirname, "..", "..", "test", "fixtures");
 
 async function findJest() {
-  const require = createRequire(import.meta.url);
   let pkgPath = path.dirname(require.resolve("jest"));
   while (!existsSync(path.join(pkgPath, "package.json"))) {
     pkgPath = path.dirname(pkgPath);

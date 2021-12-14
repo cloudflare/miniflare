@@ -1,7 +1,6 @@
 import assert from "assert";
 import childProcess from "child_process";
 import path from "path";
-import { fileURLToPath } from "url";
 import {
   Awaitable,
   BeforeSetupResult,
@@ -117,8 +116,6 @@ export function _populateBuildConfig(
   } else if (config.type === "rust") {
     // This script will be included in the root index.js bundle, but rust.mjs
     // will be in the plugins subdirectory
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
     const rustScript = path.join(__dirname, "plugins", "rust.js");
     config.build.command = `wrangler build${env} && ${process.execPath} ${rustScript}`;
     config.build.upload.main = path.join("worker", "generated", "script.js");

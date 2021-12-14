@@ -1,5 +1,4 @@
 import fs from "fs/promises";
-import { builtinModules } from "module";
 import path from "path";
 import esbuild from "esbuild";
 import { getPackage, pkgsDir, pkgsList, projectRoot } from "./common.mjs";
@@ -45,23 +44,15 @@ function getPackageDependencies(pkg, includeDev) {
  * @type {esbuild.BuildOptions}
  */
 const buildOptions = {
-  format: "esm",
-  // outExtension: { ".js": ".mjs" },
-  platform: "neutral",
+  platform: "node",
+  format: "cjs",
   target: "esnext",
   bundle: true,
   sourcemap: true,
   sourcesContent: false,
-  mainFields: ["module", "main"],
-  conditions: ["import", "node", "production", "default"],
-  // minify: true,
-  // minifySyntax: true,
-  // minifyWhitespace: true,
   // Mark root package's dependencies as external, include root devDependencies
   // (e.g. test runner) as we don't want these bundled
   external: [
-    "node:",
-    ...builtinModules,
     ...getPackageDependencies(await getPackage(projectRoot), true),
     // Make sure we're not bundling any packages we're building, we want to
     // test against the actual code we'll publish for instance
@@ -99,11 +90,17 @@ async function buildPackage(name) {
   }
   const outPath = path.join(pkgRoot, "dist");
 
-  const entryPoints = [indexPath, ...testPaths];
-  if (pkg.entryPoints) {
-    entryPoints.push(...pkg.entryPoints.map((e) => path.join(pkgRoot, e)));
+  const cjsEntryPoints = [indexPath, ...testPaths];
+  // Some tests require bundled ES module fixtures (e.g. Workers Sites), so
+  // build .mjs/.mts files using `format: "esm"`
+  const esmEntryPoints = [];
+  for (const entryPoint of pkg.entryPoints ?? []) {
+    (/\.m[tj]s$/.test(entryPoint) ? esmEntryPoints : cjsEntryPoints).push(
+      path.join(pkgRoot, entryPoint)
+    );
   }
-  await esbuild.build({
+
+  const pkgBuildOptions = {
     ...buildOptions,
     external: [
       // Extend root package's dependencies with this package's
@@ -112,10 +109,17 @@ async function buildPackage(name) {
       // packages we want inlined in the bundle
       ...getPackageDependencies(pkg),
     ],
-    entryPoints,
     outdir: outPath,
     outbase: pkgRoot,
-  });
+  };
+  await esbuild.build({ ...pkgBuildOptions, entryPoints: cjsEntryPoints });
+  if (esmEntryPoints.length) {
+    await esbuild.build({
+      ...pkgBuildOptions,
+      format: "esm",
+      entryPoints: esmEntryPoints,
+    });
+  }
 }
 
 // Bundle all packages, optionally watching

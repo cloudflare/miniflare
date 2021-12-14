@@ -45,9 +45,9 @@ export class HTMLRewriter {
         // will also synchronously compile a WebAssembly module, so delay doing
         // this until we really need it.
         // TODO: async compile the WebAssembly module
-        const { HTMLRewriter: BaseHTMLRewriter } = await import(
-          "html-rewriter-wasm"
-        );
+        const {
+          HTMLRewriter: BaseHTMLRewriter,
+        }: typeof import("html-rewriter-wasm") = require("html-rewriter-wasm");
         rewriter = new BaseHTMLRewriter((output) => {
           // enqueue will throw on empty chunks
           if (output.length !== 0) controller.enqueue(output);

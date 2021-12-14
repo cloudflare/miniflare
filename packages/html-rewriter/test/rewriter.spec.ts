@@ -819,7 +819,7 @@ test.serial("HTMLRewriter: handles async handlers in sandbox", async (t) => {
           element.append(" append");
         },
       })
-      .transform(new Response("<p>test</p>"));
+      .transform(new globals.Response("<p>test</p>"));
   });
   const res = await mf.dispatchFetch("http://localhost");
   t.is(await res.text(), "<p>test append</p>");

@@ -328,7 +328,7 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
         this.ctx.log.info("Generating new self-signed certificate...");
         // selfsigned imports node-forge, which is a pretty big library.
         // To reduce startup time, only load this dynamically when needed.
-        const selfSigned = await import("selfsigned");
+        const selfSigned: typeof import("selfsigned") = require("selfsigned");
         const certAttrs: Attributes = [
           { name: "commonName", value: "localhost" },
         ];

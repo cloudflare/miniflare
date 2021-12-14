@@ -1,7 +1,6 @@
 import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
-import { fileURLToPath } from "url";
 import { BindingsPlugin } from "@miniflare/core";
 import { Compatibility, NoOpLog, PluginContext } from "@miniflare/shared";
 import {
@@ -17,8 +16,6 @@ const compat = new Compatibility();
 const rootPath = process.cwd();
 const ctx: PluginContext = { log, compat, rootPath };
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const fixturesPath = path.join(__dirname, "..", "..", "..", "test", "fixtures");
 // add.wasm is a WebAssembly module with a single export "add" that adds
 // its 2 integer parameters together and returns the result, it is from:

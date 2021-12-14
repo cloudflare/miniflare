@@ -11,7 +11,7 @@
   ],
   "author": "MrBBot <me@mrbbot.dev>",
   "license": "MIT",
-  "type": "module",
+  "main": "./dist/src/index.js",
   "exports": {
     ".": "./dist/src/index.js",
     "./cli": "./dist/src/cli.js"

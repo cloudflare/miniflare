@@ -1,7 +1,6 @@
 import { existsSync } from "fs";
 import fs from "fs/promises";
 import path from "path";
-import { fileURLToPath } from "url";
 import { promisify } from "util";
 import { BindingsPlugin, BuildError, BuildPlugin } from "@miniflare/core";
 import {
@@ -168,8 +167,6 @@ test("BuildPlugin: beforeSetup: throws with exit code if build fails", async (t)
   });
 });
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const fixturesPath = path.join(__dirname, "..", "..", "..", "test", "fixtures");
 const webpackPath = path.join(fixturesPath, "wrangler", "webpack");
 const rustPath = path.join(fixturesPath, "wrangler", "rust");
