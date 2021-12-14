@@ -1,11 +1,8 @@
 import fs from "fs/promises";
 import path from "path";
-import { fileURLToPath } from "url";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import test, { ThrowsExpectation } from "ava";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const fixturesPath = path.join(__dirname, "..", "..", "test", "fixtures");
 
 const runner = new VMScriptRunner();

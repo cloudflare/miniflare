@@ -26,7 +26,9 @@ export class VariedStorageFactory implements StorageFactory {
     if (persist === undefined) {
       let storage = this.memoryStorages.get(namespace);
       if (storage) return storage;
-      const { MemoryStorage } = await import("@miniflare/storage-memory");
+      const {
+        MemoryStorage,
+      }: typeof import("@miniflare/storage-memory") = require("@miniflare/storage-memory");
       this.memoryStorages.set(namespace, (storage = new MemoryStorage()));
       return storage;
     }
@@ -35,14 +37,13 @@ export class VariedStorageFactory implements StorageFactory {
     // caching connections so we can reuse them
     if (redisConnectionStringRegexp.test(persist)) {
       // TODO (someday): display nicer error if @miniflare/storage-redis not installed
-      const { RedisStorage } = await import("@miniflare/storage-redis");
-      const IORedis = await import("ioredis");
+      const {
+        RedisStorage,
+      }: typeof import("@miniflare/storage-redis") = require("@miniflare/storage-redis");
+      const IORedis: typeof import("ioredis") = require("ioredis");
       let connection = this.redisConnections.get(persist);
       if (!connection) {
-        this.redisConnections.set(
-          persist,
-          (connection = new IORedis.default(persist))
-        );
+        this.redisConnections.set(persist, (connection = new IORedis(persist)));
       }
       return new RedisStorage(connection, namespace);
     }
@@ -50,7 +51,9 @@ export class VariedStorageFactory implements StorageFactory {
     // Otherwise, use file-system storage
     const root = path.join(persist, sanitisePath(namespace));
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { FileStorage } = await import("@miniflare/storage-file");
+    const {
+      FileStorage,
+    }: typeof import("@miniflare/storage-file") = require("@miniflare/storage-file");
     return new FileStorage(root);
   }
 

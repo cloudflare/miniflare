@@ -283,7 +283,7 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
           accept.includes("text/*")
         ) {
           // Send pretty HTML error page if client accepts it
-          const { default: Youch } = await import("youch");
+          const Youch: typeof import("youch").default = require("youch");
           const youch = new Youch(e, req);
           youch.addLink(() => {
             const links = [
@@ -346,11 +346,7 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
     server = http.createServer(options ?? {}, listener);
   }
 
-  // Fix for Jest :(, Jest 27 doesn't support the "exports" field in
-  // package.json, so incorrectly loads the CommonJS ws module, which includes
-  // WebSocketServer in the default export, not as a named export.
-  const ws = await import("ws");
-  const WebSocketServer = ws.WebSocketServer ?? ws.default.WebSocketServer;
+  const { WebSocketServer }: typeof import("ws") = require("ws");
 
   // Setup WebSocket servers
   const webSocketServer = new WebSocketServer({ noServer: true });

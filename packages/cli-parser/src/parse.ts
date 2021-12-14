@@ -1,6 +1,5 @@
 import { readFileSync } from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import {
   MiniflareError,
   OptionMetadata,
@@ -92,8 +91,6 @@ export function parseArgv<Plugins extends PluginSignatures>(
   // If help or version requested, ignore other options
   if (parsed.help) throw new ParseError("ERR_HELP");
   if (parsed.version) {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
     const pkgPath = path.join(__dirname, "..", "..", "package.json");
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
     throw new ParseError("ERR_VERSION", pkg.version);

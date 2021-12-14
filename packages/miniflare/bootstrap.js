@@ -1,12 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
-import childProcess from "child_process";
-import path from "path";
-import { fileURLToPath } from "url";
-import semiver from "semiver";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const childProcess = require("child_process");
+const path = require("path");
+const semiver = require("semiver");
 
 // Miniflare makes extensive use of new Web Standards added in recent versions
 // of Node.js (streams, crypto, Blob, EventTarget). The most recent thing
@@ -14,8 +10,9 @@ const __dirname = path.dirname(__filename);
 const MIN_NODE_VERSION = "16.7.0";
 
 async function main() {
+  // @ts-expect-error require doesn't give the correct types
   if (semiver(process.versions.node, MIN_NODE_VERSION) < 0) {
-    const { red } = await import("kleur/colors");
+    const { red } = require("kleur/colors");
     // Note Volta and nvm are also recommended in the official docs:
     // https://developers.cloudflare.com/workers/get-started/guide#2-install-the-workers-cli
     console.log(

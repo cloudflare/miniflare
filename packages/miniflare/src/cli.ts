@@ -1,14 +1,10 @@
 #!/usr/bin/env node
 import fs from "fs/promises";
 import path from "path";
-import { fileURLToPath } from "url";
 import type { Options } from "@miniflare/shared";
 import { red } from "kleur/colors";
 import type { MiniflareOptions } from "miniflare";
 import { updateCheck } from "./updater";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 function suppressWarnings() {
   // Suppress experimental warnings
@@ -31,15 +27,19 @@ function suppressWarnings() {
 
 async function main() {
   // Need to import these after warnings have been suppressed
-  const [
-    { ParseError, buildHelp, parseArgv },
-    { Log, LogLevel },
-    { Miniflare, PLUGINS },
-  ] = await Promise.all([
-    import("@miniflare/cli-parser"),
-    import("@miniflare/shared"),
-    import("miniflare"),
-  ]);
+  const {
+    ParseError,
+    buildHelp,
+    parseArgv,
+  }: typeof import("@miniflare/cli-parser") = require("@miniflare/cli-parser");
+  const {
+    Log,
+    LogLevel,
+  }: typeof import("@miniflare/shared") = require("@miniflare/shared");
+  const {
+    Miniflare,
+    PLUGINS,
+  }: typeof import("miniflare") = require("miniflare");
 
   // Parse command line options
   let options: Options<typeof PLUGINS>;

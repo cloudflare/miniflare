@@ -246,8 +246,8 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
     }
     const formData = new FormData();
     await new Promise<void>(async (resolve) => {
-      const Busboy = await import("busboy");
-      const busboy = new Busboy.default({ headers: headers as BusboyHeaders });
+      const Busboy: typeof import("busboy") = require("busboy");
+      const busboy = new Busboy({ headers: headers as BusboyHeaders });
       busboy.on("field", (name, value) => {
         formData.append(name, value);
       });

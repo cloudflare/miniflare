@@ -27,9 +27,9 @@ export class CronScheduler<Plugins extends SchedulerPluginSignatures> {
 
   constructor(
     private readonly mf: MiniflareCore<Plugins>,
-    private readonly cronScheduler: Promise<CronSchedulerImpl> = import(
-      "cron-schedule"
-    ).then((module) => module.TimerBasedCronScheduler)
+    private readonly cronScheduler: Promise<CronSchedulerImpl> = Promise.resolve().then(
+      () => require("cron-schedule").TimerBasedCronScheduler
+    )
   ) {
     mf.addEventListener("reload", this[kReload]);
   }

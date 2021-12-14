@@ -1,7 +1,6 @@
 import { readFileSync } from "fs";
 import fs from "fs/promises";
 import path from "path";
-import { fileURLToPath } from "url";
 import { TextDecoder } from "util";
 import { VMScriptRunner, VMScriptRunnerError } from "@miniflare/runner-vm";
 import {
@@ -14,8 +13,6 @@ import {
 } from "@miniflare/shared";
 import test, { Macro } from "ava";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const fixturesPath = path.join(__dirname, "..", "..", "test", "fixtures");
 // Path of fake linker test script, linked modules are resolved relative to this
 const filePath = path.join(fixturesPath, "test.mjs");

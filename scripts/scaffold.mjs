@@ -37,8 +37,7 @@ async function scaffoldPackage(unscopedPkgName) {
     keywords: ["cloudflare", "workers", "worker", "local", "cloudworker"],
     author: "MrBBot <me@mrbbot.dev>",
     license: "MIT",
-    type: "module",
-    exports: "./dist/src/index.js",
+    main: "./dist/src/index.js",
     types: "./dist/src/index.d.ts",
     files: ["dist/src"],
     engines: {

@@ -58,7 +58,9 @@ export class SitesPlugin extends Plugin<SitesOptions> implements SitesOptions {
 
     // Create file KV storage with sanitisation DISABLED so paths containing
     // /'s resolve correctly
-    const { FileStorage } = await import("@miniflare/storage-file");
+    const {
+      FileStorage,
+    }: typeof import("@miniflare/storage-file") = require("@miniflare/storage-file");
     const sitePath = path.resolve(this.ctx.rootPath, this.sitePath);
     const storage = new FileStorage(sitePath, false);
     const bindings = {

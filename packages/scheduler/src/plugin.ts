@@ -44,7 +44,9 @@ export class SchedulerPlugin
       this.#validatedCrons = [];
       return;
     }
-    const { parseCronExpression } = await import("cron-schedule");
+    const {
+      parseCronExpression,
+    }: typeof import("cron-schedule") = require("cron-schedule");
     const validatedCrons = Array(this.crons.length);
     for (let i = 0; i < this.crons.length; i++) {
       const spec = this.crons[i];
