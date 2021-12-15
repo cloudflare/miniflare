@@ -50,6 +50,19 @@ import {
 } from "./helpers";
 import { kContentLength } from "./streams";
 
+export type {
+  BodyInit,
+  HeadersInit,
+  RequestCache,
+  RequestCredentials,
+  RequestDestination,
+  RequestMode,
+  RequestRedirect,
+  ResponseType,
+  ResponseRedirectStatus,
+} from "undici";
+export { Headers } from "undici";
+
 const inspect = Symbol.for("nodejs.util.inspect.custom");
 const nonEnumerable = Object.create(null);
 nonEnumerable.enumerable = false;
