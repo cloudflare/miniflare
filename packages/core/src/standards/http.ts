@@ -48,6 +48,7 @@ import {
   buildNotBufferSourceError,
   isBufferSource,
 } from "./helpers";
+import { kContentLength } from "./streams";
 
 const inspect = Symbol.for("nodejs.util.inspect.custom");
 const nonEnumerable = Object.create(null);
@@ -334,6 +335,14 @@ export class Request extends Body<BaseRequest> {
     }
     this.#cf = cf ? nonCircularClone(cf) : undefined;
 
+    // If body is a FixedLengthStream, set Content-Length to its expected length
+    const contentLength: number | undefined = (init?.body as any)?.[
+      kContentLength
+    ];
+    if (contentLength !== undefined) {
+      this.headers.set("content-length", contentLength.toString());
+    }
+
     makeEnumerable(Request.prototype, this, enumerableRequestKeys);
   }
 
@@ -490,6 +499,12 @@ export class Response<
 
     this.#status = status;
     this.#webSocket = webSocket;
+
+    // If body is a FixedLengthStream, set Content-Length to its expected length
+    const contentLength: number | undefined = (body as any)?.[kContentLength];
+    if (contentLength !== undefined) {
+      this.headers.set("content-length", contentLength.toString());
+    }
 
     makeEnumerable(Response.prototype, this, enumerableResponseKeys);
     Object.defineProperty(this, kWaitUntil, nonEnumerable);

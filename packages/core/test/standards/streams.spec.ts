@@ -1,9 +1,13 @@
 import assert from "assert";
 import { ReadableStream, ReadableStreamBYOBReadResult } from "stream/web";
-import { ArrayBufferViewConstructor } from "@miniflare/core";
-import test from "ava";
-
-import "@miniflare/core";
+import {
+  ArrayBufferViewConstructor,
+  FixedLengthStream,
+  Request,
+  Response,
+} from "@miniflare/core";
+import { utf8Encode } from "@miniflare/shared-test";
+import test, { ThrowsExpectation } from "ava";
 
 function chunkedStream(chunks: number[][]): ReadableStream<Uint8Array> {
   return new ReadableStream({
@@ -175,4 +179,143 @@ test("ReadableStreamBYOBReader: readAtLeast: throws if minimum number of bytes e
     instanceOf: TypeError,
     message: "Minimum bytes to read (4) exceeds size of buffer (3).",
   });
+});
+
+test("FixedLengthStream: requires non-negative integer expected length", (t) => {
+  const expectations: ThrowsExpectation = {
+    instanceOf: TypeError,
+    message:
+      "FixedLengthStream requires a non-negative integer expected length.",
+  };
+  // @ts-expect-error intentionally testing incorrect types
+  t.throws(() => new FixedLengthStream(), expectations);
+  t.throws(() => new FixedLengthStream(-42), expectations);
+  new FixedLengthStream(0);
+});
+test("FixedLengthStream: throws if too many bytes written", async (t) => {
+  const { readable, writable } = new FixedLengthStream(3);
+  const writer = writable.getWriter();
+  // noinspection ES6MissingAwait
+  void writer.write(new Uint8Array([1, 2]));
+  // noinspection ES6MissingAwait
+  void writer.write(new Uint8Array([3, 4]));
+
+  const reader = readable.getReader();
+  t.deepEqual((await reader.read()).value, new Uint8Array([1, 2]));
+  await t.throwsAsync(reader.read(), {
+    instanceOf: TypeError,
+    message: "Attempt to write too many bytes through a FixedLengthStream.",
+  });
+});
+test("FixedLengthStream: throws if too few bytes written", async (t) => {
+  const { readable, writable } = new FixedLengthStream(3);
+  const writer = writable.getWriter();
+  // noinspection ES6MissingAwait
+  void writer.write(new Uint8Array([1, 2]));
+  // noinspection ES6MissingAwait
+  const closePromise = writer.close();
+
+  const reader = readable.getReader();
+  t.deepEqual((await reader.read()).value, new Uint8Array([1, 2]));
+  await t.throwsAsync(closePromise, {
+    instanceOf: TypeError,
+    message: "FixedLengthStream did not see all expected bytes before close().",
+  });
+});
+test("FixedLengthStream: behaves as identity transform if just right number of bytes written", async (t) => {
+  const { readable, writable } = new FixedLengthStream(3);
+  const writer = writable.getWriter();
+  // noinspection ES6MissingAwait
+  void writer.write(new Uint8Array([1, 2]));
+  // noinspection ES6MissingAwait
+  void writer.write(new Uint8Array([3]));
+  // noinspection ES6MissingAwait
+  void writer.close();
+
+  const reader = readable.getReader();
+  t.deepEqual((await reader.read()).value, new Uint8Array([1, 2]));
+  t.deepEqual((await reader.read()).value, new Uint8Array([3]));
+  t.true((await reader.read()).done);
+});
+test("FixedLengthStream: throws on string chunks", async (t) => {
+  const { readable, writable } = new FixedLengthStream(5);
+  const writer = writable.getWriter();
+  // noinspection ES6MissingAwait
+  void writer.write(
+    // @ts-expect-error intentionally testing incorrect types
+    "how much chunk would a chunk-chuck chuck if a chunk-chuck could chuck chunk?"
+  );
+
+  const reader = readable.getReader();
+  await t.throwsAsync(reader.read(), {
+    instanceOf: TypeError,
+    message:
+      "This TransformStream is being used as a byte stream, " +
+      "but received a string on its writable side. " +
+      "If you wish to write a string, you'll probably want to " +
+      "explicitly UTF-8-encode it with TextEncoder.",
+  });
+});
+test("FixedLengthStream: throws on non-ArrayBuffer/ArrayBufferView chunks", async (t) => {
+  const { readable, writable } = new FixedLengthStream(5);
+  const writer = writable.getWriter();
+  // @ts-expect-error intentionally testing incorrect types
+  // noinspection ES6MissingAwait
+  void writer.write(42);
+
+  const reader = readable.getReader();
+  await t.throwsAsync(reader.read(), {
+    instanceOf: TypeError,
+    message:
+      "This TransformStream is being used as a byte stream, " +
+      "but received an object of non-ArrayBuffer/ArrayBufferView " +
+      "type on its writable side.",
+  });
+});
+function buildFixedLengthReadableStream(length: number) {
+  const { readable, writable } = new FixedLengthStream(length);
+  const writer = writable.getWriter();
+  if (length > 0) void writer.write(utf8Encode("".padStart(length, "x")));
+  void writer.close();
+  return readable;
+}
+test("FixedLengthStream: sets Content-Length header on Request", async (t) => {
+  let body = buildFixedLengthReadableStream(3);
+  let req = new Request("http://localhost", { method: "POST", body });
+  t.is(req.headers.get("Content-Length"), "3");
+  t.is(await req.text(), "xxx");
+
+  // Check overrides existing Content-Length header
+  body = buildFixedLengthReadableStream(3);
+  req = new Request("http://localhost", {
+    method: "POST",
+    body,
+    headers: { "Content-Length": "2" },
+  });
+  t.is(req.headers.get("Content-Length"), "3");
+  t.is(await req.text(), "xxx");
+
+  // Check still includes header with 0 expected length
+  body = buildFixedLengthReadableStream(0);
+  req = new Request("http://localhost", { method: "POST", body });
+  t.is(req.headers.get("Content-Length"), "0");
+  t.is(await req.text(), "");
+});
+test("FixedLengthStream: sets Content-Length header on Response", async (t) => {
+  let body = buildFixedLengthReadableStream(3);
+  let res = new Response(body);
+  t.is(res.headers.get("Content-Length"), "3");
+  t.is(await res.text(), "xxx");
+
+  // Check overrides existing Content-Length header
+  body = buildFixedLengthReadableStream(3);
+  res = new Response(body, { headers: { "Content-Length": "2" } });
+  t.is(res.headers.get("Content-Length"), "3");
+  t.is(await res.text(), "xxx");
+
+  // Check still includes header with 0 expected length
+  body = buildFixedLengthReadableStream(0);
+  res = new Response(body);
+  t.is(res.headers.get("Content-Length"), "0");
+  t.is(await res.text(), "");
 });

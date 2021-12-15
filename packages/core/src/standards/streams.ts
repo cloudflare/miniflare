@@ -1,7 +1,13 @@
 import {
   ReadableStreamBYOBReadResult,
   ReadableStreamBYOBReader,
+  TransformStream,
 } from "stream/web";
+import {
+  bufferSourceToArray,
+  buildNotBufferSourceError,
+  isBufferSource,
+} from "./helpers";
 
 export type ArrayBufferViewConstructor =
   | typeof Int8Array
@@ -70,3 +76,55 @@ ReadableStreamBYOBReader.prototype.readAtLeast = async function <
   const value = new ctor(buffer, byteOffset, read / bytesPerElement);
   return { value: value as any, done };
 };
+
+export const kContentLength = Symbol("kContentLength");
+
+export class FixedLengthStream extends TransformStream<Uint8Array, Uint8Array> {
+  constructor(expectedLength: number) {
+    // noinspection SuspiciousTypeOfGuard
+    if (typeof expectedLength !== "number" || expectedLength < 0) {
+      throw new TypeError(
+        "FixedLengthStream requires a non-negative integer expected length."
+      );
+    }
+
+    // Keep track of the number of bytes written
+    let written = 0;
+    super({
+      transform(chunk, controller) {
+        // Make sure this chunk is an ArrayBuffer(View)
+        if (isBufferSource(chunk)) {
+          const array = bufferSourceToArray(chunk);
+
+          // Throw if written too many bytes
+          written += array.byteLength;
+          if (written > expectedLength) {
+            return controller.error(
+              new TypeError(
+                "Attempt to write too many bytes through a FixedLengthStream."
+              )
+            );
+          }
+
+          controller.enqueue(array);
+        } else {
+          controller.error(new TypeError(buildNotBufferSourceError(chunk)));
+        }
+      },
+      flush(controller) {
+        // Throw if not written enough bytes on close
+        if (written < expectedLength) {
+          controller.error(
+            new TypeError(
+              "FixedLengthStream did not see all expected bytes before close()."
+            )
+          );
+        }
+      },
+    });
+
+    // When used as Request/Response body, override the Content-Length header
+    // with the expectedLength
+    (this.readable as any)[kContentLength] = expectedLength;
+  }
+}

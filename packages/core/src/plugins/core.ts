@@ -39,6 +39,7 @@ import {
   AbortSignal,
   DOMException,
   FetchEvent,
+  FixedLengthStream,
   Request,
   Response,
   ScheduledEvent,
@@ -365,6 +366,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       WritableStream,
       WritableStreamDefaultController,
       WritableStreamDefaultWriter,
+      FixedLengthStream,
 
       Event,
       EventTarget,

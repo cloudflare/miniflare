@@ -295,6 +295,7 @@ test("CorePlugin: setup: includes web standards", async (t) => {
   t.true(typeof globals.WritableStream === "function");
   t.true(typeof globals.WritableStreamDefaultController === "function");
   t.true(typeof globals.WritableStreamDefaultWriter === "function");
+  t.true(typeof globals.FixedLengthStream === "function");
 
   t.true(typeof globals.Event === "function");
   t.true(typeof globals.EventTarget === "function");
