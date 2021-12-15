@@ -20,5 +20,6 @@ export {
   logResponse,
 } from "./http";
 export type { RequestInfo, RequestInit, ResponseInit, HRTime } from "./http";
-export * from "./streams";
+export { FixedLengthStream } from "./streams";
+export type { ArrayBufferViewConstructor } from "./streams";
 export * from "./timers";
