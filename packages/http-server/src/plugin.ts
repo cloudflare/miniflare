@@ -85,6 +85,7 @@ export interface RequestMeta {
 export interface HTTPOptions {
   host?: string;
   port?: number;
+  open?: boolean | string;
 
   https?: boolean | string;
   httpsKey?: string;
@@ -126,6 +127,14 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
     fromWrangler: ({ miniflare }) => miniflare?.port,
   })
   port?: number;
+
+  @Option({
+    type: OptionType.BOOLEAN_STRING,
+    alias: "O",
+    description: "Automatically open browser to URL",
+    fromWrangler: ({ miniflare }) => miniflare?.open,
+  })
+  open?: boolean | string;
 
   @Option({
     type: OptionType.BOOLEAN_STRING,

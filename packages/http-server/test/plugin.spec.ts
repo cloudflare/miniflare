@@ -31,6 +31,7 @@ test("HTTPPlugin: parses options from argv", (t) => {
     "127.0.0.1",
     "--port",
     "3000",
+    "--open",
     "--https",
     "--https-key",
     "key.pem",
@@ -48,6 +49,7 @@ test("HTTPPlugin: parses options from argv", (t) => {
   t.deepEqual(options, {
     host: "127.0.0.1",
     port: 3000,
+    open: true,
     https: true,
     httpsKeyPath: "key.pem",
     httpsCertPath: "cert.pem",
@@ -62,6 +64,8 @@ test("HTTPPlugin: parses options from argv", (t) => {
     "127.0.0.1",
     "-p",
     "3000",
+    "-O",
+    "https://localhost:8787",
     "--https",
     "./cert",
     "--cf-fetch",
@@ -70,6 +74,7 @@ test("HTTPPlugin: parses options from argv", (t) => {
   t.deepEqual(options, {
     host: "127.0.0.1",
     port: 3000,
+    open: "https://localhost:8787",
     https: "./cert",
     cfFetch: "./cf.json",
   });
@@ -79,6 +84,7 @@ test("HTTPPlugin: parses options from wrangler config", (t) => {
     miniflare: {
       host: "127.0.0.1",
       port: 3000,
+      open: true,
       https: true,
       cf_fetch: false,
       live_reload: true,
@@ -87,6 +93,7 @@ test("HTTPPlugin: parses options from wrangler config", (t) => {
   t.like(options, {
     host: "127.0.0.1",
     port: 3000,
+    open: true,
     https: true,
     cfFetch: false,
     liveReload: true,
@@ -120,6 +127,7 @@ test("HTTPPlugin: logs options", (t) => {
   let logs = logPluginOptions(HTTPPlugin, {
     host: "127.0.0.1",
     port: 3000,
+    open: true,
     https: true,
     httpsKey: "key",
     httpsKeyPath: "key.pem",
@@ -137,6 +145,7 @@ test("HTTPPlugin: logs options", (t) => {
   t.deepEqual(logs, [
     "Host: 127.0.0.1",
     "Port: 3000",
+    "Open: true",
     "HTTPS: true",
     "HTTPS Key: key.pem",
     "HTTPS Cert: cert.pem",

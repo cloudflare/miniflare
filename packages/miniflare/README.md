@@ -31,7 +31,7 @@ goals:
    [122 third-party packages](http://npm.anvaka.com/#/view/2d/miniflare) with a
    total install size of `88.3MB`. Miniflare 2 reduces this to **23 packages and
    `6.2MB`** 🤯.
-3. ✅ **Correct:** Miniflare 2 more accurately replicates the quirks and thrown
+3. ✅ **Accurate:** Miniflare 2 more accurately replicates the quirks and thrown
    errors of the real Workers runtime, so you'll know before you deploy if
    things are going to break.
 

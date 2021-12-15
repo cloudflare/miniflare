@@ -23,6 +23,8 @@ import { HTTPPlugin, RequestMeta } from "./plugin";
 export * from "./helpers";
 export * from "./plugin";
 
+export const DEFAULT_PORT = 8787;
+
 export type HTTPPluginSignatures = CorePluginSignatures & {
   HTTPPlugin: typeof HTTPPlugin;
 };
@@ -405,7 +407,7 @@ export async function startServer<Plugins extends HTTPPluginSignatures>(
 ): Promise<http.Server | https.Server> {
   const server = await createServer(mf, options);
   const plugins = await mf.getPlugins();
-  const { httpsEnabled, host, port = 8787 } = plugins.HTTPPlugin;
+  const { httpsEnabled, host, port = DEFAULT_PORT } = plugins.HTTPPlugin;
   return new Promise((resolve) => {
     server.listen(port, host, () => {
       const log = mf.log;
