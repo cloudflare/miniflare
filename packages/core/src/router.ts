@@ -36,7 +36,8 @@ export class Router {
         const protocol = hasProtocol ? url.protocol : undefined;
 
         const allowHostnamePrefix = url.hostname.startsWith("*");
-        if (allowHostnamePrefix) {
+        const anyHostname = url.hostname === "*";
+        if (allowHostnamePrefix && !anyHostname) {
           url.hostname = url.hostname.substring(1);
         }
 
@@ -51,7 +52,7 @@ export class Router {
             `Route "${route}" for "${target}" contains a query string. This is not allowed.`
           );
         }
-        if (url.toString().includes("*")) {
+        if (url.toString().includes("*") && !anyHostname) {
           throw new RouterError(
             "ERR_INFIX_WILDCARD",
             `Route "${route}" for "${target}" contains an infix wildcard. This is not allowed.`
@@ -64,7 +65,7 @@ export class Router {
 
           protocol,
           allowHostnamePrefix,
-          hostname: url.hostname,
+          hostname: anyHostname ? "" : url.hostname,
           path: url.pathname,
           allowPathSuffix,
         });
