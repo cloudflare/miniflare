@@ -4,6 +4,7 @@ import path from "path";
 import type { Options } from "@miniflare/shared";
 import { red } from "kleur/colors";
 import type { MiniflareOptions } from "miniflare";
+import open from "open";
 import { updateCheck } from "./updater";
 
 function suppressWarnings() {
@@ -95,6 +96,14 @@ async function main() {
     // Unmount any mounted workers
     await mf.dispose();
     return;
+  }
+
+  // Open browser if requested
+  const openURL = await mf.getOpenURL();
+  try {
+    if (openURL) await open(openURL);
+  } catch (e: any) {
+    mf.log.warn("Unable to open browser: " + e.stack);
   }
 
   // TODO: check how this works with next tag

@@ -68,7 +68,8 @@
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.0.0-rc.3",
-    "@types/source-map-support": "^0.5.4"
+    "@types/source-map-support": "^0.5.4",
+    "open": "^8.4.0"
   },
   "peerDependencies": {
     "@miniflare/storage-redis": "2.0.0-rc.3",

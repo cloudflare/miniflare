@@ -1,6 +1,6 @@
 import { AddressInfo } from "net";
 import { Log, LogLevel } from "@miniflare/shared";
-import { interceptConsoleLogs } from "@miniflare/shared-test";
+import { interceptConsoleLogs, useTmp } from "@miniflare/shared-test";
 import test from "ava";
 import { Miniflare, VariedStorageFactory } from "miniflare";
 import { fetch } from "undici";
@@ -172,4 +172,24 @@ test.serial("Miniflare: startScheduler: starts CRON scheduler", async (t) => {
     return 0 as any;
   };
   await mf.startScheduler();
+});
+test("Miniflare: getOpenURL: returns URL to open browser at", async (t) => {
+  // Check returns undefined if open disabled
+  const mf = new Miniflare({ script: "//" });
+  t.is(await mf.getOpenURL(), undefined);
+  await mf.setOptions({ open: false });
+  t.is(await mf.getOpenURL(), undefined);
+
+  // Check returns custom string URL
+  await mf.setOptions({ open: "https://some.other.website/" });
+  t.is(await mf.getOpenURL(), "https://some.other.website/");
+
+  // Check returns http URL with default host and port
+  await mf.setOptions({ open: true });
+  t.is(await mf.getOpenURL(), "http://localhost:8787/");
+
+  // Check returns https URL with custom host and port
+  const tmp = await useTmp(t);
+  await mf.setOptions({ open: true, https: tmp, host: "test.mf", port: 3000 });
+  t.is(await mf.getOpenURL(), "https://test.mf:3000/");
 });

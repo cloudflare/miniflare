@@ -15,7 +15,12 @@ import {
   DurableObjectsPlugin,
 } from "@miniflare/durable-objects";
 import { HTMLRewriterPlugin } from "@miniflare/html-rewriter";
-import { HTTPPlugin, createServer, startServer } from "@miniflare/http-server";
+import {
+  DEFAULT_PORT,
+  HTTPPlugin,
+  createServer,
+  startServer,
+} from "@miniflare/http-server";
 import { KVNamespace, KVPlugin } from "@miniflare/kv";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
@@ -133,5 +138,18 @@ export class Miniflare extends MiniflareCore<Plugins> {
 
   startScheduler(): Promise<CronScheduler<Plugins>> {
     return startScheduler(this);
+  }
+
+  async getOpenURL(): Promise<string | undefined> {
+    const {
+      open,
+      httpsEnabled,
+      host = "localhost",
+      port = DEFAULT_PORT,
+    } = (await this.getPlugins()).HTTPPlugin;
+    if (!open) return;
+    if (typeof open === "string") return open;
+    const protocol = httpsEnabled ? "https" : "http";
+    return `${protocol}://${host}:${port}/`;
   }
 }
