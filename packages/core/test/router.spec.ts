@@ -142,3 +142,10 @@ test("Router: returns null if no routes match", (t) => {
   router.update(new Map([["a", ["example.com/*"]]]));
   t.is(router.match(new URL("https://miniflare.dev/")), null);
 });
+test("Router: matches everything route", (t) => {
+  const router = new Router();
+  router.update(new Map([["a", ["*/*"]]]));
+  t.is(router.match(new URL("http://example.com/")), "a");
+  t.is(router.match(new URL("https://example.com/")), "a");
+  t.is(router.match(new URL("https://miniflare.dev/")), "a");
+});
