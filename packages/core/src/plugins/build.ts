@@ -111,8 +111,17 @@ export function _populateBuildConfig(
   const env = configEnv ? ` --env ${configEnv}` : "";
 
   if (config.type === "webpack") {
+    let packageDir = "";
+    if (config.site) {
+      // If `site` is configured, built artifacts are isolated from static-site
+      // application code, see:
+      // - https://github.com/cloudflare/wrangler/blob/a3bc640f13c8a4d10f3211b577037f7c32aff7ae/src/settings/toml/target.rs#L38-L48
+      // - https://github.com/cloudflare/wrangler/blob/a3bc640f13c8a4d10f3211b577037f7c32aff7ae/src/settings/toml/site.rs#L30-L40
+      packageDir = config.site["entry-point"] ?? "workers-site";
+    }
+
     config.build.command = `wrangler build${env}`;
-    config.build.upload.main = path.join("worker", "script.js");
+    config.build.upload.main = path.join(packageDir, "worker", "script.js");
   } else if (config.type === "rust") {
     // This script will be included in the root index.js bundle, but rust.mjs
     // will be in the plugins subdirectory

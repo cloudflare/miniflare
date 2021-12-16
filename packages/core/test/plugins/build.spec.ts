@@ -168,8 +168,12 @@ test("BuildPlugin: beforeSetup: throws with exit code if build fails", async (t)
 });
 
 const fixturesPath = path.join(__dirname, "..", "..", "..", "test", "fixtures");
-const webpackPath = path.join(fixturesPath, "wrangler", "webpack");
-const rustPath = path.join(fixturesPath, "wrangler", "rust");
+const wranglerPath = path.join(fixturesPath, "wrangler");
+
+const webpackPath = path.join(wranglerPath, "webpack");
+const webpackSitePath = path.join(wranglerPath, "webpack-site");
+const webpackSiteCustomPath = path.join(wranglerPath, "webpack-site-custom");
+const rustPath = path.join(wranglerPath, "rust");
 
 // These tests require wrangler and rust to be installed, so skip them if not installed
 const wranglerInstalled = which.sync("wrangler", { nothrow: true });
@@ -194,6 +198,36 @@ webpackTest(
 
     const res = await mf.dispatchFetch("http://localhost:8787/");
     t.is(await res.text(), "webpack:http://localhost:8787/");
+  }
+);
+webpackTest(
+  '_populateBuildConfig: builds type "webpack" projects with Workers Site',
+  async (t) => {
+    const workerPath = path.join(webpackSitePath, "workers-site", "worker");
+    await rimrafPromise(workerPath);
+    const mf = useMiniflare(
+      { BuildPlugin },
+      { wranglerConfigPath: path.join(webpackSitePath, "wrangler.toml") }
+    );
+    await mf.getPlugins(); // Resolves once worker has been built
+    t.true(existsSync(path.join(workerPath, "script.js")));
+    const res = await mf.dispatchFetch("http://localhost:8787/");
+    t.is(await res.text(), "webpack-site:http://localhost:8787/");
+  }
+);
+webpackTest(
+  '_populateBuildConfig: builds type "webpack" projects with Workers Site using custom entry point',
+  async (t) => {
+    const workerPath = path.join(webpackSiteCustomPath, "entry", "worker");
+    await rimrafPromise(workerPath);
+    const mf = useMiniflare(
+      { BuildPlugin },
+      { wranglerConfigPath: path.join(webpackSiteCustomPath, "wrangler.toml") }
+    );
+    await mf.getPlugins(); // Resolves once worker has been built
+    t.true(existsSync(path.join(workerPath, "script.js")));
+    const res = await mf.dispatchFetch("http://localhost:8787/");
+    t.is(await res.text(), "webpack-site-custom:http://localhost:8787/");
   }
 );
 

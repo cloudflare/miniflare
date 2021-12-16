@@ -1,0 +1,6 @@
+name = "webpack-site-worker"
+type = "webpack"
+compatibility_date = "2021-12-16"
+
+[site]
+bucket = "./public"
