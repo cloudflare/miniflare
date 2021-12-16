@@ -1,7 +1,15 @@
 import assert from "assert";
 import { URL } from "url";
 import { deserialize } from "v8";
-import { Request, Response, fetch } from "@miniflare/core";
+import { CachePlugin } from "@miniflare/cache";
+import {
+  BindingsPlugin,
+  CorePlugin,
+  MiniflareCore,
+  Request,
+  Response,
+  fetch,
+} from "@miniflare/core";
 import {
   DurableObject,
   DurableObjectError,
@@ -12,12 +20,14 @@ import {
   DurableObjectStub,
   DurableObjectsPlugin,
 } from "@miniflare/durable-objects";
+import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
   Compatibility,
   LogLevel,
   NoOpLog,
   PluginContext,
   StorageFactory,
+  getRequestContext,
 } from "@miniflare/shared";
 import {
   MemoryStorageFactory,
@@ -266,6 +276,59 @@ test("DurableObjectStub: fetch: passes through web socket requests", async (t) =
   webSocket.accept();
   webSocket.send("test message");
   t.is(await dataPromise, "test message");
+});
+test("DurableObjectStub: fetch: creates new request context", async (t) => {
+  const storageFactory = new MemoryStorageFactory();
+  const scriptRunner = new VMScriptRunner();
+  const mf = new MiniflareCore(
+    { CorePlugin, BindingsPlugin, CachePlugin, DurableObjectsPlugin },
+    { log, storageFactory, scriptRunner },
+    {
+      bindings: {
+        assertSubrequests(expected: number) {
+          t.is(getRequestContext()?.subrequests, expected);
+        },
+      },
+      durableObjects: { TEST_OBJECT: "TestObject" },
+      modules: true,
+      script: `
+export default {
+  async fetch(request, env, ctx) {
+    env.assertSubrequests(0);
+    await caches.default.match("http://localhost/");
+    env.assertSubrequests(1);
+    
+    const stub = env.TEST_OBJECT.get(env.TEST_OBJECT.newUniqueId());
+    return await stub.fetch(request);
+  }
+}
+
+export class TestObject {
+  constructor(state, env) {
+    this.env = env;
+  }
+
+  async fetch(request) {
+    this.env.assertSubrequests(0);
+    await caches.default.match("http://localhost/");
+    this.env.assertSubrequests(1);
+    
+    const n = parseInt(new URL(request.url).searchParams.get("n"));
+    await Promise.all(
+      Array.from(Array(n)).map(() => caches.default.match("http://localhost/"))
+    );
+    return new Response("body");
+  }
+}
+`,
+    }
+  );
+  await t.throwsAsync(mf.dispatchFetch("http://localhost/?n=50"), {
+    instanceOf: Error,
+    message: /^Too many subrequests/,
+  });
+  const res = await mf.dispatchFetch("http://localhost/?n=1");
+  t.is(await res.text(), "body");
 });
 test("DurableObjectStub: fetch: throws if handler doesn't return Response", async (t) => {
   const factory = new MemoryStorageFactory();

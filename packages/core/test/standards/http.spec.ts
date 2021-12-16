@@ -1,4 +1,5 @@
 import assert from "assert";
+import http from "http";
 import { text } from "stream/consumers";
 import { ReadableStream, TransformStream, WritableStream } from "stream/web";
 import { URL } from "url";
@@ -7,6 +8,7 @@ import {
   IncomingRequestCfProperties,
   Request,
   Response,
+  _getURLList,
   _isByteStream,
   createCompatFetch,
   fetch,
@@ -16,7 +18,13 @@ import {
   withStringFormDataFiles,
   withWaitUntil,
 } from "@miniflare/core";
-import { Compatibility, InputGate, LogLevel, NoOpLog } from "@miniflare/shared";
+import {
+  Compatibility,
+  InputGate,
+  LogLevel,
+  NoOpLog,
+  RequestContext,
+} from "@miniflare/shared";
 import {
   TestLog,
   triggerPromise,
@@ -35,6 +43,7 @@ import {
   File,
   FormData,
   Headers,
+  fetch as baseFetch,
 } from "undici";
 
 // @ts-expect-error filling out all properties is annoying
@@ -804,11 +813,50 @@ test("withWaitUntil: adds wait until to (Base)Response", async (t) => {
   t.is(await res.waitUntil(), baseWaitUntil);
 });
 
+function redirectingServerListener(
+  req: http.IncomingMessage,
+  res: http.ServerResponse
+) {
+  const { searchParams } = new URL(req.url ?? "", "http://localhost");
+  const n = parseInt(searchParams.get("n") ?? "0");
+  if (n > 0) {
+    res.writeHead(302, { Location: `/?n=${n - 1}` });
+  } else {
+    res.writeHead(200);
+  }
+  res.end();
+}
+test("_getURLList: extracts URL list from Response", async (t) => {
+  const upstream = (await useServer(t, redirectingServerListener)).http;
+  const url = new URL("/?n=3", upstream);
+  const res = await baseFetch(url);
+  const urlList = _getURLList(res);
+  t.deepEqual(urlList?.map(String), [
+    `${upstream.origin}/?n=3`,
+    `${upstream.origin}/?n=2`,
+    `${upstream.origin}/?n=1`,
+    `${upstream.origin}/?n=0`,
+  ]);
+});
+
 test("fetch: can fetch from existing Request", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   const req = new Request(upstream);
   const res = await fetch(req);
   t.is(await res.text(), "upstream");
+});
+test("fetch: increments subrequest count", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  const ctx = new RequestContext();
+  await ctx.runWith(() => fetch(upstream));
+  t.is(ctx.subrequests, 1);
+});
+test("fetch: increments subrequest count for each redirect", async (t) => {
+  const upstream = (await useServer(t, redirectingServerListener)).http;
+  const url = new URL("/?n=3", upstream);
+  const ctx = new RequestContext();
+  await ctx.runWith(() => fetch(url));
+  t.is(ctx.subrequests, 4);
 });
 test("fetch: waits for output gate to open before fetching", async (t) => {
   let fetched = false;

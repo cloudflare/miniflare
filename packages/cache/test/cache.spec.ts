@@ -2,7 +2,7 @@ import assert from "assert";
 import { URL } from "url";
 import { Cache, CacheError, CachedMeta } from "@miniflare/cache";
 import { Request, RequestInitCfProperties, Response } from "@miniflare/core";
-import { Storage } from "@miniflare/shared";
+import { RequestContext, Storage } from "@miniflare/shared";
 import {
   getObjectProperties,
   utf8Decode,
@@ -191,6 +191,12 @@ test("Cache: put respects cf cacheTtlByStatus", async (t) => {
   t.is(await cache.match("http://localhost/302"), undefined);
 });
 
+test("Cache: put increments subrequest count", async (t) => {
+  const { cache } = t.context;
+  const ctx = new RequestContext();
+  await ctx.runWith(() => cache.put("http://localhost:8787/", testResponse()));
+  t.is(ctx.subrequests, 1);
+});
 test("Cache: put waits for output gate to open before storing", (t) => {
   const { cache } = t.context;
   return waitsForOutputGate(
@@ -243,6 +249,12 @@ test("Cache: only matches non-GET requests when ignoring method", async (t) => {
   t.not(await cache.match(req, { ignoreMethod: true }), undefined);
 });
 
+test("Cache: match increments subrequest count", async (t) => {
+  const { cache } = t.context;
+  const ctx = new RequestContext();
+  await ctx.runWith(() => cache.match("http://localhost:8787/"));
+  t.is(ctx.subrequests, 1);
+});
 test("Cache: match MISS waits for input gate to open before returning", async (t) => {
   const { cache } = t.context;
   await waitsForInputGate(t, () => cache.match("http://localhost:8787/"));
@@ -297,6 +309,12 @@ test("Cache: only deletes non-GET requests when ignoring method", async (t) => {
   t.true(await cache.delete(req, { ignoreMethod: true }));
 });
 
+test("Cache: delete increments subrequest count", async (t) => {
+  const { cache } = t.context;
+  const ctx = new RequestContext();
+  await ctx.runWith(() => cache.delete("http://localhost:8787/"));
+  t.is(ctx.subrequests, 1);
+});
 test("Cache: delete waits for output gate to open before deleting", async (t) => {
   const { cache } = t.context;
   await cache.put("http://localhost:8787/", testResponse());

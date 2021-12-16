@@ -1,4 +1,5 @@
 export * from "./compat";
+export * from "./context";
 export * from "./data";
 export * from "./error";
 export * from "./event";

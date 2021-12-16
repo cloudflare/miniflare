@@ -41,6 +41,8 @@
     "undici": "^4.11.1"
   },
   "devDependencies": {
+    "@miniflare/cache": "2.0.0-rc.3",
+    "@miniflare/runner-vm": "2.0.0-rc.3",
     "@miniflare/shared-test": "2.0.0-rc.3"
   }
 }

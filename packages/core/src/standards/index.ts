@@ -13,6 +13,7 @@ export {
   withImmutableHeaders,
   Response,
   withWaitUntil,
+  _getURLList,
   fetch,
   _urlFromRequestInput,
   _buildUnknownProtocolWarning,

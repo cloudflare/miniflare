@@ -14,6 +14,7 @@ import {
   PluginOptions,
   PluginOptionsUnion,
   PluginSignatures,
+  RequestContext,
   ScriptBlueprint,
   ScriptRunner,
   ScriptRunnerResult,
@@ -918,9 +919,12 @@ export class MiniflareCore<
     }
 
     const globalScope = this.#globalScope;
-    return globalScope![kDispatchFetch]<WaitUntil>(
-      withImmutableHeaders(request),
-      !!upstreamURL // only proxy if upstream URL set
+    // Each fetch gets its own context (e.g. 50 subrequests)
+    return new RequestContext().runWith(() =>
+      globalScope![kDispatchFetch]<WaitUntil>(
+        withImmutableHeaders(request),
+        !!upstreamURL // only proxy if upstream URL set
+      )
     );
   }
 
@@ -930,7 +934,10 @@ export class MiniflareCore<
   ): Promise<WaitUntil> {
     await this.#initPromise;
     const globalScope = this.#globalScope;
-    return globalScope![kDispatchScheduled]<WaitUntil>(scheduledTime, cron);
+    // Each fetch gets its own context (e.g. 50 subrequests)
+    return new RequestContext().runWith(() =>
+      globalScope![kDispatchScheduled]<WaitUntil>(scheduledTime, cron)
+    );
   }
 
   async dispose(): Promise<void> {

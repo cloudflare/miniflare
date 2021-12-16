@@ -17,6 +17,7 @@ import {
   InputGate,
   Log,
   OutputGate,
+  RequestContext,
 } from "@miniflare/shared";
 import { Response as BaseResponse } from "undici";
 import { DurableObjectError } from "./error";
@@ -134,10 +135,11 @@ export class DurableObjectStub {
     }
 
     // noinspection SuspiciousTypeOfGuard
-    const request =
+    const req =
       input instanceof Request && !init ? input : new Request(input, init);
-    const res = await state[kFetch](
-      withInputGating(withImmutableHeaders(request))
+    // Each Durable Object fetch gets its own context (e.g. 50 subrequests)
+    const res = await new RequestContext().runWith(() =>
+      state[kFetch](withInputGating(withImmutableHeaders(req)))
     );
 
     // noinspection SuspiciousTypeOfGuard

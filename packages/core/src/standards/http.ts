@@ -13,6 +13,7 @@ import { URL } from "url";
 import {
   Compatibility,
   Log,
+  getRequestContext,
   nonCircularClone,
   waitForOpenInputGate,
   waitForOpenOutputGate,
@@ -591,13 +592,30 @@ export function withWaitUntil<WaitUntil extends any[]>(
   return resWaitUntil;
 }
 
+/** @internal */
+export function _getURLList(res: BaseResponse): URL[] | undefined {
+  // Extract the internal urlList property on Responses. It doesn't matter
+  // too much if the internal representation changes in the future: this code
+  // shouldn't throw. Currently we use this to count the number of redirects,
+  // and increment the subrequest count accordingly.
+  for (const symbol of Object.getOwnPropertySymbols(res)) {
+    if (symbol.description === "state") {
+      // @ts-expect-error symbol properties are not included type definitions
+      return res[symbol].urlList;
+    }
+  }
+}
+
 export async function fetch(
   input: RequestInfo,
   init?: RequestInit
 ): Promise<Response> {
-  // TODO (someday): support cache using fetch:
+  // TODO (someday): support cache using fetch (could add to request context?):
   //  https://developers.cloudflare.com/workers/learning/how-the-cache-works#fetch
   //  https://developers.cloudflare.com/workers/examples/cache-using-fetch
+
+  const ctx = getRequestContext();
+  ctx?.incrementSubrequests();
 
   await waitForOpenOutputGate();
 
@@ -615,6 +633,16 @@ export async function fetch(
   req.headers.delete("cf-connecting-ip");
 
   const baseRes = await baseFetch(req);
+
+  // Increment the subrequest count by the number of redirects
+  // TODO (someday): technically we should check the subrequest count before
+  //  each redirect, so requests don't actually get sent to the server if the
+  //  subrequest count exceeds the limit
+  if (baseRes.redirected && ctx) {
+    const urlList = _getURLList(baseRes);
+    // Last url is final destination, so subtract 1 for redirect count
+    if (urlList) ctx.incrementSubrequests(urlList.length - 1);
+  }
 
   // Convert the response to our hybrid Response
   const res = new Response(baseRes.body, baseRes);
