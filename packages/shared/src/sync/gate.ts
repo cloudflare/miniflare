@@ -103,7 +103,7 @@ export class InputGate {
       // Wait until JavaScript has finished running (next task) before resolving
       // waiters. Note we're not awaiting this as that wouldn't give the caller
       // a chance to make other locking calls which we want to prioritise.
-      setImmediate(this.#unlock);
+      setImmediatePromise(this.#unlock);
     }
   }
 
