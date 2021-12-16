@@ -10,7 +10,7 @@ import {
   triggerPromise,
   waitsForInputGate,
 } from "@miniflare/shared-test";
-import test, { ThrowsExpectation } from "ava";
+import test from "ava";
 
 test("inputGatedSetTimeout: calls callback with no input gate in context", async (t) => {
   const [trigger, promise] = triggerPromise<[number, string]>();
@@ -109,15 +109,17 @@ test("AbortSignal.timeout: triggers signal after timeout", async (t) => {
   t.true(aborted);
 });
 test("AbortSignal.timeout: requires numeric timeout", (t) => {
-  const expectations: ThrowsExpectation = {
+  // @ts-expect-error `timeout` isn't included in Node.js yet
+  t.throws(() => AbortSignal.timeout(), {
     instanceOf: TypeError,
     message:
       "Failed to execute 'timeout' on 'AbortSignal': parameter 1 is not of type 'integer'.",
-  };
-  // @ts-expect-error `timeout` isn't included in Node.js yet
-  t.throws(() => AbortSignal.timeout(), expectations);
-  // @ts-expect-error `timeout` isn't included in Node.js yet
-  t.throws(() => AbortSignal.timeout("42"), expectations);
+  });
+  // @ts-expect-error this is valid in the real Workers runtime
+  AbortSignal.timeout(undefined);
+  // @ts-expect-error this is valid in the real Workers runtime
+  // noinspection TypeScriptValidateJSTypes
+  AbortSignal.timeout("1");
 });
 test("AbortSignal.timeout: included on constructor obtained via AbortController#signal prototype", (t) => {
   const controller = new AbortController();
@@ -153,13 +155,14 @@ test("scheduler.wait: does nothing if aborted after resolve", async (t) => {
   controller.abort();
   t.pass();
 });
-test("scheduler.wait: requires numeric timeout", (t) => {
-  const expectations: ThrowsExpectation = {
+test("scheduler.wait: requires numeric timeout", async (t) => {
+  t.throws(() => scheduler.wait(), {
     instanceOf: TypeError,
     message:
       "Failed to execute 'wait' on 'Scheduler': parameter 1 is not of type 'integer'.",
-  };
-  t.throws(() => scheduler.wait(), expectations);
-  // @ts-expect-error `timeout` isn't included in Node.js yet
-  t.throws(() => scheduler.wait("42"), expectations);
+  });
+  await scheduler.wait(undefined);
+  // @ts-expect-error this is valid in the real Workers runtime
+  // noinspection TypeScriptValidateJSTypes
+  await scheduler.wait("1");
 });
