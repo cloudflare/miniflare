@@ -2,6 +2,7 @@ import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
 import { setTimeout } from "timers/promises";
+import { CachePlugin } from "@miniflare/cache";
 import {
   BindingsPlugin,
   BuildPlugin,
@@ -25,6 +26,7 @@ import {
   Options,
   Storage,
   TypedEventListener,
+  getRequestContext,
 } from "@miniflare/shared";
 import {
   LogEntry,
@@ -44,6 +46,7 @@ import {
 import test, { Macro } from "ava";
 import { Request as BaseRequest, File, FormData } from "undici";
 
+const log = new NoOpLog();
 // Only use this shared storage factory when the test doesn't care about storage
 const storageFactory = new MemoryStorageFactory();
 const scriptRunner = new VMScriptRunner();
@@ -1085,6 +1088,37 @@ test("MiniflareCore: dispatchFetch: Request parse files in FormData as File obje
   t.is(await file.text(), "test");
   t.is(file.name, "test.txt");
 });
+test("MiniflareCore: dispatchFetch: creates new request context", async (t) => {
+  const mf = useMiniflareWithHandler(
+    { BindingsPlugin, CachePlugin },
+    {
+      globals: {
+        assertSubrequests(expected: number) {
+          t.is(getRequestContext()?.subrequests, expected);
+        },
+      },
+    },
+    async (globals, req) => {
+      globals.assertSubrequests(0);
+      await globals.caches.default.match("http://localhost/");
+      globals.assertSubrequests(1);
+
+      const n = parseInt(new globals.URL(req.url).searchParams.get("n"));
+      await Promise.all(
+        Array.from(Array(n)).map(() =>
+          globals.caches.default.match("http://localhost/")
+        )
+      );
+      return new globals.Response("body");
+    }
+  );
+  await t.throwsAsync(mf.dispatchFetch("http://localhost/?n=50"), {
+    instanceOf: Error,
+    message: /^Too many subrequests/,
+  });
+  const res = await mf.dispatchFetch("http://localhost/?n=1");
+  t.is(await res.text(), "body");
+});
 
 test("MiniflareCore: dispatchScheduled: dispatches scheduled event", async (t) => {
   const mf = useMiniflare(
@@ -1100,6 +1134,40 @@ test("MiniflareCore: dispatchScheduled: dispatches scheduled event", async (t) =
   );
   const res = await mf.dispatchScheduled(1000, "30 * * * *");
   t.deepEqual(res, [1000, "30 * * * *"]);
+});
+test("MiniflareCore: dispatchScheduled: creates new request context", async (t) => {
+  const mf = new MiniflareCore(
+    { CorePlugin, BindingsPlugin, CachePlugin },
+    { log, storageFactory, scriptRunner },
+    {
+      globals: {
+        assertSubrequests(expected: number) {
+          t.is(getRequestContext()?.subrequests, expected);
+        },
+      },
+      modules: true,
+      script: `export default {
+        async scheduled(controller) {
+          assertSubrequests(0);
+          await caches.default.match("http://localhost/");
+          assertSubrequests(1);
+          
+          await Promise.all(
+            Array.from(Array(controller.scheduledTime)).map(() =>
+              caches.default.match("http://localhost/")
+            )
+          );
+          return true;
+        }
+      }`,
+    }
+  );
+  await t.throwsAsync(mf.dispatchScheduled(50), {
+    instanceOf: Error,
+    message: /^Too many subrequests/,
+  });
+  const waitUntil = await mf.dispatchScheduled(1);
+  t.true(waitUntil[0]);
 });
 
 test("MiniflareCore: dispose: runs dispose for all plugins", async (t) => {

@@ -11,6 +11,7 @@ import {
   Clock,
   Storage,
   defaultClock,
+  getRequestContext,
   millisToSeconds,
   waitForOpenInputGate,
   waitForOpenOutputGate,
@@ -151,6 +152,7 @@ export class Cache implements CacheInterface {
     req: RequestInfo,
     res: BaseResponse | Response
   ): Promise<undefined> {
+    getRequestContext()?.incrementSubrequests();
     req = normaliseRequest(req);
 
     if (res instanceof Response && res.webSocket) {
@@ -192,6 +194,7 @@ export class Cache implements CacheInterface {
     req: RequestInfo,
     options?: CacheMatchOptions
   ): Promise<Response | undefined> {
+    getRequestContext()?.incrementSubrequests();
     req = normaliseRequest(req);
     // Cloudflare only caches GET requests
     if (req.method !== "GET" && !options?.ignoreMethod) return;
@@ -232,6 +235,7 @@ export class Cache implements CacheInterface {
     req: RequestInfo,
     options?: CacheMatchOptions
   ): Promise<boolean> {
+    getRequestContext()?.incrementSubrequests();
     req = normaliseRequest(req);
     // Cloudflare only caches GET requests
     if (req.method !== "GET" && !options?.ignoreMethod) return false;
