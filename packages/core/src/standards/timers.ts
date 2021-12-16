@@ -40,8 +40,8 @@ export const AbortSignal =
 // Polyfill `AbortSignal.timeout` as described here:
 // https://community.cloudflare.com/t/2021-12-10-workers-runtime-release-notes/334982
 // @ts-expect-error `timeout` isn't included in Node.js yet
-AbortSignal.timeout ??= (ms?: number) => {
-  if (typeof ms !== "number") {
+AbortSignal.timeout ??= function (ms?: number) {
+  if (arguments.length === 0) {
     throw new TypeError(
       "Failed to execute 'timeout' on 'AbortSignal': parameter 1 is not of type 'integer'."
     );
@@ -57,7 +57,7 @@ export interface SchedulerWaitOptions {
 
 export class Scheduler {
   wait(ms?: number, options?: SchedulerWaitOptions): Promise<void> {
-    if (typeof ms !== "number") {
+    if (arguments.length === 0) {
       throw new TypeError(
         "Failed to execute 'wait' on 'Scheduler': parameter 1 is not of type 'integer'."
       );
