@@ -82,8 +82,12 @@ async function main() {
     ? LogLevel.DEBUG
     : LogLevel.INFO;
   const mfOptions = options as MiniflareOptions;
+
   mfOptions.log = new Log(logLevel);
   mfOptions.sourceMap = true;
+  // Catch and log unhandled rejections as opposed to crashing
+  mfOptions.logUnhandledRejections = true;
+
   const mf = new Miniflare(mfOptions);
   try {
     // Start Miniflare development server

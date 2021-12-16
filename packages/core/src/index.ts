@@ -624,7 +624,8 @@ export class MiniflareCore<
       const setupWatch = this.#setupWatch!.get(name);
       if (setupWatch) addAll(newWatchPaths, setupWatch);
     }
-    const { modules, processedModuleRules } = this.#instances!.CorePlugin;
+    const { modules, processedModuleRules, logUnhandledRejections } =
+      this.#instances!.CorePlugin;
 
     // Clean up process-wide promise rejection event listeners
     this.#globalScope?.[kDispose]();
@@ -633,7 +634,8 @@ export class MiniflareCore<
       this.#ctx.log,
       globals,
       bindings,
-      modules
+      modules,
+      logUnhandledRejections
     );
     this.#globalScope = globalScope;
     this.#bindings = bindings;

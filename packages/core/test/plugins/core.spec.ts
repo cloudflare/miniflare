@@ -187,6 +187,7 @@ test("CorePlugin: parses options from wrangler config", (t) => {
       "http://localhost:8787/*",
       "miniflare.mf:8787/*",
     ],
+    logUnhandledRejections: undefined,
   });
   // Check build upload dir defaults to dist
   options = parsePluginWranglerConfig(

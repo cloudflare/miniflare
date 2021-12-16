@@ -6,6 +6,7 @@ import {
   ThrowingEventTarget,
   TypedEventListener,
   ValueOf,
+  prefixError,
 } from "@miniflare/shared";
 import { Response as BaseResponse, fetch as baseFetch } from "undici";
 import { DOMException } from "./domexception";
@@ -178,18 +179,33 @@ export type WorkerGlobalScopeEventMap = {
 
 export class WorkerGlobalScope extends ThrowingEventTarget<WorkerGlobalScopeEventMap> {}
 
+// true will be added to this set if #logUnhandledRejections is true so we
+// don't remove the listener on removeEventListener, and know to dispose it.
+type PromiseListenerSetMember =
+  | TypedEventListener<PromiseRejectionEvent>
+  | boolean;
+
+type PromiseListener =
+  | {
+      name: "unhandledRejection";
+      set: Set<PromiseListenerSetMember>;
+      listener: (reason: any, promise: Promise<any>) => void;
+    }
+  | {
+      name: "rejectionHandled";
+      set: Set<PromiseListenerSetMember>;
+      listener: (promise: Promise<any>) => void;
+    };
+
 export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
   readonly #log: Log;
   readonly #bindings: Context;
   readonly #modules?: boolean;
+  readonly #logUnhandledRejections?: boolean;
   #calledAddFetchEventListener = false;
 
-  readonly #rejectionHandledListeners = new Set<
-    TypedEventListener<PromiseRejectionEvent>
-  >();
-  readonly #unhandledRejectionListeners = new Set<
-    TypedEventListener<PromiseRejectionEvent>
-  >();
+  readonly #unhandledRejection: PromiseListener;
+  readonly #rejectionHandled: PromiseListener;
 
   // Global self-references
   readonly global = this;
@@ -199,12 +215,29 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     log: Log,
     globals: Context,
     bindings: Context,
-    modules?: boolean
+    modules?: boolean,
+    logUnhandledRejections?: boolean
   ) {
     super();
     this.#log = log;
     this.#bindings = bindings;
     this.#modules = modules;
+    this.#logUnhandledRejections = logUnhandledRejections;
+
+    this.#unhandledRejection = {
+      name: "unhandledRejection",
+      set: new Set(),
+      listener: this.#unhandledRejectionListener,
+    };
+    this.#rejectionHandled = {
+      name: "rejectionHandled",
+      set: new Set(),
+      listener: this.#rejectionHandledListener,
+    };
+    // If we're logging unhandled rejections, register the process-wide listener
+    if (this.#logUnhandledRejections) {
+      this.#maybeAddPromiseListener(this.#unhandledRejection, true);
+    }
 
     // Only including bindings in global scope if not using modules
     Object.assign(this, globals);
@@ -248,24 +281,10 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     // Register process wide unhandledRejection/rejectionHandled listeners if
     // not already done so
     if (type === "unhandledrejection" && listener) {
-      if (this.#unhandledRejectionListeners.size === 0) {
-        this.#log.verbose("Adding process unhandledRejection listener...");
-        process.prependListener(
-          "unhandledRejection",
-          this.#unhandledRejectionListener
-        );
-      }
-      this.#unhandledRejectionListeners.add(listener as any);
+      this.#maybeAddPromiseListener(this.#unhandledRejection, listener);
     }
     if (type === "rejectionhandled" && listener) {
-      if (this.#rejectionHandledListeners.size === 0) {
-        this.#log.verbose("Adding process rejectionHandled listener...");
-        process.prependListener(
-          "rejectionHandled",
-          this.#rejectionHandledListener
-        );
-      }
-      this.#rejectionHandledListeners.add(listener as any);
+      this.#maybeAddPromiseListener(this.#rejectionHandled, listener);
     }
 
     super.addEventListener(type, listener, options);
@@ -286,26 +305,10 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     // Unregister process wide rejectionHandled/unhandledRejection listeners if
     // no longer needed and not already done so
     if (type === "unhandledrejection" && listener) {
-      const registered = this.#unhandledRejectionListeners.size > 0;
-      this.#unhandledRejectionListeners.delete(listener as any);
-      if (registered && this.#unhandledRejectionListeners.size === 0) {
-        this.#log.verbose("Removing process unhandledRejection listener...");
-        process.removeListener(
-          "unhandledRejection",
-          this.#unhandledRejectionListener
-        );
-      }
+      this.#maybeRemovePromiseListener(this.#unhandledRejection, listener);
     }
     if (type === "rejectionhandled" && listener) {
-      const registered = this.#rejectionHandledListeners.size > 0;
-      this.#rejectionHandledListeners.delete(listener as any);
-      if (registered && this.#rejectionHandledListeners.size === 0) {
-        this.#log.verbose("Removing process rejectionHandled listener...");
-        process.removeListener(
-          "rejectionHandled",
-          this.#rejectionHandledListener
-        );
-      }
+      this.#maybeRemovePromiseListener(this.#rejectionHandled, listener);
     }
 
     super.removeEventListener(type, listener, options);
@@ -424,21 +427,49 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
   }
 
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+  #maybeAddPromiseListener(listener: PromiseListener, member: any): void {
+    if (listener.set.size === 0) {
+      this.#log.verbose(`Adding process ${listener.name} listener...`);
+      process.prependListener(listener.name as any, listener.listener as any);
+    }
+    listener.set.add(member);
+  }
+  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+  #maybeRemovePromiseListener(listener: PromiseListener, member: any): void {
+    const registered = listener.set.size > 0;
+    listener.set.delete(member);
+    if (registered && listener.set.size === 0) {
+      this.#log.verbose(`Removing process ${listener.name} listener...`);
+      process.removeListener(listener.name, listener.listener);
+    }
+  }
+  #resetPromiseListener(listener: PromiseListener): void {
+    if (listener.set.size > 0) {
+      this.#log.verbose(`Removing process ${listener.name} listener...`);
+      process.removeListener(listener.name, listener.listener);
+    }
+    listener.set.clear();
+  }
+
+  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   #unhandledRejectionListener = (reason: any, promise: Promise<any>): void => {
     const event = new PromiseRejectionEvent("unhandledrejection", {
       reason,
       promise,
     });
     const notCancelled = super.dispatchEvent(event);
-    // If the event wasn't preventDefault()ed, remove the listener and cause
-    // an unhandled promise rejection again. This should terminate the program.
+    // If the event wasn't preventDefault()ed,
     if (notCancelled) {
-      process.removeListener(
-        "unhandledRejection",
-        this.#unhandledRejectionListener
-      );
-      // noinspection JSIgnoredPromiseFromCall
-      Promise.reject(reason);
+      if (this.#logUnhandledRejections) {
+        // log if we're logging unhandled rejections
+        this.#log.error(prefixError("Unhandled Promise Rejection", reason));
+      } else {
+        // ...otherwise, remove the listener and cause an unhandled promise
+        // rejection again. This should terminate the program.
+        this.#resetPromiseListener(this.#unhandledRejection);
+        // noinspection JSIgnoredPromiseFromCall
+        Promise.reject(reason);
+      }
     }
   };
 
@@ -449,22 +480,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
   };
 
   [kDispose](): void {
-    if (this.#unhandledRejectionListeners.size > 0) {
-      this.#log.verbose("Removing process unhandledRejection listener...");
-      process.removeListener(
-        "unhandledRejection",
-        this.#unhandledRejectionListener
-      );
-    }
-    this.#unhandledRejectionListeners.clear();
-
-    if (this.#rejectionHandledListeners.size > 0) {
-      this.#log.verbose("Removing process rejectionHandled listener...");
-      process.removeListener(
-        "rejectionHandled",
-        this.#rejectionHandledListener
-      );
-    }
-    this.#rejectionHandledListeners.clear();
+    this.#resetPromiseListener(this.#unhandledRejection);
+    this.#resetPromiseListener(this.#rejectionHandled);
   }
 }

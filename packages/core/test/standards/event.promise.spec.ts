@@ -1,3 +1,4 @@
+import { setTimeout } from "timers/promises";
 import {
   PromiseRejectionEvent,
   ServiceWorkerGlobalScope,
@@ -174,5 +175,50 @@ test.serial(
 
     const event = await eventPromise;
     t.is(event.promise, promise);
+  }
+);
+
+// Test logUnhandledRejections option
+test.serial(
+  "ServiceWorkerGlobalScope: logs unhandled rejections",
+  async (t) => {
+    const log = new TestLog();
+    const [logTrigger, logPromise] = triggerPromise<Error>();
+    log.error = logTrigger;
+    new ServiceWorkerGlobalScope(log, {}, {}, false, true);
+
+    const error = new Error("Oops, did I do that?");
+    // noinspection ES6MissingAwait
+    Promise.reject(error);
+
+    const event = await logPromise;
+    t.regex(
+      event.stack!,
+      /^Unhandled Promise Rejection: Error: Oops, did I do that\?/
+    );
+  }
+);
+test.serial(
+  "ServiceWorkerGlobalScope: doesn't log unhandled rejections if preventDefault() called",
+  async (t) => {
+    const log = new TestLog();
+    const globalScope = new ServiceWorkerGlobalScope(log, {}, {}, false, true);
+
+    const [eventTrigger, eventPromise] =
+      triggerPromise<PromiseRejectionEvent>();
+    globalScope.addEventListener("unhandledrejection", (e) => {
+      e.preventDefault();
+      eventTrigger(e);
+    });
+
+    const error = new Error("Oops, did I do that?");
+    // noinspection ES6MissingAwait
+    const promise = Promise.reject(error);
+
+    const event = await eventPromise;
+    t.is(event.promise, promise);
+
+    await setTimeout();
+    t.is(log.logsAtLevel(LogLevel.ERROR).length, 0);
   }
 );
