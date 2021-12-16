@@ -14,7 +14,7 @@ import {
   Response,
   logResponse,
 } from "@miniflare/core";
-import { randomHex } from "@miniflare/shared";
+import { prefixError, randomHex } from "@miniflare/shared";
 import { coupleWebSocket } from "@miniflare/web-sockets";
 import { BodyInit, Headers } from "undici";
 import { getAccessibleHosts } from "./helpers";
@@ -307,15 +307,7 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
         }
 
         // Add method and URL to stack trace
-        const proxiedError = new Proxy(e, {
-          get(target, propertyKey, receiver) {
-            const value = Reflect.get(target, propertyKey, receiver);
-            return propertyKey === "stack"
-              ? `${req.method} ${req.url}: ${value}`
-              : value;
-          },
-        });
-        mf.log.error(proxiedError);
+        mf.log.error(prefixError(`${req.method} ${req.url}`, e));
       }
     }
 

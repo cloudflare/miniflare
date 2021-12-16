@@ -96,6 +96,7 @@ export interface CoreOptions {
   // Replaced in MiniflareCoreOptions with something plugins-specific
   mounts?: Record<string, string | CoreOptions | BindingsOptions>;
   routes?: string[];
+  logUnhandledRejections?: boolean;
 }
 
 function mapMountEntries([name, pathEnv]: [string, string]): [
@@ -290,6 +291,9 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     },
   })
   routes?: string[];
+
+  @Option({ type: OptionType.NONE })
+  logUnhandledRejections?: boolean;
 
   readonly processedModuleRules: ProcessedModuleRule[] = [];
 
