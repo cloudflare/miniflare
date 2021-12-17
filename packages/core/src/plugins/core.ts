@@ -341,6 +341,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
       atob,
       btoa,
+      Math,
 
       crypto,
       CryptoKey: crypto.CryptoKey,
