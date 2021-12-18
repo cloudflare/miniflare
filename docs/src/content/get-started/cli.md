@@ -199,6 +199,16 @@ encrypted, use the `--https-passphrase` flag to set the passphrase:
 $ miniflare worker.js --https-key ./key.pem --https-cert ./cert.pem
 ```
 
+### Opening the Browser
+
+Add the `--open`/`-O` flag to automatically open your default browser to the
+worker, once the HTTP server has started:
+
+```sh
+$ miniflare worker.js --open # Opens http://localhost:8787
+$ miniflare worker.js --open https://example.com # Opens https://example.com
+```
+
 ### Update Checker
 
 The CLI includes an automatic update checker that looks for new versions of
