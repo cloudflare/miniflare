@@ -341,6 +341,13 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
       atob,
       btoa,
+
+      // We shouldn't need to include this, but it seems to be missing when
+      // running scripts for module exports in Miniflare's Jest environment
+      // otherwise. See https://github.com/cloudflare/miniflare/pull/129 and
+      // https://github.com/mrbbot/miniflare-typescript-esbuild-jest/pull/4 for
+      // a reproduction.
+      // TODO (someday): work out what's actually going on here
       Math,
 
       crypto,
