@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export const changelogPath = path.resolve(__dirname, "..", "CHANGELOG.md");
+export const changelogPath = path.resolve(__dirname, "CHANGELOG.md");
 
 const docsChangelogPath = path.resolve(
   __dirname,
