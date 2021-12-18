@@ -17,11 +17,11 @@ Miniflare supports the following Web Standards in its sandbox:
 
 - **Console:** `console.*`
 - **Timers:** `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval`,
-  `queueMicrotask`
+  `queueMicrotask`, `AbortSignal.timeout`, `scheduler.wait`
 - **Base64:** `atob`, `btoa`
 - **Web Crypto**: `crypto.getRandomValues`, `crypto.randomUUID`,
   `crypto.subtle.*` (with support for `MD5` digests and `NODE-ED25519`
-  signatures)
+  signatures), `crypto.DigestStream`
 - **Encoding:** `TextEncoder`, `TextDecoder`
 - **Fetch:** `fetch`, `Headers` (including
   [non-standard `getAll` method](https://developers.cloudflare.com/workers/runtime-apis/headers#differences)),
@@ -32,8 +32,16 @@ Miniflare supports the following Web Standards in its sandbox:
   (including non-standard `readAtLeast` method), `ReadableStreamBYOBRequest`,
   `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`,
   `TransformStream`, `TransformStreamDefaultController`, `WritableStream`,
-  `WritableStreamDefaultController`, `WritableStreamDefaultWriter`
+  `WritableStreamDefaultController`, `WritableStreamDefaultWriter`,
+  `FixedLengthStream`
 - **Events:** `Event`, `EventTarget`, `AbortController`, `AbortSignal`
 - **Event Types:** `fetch`, `scheduled`, `unhandledrejection`,
   `rejectionhandled`
 - **Misc:** `structuredClone`
+
+## Subrequests
+
+Like the real workers runtime, Miniflare limits you to
+[50 subrequests per request](https://developers.cloudflare.com/workers/platform/limits#account-plan-limits).
+Each call to `fetch()`, each URL in a redirect chain, and each call to a Cache
+API method (`put()`/`match()`/`delete()`) counts as a subrequest.

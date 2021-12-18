@@ -11,7 +11,7 @@ goals:
    testing.
 2. ✨ **Lightweight:** Miniflare 1 included
    [122 third-party packages](http://npm.anvaka.com/#/view/2d/miniflare) with a
-   total install size of `88.3MB`. Miniflare 2 reduces this to **24 packages and
+   total install size of `88MB`. Miniflare 2 reduces this to **24 packages and
    `6MB`** by leveraging features included with Node.js 16.
 3. ✅ **Accurate:** Miniflare 2 more accurately replicates the quirks and thrown
    errors of the real Workers runtime, so you'll know before you deploy if
@@ -175,6 +175,15 @@ if you're upgrading from version 1.
   more likely to work with Miniflare now. Closes
   [issue #44](https://github.com/cloudflare/miniflare/issues/44), thanks
   [@TimTinkers](https://github.com/TimTinkers).
+- Don't crash on unhandled promise rejections when using the CLI. Instead, log
+  them. Closes [issue #115](https://github.com/cloudflare/miniflare/issues/115),
+  thanks [@togglydev](https://github.com/togglydev).
+- Limit the number of
+  [subrequests](https://developers.cloudflare.com/workers/platform/limits#subrequests)
+  to 50,
+  [as per the Workers runtime](https://developers.cloudflare.com/workers/platform/limits#account-plan-limits).
+  Closes [issue #117](https://github.com/cloudflare/miniflare/issues/117),
+  thanks [@leader22](https://github.com/leader22) for the suggestion.
 - Incoming request headers are now immutable. Closes
   [issue #36](https://github.com/cloudflare/miniflare/issues/36), thanks
   [@grahamlyons](https://github.com/grahamlyons).
@@ -242,12 +251,18 @@ if you're upgrading from version 1.
 - **Added support for
   [`crypto.randomUUID()`](https://developer.mozilla.org/en-US/docs/Web/API/Crypto/randomUUID)**
 - **Added support for
-  [`structuredClone`](https://developer.mozilla.org/en-US/docs/Web/API/structuredClone)**
+  [`structuredClone`](https://developer.mozilla.org/en-US/docs/Web/API/structuredClone)**.
+  Note the `transfer` option is only supported on Node.js >= 17.
 - **Added support for
   [`queueMicrotask`](https://developer.mozilla.org/en-US/docs/Web/API/queueMicrotask)**
 - **Added support for the `NODE-ED25519` algorithm** to `crypto.subtle.sign()`
-  and `crypto.subtle.verify()` Note the `transfer` option is only supported on
-  Node.js >= 17.
+  and `crypto.subtle.verify()`
+- Added support for `AbortSignal.timeout()`
+- Added support for `crypto.DigestStream`
+- Added support for `scheduler.wait()`
+- Added support for `FixedLengthStream`. Closes
+  [issue #123](https://github.com/cloudflare/miniflare/issues/123), thanks
+  [@vlovich](https://github.com/vlovich).
 - Throw an error when attempting to create a new `TextDecoder` with a non-UTF-8
   encoding
 - Throw errors when attempting to use `FetchEvent`/`ScheduledEvent` methods with
@@ -315,7 +330,7 @@ if you're upgrading from version 1.
 - Throw an error if the ID passed to `DurableObjectNamespace#get(id)` is for a
   different Durable Object
 - Throw an error when keys are greater than `2KiB` or `undefined`
-- Throw an error when values are greater than `32KiB`
+- Throw an error when values are greater than `128KiB`
 - Throw an error when attempting to `get`, `put` or `delete` more than `128`
   keys, or when attempting to modify more than `128` keys in a transaction
 - Throw an error when attempting to `put` an `undefined` value
@@ -365,6 +380,12 @@ if you're upgrading from version 1.
     event.respondWith(res);
   });
   ```
+
+- Added `--open`/`-O` option that automatically opens your browser once your
+  worker is running. You can optionally specify a different URL to open with
+  `--open https://example.com`. Closes
+  [issue #121](https://github.com/cloudflare/miniflare/issues/121), thanks
+  [@third774](https://github.com/third774) for the suggestion.
 
 - **Automatically fetch the incoming `Request#cf` object** from a trusted
   Cloudflare endpoint, so the values are the same as you'd get for real. Closes

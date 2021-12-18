@@ -153,3 +153,10 @@ const mf = new Miniflare({
 ```
 
 </ConfigTabs>
+
+## Subrequests
+
+Like the real workers runtime, Miniflare limits you to
+[50 subrequests per request](https://developers.cloudflare.com/workers/platform/limits#account-plan-limits).
+Each call to `fetch()`, each URL in a redirect chain, and each call to a Cache
+API method (`put()`/`match()`/`delete()`) counts as a subrequest.

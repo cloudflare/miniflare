@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/core",
-  "version": "2.0.0-rc.3",
+  "version": "2.0.0-rc.4",
   "description": "Core module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -39,7 +39,7 @@
   ],
   "dependencies": {
     "@iarna/toml": "^2.2.5",
-    "@miniflare/shared": "2.0.0-rc.3",
+    "@miniflare/shared": "2.0.0-rc.4",
     "busboy": "^0.3.1",
     "dotenv": "^10.0.0",
     "kleur": "^4.1.4",
@@ -47,15 +47,15 @@
     "undici": "^4.11.1"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.0.0-rc.3",
-    "@miniflare/watcher": "2.0.0-rc.3",
-    "@miniflare/web-sockets": "2.0.0-rc.3",
+    "@miniflare/shared-test": "2.0.0-rc.4",
+    "@miniflare/watcher": "2.0.0-rc.4",
+    "@miniflare/web-sockets": "2.0.0-rc.4",
     "@types/busboy": "^0.3.1",
     "@types/set-cookie-parser": "^2.4.1",
     "dequal": "^2.0.2"
   },
   "peerDependencies": {
-    "@miniflare/watcher": "2.0.0-rc.3"
+    "@miniflare/watcher": "2.0.0-rc.4"
   },
   "peerDependenciesMeta": {
     "@miniflare/watcher": {
