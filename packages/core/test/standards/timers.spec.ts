@@ -124,7 +124,7 @@ test("AbortSignal.timeout: requires numeric timeout", (t) => {
 test("AbortSignal.timeout: included on constructor obtained via AbortController#signal prototype", (t) => {
   const controller = new AbortController();
   const constructor = Object.getPrototypeOf(controller.signal).constructor;
-  // @ts-expect-error `timeout` isn't included in Node.js yet
+  // @ts-expect-error `timeout` was added in Node 17.3.0
   t.is(constructor.timeout, AbortSignal.timeout);
 });
 
