@@ -26,11 +26,7 @@
     "lint:fix": "npm run lint -- --fix",
     "prepublishOnly": "npm run lint && npm run clean && npm run build && npm run types:bundle && npm run test",
     "helpers:scaffold": "node scripts/scaffold.mjs",
-    "helpers:version": "node scripts/version.mjs",
-    "docs:changelog": "node docs/.vitepress/changelog.mjs",
-    "docs:dev": "npm run docs:changelog && vitepress dev docs",
-    "docs:build": "npm run docs:changelog && vitepress build docs",
-    "docs:serve": "vitepress serve docs"
+    "helpers:version": "node scripts/version.mjs"
   },
   "devDependencies": {
     "@ava/typescript": "^2.0.0",
@@ -51,7 +47,6 @@
     "prettier": "^2.3.2",
     "rimraf": "^3.0.2",
     "typescript": "^4.4.4",
-    "vitepress": "^0.20.0",
     "which": "^2.0.2"
   },
   "engines": {

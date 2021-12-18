@@ -2,7 +2,7 @@
 
 Scheduler module for [Miniflare](https://github.com/cloudflare/miniflare): a
 fun, full-featured, fully-local simulator for Cloudflare Workers. See
-[⏰ Scheduled Events](https://miniflare.dev/scheduled.html) for more details.
+[⏰ Scheduled Events](https://v2.miniflare.dev/core/scheduled) for more details.
 
 ## Example
 

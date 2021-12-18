@@ -1,0 +1,31 @@
+{
+  "private": true,
+  "name": "@miniflare/docs",
+  "author": "MrBBot <me@mrbbot.dev>",
+  "scripts": {
+    "bootstrap": "node_modules/cloudflare-docs-engine/bin/commands.sh bootstrap",
+    "build": "node_modules/cloudflare-docs-engine/bin/commands.sh build",
+    "develop": "node_modules/cloudflare-docs-engine/bin/commands.sh develop",
+    "ghactionsbootstrap": "node_modules/cloudflare-docs-engine/bin/commands.sh ghactionsbootstrap",
+    "savechanges": "node_modules/cloudflare-docs-engine/bin/commands.sh savechanges",
+    "serve": "node_modules/cloudflare-docs-engine/bin/commands.sh serve",
+
+    "docs:reset": "rimraf ./.docs/src/content && node ./changelog.mjs",
+    "docs:build": "npm run docs:reset && npm run build && cp ./_redirects ./.docs/public/",
+    "docs:dev": "npm run docs:reset && concurrently \"npm:develop\" \"node watch.mjs\" -n dev,wat -c magenta,gray -k",
+
+    "pages:build": "npm run ghactionsbootstrap && npm run docs:build"
+  },
+  "devDependencies": {
+    "chokidar": "^3.5.2",
+    "cloudflare-docs-engine": "cloudflare/cloudflare-docs-engine#94e11df8eaef70d7f97ece41eedadc0e2bec70e3",
+    "concurrently": "^6.5.0",
+    "rimraf": "^3.0.2"
+  },
+  "engines": {
+    "node": "12"
+  },
+  "volta": {
+    "node": "12.22.8"
+  }
+}

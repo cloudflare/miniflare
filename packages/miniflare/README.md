@@ -63,14 +63,14 @@ goals:
 
 Miniflare is installed using npm:
 
-```shell
+```sh
 $ npm install -g miniflare@next # either globally..
 $ npm install -D miniflare@next # ...or as a dev dependency
 ```
 
 ## Using the CLI
 
-```shell
+```sh
 $ miniflare worker.js --watch --debug
 [mf:dbg] Options:
 [mf:dbg] - Scripts: worker.js
