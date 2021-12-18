@@ -2,7 +2,7 @@
 
 Durable Objects module for [Miniflare](https://github.com/cloudflare/miniflare):
 a fun, full-featured, fully-local simulator for Cloudflare Workers. See
-[📌 Durable Objects](https://miniflare.dev/durable-objects.html) for more
+[📌 Durable Objects](https://v2.miniflare.dev/storage/durable-objects) for more
 details.
 
 ## Example

@@ -2,7 +2,7 @@
 
 WebSocket module for [Miniflare](https://github.com/cloudflare/miniflare): a
 fun, full-featured, fully-local simulator for Cloudflare Workers. See
-[✉️ WebSockets](https://miniflare.dev/web-sockets.html) for more details.
+[✉️ WebSockets](https://v2.miniflare.dev/core/web-sockets) for more details.
 
 ## Example
 

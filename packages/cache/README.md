@@ -2,7 +2,7 @@
 
 Cache module for [Miniflare](https://github.com/cloudflare/miniflare): a fun,
 full-featured, fully-local simulator for Cloudflare Workers. See
-[✨ Cache](https://miniflare.dev/cache.html) for more details.
+[✨ Cache](https://v2.miniflare.dev/storage/cache) for more details.
 
 ## Example
 

@@ -2,7 +2,7 @@
 
 Workers KV module for [Miniflare](https://github.com/cloudflare/miniflare): a
 fun, full-featured, fully-local simulator for Cloudflare Workers. See
-[📦 KV](https://miniflare.dev/kv.html) for more details.
+[📦 KV](https://v2.miniflare.dev/storage/kv) for more details.
 
 ## Example
 

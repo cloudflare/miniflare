@@ -1,0 +1,113 @@
+.DocsMarkdown ul.ConfigTabs--tabs {
+  --code-font-size: 0.9em;
+
+  display: flex;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+
+  background: rgba(var(--color-rgb), 0.05);
+  box-shadow: 0 1px rgba(var(--shadow-color-rgb), 0.12);
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
+
+  cursor: auto;
+  user-select: none;
+  list-style: none;
+}
+[theme="light"] .DocsMarkdown ul.ConfigTabs--tabs {
+  background: transparent;
+}
+
+.DocsMarkdown li.ConfigTabs--tab {
+  margin: 0;
+  font-size: var(--code-font-size);
+  box-shadow: 1px 0 rgba(var(--shadow-color-rgb), 0.12);
+}
+.ConfigTabs--tab-sans-serif {
+  font-family: var(--sans-serif-font-family);
+}
+
+.ConfigTabs--tab a {
+  display: flex;
+  align-items: center;
+  height: 2.5rem;
+  padding: 0.6em var(--padding-horizontal);
+
+  color: currentColor;
+  font-weight: bold;
+  text-decoration: none;
+
+  white-space: nowrap;
+}
+.ConfigTabs--tab a span {
+  opacity: 0.9;
+}
+.ConfigTabs--tab:first-child a {
+  border-top-left-radius: var(--border-radius);
+}
+
+.ConfigTabs--tab .Icon {
+  display: inline-block;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: var(--padding-horizontal);
+}
+
+[data-tab="cli"] .ConfigTabs--tab[data-tab-id="cli"] a,
+[data-tab="wrangler"] .ConfigTabs--tab[data-tab-id="wrangler"] a,
+[data-tab="api"] .ConfigTabs--tab[data-tab-id="api"] a,
+.ConfigTabs--tab a:hover {
+  background: rgba(var(--gray-5-rgb), 0.2);
+}
+[theme="dark"][data-tab="cli"] .ConfigTabs--tab[data-tab-id="cli"] a,
+[theme="dark"][data-tab="wrangler"] .ConfigTabs--tab[data-tab-id="wrangler"] a,
+[theme="dark"][data-tab="api"] .ConfigTabs--tab[data-tab-id="api"] a,
+[theme="dark"] .ConfigTabs--tab a:hover {
+  background: rgba(var(--orange-rgb), 0.08);
+  color: var(--code-orange);
+}
+
+.ConfigTabs--panel {
+  display: none;
+}
+[data-tab="cli"] .ConfigTabs--panel[data-tab-id="cli"],
+[data-tab="wrangler"] .ConfigTabs--panel[data-tab-id="wrangler"],
+[data-tab="api"] .ConfigTabs--panel[data-tab-id="api"] {
+  display: block;
+}
+
+.ConfigTabs--panel .CodeBlock {
+  /* .ConfigTabs is also a .CodeBlock, so if we didn't reset the font-size to
+  1em from .9em here, it would be slightly too small. */
+  --code-font-size: 1em;
+  background: transparent;
+}
+.ConfigTabs--panel .CodeBlock .CodeBlock--filename {
+  /* We include a filename for <noscript>, but it's redundant if we're also
+  showing tabs. */
+  display: none;
+}
+
+/* These styles are only usually applied to direct pre descendents of
+.DocsMarkdown, but we'd like them inside our <noscript> too. Note uBlock
+ replaces <noscript>'s with a <span> when disabling JavaScript. */
+.ConfigTabs--noscript > pre,
+.DocsMarkdown > span > pre {
+  --outdent: 1rem;
+}
+@media (max-width: 768px) {
+  .ConfigTabs--noscript pre,
+  .DocsMarkdown > span > pre {
+    --border-radius: 0em;
+  }
+}
+
+@media (max-width: 480px) {
+  .ConfigTabs--tabs {
+    flex-wrap: wrap;
+  }
+
+  .ConfigTabs--tab .Icon {
+    display: none;
+  }
+}

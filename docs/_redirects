@@ -1,0 +1,26 @@
+# Routes from previous VitePress site
+/cli.html               /get-started/cli
+/api.html               /get-started/api
+/changelog.html         /get-started/changelog
+/fetch.html             /core/fetch
+/scheduled.html         /core/scheduled
+/variables-secrets.html /core/variables-secrets
+/modules.html           /core/modules
+/kv.html                /storage/kv
+/cache.html             /storage/cache
+/durable-objects.html   /storage/durable-objects
+/sites.html             /storage/sites
+/web-sockets.html       /core/web-sockets
+/builds.html            /developing/builds
+/web-assembly.html      /core/web-assembly
+/source-maps.html       /developing/source-maps
+/standards.html         /core/standards
+/html-rewriter.html     /core/html-rewriter
+/live-reload.html       /developing/live-reload
+/compatibility.html     /core/compatibility
+/mount.html             /core/mount
+/jest.html              /testing/jest
+/migrating.html         /get-started/migrating
+/recipes/esbuild.html   /developing/esbuild
+/recipes/ava.html       /testing/ava
+/recipes/debugger.html  /developing/debugger

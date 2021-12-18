@@ -17,8 +17,8 @@ goals:
    errors of the real Workers runtime, so you'll know before you deploy if
    things are going to break.
 
-Check out the [migration guide](https://v2.miniflare.dev/migrating.html) if
-you're upgrading from version 1.
+Check out the [migration guide](https://v2.miniflare.dev/get-started/migrating)
+if you're upgrading from version 1.
 
 ### Notable Changes
 
@@ -54,13 +54,13 @@ you're upgrading from version 1.
 - Correctly implement the Durable Object `script_name` option. In Miniflare 1,
   this incorrectly expected a script path instead of a script name. This now
   relies on mounting the other worker. See
-  [📌 Durable Objects](https://v2.miniflare.dev/durable-objects.html#using-a-class-exported-by-another-script)
+  [📌 Durable Objects](https://v2.miniflare.dev/storage/durable-objects#using-a-class-exported-by-another-script)
   for more details.
 - Removed the non-standard `DurableObjectStub#storage()` method. To access
   Durable Object storage outside a worker, use the new
   `Miniflare#getDurableObjectStorage(id)` method, passing a `DurableObjectId`
   obtained from a stub. See
-  [📌 Durable Objects](https://v2.miniflare.dev/durable-objects.html#manipulating-outside-workers)
+  [📌 Durable Objects](https://v2.miniflare.dev/storage/durable-objects#manipulating-outside-workers)
   for more details.
 - Renamed the `--disable-cache`/`disableCache: true` option to
   `--no-cache`/`cache: false`
@@ -93,7 +93,9 @@ you're upgrading from version 1.
   instead of `miniflare.wasm_bindings`.
 
   ```toml
-  # wrangler.toml
+  ---
+  filename: wrangler.toml
+  ---
   [miniflare]
   wasm_bindings = [
     { name = "MODULE1", path="module1.wasm" },
@@ -104,7 +106,9 @@ you're upgrading from version 1.
   ...should now be...
 
   ```toml
-  # wrangler.toml
+  ---
+  filename: wrangler.toml
+  ---
   [wasm_modules]
   MODULE1 = "module1.wasm"
   MODULE2 = "module2.wasm"
@@ -119,14 +123,11 @@ you're upgrading from version 1.
   then reloads the worker.
 - Replaced the `Miniflare#getCache()` method the `Miniflare#getCaches()` method.
   This returns the global `caches` object. See
-  [✨ Cache ](https://v2.miniflare.dev/cache.html#manipulating-outside-workers).
+  [✨ Cache ](https://v2.miniflare.dev/storage/cache#manipulating-outside-workers).
 - `Miniflare#createServer()` now always returns a `Promise` which you must await
   to get a `http.Server`/`https.Server` instance. You may want to check out the
   new `Miniflare#startServer()` method which automatically starts a server using
   the configured `host` and `port`.
-- Miniflare no longer includes CommonJS exports. You must use ES modules. If you
-  need to import `miniflare` in a CommonJS file, use dynamic import:
-  `const { Miniflare } = await import("miniflare")`.
 - Redis support is no longer included by default. If you're persisting KV,
   Durable Objects or cached responses in Redis, you must install the
   `@miniflare/storage-redis` optional peer dependency.
@@ -159,7 +160,7 @@ you're upgrading from version 1.
 **Core:**
 
 - **Added support for running multiple workers** in the same Miniflare instance.
-  See [🔌 Multiple Workers](https://v2.miniflare.dev/mount.html) for more
+  See [🔌 Multiple Workers](https://v2.miniflare.dev/core/mount) for more
   details.
 - **Added support for compatibility dates and flags**, specifically the flags
   `durable_object_fetch_requires_full_url`, `fetch_refuses_unknown_protocols`,
@@ -168,8 +169,8 @@ you're upgrading from version 1.
   to the standard keys in `wrangler.toml`. Closes
   [issue #48](https://github.com/cloudflare/miniflare/issues/48), thanks
   [@PaganMuffin](https://github.com/PaganMuffin). See
-  [📅 Compatibility Dates ](https://v2.miniflare.dev/compatibility.html) for
-  more details.
+  [📅 Compatibility Dates](https://v2.miniflare.dev/core/compatibility) for more
+  details.
 - **Added a proper CommonJS module loader.** Workers built with Webpack will be
   more likely to work with Miniflare now. Closes
   [issue #44](https://github.com/cloudflare/miniflare/issues/44), thanks
@@ -343,7 +344,7 @@ you're upgrading from version 1.
   when your worker reloads. For this to work, pass the `--live-reload` option,
   and return an HTML response containing a `<body>` tag with the `Content-Type`
   set to `text/html`. See
-  [⚡️ Live Reload ](https://v2.miniflare.dev/live-reload.html) for more
+  [⚡️ Live Reload](https://v2.miniflare.dev/developing/live-reload) for more
   details.
 
   ```js
@@ -408,7 +409,7 @@ you're upgrading from version 1.
 
 - Added a custom Jest test environment, allowing you to run unit tests in the
   Miniflare sandbox, with isolated storage for each test. See
-  [🤹 Jest Environment](https://v2.miniflare.dev/jest.html) for more details.
+  [🤹 Jest Environment](https://v2.miniflare.dev/testing/jest) for more details.
 
 **KV:**
 
@@ -507,7 +508,7 @@ you're upgrading from version 1.
   [issue #30](https://github.com/cloudflare/miniflare/issues/30), thanks
   [@ItsWendell](https://github.com/ItsWendell). Note you still need to use
   `WebSocketPair` and `fetch` to set up WebSocket connections. See
-  [✉️ WebSockets](https://miniflare.dev/web-sockets.html) for more details.
+  [✉️ WebSockets](https://v2.miniflare.dev/core/web-sockets) for more details.
 - Fixed caching with `URL` request keys, closes
   [issue #33](https://github.com/cloudflare/miniflare/issues/33), thanks
   [@TimTinkers](https://github.com/TimTinkers)
@@ -522,7 +523,7 @@ you're upgrading from version 1.
 - Added an option to disable default and named caches. When disabled, the caches
   will still be available in the sandbox, they just won't cache anything. Thanks
   [@frandiox](https://github.com/frandiox) for the suggestion. See
-  [✨ Cache](https://miniflare.dev/cache.html#disabling) for more details.
+  [✨ Cache](https://v2.miniflare.dev/storage/cache#disabling) for more details.
 - Added the corresponding `wrangler.toml` key for the `--disable-updater` flag:
   `miniflare.disable_updater`
 
@@ -558,13 +559,14 @@ you're upgrading from version 1.
 - Switched to a [`lol-html`](https://github.com/cloudflare/lol-html)-based
   WebAssembly implementation of `HTMLRewriter` for a more accurate simulation of
   the real Workers environment. See
-  [📄 HTMLRewriter](https://miniflare.dev/html-rewriter.html) for more details.
+  [📄 HTMLRewriter](https://v2.miniflare.dev/core/html-rewriter) for more
+  details.
 - Added HTTPS support for local development, thanks
   [@RichiCoder1](https://github.com/RichiCoder1) for the
   [suggestion (#12)](https://github.com/cloudflare/miniflare/issues/12). See
-  [💻 Using the CLI](https://miniflare.dev/cli.html#https-server) and
-  [🧰 Using the API](https://miniflare.dev/api.html#https-server) for more
-  details.
+  [💻 Using the CLI](https://v2.miniflare.dev/get-started/cli#https-server) and
+  [🧰 Using the API](https://v2.miniflare.dev/get-started/api#https-server) for
+  more details.
 - When using the CLI, the `--watch` flag is now assumed if `--build-watch-path`
   is set, thanks [@evanderkoogh](https://github.com/evanderkoogh) for the
   [PR (#8)](https://github.com/cloudflare/miniflare/pull/8)
@@ -586,22 +588,23 @@ you're upgrading from version 1.
 ### Features
 
 - Added **Redis** persistence support for
-  [📦 KV](https://miniflare.dev/kv.html#persistence),
-  [✨ Cache](https://miniflare.dev/cache.html#persistence) and
-  [📌 Durable Objects](https://miniflare.dev/durable-objects.html#persistence)
+  [📦 KV](https://v2.miniflare.dev/storage/kv#persistence),
+  [✨ Cache](https://v2.miniflare.dev/storage/cache#persistence) and
+  [📌 Durable Objects](https://v2.miniflare.dev/storage/durable-objects#persistence)
 - Added support for loading scripts from `package.json`, closes
   [issue #7](https://github.com/cloudflare/miniflare/issues/7). See
-  [💻 Using the CLI](https://miniflare.dev/cli.html#script-requirement) and
-  [⚡️ Developing with esbuild](https://miniflare.dev/recipes/esbuild.html#dependencies)
+  [💻 Using the CLI](https://v2.miniflare.dev/get-started/cli#script-requirement)
+  and
+  [⚡️ Developing with esbuild](https://v2.miniflare.dev/developing/esbuild#dependencies)
   for more details.
 - Added `FormData` to the sandbox, closes
   [issue #6](https://github.com/cloudflare/miniflare/issues/6)
 - Added an automatic update checker. See
-  [💻 Using the CLI](https://miniflare.dev/cli.html#update-checker) for more
-  details.
-- [📚 Modules](https://miniflare.dev/modules.html) mode is now always enabled
+  [💻 Using the CLI](https://v2.miniflare.dev/get-started/cli#update-checker)
+  for more details.
+- [📚 Modules](https://v2.miniflare.dev/core/modules) mode is now always enabled
   when specifying
-  [📌 Durable Objects](https://miniflare.dev/durable-objects.html##objects)
+  [📌 Durable Objects](https://v2.miniflare.dev/storage/durable-objects##objects)
   bindings
 
 ### Fixes
@@ -618,7 +621,7 @@ you're upgrading from version 1.
 ### Features
 
 - Added support for namespaced caches with `caches.open`. See
-  [✨ Cache](https://miniflare.dev/cache.html) for more details.
+  [✨ Cache](https://v2.miniflare.dev/storage/cache) for more details.
 
 ## 1.0.1
 
@@ -627,7 +630,8 @@ you're upgrading from version 1.
 - Fixed
   `/usr/bin/env: 'node --experimental-vm-modules': No such file or directory`
   error when running the CLI in Linux. See
-  [💻 Using the CLI](https://miniflare.dev/cli.html#usage) for more details.
+  [💻 Using the CLI](https://v2.miniflare.dev/get-started/cli#usage) for more
+  details.
 
 ## 1.0.0
 
@@ -673,16 +677,17 @@ you're upgrading from version 1.
 
 ### Features
 
-- Added support for [📚 Modules](https://miniflare.dev/modules.html) (requires
-  `--experimental-vm-modules` flag)
+- Added support for [📚 Modules](https://v2.miniflare.dev/core/modules)
+  (requires `--experimental-vm-modules` flag)
 - Added support for
-  [📌 Durable Objects](https://miniflare.dev/durable-objects.html)
-- Added support for [✉️ Web Sockets](https://miniflare.dev/web-sockets.html)
+  [📌 Durable Objects](https://v2.miniflare.dev/storage/durable-objects)
+- Added support for [✉️ Web Sockets](https://v2.miniflare.dev/core/web-sockets)
   (client and server)
-- Added support for [🛠 Builds](https://miniflare.dev/builds.html) (custom builds
-  and `webpack`/`rust` Wrangler builds)
-- Added support for [⚙️ WebAssembly](https://miniflare.dev/web-assembly.html)
-- Added support for [📄 HTMLRewriter](https://miniflare.dev/html-rewriter.html)
+- Added support for [🛠 Builds](https://v2.miniflare.dev/developing/builds)
+  (custom builds and `webpack`/`rust` Wrangler builds)
+- Added support for [⚙️ WebAssembly](https://v2.miniflare.dev/core/web-assembly)
+- Added support for
+  [📄 HTMLRewriter](https://v2.miniflare.dev/core/html-rewriter)
 - Made CLI `script` parameter optional, it can now be inferred in some cases
   from `wrangler.toml`
 - Added `host` option (`--host`/`-H` flag) for restricting hosts the HTTP server
@@ -694,9 +699,9 @@ you're upgrading from version 1.
   [`cf` object](https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties)
   to HTTP server requests
 - Added `cron` property to
-  [⏰ Scheduled Events](https://miniflare.dev/scheduled.html)
+  [⏰ Scheduled Events](https://v2.miniflare.dev/core/scheduled)
 - Added manual triggering for
-  [⏰ Scheduled Events](https://miniflare.dev/scheduled.html) via
+  [⏰ Scheduled Events](https://v2.miniflare.dev/core/scheduled) via
   `/.mf/scheduled` HTTP endpoint
 - Added pretty error page powered by [Youch](https://github.com/poppinss/youch)
 - Added many more tests
@@ -727,11 +732,13 @@ Initial Release
 
 ### Features
 
-- Added support for [📨 Fetch Events](https://miniflare.dev/fetch.html)
-- Added support for [⏰ Scheduled Events](https://miniflare.dev/scheduled.html)
+- Added support for [📨 Fetch Events](https://v2.miniflare.dev/core/fetch)
 - Added support for
-  [🔑 Variables and Secrets](https://miniflare.dev/variables-secrets.html)
-- Added support for [📦 KV](https://miniflare.dev/kv.html)
-- Added support for [✨ Cache](https://miniflare.dev/cache.html)
-- Added support for [🌐 Workers Sites](https://miniflare.dev/sites.html)
-- Added support for [🗺 Source Maps](https://miniflare.dev/source-maps.html)
+  [⏰ Scheduled Events](https://v2.miniflare.dev/core/scheduled)
+- Added support for
+  [🔑 Variables and Secrets](https://v2.miniflare.dev/core/variables-secrets)
+- Added support for [📦 KV](https://v2.miniflare.dev/storage/kv)
+- Added support for [✨ Cache](https://v2.miniflare.dev/storage/cache)
+- Added support for [🌐 Workers Sites](https://v2.miniflare.dev/storage/sites)
+- Added support for
+  [🗺 Source Maps](https://v2.miniflare.dev/developing/source-maps)
