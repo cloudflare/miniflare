@@ -23,8 +23,10 @@ module.exports = {
     },
   ],
   search: {
-    apiKey: "f0ffcd9dba78827de321d7fce21a8181",
-    indexName: "miniflare",
+    // apiKey: "f0ffcd9dba78827de321d7fce21a8181",
+    // indexName: "miniflare",
+    apiKey: "",
+    indexName: "",
     algoliaOptions: {},
   },
   siteMetadata: {
