@@ -14,6 +14,7 @@ const kWranglerBindings = Symbol("kWranglerBindings");
 
 export interface BindingsOptions {
   envPath?: boolean | string;
+  envPathDefaultFallback?: boolean;
   bindings?: Record<string, any>;
   globals?: Record<string, any>;
   wasmBindings?: Record<string, string>;
@@ -53,6 +54,18 @@ export class BindingsPlugin
   })
   [kWranglerBindings]?: Record<string, any>;
 
+  // This is another hack. When using the CLI, we'd like to load .env files
+  // by default if they exist. However, we'd also like to be able to customise
+  // the .env path in wrangler.toml files. Previously, we just set `envPath` to
+  // `true` if it wasn't specified via a CLI flag, but API options have a higher
+  // priority than wrangler.toml's, so `[miniflare] env_path` was always
+  // ignored. When this option is set to `true`, and `envPath` is undefined,
+  // we'll treat is as if it were `true`.
+  //
+  // See https://discord.com/channels/595317990191398933/891052295410835476/923265884095647844
+  @Option({ type: OptionType.NONE })
+  envPathDefaultFallback?: boolean;
+
   @Option({
     type: OptionType.OBJECT,
     alias: "b",
@@ -82,6 +95,9 @@ export class BindingsPlugin
   constructor(ctx: PluginContext, options?: BindingsOptions) {
     super(ctx);
     this.assignOptions(options);
+    if (this.envPathDefaultFallback && this.envPath === undefined) {
+      this.envPath = true;
+    }
   }
 
   async setup(): Promise<SetupResult> {

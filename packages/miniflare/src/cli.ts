@@ -64,7 +64,9 @@ async function main() {
   // Autoload configuration files from default locations if none set
   options.wranglerConfigPath ??= true;
   options.packagePath ??= true;
-  options.envPath ??= true;
+  // Unlike wrangler.toml and package.json, the .env path can be customised
+  // in wrangler.toml files, so it needs special treatment.
+  options.envPathDefaultFallback = true;
   // Assume --watch if --build-watch-path or --live-reload set
   if (options.buildWatchPaths?.length || options.liveReload) {
     options.watch = true;

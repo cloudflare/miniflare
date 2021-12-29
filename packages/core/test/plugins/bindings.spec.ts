@@ -115,6 +115,22 @@ test("BindingsPlugin: logs options", (t) => {
   t.deepEqual(logs, []);
 });
 
+test("BindingsPlugin: uses default .env path if envPathDefaultFallback set and envPath is undefined", (t) => {
+  let plugin = new BindingsPlugin(ctx, { envPathDefaultFallback: true });
+  t.true(plugin.envPath);
+
+  // Check leaves envPath alone if defined
+  plugin = new BindingsPlugin(ctx, {
+    envPathDefaultFallback: true,
+    envPath: false,
+  });
+  t.false(plugin.envPath);
+  plugin = new BindingsPlugin(ctx, {
+    envPathDefaultFallback: true,
+    envPath: ".env.custom",
+  });
+  t.is(plugin.envPath, ".env.custom");
+});
 test("BindingsPlugin: setup: loads .env bindings from default location", async (t) => {
   const tmp = await useTmp(t);
   const defaultEnvPath = path.join(tmp, ".env");
