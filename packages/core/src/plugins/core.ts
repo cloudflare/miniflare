@@ -95,20 +95,22 @@ export interface CoreOptions {
   updateCheck?: boolean;
   // Replaced in MiniflareCoreOptions with something plugins-specific
   mounts?: Record<string, string | CoreOptions | BindingsOptions>;
+  name?: string;
   routes?: string[];
   logUnhandledRejections?: boolean;
 }
 
-function mapMountEntries([name, pathEnv]: [string, string]): [
-  string,
-  CoreOptions | BindingsOptions
-] {
+function mapMountEntries(
+  [name, pathEnv]: [string, string],
+  relativeTo?: string
+): [string, CoreOptions | BindingsOptions] {
   let wranglerConfigEnv;
   const atIndex = pathEnv.lastIndexOf("@");
   if (atIndex !== -1) {
     wranglerConfigEnv = pathEnv.substring(atIndex + 1);
     pathEnv = pathEnv.substring(0, atIndex);
   }
+  if (relativeTo) pathEnv = path.resolve(relativeTo, pathEnv);
   return [
     name,
     {
@@ -272,12 +274,24 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     type: OptionType.OBJECT,
     typeFormat: "NAME=PATH[@ENV]",
     description: "Mount additional named workers",
-    fromEntries: (entries) => Object.fromEntries(entries.map(mapMountEntries)),
-    fromWrangler: ({ miniflare }) =>
+    fromEntries: (entries) =>
+      Object.fromEntries(entries.map((entry) => mapMountEntries(entry))),
+    fromWrangler: ({ miniflare }, configDir) =>
       miniflare?.mounts &&
-      Object.fromEntries(Object.entries(miniflare.mounts).map(mapMountEntries)),
+      Object.fromEntries(
+        Object.entries(miniflare.mounts).map((entry) =>
+          mapMountEntries(entry, configDir)
+        )
+      ),
   })
   mounts?: Record<string, string | CoreOptions | BindingsOptions>;
+
+  @Option({
+    type: OptionType.STRING,
+    description: "Name of service",
+    fromWrangler: ({ name }) => name,
+  })
+  name?: string;
 
   @Option({
     type: OptionType.NONE,

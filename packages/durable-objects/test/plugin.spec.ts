@@ -9,6 +9,7 @@ import {
 } from "@miniflare/durable-objects";
 import {
   Compatibility,
+  Mount,
   NoOpLog,
   PluginContext,
   StoredValue,
@@ -97,7 +98,7 @@ test("DurableObjectsPlugin: getObject: waits for constructors and bindings", asy
   const promise = plugin.getObject(factory, testId);
   await setImmediate();
   t.is(factory.storages.size, 0);
-  plugin.reload({}, { TestObject }, {});
+  plugin.reload({}, { TestObject }, new Map());
   await promise;
   t.is(factory.storages.size, 1);
 });
@@ -111,7 +112,7 @@ test("DurableObjectsPlugin: getObject: object storage is namespaced by object na
     durableObjectsPersist: "test://map",
   });
   plugin.beforeReload();
-  plugin.reload({}, { TestObject }, {});
+  plugin.reload({}, { TestObject }, new Map());
   const state = await plugin.getObject(factory, testId);
   await state.storage.put("key", "value");
   t.true(map.has("key"));
@@ -130,7 +131,7 @@ test("DurableObjectsPlugin: getObject: reresolves persist path relative to rootP
     }
   );
   plugin.beforeReload();
-  plugin.reload({}, { TestObject }, {});
+  plugin.reload({}, { TestObject }, new Map());
   const state = await plugin.getObject(factory, testId);
   await state.storage.put("key", "value");
   t.true(map.has("key"));
@@ -141,7 +142,7 @@ test("DurableObjectsPlugin: getObject: reuses single instance of object", async 
     durableObjects: { TEST: "TestObject" },
   });
   plugin.beforeReload();
-  plugin.reload({}, { TestObject }, {});
+  plugin.reload({}, { TestObject }, new Map());
   const [object1, object2] = await Promise.all([
     plugin.getObject(factory, testId),
     plugin.getObject(factory, testId),
@@ -155,7 +156,7 @@ test("DurableObjectsPlugin: getNamespace: creates namespace for object, creating
     durableObjects: { TEST: "TestObject" },
   });
   plugin.beforeReload();
-  plugin.reload({ KEY: "value" }, { TestObject }, {});
+  plugin.reload({ KEY: "value" }, { TestObject }, new Map());
   const ns = plugin.getNamespace(factory, "TEST");
   const res = await ns.get(testId).fetch("http://localhost/");
   t.is(await res.text(), `${testId.toString()}:request1:GET:http://localhost/`);
@@ -169,7 +170,10 @@ test("DurableObjectsPlugin: getNamespace: creates namespace for object in mounte
     durableObjects: { TEST: { className: "TestObject", scriptName: "test" } },
   });
   plugin.beforeReload();
-  plugin.reload({}, {}, { test: { TestObject } });
+  const mounts = new Map<string, Mount>([
+    ["test", { moduleExports: { TestObject } }],
+  ]);
+  plugin.reload({}, {}, mounts);
   const ns = plugin.getNamespace(factory, "TEST");
   const res = await ns.get(testId).fetch("http://localhost/");
   t.is(await res.text(), `${testId.toString()}:request1:GET:http://localhost/`);
@@ -180,7 +184,7 @@ test("DurableObjectsPlugin: getNamespace: reuses single instance of object", asy
     durableObjects: { TEST: "TestObject" },
   });
   plugin.beforeReload();
-  plugin.reload({ KEY: "value" }, { TestObject }, {});
+  plugin.reload({ KEY: "value" }, { TestObject }, new Map());
   const ns = plugin.getNamespace(factory, "TEST");
   const [res1, res2] = await Promise.all([
     ns.get(testId).fetch("http://localhost:8787/instance"),
@@ -203,7 +207,7 @@ test("DurableObjectsPlugin: setup: includes namespaces for all objects", async (
 
   const result = plugin.setup(factory);
   plugin.beforeReload();
-  plugin.reload({}, { Object1, Object2 }, {});
+  plugin.reload({}, { Object1, Object2 }, new Map());
 
   const ns1: DurableObjectNamespace = result.bindings?.OBJECT1;
   const ns2: DurableObjectNamespace = result.bindings?.OBJECT2;
@@ -219,12 +223,12 @@ test("DurableObjectsPlugin: beforeReload: deletes all instances", async (t) => {
     durableObjects: { TEST: "TestObject" },
   });
   plugin.beforeReload();
-  plugin.reload({}, { TestObject }, {});
+  plugin.reload({}, { TestObject }, new Map());
   let ns = plugin.getNamespace(factory, "TEST");
   const res1 = await ns.get(testId).fetch("http://localhost:8787/instance");
 
   plugin.beforeReload();
-  plugin.reload({}, { TestObject }, {});
+  plugin.reload({}, { TestObject }, new Map());
   ns = plugin.getNamespace(factory, "TEST");
   const res2 = await ns.get(testId).fetch("http://localhost:8787/instance");
 
@@ -236,7 +240,7 @@ test("DurableObjectsPlugin: reload: throws if object constructor cannot be found
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
-  t.throws(() => plugin.reload({}, {}, {}), {
+  t.throws(() => plugin.reload({}, {}, new Map()), {
     instanceOf: DurableObjectError,
     code: "ERR_CLASS_NOT_FOUND",
     message: "Class TestObject for Durable Object TEST not found",
@@ -246,7 +250,7 @@ test("DurableObjectPlugin: reload: throws if script cannot be found in mounts", 
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: { className: "TestObject", scriptName: "test" } },
   });
-  t.throws(() => plugin.reload({}, {}, {}), {
+  t.throws(() => plugin.reload({}, {}, new Map()), {
     instanceOf: DurableObjectError,
     code: "ERR_SCRIPT_NOT_FOUND",
     message: "Script test for Durable Object TEST not found",
@@ -256,7 +260,8 @@ test("DurableObjectsPlugin: reload: throws if object constructor cannot be found
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: { className: "TestObject", scriptName: "test" } },
   });
-  t.throws(() => plugin.reload({}, {}, { test: {} }), {
+  const mounts = new Map<string, Mount>([["test", { moduleExports: {} }]]);
+  t.throws(() => plugin.reload({}, {}, mounts), {
     instanceOf: DurableObjectError,
     code: "ERR_CLASS_NOT_FOUND",
     message:
@@ -270,12 +275,12 @@ test("DurableObjectsPlugin: dispose: deletes all instances", async (t) => {
     durableObjects: { TEST: "TestObject" },
   });
   plugin.beforeReload();
-  plugin.reload({}, { TestObject }, {});
+  plugin.reload({}, { TestObject }, new Map());
   let ns = plugin.getNamespace(factory, "TEST");
   const res1 = await ns.get(testId).fetch("http://localhost:8787/instance");
 
   plugin.dispose();
-  plugin.reload({}, { TestObject }, {});
+  plugin.reload({}, { TestObject }, new Map());
   ns = plugin.getNamespace(factory, "TEST");
   const res2 = await ns.get(testId).fetch("http://localhost:8787/instance");
 

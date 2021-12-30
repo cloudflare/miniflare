@@ -1,3 +1,8 @@
+import {
+  ReadableStreamDefaultReader,
+  TransformStream,
+  WritableStreamDefaultWriter,
+} from "stream/web";
 import { Log, LogLevel } from "@miniflare/shared";
 import { ExecutionContext } from "ava";
 
@@ -30,6 +35,38 @@ export class TestLog extends Log {
 
   logsAtLevelOrBelow(level: LogLevel): LogEntry[] {
     return this.logs.filter(([logLevel]) => logLevel <= level);
+  }
+}
+
+export class AsyncTestLog extends Log {
+  #reader: ReadableStreamDefaultReader<LogEntry>;
+  #writer: WritableStreamDefaultWriter<LogEntry>;
+
+  constructor() {
+    super(LogLevel.VERBOSE);
+    const { readable, writable } = new TransformStream<LogEntry, LogEntry>();
+    this.#reader = readable.getReader();
+    this.#writer = writable.getWriter();
+  }
+
+  log(message: string): void {
+    this.logWithLevel(LogLevel.NONE, message);
+  }
+
+  logWithLevel(level: LogLevel, message: string): void {
+    void this.#writer.write([level, message]);
+  }
+
+  async next(): Promise<LogEntry | undefined> {
+    return (await this.#reader.read()).value;
+  }
+
+  async nextAtLevel(level: LogLevel): Promise<string | undefined> {
+    while (true) {
+      const entry = await this.next();
+      if (!entry) return;
+      if (entry[0] === level) return entry[1];
+    }
   }
 }
 

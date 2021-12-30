@@ -109,11 +109,12 @@ test("CorePlugin: parses options from argv", (t) => {
     verbose: true,
   });
 });
-test("CorePlugin: parses options from wrangler config", (t) => {
-  const configDir = "config";
+test("CorePlugin: parses options from wrangler config", async (t) => {
+  const configDir = await useTmp(t);
   let options = parsePluginWranglerConfig(
     CorePlugin,
     {
+      name: "test-service",
       compatibility_date: "2021-10-23",
       compatibility_flags: [
         "fetch_refuses_unknown_protocols",
@@ -167,20 +168,21 @@ test("CorePlugin: parses options from wrangler config", (t) => {
     rootPath: undefined,
     mounts: {
       api: {
-        rootPath: "./api",
+        rootPath: path.resolve(configDir, "api"),
         wranglerConfigEnv: undefined,
         packagePath: true,
         envPath: true,
         wranglerConfigPath: true,
       },
       site: {
-        rootPath: "./site",
+        rootPath: path.resolve(configDir, "site"),
         wranglerConfigEnv: "dev",
         packagePath: true,
         envPath: true,
         wranglerConfigPath: true,
       },
     },
+    name: "test-service",
     routes: [
       "miniflare.dev/*",
       "dev.miniflare.dev/*",

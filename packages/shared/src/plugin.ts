@@ -75,6 +75,12 @@ export interface SetupResult extends BeforeSetupResult {
   additionalModules?: AdditionalModules;
 }
 
+// TODO: should probably move Request and Response classes to @miniflare/shared
+export interface Mount<Request = any, Response = any> {
+  moduleExports?: Context;
+  dispatchFetch?: (request: Request) => Promise<Response>;
+}
+
 export interface PluginContext {
   log: Log;
   compat: Compatibility;
@@ -111,7 +117,7 @@ export abstract class Plugin<Options extends Context = never> {
   reload?(
     bindings: Context,
     moduleExports: Context,
-    mountedModuleExports: Record<string, Context>
+    mounts: Map<string, Mount>
   ): Awaitable<void>;
 
   // Called when a new instance of the plugin is about to be created,

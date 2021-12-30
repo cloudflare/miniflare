@@ -3,6 +3,7 @@ import {
   BeforeSetupResult,
   Context,
   ExtractOptions,
+  Mount,
   Option,
   OptionType,
   Plugin,
@@ -57,6 +58,7 @@ export interface TestOptions {
   arrayObjectOption?: [key: string, value: string][];
   beforeSetupWatch?: string[];
   setupWatch?: string[];
+  hookLogIdentifier?: string;
 }
 
 export class TestPlugin extends Plugin<TestOptions> implements TestOptions {
@@ -104,25 +106,28 @@ export class TestPlugin extends Plugin<TestOptions> implements TestOptions {
   beforeSetupWatch?: string[];
   @Option({ type: OptionType.NONE })
   setupWatch?: string[];
+  @Option({ type: OptionType.NONE })
+  hookLogIdentifier?: string;
 
   readonly constructedOptions?: TestOptions;
   reloadBindings?: Context;
   reloadModuleExports?: Context;
-  reloadMountedModuleExports?: Record<string, Context>;
+  reloadMounts?: Map<string, Mount>;
 
   constructor(ctx: PluginContext, options?: TestOptions) {
     super(ctx);
     this.constructedOptions = options;
     this.assignOptions(options);
+    this.hookLogIdentifier ??= "";
   }
 
   beforeSetup(): BeforeSetupResult {
-    this.ctx.log.info("beforeSetup");
+    this.ctx.log.info(`${this.hookLogIdentifier}beforeSetup`);
     return { watch: this.beforeSetupWatch };
   }
 
   setup(storageFactory: StorageFactory): SetupResult {
-    this.ctx.log.info("setup");
+    this.ctx.log.info(`${this.hookLogIdentifier}setup`);
     return {
       globals: {
         // Test overriding a built-in, CorePlugin should be loaded first so
@@ -139,21 +144,21 @@ export class TestPlugin extends Plugin<TestOptions> implements TestOptions {
   }
 
   beforeReload(): void {
-    this.ctx.log.info("beforeReload");
+    this.ctx.log.info(`${this.hookLogIdentifier}beforeReload`);
   }
 
   reload(
     bindings: Context,
     moduleExports: Context,
-    mountedModuleExports: Record<string, Context>
+    mounts: Map<string, Mount>
   ): void {
-    this.ctx.log.info("reload");
+    this.ctx.log.info(`${this.hookLogIdentifier}reload`);
     this.reloadBindings = bindings;
     this.reloadModuleExports = moduleExports;
-    this.reloadMountedModuleExports = mountedModuleExports;
+    this.reloadMounts = mounts;
   }
 
   dispose(): void {
-    this.ctx.log.info("dispose");
+    this.ctx.log.info(`${this.hookLogIdentifier}dispose`);
   }
 }

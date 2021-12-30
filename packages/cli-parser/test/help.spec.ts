@@ -50,6 +50,7 @@ Core Options:
      --root                  Path to resolve files relative to          [string]
      --mount                 Mount additional named      [array:NAME=PATH[@ENV]]
                              workers
+     --name                  Name of service                            [string]
 
 Test Options:
  -b, --boolean-option        Boolean option                            [boolean]
