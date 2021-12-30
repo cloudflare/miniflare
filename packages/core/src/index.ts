@@ -7,7 +7,6 @@ import {
   Compatibility,
   Context,
   Log,
-  Mount,
   Mutex,
   Options,
   PluginContext,
@@ -32,7 +31,12 @@ import { dequal } from "dequal/lite";
 import { dim } from "kleur/colors";
 import { MiniflareCoreError } from "./error";
 import { formatSize, pathsToString } from "./helpers";
-import { BindingsPlugin, CorePlugin, _populateBuildConfig } from "./plugins";
+import {
+  BindingsPlugin,
+  CorePlugin,
+  _CoreMount,
+  _populateBuildConfig,
+} from "./plugins";
 import { Router } from "./router";
 import {
   Request,
@@ -95,8 +99,6 @@ export type MiniflareCoreOptions<Plugins extends CorePluginSignatures> = Omit<
   // disallowing nesting
   mounts?: Record<string, string | Omit<Options<Plugins>, "mounts">>;
 };
-
-type CoreMount = Mount<Request, Response>; // yuck :(
 
 function getPluginEntries<Plugins extends PluginSignatures>(
   plugins: Plugins
@@ -629,7 +631,7 @@ export class MiniflareCore<
     }
   }
 
-  async #runAllReloads(mounts: Map<string, CoreMount>): Promise<void> {
+  async #runAllReloads(mounts: Map<string, _CoreMount>): Promise<void> {
     // #bindings and #moduleExports should be set, as this is always called
     // after running scripts in #reload().
     //
@@ -760,7 +762,7 @@ export class MiniflareCore<
       // Run reload hooks, getting module exports for each mount (we await
       // getPlugins() for each mount before running #reload() so their scripts
       // must've been run)
-      const mounts = new Map<string, CoreMount>();
+      const mounts = new Map<string, _CoreMount>();
       // this.#mounts and this.#instances are set in #init(), which is always
       // called before this
       // If this (parent) worker has a name, "mount" it so mounts can access it
@@ -768,15 +770,18 @@ export class MiniflareCore<
       if (name) {
         mounts.set(name, {
           moduleExports: this.#moduleExports,
-          dispatchFetch: this[kDispatchFetch],
-        } as CoreMount);
+          // `true` so service bindings requests always proxied to upstream,
+          // `Mount`'s `dispatchFetch` requires a function with signature
+          // `(Request) => Awaitable<Response>` too
+          dispatchFetch: (request) => this[kDispatchFetch](request, true),
+        } as _CoreMount);
       }
       // Add all other mounts
       for (const [name, mount] of this.#mounts!) {
         mounts.set(name, {
           moduleExports: await mount.getModuleExports(),
-          dispatchFetch: mount[kDispatchFetch],
-        } as CoreMount);
+          dispatchFetch: (request) => mount[kDispatchFetch](request, true),
+        } as _CoreMount);
       }
       await this.#runAllReloads(mounts);
       for (const mount of this.#mounts!.values()) {
@@ -1016,10 +1021,10 @@ export class MiniflareCore<
   // This is a separate internal function so it can be called by service
   // bindings that don't need (or want) any of the mounting stuff.
   // Declared as arrow function for correctly bound `this`.
-  [kDispatchFetch] = async <WaitUntil extends any[] = unknown[]>(
+  async [kDispatchFetch]<WaitUntil extends any[] = unknown[]>(
     request: Request,
     proxy: boolean
-  ): Promise<Response<WaitUntil>> => {
+  ): Promise<Response<WaitUntil>> {
     // TODO: consider what happens when fetch handler in bound service doesn't
     //  respond, or passThroughOnException() is called and exception thrown
     await this.#initPromise;
@@ -1037,7 +1042,7 @@ export class MiniflareCore<
         proxy
       )
     );
-  };
+  }
 
   async dispatchScheduled<WaitUntil extends any[] = unknown[]>(
     scheduledTime?: number,

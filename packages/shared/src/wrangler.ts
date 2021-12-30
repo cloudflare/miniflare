@@ -35,6 +35,11 @@ export interface WranglerEnvironmentConfig {
   }; // inherited
   usage_model?: "bundled" | "unbound"; // inherited
   wasm_modules?: Record<string, string>; // (probably) inherited
+  experimental_services?: {
+    name: string;
+    service: string;
+    environment: string;
+  }[]; // (probably) NOT inherited
   miniflare?: {
     globals?: Record<string, any>;
     upstream?: string;
