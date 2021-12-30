@@ -47,6 +47,7 @@
     "undici": "^4.11.1"
   },
   "devDependencies": {
+    "@miniflare/durable-objects": "2.0.0-rc.4",
     "@miniflare/shared-test": "2.0.0-rc.4",
     "@miniflare/watcher": "2.0.0-rc.4",
     "@miniflare/web-sockets": "2.0.0-rc.4",

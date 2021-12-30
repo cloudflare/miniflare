@@ -7,6 +7,7 @@ import {
   Compatibility,
   Context,
   Log,
+  Mount,
   Mutex,
   Options,
   PluginContext,
@@ -94,6 +95,8 @@ export type MiniflareCoreOptions<Plugins extends CorePluginSignatures> = Omit<
   // disallowing nesting
   mounts?: Record<string, string | Omit<Options<Plugins>, "mounts">>;
 };
+
+type CoreMount = Mount<Request, Response>; // yuck :(
 
 function getPluginEntries<Plugins extends PluginSignatures>(
   plugins: Plugins
@@ -205,6 +208,7 @@ export interface MiniflareCoreContext {
   scriptRunner?: ScriptRunner;
   scriptRequired?: boolean;
   scriptRunForModuleExports?: boolean;
+  isMount?: boolean;
 }
 
 export class ReloadEvent<Plugins extends PluginSignatures> extends Event {
@@ -309,6 +313,7 @@ export class MiniflareCore<
 
   readonly #initPromise: Promise<void>;
   async #init(): Promise<void> {
+    // The caller must eventually call #reload() at some point after #init()
     this.#ctx.log.debug("Initialising worker...");
 
     // Get required options
@@ -502,7 +507,10 @@ export class MiniflareCore<
         let mount = this.#mounts.get(name);
         if (mount) {
           this.#ctx.log.verbose(`Updating mount \"${name}\"...`);
-          await mount.setOptions(mountOptions);
+          // Don't dispatch a "reload" event once the worker has reloaded,
+          // this would update this (the parent's) router and reload it, which
+          // we're already going to do at the end of this function.
+          await mount.setOptions(mountOptions, /* dispatchReloadEvent */ false);
         } else {
           this.#ctx.log.debug(`Mounting \"${name}\"...`);
           let log = this.#ctx.log;
@@ -516,6 +524,9 @@ export class MiniflareCore<
             // in the parent depending on the mount's exports, and the mount
             // might not have plugins depending on its own exports
             scriptRunForModuleExports: false,
+            // Mark this as a mount, so we defer calling reload() hooks,
+            // see #reload()
+            isMount: true,
           };
           mount = new MiniflareCore(this.#originalPlugins, ctx, mountOptions);
           mount.addEventListener("reload", async (event) => {
@@ -524,8 +535,12 @@ export class MiniflareCore<
             // reloading, and also that we're using up-to-date Durable Object
             // classes from mounts.
             if (!event.initial) {
-              await this.#updateRouter();
-              await this.#reload();
+              try {
+                await this.#updateRouter();
+                await this.#reload();
+              } catch (e: any) {
+                this.#ctx.log.error(e);
+              }
             }
           });
           try {
@@ -541,14 +556,14 @@ export class MiniflareCore<
           this.#mounts.set(name, mount);
         }
       }
-
-      // Dispose old mounts
-      for (const [name, mount] of [...this.#mounts]) {
-        if (!(name in mounts)) {
-          this.#ctx.log.debug(`Unmounting \"${name}\"...`);
-          await mount.dispose();
-          this.#mounts.delete(name);
-        }
+    }
+    // Dispose old mounts (outside `if (mounts)` check in case `mounts` section
+    // deleted, in which call all mounts should be unmounted)
+    for (const [name, mount] of [...this.#mounts]) {
+      if (mounts === undefined || !(name in mounts)) {
+        this.#ctx.log.debug(`Unmounting \"${name}\"...`);
+        await mount.dispose();
+        this.#mounts.delete(name);
       }
     }
     await this.#updateRouter();
@@ -562,14 +577,35 @@ export class MiniflareCore<
     ) {
       throwNoScriptError(options.CorePlugin.modules);
     }
+
+    // #reload() is ALWAYS called eventually after this function by the caller
   }
 
   async #updateRouter(): Promise<void> {
     const allRoutes = new Map<string, string[]>();
+
+    // If this (parent) worker has a name, "mount" it so more specific routes
+    // are handled by it instead of mounts
+    const { CorePlugin } = this.#instances!;
+    if (CorePlugin.name) {
+      const routes = CorePlugin.routes;
+      if (routes) allRoutes.set(CorePlugin.name, routes);
+    }
+
+    // Add all other mounts
     for (const [name, mount] of this.#mounts!) {
-      const routes = (await mount.getPlugins()).CorePlugin.routes;
+      const { CorePlugin } = await mount.getPlugins();
+      if (CorePlugin.name !== undefined && CorePlugin.name !== name) {
+        throw new MiniflareCoreError(
+          "ERR_MOUNT_NAME_MISMATCH",
+          `Mounted name "${name}" must match service name "${CorePlugin.name}"`
+        );
+      }
+
+      const routes = CorePlugin.routes;
       if (routes) allRoutes.set(name, routes);
     }
+
     this.#router ??= new Router();
     this.#router.update(allRoutes);
     if (this.#mounts!.size) {
@@ -583,7 +619,33 @@ export class MiniflareCore<
     }
   }
 
-  async #reload(): Promise<void> {
+  async #runAllBeforeReloads(): Promise<void> {
+    for (const [name] of this.#plugins) {
+      const instance = this.#instances![name];
+      if (instance.beforeReload) {
+        this.#ctx.log.verbose(`- beforeReload(${name})`);
+        await instance.beforeReload();
+      }
+    }
+  }
+
+  async #runAllReloads(mounts: Map<string, CoreMount>): Promise<void> {
+    // #bindings and #moduleExports should be set, as this is always called
+    // after running scripts in #reload().
+    //
+    // #instances should be set as #reload() always follows #init().
+    const bindings = this.#bindings;
+    const exports = this.#moduleExports;
+    for (const [name] of this.#plugins) {
+      const instance = this.#instances![name];
+      if (instance.reload) {
+        this.#ctx.log.verbose(`- reload(${name})`);
+        await instance.reload(bindings ?? {}, exports ?? {}, mounts);
+      }
+    }
+  }
+
+  async #reload(dispatchReloadEvent = true): Promise<void> {
     this.#ctx.log.debug("Reloading worker...");
 
     const globals: Context = {};
@@ -592,17 +654,19 @@ export class MiniflareCore<
     const newWatchPaths = new Set<string>();
     if (this.#wranglerConfigPath) newWatchPaths.add(this.#wranglerConfigPath);
 
+    // Run all before reload hooks, including mounts if we have any
+    await this.#runAllBeforeReloads();
+    if (!this.#ctx.isMount) {
+      // this.#mounts is set in #init() which is always called before this
+      for (const mount of this.#mounts!.values()) {
+        await mount.#runAllBeforeReloads();
+      }
+    }
+
     let script: ScriptBlueprint | undefined = undefined;
     let requiresModuleExports = false;
     const additionalModules: AdditionalModules = {};
     for (const [name] of this.#plugins) {
-      // Run beforeReload hook
-      const instance = this.#instances![name];
-      if (instance.beforeReload) {
-        this.#ctx.log.verbose(`- beforeReload(${name})`);
-        await instance.beforeReload();
-      }
-
       // Build global scope, extracting script blueprints and additional modules
       const result = this.#setupResults!.get(name);
       Object.assign(globals, result?.globals);
@@ -639,6 +703,7 @@ export class MiniflareCore<
     );
     this.#globalScope = globalScope;
     this.#bindings = bindings;
+    this.#moduleExports = {};
 
     // Run script blueprints, with modules rules if in modules mode
     const rules = modules ? processedModuleRules : undefined;
@@ -687,28 +752,49 @@ export class MiniflareCore<
       }
     }
 
-    // Run reload hooks, getting module exports for each mount (we await
-    // getPlugins() for each mount before running #reload() so their scripts
-    // must've been run)
-    const moduleExports = res?.exports ?? {};
-    const mountedModuleExports: Record<string, Context> = {};
-    // this.#mounts is set in #init() which is always called before this
-    for (const [name, mount] of this.#mounts!) {
-      mountedModuleExports[name] = await mount.getModuleExports();
-    }
-    for (const [name] of this.#plugins) {
-      const instance = this.#instances![name];
-      if (instance.reload) {
-        this.#ctx.log.verbose(`- reload(${name})`);
-        await instance.reload(bindings, moduleExports, mountedModuleExports);
+    // If this is a mount, defer calling reload() plugin hooks, these will be
+    // called by the parent (us) once the root and all mounts have reloaded.
+    // This ensures that if some mounts depend on other mounts, they'll
+    // be ready when reload() hooks are called.
+    if (!this.#ctx.isMount) {
+      // Run reload hooks, getting module exports for each mount (we await
+      // getPlugins() for each mount before running #reload() so their scripts
+      // must've been run)
+      const mounts = new Map<string, CoreMount>();
+      // this.#mounts and this.#instances are set in #init(), which is always
+      // called before this
+      // If this (parent) worker has a name, "mount" it so mounts can access it
+      const name = this.#instances!.CorePlugin.name;
+      if (name) {
+        mounts.set(name, {
+          moduleExports: this.#moduleExports,
+          dispatchFetch: this[kDispatchFetch],
+        } as CoreMount);
+      }
+      // Add all other mounts
+      for (const [name, mount] of this.#mounts!) {
+        mounts.set(name, {
+          moduleExports: await mount.getModuleExports(),
+          dispatchFetch: mount[kDispatchFetch],
+        } as CoreMount);
+      }
+      await this.#runAllReloads(mounts);
+      for (const mount of this.#mounts!.values()) {
+        await mount.#runAllReloads(mounts);
       }
     }
-    // Dispatch reload event
-    const reloadEvent = new ReloadEvent("reload", {
-      plugins: this.#instances!,
-      initial: !this.#reloaded,
-    });
-    this.dispatchEvent(reloadEvent);
+
+    // Dispatch reload event (expect if we're updating mount options via
+    // setOptions() in #init(), in which call we'll call #reload() later
+    // ourselves, so don't want to trigger the "reload" event listener
+    // which would cause a double reload)
+    if (dispatchReloadEvent) {
+      const reloadEvent = new ReloadEvent("reload", {
+        plugins: this.#instances!,
+        initial: !this.#reloaded,
+      });
+      this.dispatchEvent(reloadEvent);
+    }
     this.#reloaded = true;
 
     // Log bundle size and warning if too big
@@ -836,13 +922,16 @@ export class MiniflareCore<
     await this.#reload();
   }
 
-  async setOptions(options: MiniflareCoreOptions<Plugins>): Promise<void> {
+  async setOptions(
+    options: MiniflareCoreOptions<Plugins>,
+    dispatchReloadEvent = true
+  ): Promise<void> {
     await this.#initPromise;
     options = { ...this.#previousSetOptions, ...options };
     this.#previousSetOptions = options;
     this.#overrides = splitPluginOptions(this.#plugins, options);
     await this.#init();
-    await this.#reload();
+    await this.#reload(dispatchReloadEvent);
   }
 
   getPluginStorage(name: keyof Plugins): StorageFactory {
@@ -897,7 +986,10 @@ export class MiniflareCore<
     // Forward to matching mount if any
     if (this.#mounts?.size) {
       const mountMatch = this.#router!.match(url);
-      if (mountMatch !== null) {
+      const name = this.#instances!.CorePlugin.name;
+      // If there was a match, and it isn't the current (parent) worker,
+      // forward the request to the matching mount instead
+      if (mountMatch !== null && mountMatch !== name) {
         const mount = this.#mounts.get(mountMatch);
         if (mount) return mount.dispatchFetch(request);
       }
@@ -915,6 +1007,23 @@ export class MiniflareCore<
       request.headers.set("host", upstreamURL.host);
     }
 
+    return this[kDispatchFetch](
+      request,
+      !!upstreamURL // only proxy if upstream URL set
+    );
+  }
+
+  // This is a separate internal function so it can be called by service
+  // bindings that don't need (or want) any of the mounting stuff.
+  // Declared as arrow function for correctly bound `this`.
+  [kDispatchFetch] = async <WaitUntil extends any[] = unknown[]>(
+    request: Request,
+    proxy: boolean
+  ): Promise<Response<WaitUntil>> => {
+    // TODO: consider what happens when fetch handler in bound service doesn't
+    //  respond, or passThroughOnException() is called and exception thrown
+    await this.#initPromise;
+
     // Parse form data files as strings if the compatibility flag isn't set
     if (!this.#compat!.isEnabled("formdata_parser_supports_files")) {
       request = withStringFormDataFiles(request);
@@ -925,10 +1034,10 @@ export class MiniflareCore<
     return new RequestContext().runWith(() =>
       globalScope![kDispatchFetch]<WaitUntil>(
         withImmutableHeaders(request),
-        !!upstreamURL // only proxy if upstream URL set
+        proxy
       )
     );
-  }
+  };
 
   async dispatchScheduled<WaitUntil extends any[] = unknown[]>(
     scheduledTime?: number,

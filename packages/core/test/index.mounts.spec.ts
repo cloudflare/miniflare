@@ -19,6 +19,7 @@ import { KVPlugin } from "@miniflare/kv";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import { LogLevel, NoOpLog, StoredValueMeta } from "@miniflare/shared";
 import {
+  AsyncTestLog,
   MemoryStorageFactory,
   TestLog,
   TestPlugin,
@@ -185,6 +186,7 @@ test("MiniflareCore: #init: wraps error with mount name if mount setup throws", 
   t.is(error?.cause?.name, "SyntaxError");
 });
 test("MiniflareCore: #init: disposes removed mounts", async (t) => {
+  const log = new TestLog();
   const mf = useMiniflare(
     {},
     {
@@ -193,22 +195,32 @@ test("MiniflareCore: #init: disposes removed mounts", async (t) => {
         a: { script: constantBodyScript("a"), routes: ["localhost/a*"] },
         b: { script: constantBodyScript("b"), routes: ["localhost/b*"] },
       },
-    }
+    },
+    log
   );
-
   let res = await mf.dispatchFetch("http://localhost/a");
   t.is(await res.text(), "a");
   res = await mf.dispatchFetch("http://localhost/b");
   t.is(await res.text(), "b");
 
+  log.logs = [];
   await mf.setOptions({
     mounts: { b: { script: constantBodyScript("b") } },
   });
-
+  t.true(log.logsAtLevel(LogLevel.DEBUG).includes('Unmounting "a"...'));
   res = await mf.dispatchFetch("http://localhost/a");
   t.is(await res.text(), "parent");
   res = await mf.dispatchFetch("http://localhost/b");
   t.is(await res.text(), "b");
+
+  // Try removing mounts option completely
+  log.logs = [];
+  await mf.setOptions({ mounts: undefined });
+  t.true(log.logsAtLevel(LogLevel.DEBUG).includes('Unmounting "b"...'));
+  res = await mf.dispatchFetch("http://localhost/a");
+  t.is(await res.text(), "parent");
+  res = await mf.dispatchFetch("http://localhost/b");
+  t.is(await res.text(), "parent");
 });
 test("MiniflareCore: #init: doesn't throw if script required, parent script not provided, but has mounts", async (t) => {
   const ctx: MiniflareCoreContext = {
@@ -224,14 +236,132 @@ test("MiniflareCore: #init: doesn't throw if script required, parent script not 
   await mf.getPlugins();
   t.pass();
 });
+test("MiniflareCore: #init: logs reload errors when mount options update instead of unhandled rejection", async (t) => {
+  const log = new AsyncTestLog();
+  const ctx: MiniflareCoreContext = {
+    log,
+    storageFactory: new MemoryStorageFactory(),
+    scriptRunner: new VMScriptRunner(),
+  };
+  const mf = new MiniflareCore({ CorePlugin, DurableObjectsPlugin }, ctx, {
+    mounts: { a: { script: "//" } },
+  });
+  await mf.getPlugins();
+  // Simulate file change in mount that would throw
+  const mount = await mf.getMount("a");
+  await mount.setOptions({
+    durableObjects: { TEST_OBJECT: "IDontExist" },
+  });
+  t.regex((await log.nextAtLevel(LogLevel.ERROR)) ?? "", /ERR_CLASS_NOT_FOUND/);
+});
 
-test("MiniflareCore: #reload: includes mounted module exports when calling plugin reload hooks", async (t) => {
+test("MiniflareCore: #updateRouter: requires mounted name and service name to match", async (t) => {
+  const mf = useMiniflare({}, { mounts: { a: { name: "b", script: "//" } } });
+  await t.throwsAsync(mf.getPlugins(), {
+    instanceOf: MiniflareCoreError,
+    code: "ERR_MOUNT_NAME_MISMATCH",
+    message: 'Mounted name "a" must match service name "b"',
+  });
+});
+
+test("MiniflareCore: #reload: includes mounts when calling plugin reload hooks", async (t) => {
   const mf = useMiniflare(
     { TestPlugin },
     { mounts: { test: { modules: true, script: "export const thing = 42;" } } }
   );
   const plugins = await mf.getPlugins();
-  t.is(plugins.TestPlugin.reloadMountedModuleExports?.test.thing, 42);
+  t.is(plugins.TestPlugin.reloadMounts?.get("test")?.moduleExports?.thing, 42);
+});
+test("MiniflareCore: #reload: runs all reload hooks after all workers reloaded", async (t) => {
+  // This is required to allow mounts to access parent exports, or other mounts,
+  // potentially in a cycle (e.g. service bindings)
+
+  const constantExportScript = (x: string) =>
+    `export const x = ${JSON.stringify(x)};`;
+  const log = new TestLog();
+  const mf = useMiniflare(
+    { TestPlugin },
+    {
+      name: "parent",
+      modules: true,
+      script: constantExportScript("parent"),
+      hookLogIdentifier: "parent:",
+      mounts: {
+        a: {
+          name: "a",
+          modules: true,
+          script: constantExportScript("a"),
+          hookLogIdentifier: "a:",
+        },
+        b: {
+          name: "b",
+          modules: true,
+          script: constantExportScript("b"),
+          hookLogIdentifier: "b:",
+        },
+      },
+    },
+    log
+  );
+  // Check on initial load
+  await mf.getPlugins();
+  t.deepEqual(log.logsAtLevel(LogLevel.INFO), [
+    "parent:beforeSetup",
+    "parent:setup",
+    "a:beforeSetup",
+    "a:setup",
+    "a:beforeReload", // a beforeReload called, but not reload
+    "Worker reloaded! (21B)", // a reload complete
+    "b:beforeSetup",
+    "b:setup",
+    "b:beforeReload", // b beforeReload called, but not reload
+    "Worker reloaded! (21B)", // b reload complete
+    // All beforeReloads called...
+    "parent:beforeReload",
+    "a:beforeReload",
+    "b:beforeReload",
+    // ...followed by all reloads
+    "parent:reload",
+    "a:reload",
+    "b:reload",
+    "Worker reloaded! (26B)", // parent reload complete
+  ]);
+
+  // Check all exports included in mounts reload hooks called with
+  let mounts = (await mf.getPlugins()).TestPlugin.reloadMounts;
+  t.is(mounts?.get("parent")?.moduleExports?.x, "parent");
+  t.is(mounts?.get("a")?.moduleExports?.x, "a");
+  t.is(mounts?.get("b")?.moduleExports?.x, "b");
+  const a = await mf.getMount("a");
+  const b = await mf.getMount("b");
+  t.is((await a.getPlugins()).TestPlugin.reloadMounts, mounts);
+  t.is((await b.getPlugins()).TestPlugin.reloadMounts, mounts);
+
+  // Check when updating mount
+  log.logs = [];
+  await a.setOptions({ script: constantExportScript("a:updated") });
+  await waitForReload(mf);
+  t.deepEqual(log.logsAtLevel(LogLevel.INFO), [
+    "a:beforeReload", // a beforeReload called, but not reload
+    "Worker reloaded! (29B)", // a reload complete
+    // All beforeReloads called...
+    "parent:beforeReload",
+    "a:beforeReload",
+    "b:beforeReload",
+    // ...followed by all reloads
+    "parent:reload",
+    "a:reload",
+    "b:reload",
+    "Worker reloaded! (26B)", // parent reload complete
+  ]);
+
+  // Check all exports included in mounts reload hooks called with again
+  mounts = (await mf.getPlugins()).TestPlugin.reloadMounts;
+  t.is(mounts?.get("parent")?.moduleExports?.x, "parent");
+  t.is(mounts?.get("a")?.moduleExports?.x, "a:updated");
+  t.is(mounts?.get("b")?.moduleExports?.x, "b");
+  t.is((await a.getPlugins()).TestPlugin.reloadMounts, mounts);
+  t.is((await b.getPlugins()).TestPlugin.reloadMounts, mounts);
 });
 
 test("MiniflareCore: getMount: gets mounted worker instance", async (t) => {
@@ -272,6 +402,35 @@ test("MiniflareCore: dispose: disposes of mounts too", async (t) => {
   t.deepEqual(log.logs, [[LogLevel.DEBUG, 'Unmounting "test"...']]);
 });
 
+test("MiniflareCore: includes named parent worker when matching mount routes", async (t) => {
+  const mf = useMiniflare(
+    {},
+    {
+      name: "parent",
+      routes: ["localhost/api"],
+      script: constantBodyScript("parent"),
+      mounts: {
+        a: {
+          name: "a",
+          routes: ["*localhost/api*"], // less specific than parent route
+          script: constantBodyScript("a"),
+        },
+      },
+    }
+  );
+
+  // Check parent worker checked first
+  let res = await mf.dispatchFetch("http://localhost/api");
+  t.is(await res.text(), "parent");
+
+  // Check mounted worker still accessible
+  res = await mf.dispatchFetch("http://localhost/api2");
+  t.is(await res.text(), "a");
+
+  // Check fallback to parent worker
+  res = await mf.dispatchFetch("http://localhost/notapi");
+  t.is(await res.text(), "parent");
+});
 test("MiniflareCore: uses original protocol and host when matching mount routes", async (t) => {
   const mf = useMiniflare(
     { HTTPPlugin },
@@ -591,4 +750,79 @@ test("MiniflareCore: runs mounted worker script for Durable Object classes used 
   );
   const res = await mf.dispatchFetch("http://localhost/");
   t.is(await res.text(), "object");
+});
+test("MiniflareCore: can access Durable Objects defined in parent or other mounts in mount", async (t) => {
+  const doScript = (
+    className: string,
+    response: string
+  ) => `export class ${className} {
+          fetch() {
+            return new Response("${response}");
+          }
+        }`;
+  const mf = new MiniflareCore(
+    { CorePlugin, DurableObjectsPlugin },
+    {
+      log: new NoOpLog(),
+      storageFactory: new MemoryStorageFactory(),
+      scriptRunner: new VMScriptRunner(),
+    },
+    {
+      name: "parent",
+      modules: true,
+      script: doScript("ParentObject", "parent object"),
+      mounts: {
+        a: {
+          name: "a",
+          modules: true,
+          script: doScript("MountAObject", "mount a object"),
+        },
+        b: {
+          name: "b",
+          durableObjects: {
+            PARENT_OBJECT: { className: "ParentObject", scriptName: "parent" },
+            MOUNT_A_OBJECT: { className: "MountAObject", scriptName: "a" },
+          },
+          routes: ["*"],
+          modules: true,
+          script: `export default {
+            async fetch(request, { PARENT_OBJECT, MOUNT_A_OBJECT }) {
+              // Using named IDs to check object instances are reset
+              const parentId = PARENT_OBJECT.idFromName("id");
+              const aId = MOUNT_A_OBJECT.idFromName("id");
+              
+              const parentStub = PARENT_OBJECT.get(parentId);
+              const aStub = MOUNT_A_OBJECT.get(aId);
+              
+              const parentRes = await parentStub.fetch("http://localhost/");
+              const aRes = await aStub.fetch("http://localhost/");
+              
+              const parentText = await parentRes.text();
+              const aText = await aRes.text();
+              
+              return new Response(parentText + ":" + aText);
+            }
+          }`,
+        },
+      },
+    }
+  );
+
+  let res = await mf.dispatchFetch("http://localhost/");
+  t.is(await res.text(), "parent object:mount a object");
+
+  // Check updates to mount A reflected in mount B
+  const a = await mf.getMount("a");
+  await a.setOptions({ script: doScript("MountAObject", "mount a object 2") });
+  res = await mf.dispatchFetch("http://localhost/");
+  t.is(await res.text(), "parent object:mount a object 2");
+
+  // Check updates to parent reflected in mount B
+  await mf.setOptions({ script: doScript("ParentObject", "parent object 2") });
+  res = await mf.dispatchFetch("http://localhost/");
+  // TODO (someday): this is a bug, should be "parent object 2:mount a object 2"
+  //  but setOptions in a mount doesn't update parent's previous options object.
+  //  setOptions in mounts shouldn't really be exposed to end-users, it's only
+  //  meant for testing.
+  t.is(await res.text(), "parent object 2:mount a object");
 });

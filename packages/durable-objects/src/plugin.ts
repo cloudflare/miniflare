@@ -1,6 +1,7 @@
 import assert from "assert";
 import {
   Context,
+  Mount,
   Option,
   OptionType,
   Plugin,
@@ -191,7 +192,7 @@ export class DurableObjectsPlugin
   reload(
     bindings: Context,
     moduleExports: Context,
-    mountedModuleExports: Record<string, Context>
+    mounts: Map<string, Mount>
   ): void {
     this.#constructors.clear();
     for (const { name, className, scriptName } of this.#processedObjects) {
@@ -200,7 +201,7 @@ export class DurableObjectsPlugin
       if (scriptName === undefined) {
         constructor = moduleExports[className];
       } else {
-        const scriptExports = mountedModuleExports[scriptName];
+        const scriptExports = mounts.get(scriptName)?.moduleExports;
         if (!scriptExports) {
           throw new DurableObjectError(
             "ERR_SCRIPT_NOT_FOUND",
