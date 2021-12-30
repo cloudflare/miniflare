@@ -49,6 +49,7 @@ test.serial("Miniflare: dispose: disposes plugins and storage", async (t) => {
   t.deepEqual(logs, [
     "[mf:vrb] - dispose(DurableObjectsPlugin)",
     "[mf:vrb] - dispose(WebSocketPlugin)",
+    "[mf:vrb] - dispose(BindingsPlugin)",
     "[mf:vrb] Disposing storage...",
   ]);
 });

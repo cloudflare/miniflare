@@ -1,12 +1,30 @@
 import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
-import { BindingsPlugin } from "@miniflare/core";
-import { Compatibility, NoOpLog, PluginContext } from "@miniflare/shared";
+import { setImmediate } from "timers/promises";
+import { CachePlugin } from "@miniflare/cache";
 import {
+  BindingsPlugin,
+  Fetcher,
+  MiniflareCoreError,
+  Response,
+  _CoreMount,
+} from "@miniflare/core";
+import {
+  Compatibility,
+  LogLevel,
+  NoOpLog,
+  PluginContext,
+  getRequestContext,
+} from "@miniflare/shared";
+import {
+  AsyncTestLog,
+  getObjectProperties,
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  useMiniflare,
+  useServer,
   useTmp,
 } from "@miniflare/shared-test";
 import test from "ava";
@@ -38,12 +56,20 @@ test("BindingsPlugin: parses options from argv", (t) => {
     "MODULE1=module1.wasm",
     "--wasm",
     "MODULE2=module2.wasm",
+    "--service",
+    "SERVICE1=service1",
+    "--service",
+    "SERVICE2=service2@development",
   ]);
   t.deepEqual(options, {
     envPath: ".env.test",
     bindings: { KEY1: "value1", KEY2: "value2" },
     globals: { KEY3: "value3", KEY4: "value4" },
     wasmBindings: { MODULE1: "module1.wasm", MODULE2: "module2.wasm" },
+    serviceBindings: {
+      SERVICE1: "service1",
+      SERVICE2: { service: "service2", environment: "development" },
+    },
   });
   options = parsePluginArgv(BindingsPlugin, [
     "-e",
@@ -52,10 +78,18 @@ test("BindingsPlugin: parses options from argv", (t) => {
     "KEY1=value1",
     "-b",
     "KEY2=value2",
+    "-S",
+    "SERVICE1=service1",
+    "-S",
+    "SERVICE2=service2@development",
   ]);
   t.deepEqual(options, {
     envPath: ".env.test",
     bindings: { KEY1: "value1", KEY2: "value2" },
+    serviceBindings: {
+      SERVICE1: "service1",
+      SERVICE2: { service: "service2", environment: "development" },
+    },
   });
 });
 test("BindingsPlugin: parses options from wrangler config", async (t) => {
@@ -64,6 +98,10 @@ test("BindingsPlugin: parses options from wrangler config", async (t) => {
       MODULE1: "module1.wasm",
       MODULE2: "module2.wasm",
     },
+    experimental_services: [
+      { name: "SERVICE1", service: "service1", environment: "development" },
+      { name: "SERVICE2", service: "service2", environment: "production" },
+    ],
     miniflare: {
       globals: { KEY5: "value5", KEY6: false, KEY7: 10 },
       env_path: ".env.test",
@@ -73,6 +111,10 @@ test("BindingsPlugin: parses options from wrangler config", async (t) => {
     envPath: ".env.test",
     globals: { KEY5: "value5", KEY6: false, KEY7: 10 },
     wasmBindings: { MODULE1: "module1.wasm", MODULE2: "module2.wasm" },
+    serviceBindings: {
+      SERVICE1: { service: "service1", environment: "development" },
+      SERVICE2: { service: "service2", environment: "production" },
+    },
   });
 
   // Wrangler bindings are stored in the kWranglerBindings symbol, which isn't
@@ -101,6 +143,10 @@ test("BindingsPlugin: logs options", (t) => {
     bindings: { KEY3: "value3", KEY4: "value4" },
     globals: { KEY5: "value5", KEY6: "value6" },
     wasmBindings: { MODULE1: "module1.wasm", MODULE2: "module2.wasm" },
+    serviceBindings: {
+      SERVICE1: "service1",
+      SERVICE2: { service: "service2", environment: "development" },
+    },
   });
   t.deepEqual(logs, [
     "Env Path: .env.custom",
@@ -108,6 +154,7 @@ test("BindingsPlugin: logs options", (t) => {
     "Custom Bindings: KEY3, KEY4",
     "Custom Globals: KEY5, KEY6",
     "WASM Bindings: MODULE1, MODULE2",
+    "Service Bindings: SERVICE1, SERVICE2",
   ]);
   logs = logPluginOptions(BindingsPlugin, { envPath: true });
   t.deepEqual(logs, ["Env Path: .env"]);
@@ -219,32 +266,321 @@ test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
   // 1) Wrangler [vars]
   // 2) .env Variables
   // 3) WASM Module Bindings
-  // 4) Custom Bindings
+  // 4) Service Bindings
+  // 5) Custom Bindings
 
   // wranglerOptions should contain [kWranglerBindings]
   const wranglerOptions = parsePluginWranglerConfig(BindingsPlugin, {
-    vars: { A: "wrangler", B: "wrangler", C: "wrangler", D: "wrangler" },
+    vars: { A: "w", B: "w", C: "w", D: "w", E: "w" },
   });
 
   const tmp = await useTmp(t);
   const envPath = path.join(tmp, ".env");
-  await fs.writeFile(envPath, "A=env\nB=env\nC=env");
+  await fs.writeFile(envPath, "A=env\nB=env\nC=env\nD=env");
 
   const obj = { ping: "pong" };
+  const throws = () => {
+    throw new Error("Should not be called");
+  };
   const plugin = new BindingsPlugin(ctx, {
     ...wranglerOptions,
     wasmBindings: {
       A: addModulePath,
       B: addModulePath,
+      C: addModulePath,
     },
+    serviceBindings: { A: throws, B: throws },
     bindings: { A: obj },
     envPath,
   });
   const result = await plugin.setup();
   assert(result.bindings);
 
-  t.is(result.bindings.D, "wrangler");
-  t.is(result.bindings.C, "env");
-  t.true(result.bindings.B instanceof WebAssembly.Module);
+  t.is(result.bindings.E, "w");
+  t.is(result.bindings.D, "env");
+  t.true(result.bindings.C instanceof WebAssembly.Module);
+  t.true(result.bindings.B instanceof Fetcher);
   t.is(result.bindings.A, obj);
+});
+
+// Service bindings tests
+test("Fetcher: hides implementation details", (t) => {
+  const throws = () => {
+    throw new Error("Should not be called");
+  };
+  const fetcher = new Fetcher(log, throws, throws);
+  t.deepEqual(getObjectProperties(fetcher), ["fetch"]);
+});
+test("BindingsPlugin: dispatches fetch to mounted service", async (t) => {
+  const mf = useMiniflare(
+    { BindingsPlugin },
+    {
+      name: "a",
+      modules: true,
+      script: `export default {
+        fetch(request, env) {
+          const { pathname } = new URL(request.url);
+          if (pathname === "/ping") {
+            return new Response("pong");
+          }
+          return env.SERVICE_B.fetch("http://localhost/test", { method: "POST" });
+        }
+      }`,
+      serviceBindings: {
+        SERVICE_B: { service: "b", environment: "production" },
+      },
+      mounts: {
+        b: {
+          name: "b",
+          modules: true,
+          script: `export default {
+            async fetch(request, env) {
+              const res = await env.SERVICE_A.fetch("http://localhost/ping");
+              const text = await res.text();
+              return new Response(request.method + " " + request.url + ":" + text);
+            }
+          }`,
+          // Implicitly testing service binding shorthand
+          serviceBindings: { SERVICE_A: "a" },
+        },
+      },
+    }
+  );
+  const res = await mf.dispatchFetch("http://localhost/");
+  t.is(await res.text(), "POST http://localhost/test:pong");
+});
+test("BindingsPlugin: dispatches fetch to custom service", async (t) => {
+  const plugin = new BindingsPlugin(ctx, {
+    serviceBindings: {
+      async SERVICE(request) {
+        return new Response(`${request.method} ${request.url}`);
+      },
+    },
+  });
+  const { bindings } = await plugin.setup();
+  let res = await bindings!.SERVICE.fetch("http://localhost/", {
+    method: "POST",
+  });
+  t.is(await res.text(), "POST http://localhost/");
+
+  // No need to run beforeReload()/reload() hooks here, but just check that
+  // running them doesn't break anything
+  plugin.beforeReload();
+  plugin.reload({}, {}, new Map());
+  res = await bindings!.SERVICE.fetch("http://localhost/test");
+  t.is(await res.text(), "GET http://localhost/test");
+});
+test("BindingsPlugin: waits for services before dispatching", async (t) => {
+  const plugin = new BindingsPlugin(ctx, {
+    // Implicitly testing service binding without environment
+    serviceBindings: { SERVICE: { service: "a" } },
+  });
+  const { bindings } = await plugin.setup();
+  plugin.beforeReload();
+  // Simulate fetching before reload complete
+  const res = bindings!.SERVICE.fetch("http://localhost/");
+  await setImmediate();
+  const mount: _CoreMount = {
+    dispatchFetch: async () => new Response("a service"),
+  };
+  plugin.reload({}, {}, new Map([["a", mount]]));
+  t.is(await (await res).text(), "a service");
+});
+test("BindingsPlugin: reload: throws if service isn't mounted", async (t) => {
+  let plugin = new BindingsPlugin(ctx, {
+    serviceBindings: { SERVICE: "a" },
+  });
+  await plugin.setup();
+  plugin.beforeReload();
+  t.throws(() => plugin.reload({}, {}, new Map()), {
+    instanceOf: MiniflareCoreError,
+    code: "ERR_SERVICE_NOT_MOUNTED",
+    message:
+      'Service "a" for binding "SERVICE" not found.\nMake sure "a" is mounted so Miniflare knows where to find it.',
+  });
+
+  // Check doesn't throw if using custom fetch function
+  plugin = new BindingsPlugin(ctx, {
+    serviceBindings: { SERVICE: () => new Response() },
+  });
+  await plugin.setup();
+  plugin.beforeReload();
+  plugin.reload({}, {}, new Map());
+  t.pass();
+});
+test("BindingsPlugin: reloads service bindings used by mount when another mounted worker reloads", async (t) => {
+  const mf = useMiniflare(
+    { BindingsPlugin },
+    {
+      mounts: {
+        a: {
+          modules: true,
+          routes: ["*"],
+          script: `export default {
+            async fetch(request, env) {
+              const res = await env.SERVICE_B.fetch("http://localhost/");
+              return new Response("a" + await res.text());              
+            }
+          }`,
+          serviceBindings: { SERVICE_B: "b" },
+        },
+        b: {
+          modules: true,
+          script: `export default { fetch: () => new Response("b1") }`,
+        },
+      },
+    }
+  );
+  let res = await mf.dispatchFetch("http://localhost/");
+  t.is(await res.text(), "ab1");
+
+  // Update "b" and check new response
+  const b = await mf.getMount("b");
+  await b.setOptions({
+    script: `export default { fetch: () => new Response("b2") }`,
+  });
+
+  res = await mf.dispatchFetch("http://localhost/");
+  t.is(await res.text(), "ab2");
+});
+test("BindingsPlugin: passes through when service doesn't respond", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  const mf = useMiniflare(
+    { BindingsPlugin },
+    {
+      name: "parent",
+      script: 'addEventListener("fetch", () => {})',
+      mounts: {
+        a: { script: 'addEventListener("fetch", () => {})' },
+        b: {
+          modules: true,
+          script: `export default {
+            fetch(request, env, ctx) {
+              ctx.passThroughOnException();
+              throw new Error("oops");
+            }
+          }`,
+        },
+        c: {
+          modules: true,
+          routes: ["*/*"],
+          script: `export default {
+            async fetch(request, env) {
+              const { pathname } = new URL(request.url);
+              const name = pathname === "/a" ? "SERVICE_A" 
+                : pathname === "/b" ? "SERVICE_B" : "SERVICE_PARENT";
+              const service = env[name];
+              const res = await service.fetch(${JSON.stringify(upstream)});
+              return new Response(name + ":" + await res.text());
+            }
+          }`,
+          serviceBindings: {
+            SERVICE_A: "a",
+            SERVICE_B: "b",
+            SERVICE_PARENT: "parent",
+          },
+        },
+      },
+    }
+  );
+  // Check with both another mounted service and the parent and when
+  // passThroughOnException() is called
+  let res = await mf.dispatchFetch("http://localhost/a");
+  t.is(await res.text(), "SERVICE_A:upstream");
+  res = await mf.dispatchFetch("http://localhost/b");
+  t.is(await res.text(), "SERVICE_B:upstream");
+  res = await mf.dispatchFetch("http://localhost/parent");
+  t.is(await res.text(), "SERVICE_PARENT:upstream");
+});
+test("BindingsPlugin: returns 500 response if service throws", async (t) => {
+  const log = new AsyncTestLog();
+  const mf = useMiniflare(
+    { BindingsPlugin },
+    {
+      modules: true,
+      script: `export default {
+        async fetch(request, env) {
+          const res = await env.SERVICE.fetch(request);
+          // Check stack not unwound, and we still have control
+          const body = {
+            status: res.status,
+            headers: [...res.headers],
+            body: await res.text(),
+          };
+          return new Response(JSON.stringify(body), {
+            headers: { "Content-Type": "application/json" },
+          });
+        } ,
+      }`,
+      serviceBindings: { SERVICE: "a" },
+      mounts: {
+        a: {
+          modules: true,
+          script: `export default {
+            fetch: () => { throw new Error("oops"); },
+          }`,
+        },
+      },
+    },
+    log
+  );
+  const res = await mf.dispatchFetch("http://localhost/");
+  const body = await res.json();
+  t.deepEqual(body, {
+    status: 500,
+    headers: [["cf-worker-status", "exception"]],
+    body: "",
+  });
+  // Check error logged
+  t.regex((await log.nextAtLevel(LogLevel.ERROR)) ?? "", /^Error: oops/);
+});
+test("BindingsPlugin: service fetch creates new request context", async (t) => {
+  // noinspection JSUnusedGlobalSymbols
+  const bindings = {
+    assertSubrequests(expected: number) {
+      t.is(getRequestContext()?.subrequests, expected);
+    },
+  };
+
+  const mf = useMiniflare(
+    { BindingsPlugin, CachePlugin },
+    {
+      bindings,
+      serviceBindings: { SERVICE: "a" },
+      modules: true,
+      script: `export default {
+        async fetch(request, env) {
+          env.assertSubrequests(0);
+          await caches.default.match("http://localhost/");
+          env.assertSubrequests(1);
+          return await env.SERVICE.fetch(request);
+        },
+      }`,
+      mounts: {
+        a: {
+          bindings,
+          modules: true,
+          script: `export default {
+            async fetch(request, env) {
+              env.assertSubrequests(0);
+              await caches.default.match("http://localhost/");
+              env.assertSubrequests(1);
+              
+              const n = parseInt(new URL(request.url).searchParams.get("n"));
+              await Promise.all(
+                Array.from(Array(n)).map(() => caches.default.match("http://localhost/"))
+              );
+              return new Response("body");
+            },
+          }`,
+        },
+      },
+    }
+  );
+  await t.throwsAsync(mf.dispatchFetch("http://localhost/?n=50"), {
+    instanceOf: Error,
+    message: /^Too many subrequests/,
+  });
+  const res = await mf.dispatchFetch("http://localhost/?n=1");
+  t.is(await res.text(), "body");
 });

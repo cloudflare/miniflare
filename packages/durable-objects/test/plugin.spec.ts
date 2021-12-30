@@ -243,7 +243,7 @@ test("DurableObjectsPlugin: reload: throws if object constructor cannot be found
   t.throws(() => plugin.reload({}, {}, new Map()), {
     instanceOf: DurableObjectError,
     code: "ERR_CLASS_NOT_FOUND",
-    message: "Class TestObject for Durable Object TEST not found",
+    message: 'Class "TestObject" for Durable Object "TEST" not found',
   });
 });
 test("DurableObjectPlugin: reload: throws if script cannot be found in mounts", (t) => {
@@ -253,7 +253,7 @@ test("DurableObjectPlugin: reload: throws if script cannot be found in mounts", 
   t.throws(() => plugin.reload({}, {}, new Map()), {
     instanceOf: DurableObjectError,
     code: "ERR_SCRIPT_NOT_FOUND",
-    message: "Script test for Durable Object TEST not found",
+    message: 'Script "test" for Durable Object "TEST" not found',
   });
 });
 test("DurableObjectsPlugin: reload: throws if object constructor cannot be found in mount exports", (t) => {
@@ -265,7 +265,7 @@ test("DurableObjectsPlugin: reload: throws if object constructor cannot be found
     instanceOf: DurableObjectError,
     code: "ERR_CLASS_NOT_FOUND",
     message:
-      "Class TestObject in script test for Durable Object TEST not found",
+      'Class "TestObject" in script "test" for Durable Object "TEST" not found',
   });
 });
 

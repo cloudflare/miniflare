@@ -323,16 +323,21 @@ test("MiniflareCore: #init: re-creates only plugins with changed options on relo
     "- beforeSetup(TestPlugin)",
     "- setup(TestPlugin)",
     "- beforeReload(TestPlugin)",
+    "- beforeReload(BindingsPlugin)",
     "- reload(TestPlugin)",
+    "- reload(BindingsPlugin)",
   ]);
 
   // Update nested option, check only BindingsPlugin re-created
   log.logs = [];
   await mf.setOptions({ numberOption: 2, bindings: { KEY: "value2" } });
   t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), [
+    "- dispose(BindingsPlugin)",
     "- setup(BindingsPlugin)",
     "- beforeReload(TestPlugin)",
+    "- beforeReload(BindingsPlugin)",
     "- reload(TestPlugin)",
+    "- reload(BindingsPlugin)",
   ]);
 
   // Update nothing, check just reloaded
@@ -340,7 +345,9 @@ test("MiniflareCore: #init: re-creates only plugins with changed options on relo
   await mf.setOptions({ numberOption: 2, bindings: { KEY: "value2" } });
   t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), [
     "- beforeReload(TestPlugin)",
+    "- beforeReload(BindingsPlugin)",
     "- reload(TestPlugin)",
+    "- reload(BindingsPlugin)",
   ]);
 });
 test("MiniflareCore: #init: re-runs setup for script-providing plugins if any beforeSetup ran", async (t) => {
@@ -366,8 +373,10 @@ test("MiniflareCore: #init: re-runs setup for script-providing plugins if any be
     "- setup(CorePlugin)",
     "- setup(TestPlugin)",
     "- beforeReload(TestPlugin)",
+    "- beforeReload(BindingsPlugin)",
     "Running script...",
     "- reload(TestPlugin)",
+    "- reload(BindingsPlugin)",
   ]);
 
   // Update BindingsPlugin options, CorePlugin setup shouldN'T re-run as
@@ -379,10 +388,13 @@ test("MiniflareCore: #init: re-runs setup for script-providing plugins if any be
     bindings: { KEY: "value2" },
   });
   t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), [
+    "- dispose(BindingsPlugin)",
     "- setup(BindingsPlugin)",
     "- beforeReload(TestPlugin)",
+    "- beforeReload(BindingsPlugin)",
     "Running script...",
     "- reload(TestPlugin)",
+    "- reload(BindingsPlugin)",
   ]);
 });
 test("MiniflareCore: #init: re-creates all plugins if compatibility data or root path changed", async (t) => {
@@ -400,12 +412,15 @@ test("MiniflareCore: #init: re-creates all plugins if compatibility data or root
   const expectedLogs = [
     "- dispose(TestPlugin)",
     "- beforeSetup(TestPlugin)",
+    "- dispose(BindingsPlugin)",
     "- setup(CorePlugin)",
     "- setup(TestPlugin)",
     "- setup(BindingsPlugin)",
     "- beforeReload(TestPlugin)",
+    "- beforeReload(BindingsPlugin)",
     "Running script...",
     "- reload(TestPlugin)",
+    "- reload(BindingsPlugin)",
   ];
 
   // Update compatibility date
@@ -577,11 +592,13 @@ test("MiniflareCore: #reload: reloads worker on init", async (t) => {
     [LogLevel.INFO, "beforeReload"],
     [LogLevel.VERBOSE, "- beforeReload(TestPlugin2)"],
     [LogLevel.INFO, "beforeReload"],
+    [LogLevel.VERBOSE, "- beforeReload(BindingsPlugin)"],
     [LogLevel.VERBOSE, "Running script..."],
     [LogLevel.VERBOSE, "- reload(TestPlugin1)"],
     [LogLevel.INFO, "reload"],
     [LogLevel.VERBOSE, "- reload(TestPlugin2)"],
     [LogLevel.INFO, "reload"],
+    [LogLevel.VERBOSE, "- reload(BindingsPlugin)"],
     // Check bundle size logged too
     [LogLevel.INFO, "Worker reloaded! (29B)"],
   ];
@@ -812,8 +829,10 @@ test("MiniflareCore: #watcherCallback: re-runs setup for script-providing plugin
     "- beforeSetup(TestPlugin)",
     "- setup(CorePlugin)",
     "- beforeReload(TestPlugin)",
+    "- beforeReload(BindingsPlugin)",
     "Running script...",
     "- reload(TestPlugin)",
+    "- reload(BindingsPlugin)",
   ]);
 
   // Update BindingsPlugin watched path, CorePlugin setup shouldN'T re-run as
@@ -825,8 +844,10 @@ test("MiniflareCore: #watcherCallback: re-runs setup for script-providing plugin
   t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), [
     "- setup(BindingsPlugin)",
     "- beforeReload(TestPlugin)",
+    "- beforeReload(BindingsPlugin)",
     "Running script...",
     "- reload(TestPlugin)",
+    "- reload(BindingsPlugin)",
   ]);
 });
 

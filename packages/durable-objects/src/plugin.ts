@@ -205,7 +205,7 @@ export class DurableObjectsPlugin
         if (!scriptExports) {
           throw new DurableObjectError(
             "ERR_SCRIPT_NOT_FOUND",
-            `Script ${scriptName} for Durable Object ${name} not found`
+            `Script "${scriptName}" for Durable Object "${name}" not found`
           );
         }
         constructor = scriptExports[className];
@@ -214,10 +214,10 @@ export class DurableObjectsPlugin
       if (constructor) {
         this.#constructors.set(name, constructor);
       } else {
-        const script = scriptName ? ` in script ${scriptName}` : "";
+        const script = scriptName ? ` in script "${scriptName}"` : "";
         throw new DurableObjectError(
           "ERR_CLASS_NOT_FOUND",
-          `Class ${className}${script} for Durable Object ${name} not found`
+          `Class "${className}"${script} for Durable Object "${name}" not found`
         );
       }
     }

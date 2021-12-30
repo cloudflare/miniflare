@@ -111,6 +111,14 @@ export abstract class Plugin<Options extends Context = never> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   setup?(storageFactory: StorageFactory): Awaitable<SetupResult | void>;
 
+  // Called before the worker's script is executed. May be called more times
+  // than reload() if the worker is mounted. When a mounted worker is reloaded,
+  // it calls beforeReload(), runs the script, but doesn't run reload(). It then
+  // instructs the parent to reload, which will call ALL beforeReload() hooks
+  // (for itself and all mounts), run just the parent script, then finally call
+  // ALL reload() hooks. This ensures all services are accessible to all workers
+  // in reload().
+  // TODO (someday): this isn't very nice, maybe something to fix in Miniflare 3 :P
   beforeReload?(): Awaitable<void>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
