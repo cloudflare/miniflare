@@ -4,13 +4,14 @@ import path from "path";
 import {
   Awaitable,
   Context,
-  Log,
   Mount,
   Option,
   OptionType,
   Plugin,
   PluginContext,
+  RequestContext,
   SetupResult,
+  getRequestContext,
 } from "@miniflare/shared";
 import dotenv from "dotenv";
 import { MiniflareCoreError } from "../error";
@@ -48,42 +49,46 @@ export interface BindingsOptions {
 }
 
 export class Fetcher {
-  readonly #log: Log;
   readonly #service: string | FetcherFetch;
   readonly #getServiceFetch: (name: string) => Promise<FetcherFetch>;
 
   constructor(
-    log: Log,
     service: string | FetcherFetch,
     getServiceFetch: (name: string) => Promise<FetcherFetch>
   ) {
-    this.#log = log;
     this.#service = service;
     this.#getServiceFetch = getServiceFetch;
   }
 
   async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
+    // Check we're not too deep, should throw in the caller and NOT return a
+    // 500 Internal Server Error Response from this function
+    const parentCtx = getRequestContext();
+    const requestDepth = parentCtx?.requestDepth ?? 1;
+    const pipelineDepth = (parentCtx?.pipelineDepth ?? 0) + 1;
+    // NOTE: `new RequestContext` throws if too deep
+    const ctx = new RequestContext(requestDepth, pipelineDepth);
+
     // Always create new Request instance, so clean object passed to services
-    const request = new Request(input, init);
+    const req = new Request(input, init);
 
-    // If we're using a custom fetch handler, just call that
-    if (typeof this.#service === "function") return this.#service(request);
+    // If we're using a custom fetch handler, call that or wait for the service
+    // fetch handler to be available
+    const fetch =
+      typeof this.#service === "function"
+        ? this.#service
+        : await this.#getServiceFetch(this.#service);
 
-    // Otherwise, wait for the service fetch handler to be available...
-    const fetch = await this.#getServiceFetch(this.#service);
-    // ...and call that
-    try {
-      return await fetch(request);
-    } catch (e: any) {
-      // If the fetch handler throws, don't propagate the exception up the
-      // stack, instead just return an 500 response. Log the error though, so
-      // the user knows something bad has happened.
-      this.#log.error(e);
-      return new Response(null, {
-        status: 500,
-        headers: { "CF-Worker-Status": "exception" },
-      });
-    }
+    // Cloudflare Workers currently don't propagate errors thrown by the service
+    // when handling the request. Instead a 500 Internal Server Error Response
+    // is returned with the CF-Worker-Status header set to "exception". We
+    // could do this, but I think for Miniflare, we get a better developer
+    // experience if we don't (e.g. the pretty error page will only be shown
+    // if the error reaches the HTTP request listener). We already do this for
+    // Durable Objects. If user's want this behaviour, they can explicitly catch
+    // the error in their service.
+    // TODO: maybe add (debug/verbose) logging here?
+    return ctx.runWith(() => fetch(req));
   }
 }
 
@@ -272,11 +277,7 @@ export class BindingsPlugin
 
     // 4) Load service bindings
     for (const { name, service } of this.#processedServiceBindings) {
-      bindings[name] = new Fetcher(
-        this.ctx.log,
-        service,
-        this.#getServiceFetch
-      );
+      bindings[name] = new Fetcher(service, this.#getServiceFetch);
     }
 
     // 5) Copy user's arbitrary bindings

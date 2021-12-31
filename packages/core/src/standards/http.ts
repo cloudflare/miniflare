@@ -606,6 +606,9 @@ export function _getURLList(res: BaseResponse): URL[] | undefined {
   }
 }
 
+/** @internal */
+export const _kLoopHeader = "MF-Loop";
+
 export async function fetch(
   input: RequestInfo,
   init?: RequestInit
@@ -631,6 +634,8 @@ export async function fetch(
   // Delete the "CF-Connecting-IP" header, if we didn't do this, we'd get a 403
   // response when attempting to make requests to sites behind Cloudflare
   req.headers.delete("cf-connecting-ip");
+  // Add "MF-Loop" header for loop detection
+  req.headers.set(_kLoopHeader, String(ctx?.requestDepth ?? 1));
 
   const baseRes = await baseFetch(req);
 

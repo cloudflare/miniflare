@@ -44,6 +44,7 @@ import {
   RequestInit,
   Response,
   ServiceWorkerGlobalScope,
+  _kLoopHeader,
   kAddModuleFetchListener,
   kAddModuleScheduledListener,
   kDispatchFetch,
@@ -1012,9 +1013,17 @@ export class MiniflareCore<
       request.headers.set("host", upstreamURL.host);
     }
 
-    return this[kDispatchFetch](
-      request,
-      !!upstreamURL // only proxy if upstream URL set
+    // Each fetch gets its own context (e.g. 50 subrequests).
+    // Start a new pipeline, incrementing the request depth (defaulting to 1).
+    const requestDepth =
+      (parseInt(request.headers.get(_kLoopHeader)!) || 0) + 1;
+    // Hide the loop header from the user
+    request.headers.delete(_kLoopHeader);
+    return new RequestContext(requestDepth, /* pipelineDepth */ 1).runWith(() =>
+      this[kDispatchFetch](
+        request,
+        !!upstreamURL // only proxy if upstream URL set
+      )
     );
   }
 
@@ -1025,23 +1034,16 @@ export class MiniflareCore<
     request: Request,
     proxy: boolean
   ): Promise<Response<WaitUntil>> {
-    // TODO: consider what happens when fetch handler in bound service doesn't
-    //  respond, or passThroughOnException() is called and exception thrown
     await this.#initPromise;
 
     // Parse form data files as strings if the compatibility flag isn't set
     if (!this.#compat!.isEnabled("formdata_parser_supports_files")) {
       request = withStringFormDataFiles(request);
     }
+    // Make headers immutable
+    request = withImmutableHeaders(request);
 
-    const globalScope = this.#globalScope;
-    // Each fetch gets its own context (e.g. 50 subrequests)
-    return new RequestContext().runWith(() =>
-      globalScope![kDispatchFetch]<WaitUntil>(
-        withImmutableHeaders(request),
-        proxy
-      )
-    );
+    return this.#globalScope![kDispatchFetch]<WaitUntil>(request, proxy);
   }
 
   async dispatchScheduled<WaitUntil extends any[] = unknown[]>(
@@ -1050,7 +1052,8 @@ export class MiniflareCore<
   ): Promise<WaitUntil> {
     await this.#initPromise;
     const globalScope = this.#globalScope;
-    // Each fetch gets its own context (e.g. 50 subrequests)
+    // Each fetch gets its own context (e.g. 50 subrequests).
+    // Start a new pipeline too.
     return new RequestContext().runWith(() =>
       globalScope![kDispatchScheduled]<WaitUntil>(scheduledTime, cron)
     );

@@ -12,13 +12,11 @@ import {
 } from "@miniflare/core";
 import {
   Compatibility,
-  LogLevel,
   NoOpLog,
   PluginContext,
   getRequestContext,
 } from "@miniflare/shared";
 import {
-  AsyncTestLog,
   getObjectProperties,
   logPluginOptions,
   parsePluginArgv,
@@ -308,7 +306,7 @@ test("Fetcher: hides implementation details", (t) => {
   const throws = () => {
     throw new Error("Should not be called");
   };
-  const fetcher = new Fetcher(log, throws, throws);
+  const fetcher = new Fetcher(throws, throws);
   t.deepEqual(getObjectProperties(fetcher), ["fetch"]);
 });
 test("BindingsPlugin: dispatches fetch to mounted service", async (t) => {
@@ -492,24 +490,15 @@ test("BindingsPlugin: passes through when service doesn't respond", async (t) =>
   res = await mf.dispatchFetch("http://localhost/parent");
   t.is(await res.text(), "SERVICE_PARENT:upstream");
 });
-test("BindingsPlugin: returns 500 response if service throws", async (t) => {
-  const log = new AsyncTestLog();
+test("BindingsPlugin: propagates error if service throws", async (t) => {
   const mf = useMiniflare(
     { BindingsPlugin },
     {
       modules: true,
       script: `export default {
         async fetch(request, env) {
-          const res = await env.SERVICE.fetch(request);
-          // Check stack not unwound, and we still have control
-          const body = {
-            status: res.status,
-            headers: [...res.headers],
-            body: await res.text(),
-          };
-          return new Response(JSON.stringify(body), {
-            headers: { "Content-Type": "application/json" },
-          });
+          await env.SERVICE.fetch(request);
+          return new Response("body");
         } ,
       }`,
       serviceBindings: { SERVICE: "a" },
@@ -521,18 +510,12 @@ test("BindingsPlugin: returns 500 response if service throws", async (t) => {
           }`,
         },
       },
-    },
-    log
+    }
   );
-  const res = await mf.dispatchFetch("http://localhost/");
-  const body = await res.json();
-  t.deepEqual(body, {
-    status: 500,
-    headers: [["cf-worker-status", "exception"]],
-    body: "",
+  await t.throwsAsync(mf.dispatchFetch("http://localhost/"), {
+    instanceOf: Error,
+    message: "oops",
   });
-  // Check error logged
-  t.regex((await log.nextAtLevel(LogLevel.ERROR)) ?? "", /^Error: oops/);
 });
 test("BindingsPlugin: service fetch creates new request context", async (t) => {
   // noinspection JSUnusedGlobalSymbols
@@ -583,4 +566,50 @@ test("BindingsPlugin: service fetch creates new request context", async (t) => {
   });
   const res = await mf.dispatchFetch("http://localhost/?n=1");
   t.is(await res.text(), "body");
+});
+test("BindingsPlugin: service fetch increases pipeline depth", async (t) => {
+  const depths: [request: number, pipeline: number][] = [];
+  const mf = useMiniflare(
+    { BindingsPlugin },
+    {
+      bindings: {
+        recordDepth() {
+          const ctx = getRequestContext()!;
+          depths.push([ctx.requestDepth, ctx.pipelineDepth]);
+        },
+      },
+      modules: true,
+      name: "service",
+      serviceBindings: { SERVICE: "service" },
+      script: `export default {
+        async fetch(request, env) {
+          env.recordDepth();
+        
+          const url = new URL(request.url);
+          const n = parseInt(url.searchParams.get("n") ?? "0");
+          if (n === 0) return new Response("end");
+          url.searchParams.set("n", n - 1);
+          
+          const res = await env.SERVICE.fetch(url);
+          return new Response(\`\${n},\${await res.text()}\`);
+        }
+      }`,
+    }
+  );
+
+  const res = await mf.dispatchFetch("http://localhost/?n=3");
+  t.is(await res.text(), "3,2,1,end");
+  t.deepEqual(depths, [
+    [1, 1],
+    [1, 2],
+    [1, 3],
+    [1, 4],
+  ]);
+
+  await mf.dispatchFetch("http://localhost/?n=31"); // Shouldn't throw
+  await t.throwsAsync(mf.dispatchFetch("http://localhost/?n=32"), {
+    instanceOf: Error,
+    message:
+      /^Subrequest depth limit exceeded.+\nService bindings can recurse up to 32 times\./,
+  });
 });

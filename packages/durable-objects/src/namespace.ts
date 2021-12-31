@@ -18,6 +18,7 @@ import {
   Log,
   OutputGate,
   RequestContext,
+  getRequestContext,
 } from "@miniflare/shared";
 import { Response as BaseResponse } from "undici";
 import { DurableObjectError } from "./error";
@@ -137,8 +138,12 @@ export class DurableObjectStub {
     // noinspection SuspiciousTypeOfGuard
     const req =
       input instanceof Request && !init ? input : new Request(input, init);
-    // Each Durable Object fetch gets its own context (e.g. 50 subrequests)
-    const res = await new RequestContext().runWith(() =>
+    // Each Durable Object fetch gets its own context (e.g. 50 subrequests).
+    // A Durable Object fetch starts a new pipeline, so increment the request
+    // depth and reset the pipeline depth.
+    const parentContext = getRequestContext();
+    const requestDepth = (parentContext?.requestDepth ?? 0) + 1;
+    const res = await new RequestContext(requestDepth, 1).runWith(() =>
       state[kFetch](withInputGating(withImmutableHeaders(req)))
     );
 

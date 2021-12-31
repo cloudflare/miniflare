@@ -14,6 +14,7 @@ export {
   Response,
   withWaitUntil,
   _getURLList,
+  _kLoopHeader,
   fetch,
   _urlFromRequestInput,
   _buildUnknownProtocolWarning,
