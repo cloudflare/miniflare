@@ -1,5 +1,6 @@
 import assert from "assert";
 import fs from "fs/promises";
+import { AddressInfo } from "net";
 import path from "path";
 import { setTimeout } from "timers/promises";
 import { CachePlugin } from "@miniflare/cache";
@@ -18,6 +19,7 @@ import {
   _deepEqual,
 } from "@miniflare/core";
 import { DurableObjectsPlugin } from "@miniflare/durable-objects";
+import { HTTPPlugin, createServer } from "@miniflare/http-server";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
   Context,
@@ -29,6 +31,7 @@ import {
   getRequestContext,
 } from "@miniflare/shared";
 import {
+  AsyncTestLog,
   LogEntry,
   MemoryStorageFactory,
   TestLog,
@@ -1139,6 +1142,63 @@ test("MiniflareCore: dispatchFetch: creates new request context", async (t) => {
   });
   const res = await mf.dispatchFetch("http://localhost/?n=1");
   t.is(await res.text(), "body");
+});
+test("MiniflareCore: dispatchFetch: increases request depth", async (t) => {
+  const log = new AsyncTestLog();
+  const depths: [request: number, pipeline: number][] = [];
+  const mf = useMiniflare(
+    { BindingsPlugin, HTTPPlugin },
+    {
+      bindings: {
+        recordDepth() {
+          const ctx = getRequestContext()!;
+          depths.push([ctx.requestDepth, ctx.pipelineDepth]);
+        },
+      },
+      modules: true,
+      script: `export default {
+        async fetch(request, env) {
+          env.recordDepth();
+          
+          const url = new URL(request.url);
+          const n = parseInt(url.searchParams.get("n") ?? "0");
+          if (n === 0) return new Response("end");
+          url.searchParams.set("n", n - 1);
+          
+          const res = await fetch(url, { headers: { Accept: "text/plain" }});
+          return new Response(\`\${n},\${await res.text()}\`);
+        }
+      }`,
+    },
+    log
+  );
+  const server = await createServer(mf);
+  t.teardown(() => server.close());
+  const port = await new Promise<number>((resolve) => {
+    server.listen(0, () => resolve((server.address() as AddressInfo).port));
+  });
+
+  let res = await mf.dispatchFetch(`http://localhost:${port}/?n=3`);
+  t.is(await res.text(), "3,2,1,end");
+  t.deepEqual(depths, [
+    [1, 1], // ?n=3
+    [2, 1], // ?n=2
+    [3, 1], // ?n=1
+    [4, 1], // ?n=0
+  ]);
+
+  res = await mf.dispatchFetch(`http://localhost:${port}/?n=15`); // Shouldn't throw
+  t.is(await res.text(), "15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,end");
+
+  res = await mf.dispatchFetch(`http://localhost:${port}/?n=16`); // Should throw
+  t.regex(
+    await res.text(),
+    /^16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,Error: Subrequest depth limit exceeded/
+  );
+  t.regex(
+    (await log.nextAtLevel(LogLevel.ERROR)) ?? "",
+    /^GET \/\?n=0: Error: Subrequest depth limit exceeded\./
+  );
 });
 
 test("MiniflareCore: dispatchScheduled: dispatches scheduled event", async (t) => {

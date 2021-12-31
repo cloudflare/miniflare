@@ -35,6 +35,7 @@ import {
   TestLog,
   getObjectProperties,
   triggerPromise,
+  useMiniflare,
   useServer,
 } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
@@ -329,6 +330,128 @@ export class TestObject {
   });
   const res = await mf.dispatchFetch("http://localhost/?n=1");
   t.is(await res.text(), "body");
+});
+test("DurableObjectStub: fetch: increases request depth", async (t) => {
+  const depths: [request: number, pipeline: number][] = [];
+  const mf = useMiniflare(
+    { BindingsPlugin, DurableObjectsPlugin },
+    {
+      bindings: {
+        recordDepth() {
+          const ctx = getRequestContext()!;
+          depths.push([ctx.requestDepth, ctx.pipelineDepth]);
+        },
+      },
+      modules: true,
+      durableObjects: { TEST_OBJECT: "TestObject" },
+      script: `export class TestObject {
+        constructor(state, env) {
+          this.env = env;
+        }
+        async fetch(request) {
+          this.env.recordDepth();
+          
+          const url = new URL(request.url);
+          const n = parseInt(url.searchParams.get("n") ?? "0");
+          if (n === 0) return new Response("end");
+          url.searchParams.set("n", n - 1);
+          
+          const id = this.env.TEST_OBJECT.idFromName("a");
+          const stub = this.env.TEST_OBJECT.get(id);
+          const res = await stub.fetch(url);
+          return new Response(\`\${n},\${await res.text()}\`);
+        }
+      }
+      
+      export default {
+        async fetch(request, env) {
+          env.recordDepth();
+          const id = env.TEST_OBJECT.idFromName("a");
+          const stub = env.TEST_OBJECT.get(id);
+          const res = await stub.fetch(request);
+          return new Response(\`entry,\${await res.text()}\`);
+        }
+      }
+      `,
+    }
+  );
+
+  const res = await mf.dispatchFetch("http://localhost/?n=3");
+  t.is(await res.text(), "entry,3,2,1,end");
+  t.deepEqual(depths, [
+    [1, 1], // entry
+    [2, 1], // object: ?n=3
+    [3, 1], // object: ?n=2
+    [4, 1], // object: ?n=1
+    [5, 1], // object: ?n=0
+  ]);
+
+  await mf.dispatchFetch("http://localhost/?n=14"); // Shouldn't throw
+  // ?n=15 throws not 16, because the entry counts as one request too
+  await t.throwsAsync(mf.dispatchFetch("http://localhost/?n=15"), {
+    instanceOf: Error,
+    message:
+      /^Subrequest depth limit exceeded.+\nWorkers and objects can recurse up to 16 times\./,
+  });
+});
+test("DurableObjectStub: fetch: creates new pipeline", async (t) => {
+  const depths: [request: number, pipeline: number][] = [];
+  // noinspection JSUnusedGlobalSymbols
+  const bindings = {
+    recordDepth() {
+      const ctx = getRequestContext()!;
+      depths.push([ctx.requestDepth, ctx.pipelineDepth]);
+    },
+  };
+  const mf = useMiniflare(
+    { BindingsPlugin, DurableObjectsPlugin },
+    {
+      bindings,
+      modules: true,
+      durableObjects: { TEST_OBJECT: "TestObject" },
+      serviceBindings: { SERVICE: "service" },
+      mounts: {
+        service: {
+          bindings,
+          modules: true,
+          script: `export default {
+            fetch(request, env) {
+              env.recordDepth();
+              return new Response("service");
+            },
+          }`,
+        },
+      },
+      script: `export class TestObject {
+        constructor(state, env) {
+          this.env = env;
+        }
+        async fetch(request) {
+          this.env.recordDepth();
+          const res = await this.env.SERVICE.fetch(request);
+          return new Response(\`object,\${await res.text()}\`);
+        }
+      }
+      
+      export default {
+        async fetch(request, env) {
+          env.recordDepth();
+          const id = env.TEST_OBJECT.newUniqueId();
+          const stub = env.TEST_OBJECT.get(id);
+          const res = await stub.fetch(request);
+          return new Response(\`entry,\${await res.text()}\`);
+        }
+      }
+      `,
+    }
+  );
+  const res = await mf.dispatchFetch("http://localhost/");
+  t.is(await res.text(), "entry,object,service");
+  t.deepEqual(depths, [
+    [1, 1], // entry
+    [2, 1], // object, increments just request depth
+    [2, 2], // service, increments just pipeline depth
+  ]);
 });
 test("DurableObjectStub: fetch: throws if handler doesn't return Response", async (t) => {
   const factory = new MemoryStorageFactory();
