@@ -1,4 +1,5 @@
 import {
+  InternalKVNamespaceOptions,
   KVGetOptions,
   KVGetValueType,
   KVListOptions,
@@ -9,7 +10,7 @@ import {
   KVValue,
   KVValueMeta,
 } from "@miniflare/kv";
-import { Clock, Matcher, Storage } from "@miniflare/shared";
+import { Matcher, Storage } from "@miniflare/shared";
 
 export interface FilteredKVStorageNamespaceOptions {
   readOnly?: boolean;
@@ -23,9 +24,9 @@ export class FilteredKVNamespace extends KVNamespace {
   constructor(
     storage: Storage,
     options: FilteredKVStorageNamespaceOptions = {},
-    clock?: Clock
+    internalOptions?: InternalKVNamespaceOptions
   ) {
-    super(storage, clock);
+    super(storage, internalOptions);
     this.#options = options;
   }
 

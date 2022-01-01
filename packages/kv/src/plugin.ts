@@ -44,15 +44,23 @@ export class KVPlugin extends Plugin<KVOptions> implements KVOptions {
 
   async getNamespace(
     storage: StorageFactory,
-    namespace: string
+    namespace: string,
+    blockGlobalAsyncIO = false
   ): Promise<KVNamespace> {
-    return new KVNamespace(await storage.storage(namespace, this.#persist));
+    return new KVNamespace(await storage.storage(namespace, this.#persist), {
+      blockGlobalAsyncIO,
+    });
   }
 
   async setup(storageFactory: StorageFactory): Promise<SetupResult> {
+    const blockGlobalAsyncIO = !this.ctx.globalAsyncIO;
     const bindings: Context = {};
     for (const namespace of this.kvNamespaces ?? []) {
-      bindings[namespace] = await this.getNamespace(storageFactory, namespace);
+      bindings[namespace] = await this.getNamespace(
+        storageFactory,
+        namespace,
+        blockGlobalAsyncIO
+      );
     }
     return { bindings };
   }

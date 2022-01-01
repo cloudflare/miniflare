@@ -247,6 +247,7 @@ export class MiniflareCore<
   #compat?: Compatibility;
   #previousRootPath?: string;
   #previousSubrequestLimit?: boolean | number;
+  #previousGlobalAsyncIO?: boolean;
   #instances?: PluginInstances<Plugins>;
   #mounts?: Map<string, MiniflareCore<Plugins>>;
   #router?: Router;
@@ -367,12 +368,17 @@ export class MiniflareCore<
 
     // Build compatibility manager, rebuild all plugins if compatibility data,
     // root path or any limits have changed
-    const { compatibilityDate, compatibilityFlags, subrequestLimit } =
-      options.CorePlugin;
+    const {
+      compatibilityDate,
+      compatibilityFlags,
+      subrequestLimit,
+      globalAsyncIO,
+    } = options.CorePlugin;
 
     let ctxUpdate =
       (this.#previousRootPath && this.#previousRootPath !== rootPath) ||
-      this.#previousSubrequestLimit !== subrequestLimit;
+      this.#previousSubrequestLimit !== subrequestLimit ||
+      this.#previousGlobalAsyncIO !== globalAsyncIO;
 
     this.#previousRootPath = rootPath;
     this.#previousSubrequestLimit = subrequestLimit;
@@ -389,6 +395,7 @@ export class MiniflareCore<
       compat: this.#compat,
       rootPath,
       subrequestLimit,
+      globalAsyncIO,
     };
 
     // Log options and compatibility flags every time they might've changed

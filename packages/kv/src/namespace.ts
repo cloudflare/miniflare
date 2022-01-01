@@ -5,6 +5,7 @@ import {
   Clock,
   Storage,
   StoredKeyMeta,
+  assertInRequest,
   defaultClock,
   millisToSeconds,
   viewToArray,
@@ -138,13 +139,26 @@ function convertStoredToGetValue(stored: Uint8Array, type: KVGetValueType) {
   }
 }
 
+export interface InternalKVNamespaceOptions {
+  clock?: Clock;
+  blockGlobalAsyncIO?: boolean;
+}
+
 export class KVNamespace {
   readonly #storage: Storage;
   readonly #clock: Clock;
+  readonly #blockGlobalAsyncIO: boolean;
 
-  constructor(storage: Storage, clock = defaultClock) {
+  constructor(
+    storage: Storage,
+    {
+      clock = defaultClock,
+      blockGlobalAsyncIO = false,
+    }: InternalKVNamespaceOptions = {}
+  ) {
     this.#storage = storage;
     this.#clock = clock;
+    this.#blockGlobalAsyncIO = blockGlobalAsyncIO;
   }
 
   get(
@@ -167,6 +181,7 @@ export class KVNamespace {
     key: string,
     options?: KVGetValueType | Partial<KVGetOptions>
   ): KVValue<KVPutValueType | Value> {
+    if (this.#blockGlobalAsyncIO) assertInRequest();
     // noinspection SuspiciousTypeOfGuard
     if (typeof key !== "string") {
       throw new TypeError("Failed to execute 'get'" + keyTypeError);
@@ -205,6 +220,7 @@ export class KVNamespace {
     key: string,
     options?: KVGetValueType | Partial<KVGetOptions>
   ): KVValueMeta<KVPutValueType | Value, Metadata> {
+    if (this.#blockGlobalAsyncIO) assertInRequest();
     // noinspection SuspiciousTypeOfGuard
     if (typeof key !== "string") {
       throw new TypeError("Failed to execute 'getWithMetadata'" + keyTypeError);
@@ -229,6 +245,7 @@ export class KVNamespace {
     value: KVPutValueType,
     options: KVPutOptions<Meta> = {}
   ): Promise<void> {
+    if (this.#blockGlobalAsyncIO) assertInRequest();
     // noinspection SuspiciousTypeOfGuard
     if (typeof key !== "string") {
       throw new TypeError("Failed to execute 'put'" + keyTypeError);
@@ -320,6 +337,7 @@ export class KVNamespace {
   }
 
   async delete(key: string): Promise<void> {
+    if (this.#blockGlobalAsyncIO) assertInRequest();
     // noinspection SuspiciousTypeOfGuard
     if (typeof key !== "string") {
       throw new TypeError("Failed to execute 'delete'" + keyTypeError);
@@ -336,6 +354,7 @@ export class KVNamespace {
     limit = MAX_LIST_KEYS,
     cursor,
   }: KVListOptions = {}): Promise<KVListResult<Meta>> {
+    if (this.#blockGlobalAsyncIO) assertInRequest();
     // Validate options
     if (isNaN(limit) || limit < 1) {
       throwKVError(

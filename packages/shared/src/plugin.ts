@@ -91,6 +91,7 @@ export interface PluginContext {
   compat: Compatibility;
   rootPath: string;
   subrequestLimit?: boolean | number;
+  globalAsyncIO?: boolean;
 }
 
 export abstract class Plugin<Options extends Context = never> {

@@ -69,6 +69,9 @@ export interface WranglerEnvironmentConfig {
     route?: string;
     routes?: string[];
     subrequest_limit?: boolean | number;
+    global_async_io?: boolean;
+    global_timers?: boolean;
+    global_random?: boolean;
   }; // inherited
 }
 

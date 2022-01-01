@@ -160,6 +160,12 @@ export default class MiniflareEnvironment implements JestEnvironment {
         kvPersist: false,
         cachePersist: false,
         durableObjectsPersist: false,
+        // - Allow all global operations, tests will be outside of a request
+        //   context, but we definitely want to allow people to access their
+        //   namespaces, perform I/O, etc.
+        globalAsyncIO: true,
+        globalTimers: true,
+        globalRandom: true,
       }
     );
 

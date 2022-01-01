@@ -1,7 +1,7 @@
 import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
-import { CorePlugin, Request, Response } from "@miniflare/core";
+import { CorePlugin, Request, Response, Scheduler } from "@miniflare/core";
 import {
   Compatibility,
   NoOpLog,
@@ -15,13 +15,13 @@ import {
   useServer,
   useTmp,
 } from "@miniflare/shared-test";
-import test from "ava";
+import test, { ThrowsExpectation } from "ava";
 import { File, FormData } from "undici";
 
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath };
+const ctx: PluginContext = { log, compat, rootPath, globalAsyncIO: true };
 
 test("CorePlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(CorePlugin, [
@@ -56,6 +56,9 @@ test("CorePlugin: parses options from argv", (t) => {
     "site=./site@dev",
     "--subreq-limit",
     "100",
+    "--global-async-io",
+    "--global-timers",
+    "--global-random",
   ]);
   t.deepEqual(options, {
     scriptPath: "script.js",
@@ -94,6 +97,9 @@ test("CorePlugin: parses options from argv", (t) => {
       },
     },
     subrequestLimit: 100,
+    globalAsyncIO: true,
+    globalTimers: true,
+    globalRandom: true,
   });
   options = parsePluginArgv(CorePlugin, [
     "-c",
@@ -146,6 +152,9 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
         route: "http://localhost:8787/*",
         routes: ["miniflare.mf:8787/*"],
         subrequest_limit: 100,
+        global_async_io: true,
+        global_timers: true,
+        global_random: true,
       },
     },
     configDir
@@ -197,6 +206,9 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
     ],
     logUnhandledRejections: undefined,
     subrequestLimit: 100,
+    globalAsyncIO: true,
+    globalTimers: true,
+    globalRandom: true,
   });
   // Check build upload dir defaults to dist
   options = parsePluginWranglerConfig(
@@ -226,6 +238,9 @@ test("CorePlugin: logs options", (t) => {
     rootPath: "root",
     mounts: { api: "./api", site: "./site" },
     subrequestLimit: 100,
+    globalAsyncIO: true,
+    globalTimers: true,
+    globalRandom: true,
   });
   t.deepEqual(logs, [
     // script is OptionType.NONE so omitted
@@ -242,6 +257,9 @@ test("CorePlugin: logs options", (t) => {
     "Root Path: root",
     "Mounts: api, site",
     "Subrequest Limit: 100",
+    "Allow Global Async I/O: true",
+    "Allow Global Timers: true",
+    "Allow Global Secure Random: true",
   ]);
   // Check logs default wrangler config/package paths
   logs = logPluginOptions(CorePlugin, {
@@ -345,6 +363,60 @@ test("CorePlugin: setup: includes web standards", async (t) => {
 
   t.true(globals.MINIFLARE);
 });
+test("CorePlugin: setup: timer operations throw outside request handler unless globalTimers set", async (t) => {
+  interface Globals {
+    setTimeout: typeof setTimeout;
+    clearTimeout: typeof clearTimeout;
+    setInterval: typeof setInterval;
+    clearInterval: typeof clearInterval;
+    scheduler: Scheduler;
+  }
+
+  let plugin = new CorePlugin(ctx);
+  let globals = (await plugin.setup()).globals as Globals;
+  const expectations: ThrowsExpectation = {
+    instanceOf: Error,
+    message: /^Some functionality, such as asynchronous I\/O/,
+  };
+
+  // Get an instance of Node's stranger Timeout type
+  const timeout = setTimeout(() => {});
+  t.throws(() => globals.setTimeout(() => {}), expectations);
+  t.throws(() => globals.clearTimeout(timeout), expectations);
+  t.throws(() => globals.setInterval(() => {}), expectations);
+  t.throws(() => globals.clearInterval(timeout), expectations);
+  await t.throwsAsync(async () => globals.scheduler.wait(0), expectations);
+
+  // Check with globalTimers set
+  plugin = new CorePlugin(ctx, { globalTimers: true });
+  globals = (await plugin.setup()).globals as Globals;
+  globals.clearTimeout(globals.setTimeout(() => {}));
+  globals.clearInterval(globals.setInterval(() => {}));
+  await globals.scheduler.wait(0);
+});
+test("CorePlugin: setup: secure random operations throw outside request handler unless globalRandom set", async (t) => {
+  type Crypto = typeof import("crypto").webcrypto;
+  let plugin = new CorePlugin(ctx);
+  let crypto = (await plugin.setup()).globals?.crypto as Crypto;
+  const expectations: ThrowsExpectation = {
+    instanceOf: Error,
+    message: /^Some functionality, such as asynchronous I\/O/,
+  };
+
+  const args: Parameters<typeof crypto.subtle.generateKey> = [
+    { name: "aes-gcm", length: 256 } as any,
+    true,
+    ["encrypt", "decrypt"],
+  ];
+  t.throws(() => crypto.getRandomValues(new Uint8Array(8)), expectations);
+  t.throws(() => crypto.subtle.generateKey(...args), expectations);
+
+  // Check with globalRandom set
+  plugin = new CorePlugin(ctx, { globalRandom: true });
+  crypto = (await plugin.setup()).globals?.crypto as Crypto;
+  crypto.getRandomValues(new Uint8Array(8));
+  await crypto.subtle.generateKey(...args);
+});
 test("CorePlugin: setup: fetch refuses unknown protocols only if compatibility flag enabled", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   upstream.protocol = "ftp:";
@@ -357,12 +429,24 @@ test("CorePlugin: setup: fetch refuses unknown protocols only if compatibility f
   const compat = new Compatibility(undefined, [
     "fetch_refuses_unknown_protocols",
   ]);
-  plugin = new CorePlugin({ log, compat, rootPath });
+  plugin = new CorePlugin({ log, compat, rootPath, globalAsyncIO: true });
   globals = (await plugin.setup()).globals;
   await t.throwsAsync(async () => globals?.fetch(upstream), {
     instanceOf: TypeError,
     message: `Fetch API cannot load: ${upstream.toString()}`,
   });
+});
+test("CorePlugin: setup: fetch throws outside request handler unless globalAsyncIO set", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  let plugin = new CorePlugin({ log, compat, rootPath });
+  let { globals } = await plugin.setup();
+  await t.throwsAsync(globals?.fetch(upstream), {
+    instanceOf: Error,
+    message: /^Some functionality, such as asynchronous I\/O/,
+  });
+  plugin = new CorePlugin({ log, compat, rootPath, globalAsyncIO: true });
+  globals = (await plugin.setup()).globals;
+  await globals?.fetch(upstream);
 });
 test("CorePlugin: setup: Request parses files in FormData as File objects only if compatibility flag enabled", async (t) => {
   const formData = new FormData();

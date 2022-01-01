@@ -8,7 +8,7 @@ import {
   StorageFactory,
   resolveStoragePersist,
 } from "@miniflare/shared";
-import { Cache } from "./cache";
+import { Cache, InternalCacheOptions } from "./cache";
 import { CacheError } from "./error";
 import { CacheInterface } from "./helpers";
 import { NoOpCache } from "./noop";
@@ -21,7 +21,8 @@ export class CacheStorage {
   readonly #options: CacheOptions;
   readonly #log: Log;
   readonly #storage: StorageFactory;
-  readonly #formDataFiles: boolean;
+  readonly #internalOptions: InternalCacheOptions;
+
   #warnUsage?: boolean;
   #defaultCache?: CacheInterface;
 
@@ -29,13 +30,13 @@ export class CacheStorage {
     options: CacheOptions,
     log: Log,
     storageFactory: StorageFactory,
-    formDataFiles = true
+    internalOptions: InternalCacheOptions
   ) {
     this.#options = options;
     this.#log = log;
     this.#storage = storageFactory;
-    this.#formDataFiles = formDataFiles;
     this.#warnUsage = options.cacheWarnUsage;
+    this.#internalOptions = internalOptions;
   }
 
   #maybeWarnUsage(): void {
@@ -62,7 +63,7 @@ export class CacheStorage {
     this.#maybeWarnUsage();
     return (this.#defaultCache = new Cache(
       this.#storage.storage(DEFAULT_CACHE_NAME, cachePersist),
-      this.#formDataFiles
+      this.#internalOptions
     ));
   }
 
@@ -83,7 +84,7 @@ export class CacheStorage {
     this.#maybeWarnUsage();
     return new Cache(
       await this.#storage.storage(cacheName, cachePersist),
-      this.#formDataFiles
+      this.#internalOptions
     );
   }
 }
@@ -118,7 +119,11 @@ export class CachePlugin extends Plugin<CacheOptions> implements CacheOptions {
   })
   cacheWarnUsage?: boolean;
 
-  #caches?: CacheStorage;
+  // If global async I/O is blocked (the default), we create a separate
+  // CacheStorage instance with it allowed and return that from getCaches()
+  // instead. This allows tests (which are outside the request context) to
+  // manipulate the cache.
+  #unblockedCaches?: CacheStorage;
 
   constructor(ctx: PluginContext, options?: CacheOptions) {
     super(ctx);
@@ -127,20 +132,29 @@ export class CachePlugin extends Plugin<CacheOptions> implements CacheOptions {
 
   setup(storageFactory: StorageFactory): SetupResult {
     const persist = resolveStoragePersist(this.ctx.rootPath, this.cachePersist);
-    this.#caches = new CacheStorage(
-      {
-        cache: this.cache,
-        cachePersist: persist,
-        cacheWarnUsage: this.cacheWarnUsage,
-      },
-      this.ctx.log,
-      storageFactory,
-      this.ctx.compat.isEnabled("formdata_parser_supports_files")
-    );
-    return { globals: { caches: this.#caches } };
+    const options: CacheOptions = {
+      cache: this.cache,
+      cachePersist: persist,
+      cacheWarnUsage: this.cacheWarnUsage,
+    };
+    const files = this.ctx.compat.isEnabled("formdata_parser_supports_files");
+
+    const blockGlobalAsyncIO = !this.ctx.globalAsyncIO;
+    const caches = new CacheStorage(options, this.ctx.log, storageFactory, {
+      formDataFiles: files,
+      blockGlobalAsyncIO,
+    });
+    this.#unblockedCaches = blockGlobalAsyncIO
+      ? new CacheStorage(options, this.ctx.log, storageFactory, {
+          formDataFiles: files,
+          blockGlobalAsyncIO: false,
+        })
+      : caches;
+
+    return { globals: { caches } };
   }
 
   getCaches(): CacheStorage {
-    return this.#caches!;
+    return this.#unblockedCaches!;
   }
 }

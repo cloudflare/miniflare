@@ -35,3 +35,7 @@ describe("uses Jest fake timers", () => {
     expect(fn).toHaveBeenCalled();
   });
 });
+
+test("can generate secure random numbers", () => {
+  crypto.getRandomValues(new Uint8Array(8));
+});

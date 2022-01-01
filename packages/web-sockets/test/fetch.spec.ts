@@ -109,7 +109,10 @@ test("upgradingFetch: throws on ws(s) protocols", async (t) => {
 test("upgradingFetch: allows ws protocol with createCompatFetch", async (t) => {
   const log = new TestLog();
   const compat = new Compatibility();
-  const fetch = createCompatFetch(log, compat, upgradingFetch);
+  const fetch = createCompatFetch(
+    { log, compat, globalAsyncIO: true },
+    upgradingFetch
+  );
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("message", ({ data }) => ws.send(data));
   });

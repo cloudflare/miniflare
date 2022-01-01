@@ -8,6 +8,7 @@ import {
   KVPutValueType,
 } from "@miniflare/kv";
 import {
+  RequestContext,
   Storage,
   StoredKeyMeta,
   StoredValueMeta,
@@ -25,7 +26,7 @@ import {
   waitsForOutputGate,
 } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
-import anyTest, { Macro, TestInterface } from "ava";
+import anyTest, { Macro, TestInterface, ThrowsExpectation } from "ava";
 
 interface Context {
   storage: Storage;
@@ -36,7 +37,7 @@ const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
   const storage = new MemoryStorage(undefined, testClock);
-  const ns = new KVNamespace(storage, testClock);
+  const ns = new KVNamespace(storage, { clock: testClock });
   t.context = { storage, ns };
 });
 
@@ -781,4 +782,24 @@ test("hides implementation details", (t) => {
     "list",
     "put",
   ]);
+});
+test("operations throw outside request handler", async (t) => {
+  const ns = new KVNamespace(new MemoryStorage(), { blockGlobalAsyncIO: true });
+  const ctx = new RequestContext();
+
+  const expectations: ThrowsExpectation = {
+    instanceOf: Error,
+    message: /^Some functionality, such as asynchronous I\/O/,
+  };
+  await t.throwsAsync(ns.get("key"), expectations);
+  await t.throwsAsync(ns.getWithMetadata("key"), expectations);
+  await t.throwsAsync(ns.put("key", "value"), expectations);
+  await t.throwsAsync(ns.delete("key"), expectations);
+  await t.throwsAsync(ns.list(), expectations);
+
+  await ctx.runWith(() => ns.get("key"));
+  await ctx.runWith(() => ns.getWithMetadata("key"));
+  await ctx.runWith(() => ns.put("key", "value"));
+  await ctx.runWith(() => ns.delete("key"));
+  await ctx.runWith(() => ns.list());
 });

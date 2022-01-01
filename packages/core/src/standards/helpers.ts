@@ -1,3 +1,5 @@
+import { assertInRequest } from "@miniflare/shared";
+
 export function isBufferSource(chunk: unknown): chunk is BufferSource {
   return chunk instanceof ArrayBuffer || ArrayBuffer.isView(chunk);
 }
@@ -21,4 +23,16 @@ export function buildNotBufferSourceError(value: unknown): string {
         "you'll probably want to explicitly UTF-8-encode it with TextEncoder."
       : "an object of non-ArrayBuffer/ArrayBufferView type on its writable side.")
   );
+}
+
+export function assertsInRequest<Args extends any[], Return>(
+  func: (...args: Args) => Return,
+  assert: boolean
+): (...args: Args) => Return {
+  return assert
+    ? (...args: Args) => {
+        assertInRequest();
+        return func(...args);
+      }
+    : func;
 }

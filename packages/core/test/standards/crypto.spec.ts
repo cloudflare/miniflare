@@ -1,7 +1,9 @@
 import { TextEncoder } from "util";
-import { DOMException, DigestStream, crypto } from "@miniflare/core";
+import { DOMException, DigestStream, createCrypto } from "@miniflare/core";
 import { utf8Encode } from "@miniflare/shared-test";
 import test, { Macro } from "ava";
+
+const crypto = createCrypto();
 
 const digestStreamMacro: Macro<[AlgorithmIdentifier]> = async (
   t,

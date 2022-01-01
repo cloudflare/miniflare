@@ -1,16 +1,14 @@
-import { setTimeout } from "timers/promises";
-import {
-  DOMException,
-  Scheduler,
-  inputGatedSetInterval,
-  inputGatedSetTimeout,
-} from "@miniflare/core";
+import { setTimeout as setTimeoutPromises } from "timers/promises";
+import { DOMException, Scheduler, createTimer } from "@miniflare/core";
 import {
   TestInputGate,
   triggerPromise,
   waitsForInputGate,
 } from "@miniflare/shared-test";
 import test from "ava";
+
+const inputGatedSetTimeout = createTimer(setTimeout);
+const inputGatedSetInterval = createTimer(setInterval);
 
 test("inputGatedSetTimeout: calls callback with no input gate in context", async (t) => {
   const [trigger, promise] = triggerPromise<[number, string]>();
@@ -20,7 +18,7 @@ test("inputGatedSetTimeout: calls callback with no input gate in context", async
 test("inputGatedSetTimeout: can cancel timeout", async (t) => {
   const handle = inputGatedSetTimeout(() => t.fail(), 10);
   clearTimeout(handle);
-  await setTimeout(100);
+  await setTimeoutPromises(100);
   t.pass();
 });
 test("inputGatedSetTimeout: waits for input gate to open before calling callback", async (t) => {
@@ -48,7 +46,7 @@ test("inputGatedSetInterval: calls callback with no input gate in context", asyn
 test("inputGatedSetInterval: can cancel interval", async (t) => {
   const handle = inputGatedSetInterval(() => t.fail(), 10);
   clearInterval(handle);
-  await setTimeout(100);
+  await setTimeoutPromises(100);
   t.pass();
 });
 test("inputGatedSetInterval: waits for input gate to open before calling callback", async (t) => {
@@ -104,7 +102,7 @@ test("AbortSignal.timeout: triggers signal after timeout", async (t) => {
   let aborted;
   signal.addEventListener("abort", () => (aborted = true));
   t.false(signal.aborted);
-  await setTimeout(100);
+  await setTimeoutPromises(100);
   t.true(signal.aborted);
   t.true(aborted);
 });
@@ -133,15 +131,15 @@ test("scheduler.wait: resolves after timeout", async (t) => {
   let resolved = false;
   scheduler.wait(100).then(() => (resolved = true));
   t.false(resolved);
-  await setTimeout(10);
+  await setTimeoutPromises(10);
   t.false(resolved);
-  await setTimeout(200);
+  await setTimeoutPromises(200);
   t.true(resolved);
 });
 test("scheduler.wait: rejects on abort", async (t) => {
   const controller = new AbortController();
   const promise = scheduler.wait(1000, { signal: controller.signal });
-  await setTimeout(10);
+  await setTimeoutPromises(10);
   controller.abort();
   await t.throwsAsync(promise, {
     instanceOf: DOMException,
