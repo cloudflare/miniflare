@@ -16,6 +16,8 @@ test("parseArgv: parses all option types", (t) => {
     "test",
     "--boolean-string-option",
     "I'm a boolean",
+    "--boolean-number-option",
+    "42",
     "--array-option",
     "item1",
     "--array-option",
@@ -38,6 +40,7 @@ test("parseArgv: parses all option types", (t) => {
     numberOption: 42,
     stringOption: "test",
     booleanStringOption: "I'm a boolean",
+    booleanNumberOption: 42,
     arrayOptions: ["item1", "item2", "24"],
     objectOptions: { key1: "value1", key2: "value2" },
     arrayObjectOption: [
@@ -98,12 +101,23 @@ test("parseArgv: parses boolean/string", (t) => {
   options = parseArgv(plugins, ["--boolean-string-option", "42"]);
   t.deepEqual(options, { booleanStringOption: "42" });
 });
+test("parseArgv: parses boolean/number", (t) => {
+  let options = parseArgv(plugins, ["--boolean-number-option"]);
+  t.deepEqual(options, { booleanNumberOption: true });
+  options = parseArgv(plugins, ["--boolean-number-option", "42"]);
+  t.deepEqual(options, { booleanNumberOption: 42 });
+});
 test("parseArgv: parses negative boolean options", (t) => {
   const options = parseArgv(plugins, [
     "--no-boolean-option",
     "--no-boolean-string-option",
+    "--no-boolean-number-option",
   ]);
-  t.deepEqual(options, { booleanOption: false, booleanStringOption: false });
+  t.deepEqual(options, {
+    booleanOption: false,
+    booleanStringOption: false,
+    booleanNumberOption: false,
+  });
 });
 
 test("parseArgv: throws on --help", (t) => {

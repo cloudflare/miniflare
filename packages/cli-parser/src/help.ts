@@ -79,7 +79,8 @@ export function buildHelp<Plugins extends PluginSignatures>(
       // Convert OptionType.ARRAY -> array
       let typeName = OptionType[type].toLowerCase();
       if (type === OptionType.BOOLEAN_STRING) typeName = "boolean/string";
-      if (type === OptionType.OBJECT) {
+      else if (type === OptionType.BOOLEAN_NUMBER) typeName = "boolean/number";
+      else if (type === OptionType.OBJECT) {
         typeName = `array:${typeFormat ?? "KEY=VALUE"}`;
       }
 

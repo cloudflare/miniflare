@@ -68,6 +68,7 @@ export interface WranglerEnvironmentConfig {
     mounts?: Record<string, string>;
     route?: string;
     routes?: string[];
+    subrequest_limit?: boolean | number;
   }; // inherited
 }
 

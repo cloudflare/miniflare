@@ -330,6 +330,21 @@ export class TestObject {
   });
   const res = await mf.dispatchFetch("http://localhost/?n=1");
   t.is(await res.text(), "body");
+
+  // Check with custom subrequest limit
+  await mf.setOptions({ subrequestLimit: 100 });
+  t.is(await (await mf.dispatchFetch("http://localhost/?n=50")).text(), "body");
+  t.is(await (await mf.dispatchFetch("http://localhost/?n=99")).text(), "body");
+  await t.throwsAsync(mf.dispatchFetch("http://localhost/?n=100"), {
+    instanceOf: Error,
+    message: /^Too many subrequests/,
+  });
+  // Check with no subrequest limit
+  await mf.setOptions({ subrequestLimit: false });
+  t.is(
+    await (await mf.dispatchFetch("http://localhost/?n=100")).text(),
+    "body"
+  );
 });
 test("DurableObjectStub: fetch: increases request depth", async (t) => {
   const depths: [request: number, pipeline: number][] = [];

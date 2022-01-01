@@ -145,6 +145,10 @@ export function parseArgv<Plugins extends PluginSignatures>(
       if (Array.isArray(value)) unexpected(name, value, "boolean/string");
       // Numbers should be treated as strings
       if (typeof value === "number") parsedValue = value.toString();
+    } else if (type === OptionType.BOOLEAN_NUMBER) {
+      if (typeof value !== "boolean" && typeof value !== "number") {
+        unexpected(name, value, "boolean/number");
+      }
     } else if (type === OptionType.ARRAY || type === OptionType.OBJECT) {
       // If single item passed, value won't be an array, but it should be
       if (!Array.isArray(value)) value = [value];
