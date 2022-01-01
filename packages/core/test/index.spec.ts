@@ -3,7 +3,7 @@ import fs from "fs/promises";
 import { AddressInfo } from "net";
 import path from "path";
 import { setTimeout } from "timers/promises";
-import { CachePlugin } from "@miniflare/cache";
+import { CachePlugin, CacheStorage } from "@miniflare/cache";
 import {
   BindingsPlugin,
   BuildPlugin,
@@ -449,6 +449,23 @@ test("MiniflareCore: #init: re-creates all plugins if compatibility data, root p
   log.logs = [];
   await mf.setOptions({ subrequestLimit: 25 });
   t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), expectedLogs);
+
+  // Update global async I/O
+  log.logs = [];
+  await mf.setOptions({ globalAsyncIO: true });
+  t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), expectedLogs);
+});
+test("MiniflareCore: #init: passes globalAsyncIO to all plugins", async (t) => {
+  const mf = useMiniflare({ CachePlugin }, {});
+  let caches: CacheStorage = (await mf.getGlobalScope()).caches;
+  await t.throwsAsync(caches.default.match("http://localhost"), {
+    instanceOf: Error,
+    message: /^Some functionality, such as asynchronous I\/O/,
+  });
+
+  await mf.setOptions({ globalAsyncIO: true });
+  caches = (await mf.getGlobalScope()).caches;
+  await caches.default.match("http://localhost");
 });
 test("MiniflareCore: #init: throws if script required but not provided", async (t) => {
   const log = new NoOpLog();

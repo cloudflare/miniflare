@@ -49,11 +49,11 @@ import {
   atob,
   btoa,
   createCompatFetch,
-  crypto,
-  inputGatedSetInterval,
-  inputGatedSetTimeout,
+  createCrypto,
+  createTimer,
   withStringFormDataFiles,
 } from "../standards";
+import { assertsInRequest } from "../standards/helpers";
 import type { BindingsOptions } from "./bindings";
 
 const DEFAULT_MODULE_RULES: ModuleRule[] = [
@@ -100,6 +100,9 @@ export interface CoreOptions {
   routes?: string[];
   logUnhandledRejections?: boolean;
   subrequestLimit?: boolean | number;
+  globalAsyncIO?: boolean;
+  globalTimers?: boolean;
+  globalRandom?: boolean;
 }
 
 function mapMountEntries(
@@ -320,6 +323,31 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
   })
   subrequestLimit?: boolean | number;
 
+  @Option({
+    type: OptionType.BOOLEAN,
+    name: "global-async-io",
+    description: "Allow async I/O outside handlers",
+    logName: "Allow Global Async I/O",
+    fromWrangler: ({ miniflare }) => miniflare?.global_async_io,
+  })
+  globalAsyncIO?: boolean;
+
+  @Option({
+    type: OptionType.BOOLEAN,
+    description: "Allow setting timers outside handlers",
+    logName: "Allow Global Timers",
+    fromWrangler: ({ miniflare }) => miniflare?.global_timers,
+  })
+  globalTimers?: boolean;
+
+  @Option({
+    type: OptionType.BOOLEAN,
+    description: "Allow secure random generation outside handlers",
+    logName: "Allow Global Secure Random",
+    fromWrangler: ({ miniflare }) => miniflare?.global_random,
+  })
+  globalRandom?: boolean;
+
   readonly processedModuleRules: ProcessedModuleRule[] = [];
 
   readonly upstreamURL?: URL;
@@ -352,17 +380,20 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       );
     }
 
+    const blockGlobalTimers = !this.globalTimers;
+    const crypto = createCrypto(!this.globalRandom);
+
     // Build globals object
     // noinspection JSDeprecatedSymbols
     this.#globals = {
       console,
 
-      setTimeout: inputGatedSetTimeout,
-      setInterval: inputGatedSetInterval,
-      clearTimeout,
-      clearInterval,
+      setTimeout: createTimer(setTimeout, blockGlobalTimers),
+      setInterval: createTimer(setInterval, blockGlobalTimers),
+      clearTimeout: assertsInRequest(clearTimeout, blockGlobalTimers),
+      clearInterval: assertsInRequest(clearInterval, blockGlobalTimers),
       queueMicrotask,
-      scheduler: new Scheduler(),
+      scheduler: new Scheduler(blockGlobalTimers),
 
       atob,
       btoa,
@@ -380,7 +411,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       TextDecoder,
       TextEncoder,
 
-      fetch: createCompatFetch(ctx.log, ctx.compat),
+      fetch: createCompatFetch(ctx),
       Headers,
       Request: CompatRequest,
       Response: CompatResponse,

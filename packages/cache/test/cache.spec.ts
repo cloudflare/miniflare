@@ -12,7 +12,7 @@ import {
 } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
 import { WebSocketPair } from "@miniflare/web-sockets";
-import anyTest, { Macro, TestInterface } from "ava";
+import anyTest, { Macro, TestInterface, ThrowsExpectation } from "ava";
 import {
   Request as BaseRequest,
   Response as BaseResponse,
@@ -33,7 +33,7 @@ test.beforeEach((t) => {
   const clock = { timestamp: 1_000_000 }; // 1000s
   const clockFunction = () => clock.timestamp;
   const storage = new MemoryStorage(undefined, clockFunction);
-  const cache = new Cache(storage, true, clockFunction);
+  const cache = new Cache(storage, { clock: clockFunction });
   t.context = { storage, clock, cache };
 });
 
@@ -410,4 +410,23 @@ test(
 test("Cache: hides implementation details", (t) => {
   const { cache } = t.context;
   t.deepEqual(getObjectProperties(cache), ["delete", "match", "put"]);
+});
+test("Cache: operations throw outside request handler", async (t) => {
+  const cache = new Cache(new MemoryStorage(), { blockGlobalAsyncIO: true });
+  const ctx = new RequestContext();
+
+  const expectations: ThrowsExpectation = {
+    instanceOf: Error,
+    message: /^Some functionality, such as asynchronous I\/O/,
+  };
+  await t.throwsAsync(
+    cache.put("http://localhost:8787/", testResponse()),
+    expectations
+  );
+  await t.throwsAsync(cache.match("http://localhost:8787/"), expectations);
+  await t.throwsAsync(cache.delete("http://localhost:8787/"), expectations);
+
+  await ctx.runWith(() => cache.put("http://localhost:8787/", testResponse()));
+  await ctx.runWith(() => cache.match("http://localhost:8787/"));
+  await ctx.runWith(() => cache.delete("http://localhost:8787/"));
 });

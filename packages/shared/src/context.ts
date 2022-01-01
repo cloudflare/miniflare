@@ -16,6 +16,17 @@ export function getRequestContext(): RequestContext | undefined {
   return requestContextStorage.getStore();
 }
 
+export function assertInRequest(): void {
+  if (!getRequestContext()) {
+    throw new Error(
+      "Some functionality, such as asynchronous I/O (fetch, Cache API, KV), " +
+        "timeouts (setTimeout, setInterval), and generating random values " +
+        "(crypto.getRandomValues, crypto.subtle.generateKey), can only be " +
+        "performed while handling a request."
+    );
+  }
+}
+
 export interface RequestContextOptions {
   /**
    * In this context, a request is the initial entry fetch to a Worker

@@ -19,7 +19,7 @@ import test from "ava";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath };
+const ctx: PluginContext = { log, compat, rootPath, globalAsyncIO: true };
 
 test("KVPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(KVPlugin, [
@@ -111,4 +111,23 @@ test("KVPlugin: setup: includes namespaces in bindings", async (t) => {
   await result.bindings?.NAMESPACE2.put("key2", "value2");
   t.true(map1.has("key1"));
   t.true(map2.has("key2"));
+});
+test("KVPlugin: setup: operations throw outside request handler unless globalAsyncIO set", async (t) => {
+  const factory = new MemoryStorageFactory();
+  let plugin = new KVPlugin(
+    { log, compat, rootPath },
+    { kvNamespaces: ["NAMESPACE"] }
+  );
+  let ns: KVNamespace = (await plugin.setup(factory)).bindings?.NAMESPACE;
+  await t.throwsAsync(ns.get("key"), {
+    instanceOf: Error,
+    message: /^Some functionality, such as asynchronous I\/O/,
+  });
+
+  plugin = new KVPlugin(
+    { log, compat, rootPath, globalAsyncIO: true },
+    { kvNamespaces: ["NAMESPACE"] }
+  );
+  ns = (await plugin.setup(factory)).bindings?.NAMESPACE;
+  await ns.get("key");
 });

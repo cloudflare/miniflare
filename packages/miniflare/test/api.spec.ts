@@ -1,4 +1,5 @@
 import { AddressInfo } from "net";
+import { Response } from "@miniflare/core";
 import { Log, LogLevel } from "@miniflare/shared";
 import { interceptConsoleLogs, useTmp } from "@miniflare/shared-test";
 import test from "ava";
@@ -67,10 +68,19 @@ test("Miniflare: getKVNamespace: gets KV namespace", async (t) => {
   t.is(await res.text(), "value");
 });
 test("Miniflare: getCaches: gets CacheStorage instance", async (t) => {
-  const mf = new Miniflare({ script: "//" });
+  const mf = new Miniflare({
+    script: `export default {
+      fetch: (request) => caches.default.match(request),
+    }`,
+    modules: true,
+  });
   const caches = await mf.getCaches();
-  const globalScope = await mf.getGlobalScope();
-  t.is(caches, globalScope.caches);
+  await caches.default.put(
+    "http://localhost/",
+    new Response("cached", { headers: { "Cache-Control": "max-age=3600" } })
+  );
+  const res = await mf.dispatchFetch("http://localhost/");
+  t.is(await res.text(), "cached");
 });
 test("Miniflare: getDurableObjectNamespace: gets Durable Object namespace", async (t) => {
   const mf = new Miniflare({

@@ -173,7 +173,7 @@ export class BindingsPlugin
 
   @Option({
     type: OptionType.OBJECT,
-    typeFormat: "NAME=SERVICE[@ENV]",
+    typeFormat: "NAME=MOUNT[@ENV]",
     name: "service",
     alias: "S",
     description: "Mounted service to bind",

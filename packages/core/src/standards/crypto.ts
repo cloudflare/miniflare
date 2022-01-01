@@ -3,6 +3,7 @@ import { WritableStream } from "stream/web";
 import { DOMException } from "@miniflare/core";
 import { viewToBuffer } from "@miniflare/shared";
 import {
+  assertsInRequest,
   bufferSourceToArray,
   buildNotBufferSourceError,
   isBufferSource,
@@ -62,17 +63,30 @@ function digest(
   return webcrypto.subtle.digest(algorithm, data);
 }
 
-const subtle = new Proxy(webcrypto.subtle, {
-  get(target, propertyKey, receiver) {
-    if (propertyKey === "digest") return digest;
-    return Reflect.get(target, propertyKey, receiver);
-  },
-});
+export function createCrypto(blockGlobalRandom = false): typeof webcrypto {
+  const getRandomValues = assertsInRequest(
+    webcrypto.getRandomValues,
+    blockGlobalRandom
+  );
+  const generateKey = assertsInRequest(
+    webcrypto.subtle.generateKey,
+    blockGlobalRandom
+  );
 
-export const crypto = new Proxy(webcrypto, {
-  get(target, propertyKey, receiver) {
-    if (propertyKey === "subtle") return subtle;
-    if (propertyKey === "DigestStream") return DigestStream;
-    return Reflect.get(target, propertyKey, receiver);
-  },
-});
+  const subtle = new Proxy(webcrypto.subtle, {
+    get(target, propertyKey, receiver) {
+      if (propertyKey === "digest") return digest;
+      if (propertyKey === "generateKey") return generateKey;
+      return Reflect.get(target, propertyKey, receiver);
+    },
+  });
+
+  return new Proxy(webcrypto, {
+    get(target, propertyKey, receiver) {
+      if (propertyKey === "getRandomValues") return getRandomValues;
+      if (propertyKey === "subtle") return subtle;
+      if (propertyKey === "DigestStream") return DigestStream;
+      return Reflect.get(target, propertyKey, receiver);
+    },
+  });
+}

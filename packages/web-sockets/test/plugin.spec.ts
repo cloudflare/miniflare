@@ -20,7 +20,7 @@ import test from "ava";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath };
+const ctx: PluginContext = { log, compat, rootPath, globalAsyncIO: true };
 
 test("WebSocketPlugin: setup: includes WebSocket stuff in globals", (t) => {
   const plugin = new WebSocketPlugin(ctx);
@@ -35,7 +35,12 @@ test("WebSocketPlugin: setup: fetch refuses unknown protocols if compatibility f
   const compat = new Compatibility(undefined, [
     "fetch_refuses_unknown_protocols",
   ]);
-  const plugin = new WebSocketPlugin({ log, compat, rootPath });
+  const plugin = new WebSocketPlugin({
+    log,
+    compat,
+    rootPath,
+    globalAsyncIO: true,
+  });
   const { globals } = await plugin.setup();
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   upstream.protocol = "ftp:";
@@ -43,6 +48,18 @@ test("WebSocketPlugin: setup: fetch refuses unknown protocols if compatibility f
     instanceOf: TypeError,
     message: `Fetch API cannot load: ${upstream.toString()}`,
   });
+});
+test("WebSocketPlugin: setup: fetch throws outside request handler unless globalAsyncIO set", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  let plugin = new WebSocketPlugin({ log, compat, rootPath });
+  let { globals } = await plugin.setup();
+  await t.throwsAsync(globals?.fetch(upstream), {
+    instanceOf: Error,
+    message: /^Some functionality, such as asynchronous I\/O/,
+  });
+  plugin = new WebSocketPlugin({ log, compat, rootPath, globalAsyncIO: true });
+  globals = (await plugin.setup()).globals;
+  await globals?.fetch(upstream);
 });
 test("WebSocketPlugin: setup: blocks direct WebSocket construction", (t) => {
   const plugin = new WebSocketPlugin(ctx);

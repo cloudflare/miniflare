@@ -11,8 +11,9 @@ import {
 } from "stream/web";
 import { URL } from "url";
 import {
-  Compatibility,
   Log,
+  PluginContext,
+  assertInRequest,
   getRequestContext,
   nonCircularClone,
   waitForOpenInputGate,
@@ -685,13 +686,20 @@ export function _buildUnknownProtocolWarning(url: URL): string {
 }
 
 export function createCompatFetch(
-  log: Log,
-  compat: Compatibility,
+  {
+    log,
+    compat,
+    globalAsyncIO,
+  }: Pick<PluginContext, "log" | "compat" | "globalAsyncIO">,
   inner: typeof fetch = fetch
 ): typeof fetch {
   const refusesUnknown = compat.isEnabled("fetch_refuses_unknown_protocols");
   const formDataFiles = compat.isEnabled("formdata_parser_supports_files");
   return async (input, init) => {
+    // We do this check in `createCompatFetch` so people can still use regular
+    // `fetch` in tests which would be outside a request context
+    if (!globalAsyncIO) assertInRequest();
+
     const url = _urlFromRequestInput(input);
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       if (refusesUnknown) {

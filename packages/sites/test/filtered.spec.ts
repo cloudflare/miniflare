@@ -1,3 +1,4 @@
+import { InternalKVNamespaceOptions } from "@miniflare/kv";
 import { Storage } from "@miniflare/shared";
 import {
   getObjectProperties,
@@ -13,6 +14,8 @@ interface Context {
 }
 
 const test = anyTest as TestInterface<Context>;
+
+const opts: InternalKVNamespaceOptions = { clock: testClock };
 
 test.beforeEach(async (t) => {
   const storage = new MemoryStorage(undefined, testClock);
@@ -32,7 +35,7 @@ test("get: includes included values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
     { include: /^section1|^section2/ },
-    testClock
+    opts
   );
   t.is(await ns.get("section1key1"), "value11");
   t.is(await ns.get("section1key2"), "value12");
@@ -44,7 +47,7 @@ test("get: excludes non-included values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
     { include: /^section1|^section2/ },
-    testClock
+    opts
   );
   t.is(await ns.get("section3key1"), null);
   t.is(await ns.get("section3key2"), null);
@@ -54,7 +57,7 @@ test("get: includes non-excluded values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
     { exclude: /^section1|^section2/ },
-    testClock
+    opts
   );
   t.is(await ns.get("section3key1"), "value31");
   t.is(await ns.get("section3key2"), "value32");
@@ -64,7 +67,7 @@ test("get: excludes excluded values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
     { exclude: /^section1|^section2/ },
-    testClock
+    opts
   );
   t.is(await ns.get("section1key1"), null);
   t.is(await ns.get("section1key2"), null);
@@ -76,7 +79,7 @@ test("get: ignores exclude if include set", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
     { include: /^section1|^section2/, exclude: /^section1/ },
-    testClock
+    opts
   );
   t.is(await ns.get("section1key1"), "value11");
   t.is(await ns.get("section1key2"), "value12");
@@ -90,7 +93,7 @@ test("getWithMetadata: includes included values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
     { include: /^section1|^section2/ },
-    testClock
+    opts
   );
   t.deepEqual(await ns.getWithMetadata("section1key1"), {
     value: "value11",
@@ -114,7 +117,7 @@ test("getWithMetadata: excludes non-included values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
     { include: /^section1|^section2/ },
-    testClock
+    opts
   );
   t.deepEqual(await ns.getWithMetadata("section3key1"), {
     value: null,
@@ -130,7 +133,7 @@ test("getWithMetadata: includes non-excluded values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
     { exclude: /^section1|^section2/ },
-    testClock
+    opts
   );
   t.deepEqual(await ns.getWithMetadata("section3key1"), {
     value: "value31",
@@ -146,7 +149,7 @@ test("getWithMetadata: excludes excluded values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
     { exclude: /^section1|^section2/ },
-    testClock
+    opts
   );
   t.deepEqual(await ns.getWithMetadata("section1key1"), {
     value: null,
@@ -170,7 +173,7 @@ test("getWithMetadata: ignores exclude if include set", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
     { include: /^section1|^section2/, exclude: /^section1/ },
-    testClock
+    opts
   );
   t.deepEqual(await ns.getWithMetadata("section1key1"), {
     value: "value11",
@@ -200,7 +203,7 @@ test("getWithMetadata: ignores exclude if include set", async (t) => {
 
 test("put: allowed if not read-only", async (t) => {
   const { storage } = t.context;
-  const ns = new FilteredKVNamespace(storage, { readOnly: false }, testClock);
+  const ns = new FilteredKVNamespace(storage, { readOnly: false }, opts);
   await ns.put("key", "value", {
     expiration: 1000,
     metadata: { testing: true },
@@ -214,7 +217,7 @@ test("put: allowed if not read-only", async (t) => {
 
 test("put: throws if read-only", async (t) => {
   const { storage } = t.context;
-  const ns = new FilteredKVNamespace(storage, { readOnly: true }, testClock);
+  const ns = new FilteredKVNamespace(storage, { readOnly: true }, opts);
   await t.throwsAsync(
     async () => {
       await ns.put("key", "value", {
@@ -229,7 +232,7 @@ test("put: throws if read-only", async (t) => {
 
 test("delete: allowed if not read-only", async (t) => {
   const { storage } = t.context;
-  const ns = new FilteredKVNamespace(storage, { readOnly: false }, testClock);
+  const ns = new FilteredKVNamespace(storage, { readOnly: false }, opts);
   t.not(await storage.get("section1key1"), undefined);
   await ns.delete("section1key1");
   t.is(await storage.get("section1key1"), undefined);
@@ -237,7 +240,7 @@ test("delete: allowed if not read-only", async (t) => {
 
 test("delete: throws if read-only", async (t) => {
   const { storage } = t.context;
-  const ns = new FilteredKVNamespace(storage, { readOnly: true }, testClock);
+  const ns = new FilteredKVNamespace(storage, { readOnly: true }, opts);
   t.not(await storage.get("section1key1"), undefined);
   await t.throwsAsync(async () => await ns.delete("section1key1"), {
     instanceOf: TypeError,
@@ -250,7 +253,7 @@ test("list: includes included values and excludes non-included values", async (t
   const ns = new FilteredKVNamespace(
     t.context.storage,
     { include: /^section1|^section2/ },
-    testClock
+    opts
   );
   t.deepEqual(await ns.list(), {
     keys: [
@@ -268,7 +271,7 @@ test("list: includes non-excluded values and excludes excluded values", async (t
   const ns = new FilteredKVNamespace(
     t.context.storage,
     { exclude: /^section1|^section2/ },
-    testClock
+    opts
   );
   t.deepEqual(await ns.list(), {
     keys: [
@@ -284,7 +287,7 @@ test("list: ignores exclude if include set", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
     { include: /^section1|^section2/, exclude: /^section1/ },
-    testClock
+    opts
   );
   t.deepEqual(await ns.list(), {
     keys: [

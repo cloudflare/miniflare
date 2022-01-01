@@ -1,34 +1,27 @@
 import { DOMException } from "@miniflare/core";
-import { waitForOpenInputGate } from "@miniflare/shared";
+import { assertInRequest, waitForOpenInputGate } from "@miniflare/shared";
 
-export function inputGatedSetTimeout<Args extends any[]>(
+export type TimerFunction<Return> = <Args extends any[]>(
   callback: (...args: Args) => void,
   ms?: number,
   ...args: Args
-): NodeJS.Timeout {
-  return setTimeout(
-    async (...args) => {
-      await waitForOpenInputGate();
-      callback(...args);
-    },
-    ms,
-    ...args
-  );
-}
+) => Return;
 
-export function inputGatedSetInterval<Args extends any[]>(
-  callback: (...args: Args) => void,
-  ms?: number,
-  ...args: Args
-): NodeJS.Timer {
-  return setInterval(
-    async (...args) => {
-      await waitForOpenInputGate();
-      callback(...args);
-    },
-    ms,
-    ...args
-  );
+export function createTimer<Return>(
+  func: TimerFunction<Return>,
+  blockGlobalTimers = false
+): TimerFunction<Return> {
+  return (callback, ms, ...args) => {
+    if (blockGlobalTimers) assertInRequest();
+    return func(
+      async (...args) => {
+        await waitForOpenInputGate();
+        callback(...args);
+      },
+      ms,
+      ...args
+    );
+  };
 }
 
 // Fix for Jest :(, jest-environment-node doesn't include AbortSignal in
@@ -57,7 +50,14 @@ export interface SchedulerWaitOptions {
 }
 
 export class Scheduler {
+  readonly #blockGlobalTimers: boolean;
+
+  constructor(blockGlobalTimers = false) {
+    this.#blockGlobalTimers = blockGlobalTimers;
+  }
+
   wait(ms?: number, options?: SchedulerWaitOptions): Promise<void> {
+    if (this.#blockGlobalTimers) assertInRequest();
     // Confusingly, `wait` allows `wait(undefined)`, but not `wait()`
     if (arguments.length === 0) {
       throw new TypeError(

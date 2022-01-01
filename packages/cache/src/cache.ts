@@ -10,6 +10,7 @@ import {
   Awaitable,
   Clock,
   Storage,
+  assertInRequest,
   defaultClock,
   getRequestContext,
   millisToSeconds,
@@ -133,25 +134,37 @@ function getExpirationTtl(
   }
 }
 
+export interface InternalCacheOptions {
+  formDataFiles?: boolean;
+  clock?: Clock;
+  blockGlobalAsyncIO?: boolean;
+}
+
 export class Cache implements CacheInterface {
   readonly #storage: Awaitable<Storage>;
   readonly #formDataFiles: boolean;
   readonly #clock: Clock;
+  readonly #blockGlobalAsyncIO: boolean;
 
   constructor(
     storage: Awaitable<Storage>,
-    formDataFiles = true,
-    clock = defaultClock
+    {
+      formDataFiles = true,
+      clock = defaultClock,
+      blockGlobalAsyncIO = false,
+    }: InternalCacheOptions = {}
   ) {
     this.#storage = storage;
     this.#formDataFiles = formDataFiles;
     this.#clock = clock;
+    this.#blockGlobalAsyncIO = blockGlobalAsyncIO;
   }
 
   async put(
     req: RequestInfo,
     res: BaseResponse | Response
   ): Promise<undefined> {
+    if (this.#blockGlobalAsyncIO) assertInRequest();
     getRequestContext()?.incrementSubrequests();
     req = normaliseRequest(req);
 
@@ -194,6 +207,7 @@ export class Cache implements CacheInterface {
     req: RequestInfo,
     options?: CacheMatchOptions
   ): Promise<Response | undefined> {
+    if (this.#blockGlobalAsyncIO) assertInRequest();
     getRequestContext()?.incrementSubrequests();
     req = normaliseRequest(req);
     // Cloudflare only caches GET requests
@@ -235,6 +249,7 @@ export class Cache implements CacheInterface {
     req: RequestInfo,
     options?: CacheMatchOptions
   ): Promise<boolean> {
+    if (this.#blockGlobalAsyncIO) assertInRequest();
     getRequestContext()?.incrementSubrequests();
     req = normaliseRequest(req);
     // Cloudflare only caches GET requests

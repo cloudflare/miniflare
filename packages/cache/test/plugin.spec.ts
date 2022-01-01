@@ -31,18 +31,18 @@ import { testResponse } from "./helpers";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath };
+const ctx: PluginContext = { log, compat, rootPath, globalAsyncIO: true };
 
 test("CacheStorage: provides default cache", async (t) => {
   const factory = new MemoryStorageFactory();
-  const caches = new CacheStorage({}, log, factory);
+  const caches = new CacheStorage({}, log, factory, {});
   await caches.default.put("http://localhost:8787/", testResponse());
   const cached = await caches.default.match("http://localhost:8787/");
   t.is(await cached?.text(), "value");
 });
 test("CacheStorage: namespaced caches are separate from default cache and each other", async (t) => {
   const factory = new MemoryStorageFactory();
-  const caches = new CacheStorage({}, log, factory);
+  const caches = new CacheStorage({}, log, factory, {});
   const cache2 = await caches.open("cache2");
   const cache3 = await caches.open("cache3");
 
@@ -59,7 +59,7 @@ test("CacheStorage: namespaced caches are separate from default cache and each o
 });
 test("CacheStorage: cannot create namespaced cache named default", async (t) => {
   const factory = new MemoryStorageFactory();
-  const caches = new CacheStorage({}, log, factory);
+  const caches = new CacheStorage({}, log, factory, {});
   await t.throwsAsync(caches.open("default"), {
     instanceOf: CacheError,
     code: "ERR_RESERVED",
@@ -69,7 +69,7 @@ test("CacheStorage: cannot create namespaced cache named default", async (t) => 
 test("CacheStorage: persists cached data", async (t) => {
   const map = new Map<string, StoredValueMeta<CachedMeta>>();
   const factory = new MemoryStorageFactory({ ["map:default"]: map });
-  const caches = new CacheStorage({ cachePersist: "map" }, log, factory);
+  const caches = new CacheStorage({ cachePersist: "map" }, log, factory, {});
   await caches.default.put("http://localhost:8787/", testResponse());
   const cached = map.get("http://localhost:8787/");
   t.is(cached?.metadata?.status, 200);
@@ -81,7 +81,7 @@ test("CacheStorage: persists cached data", async (t) => {
 });
 test("CacheStorage: disables caching", async (t) => {
   const factory = new MemoryStorageFactory();
-  const caches = new CacheStorage({ cache: false }, log, factory);
+  const caches = new CacheStorage({ cache: false }, log, factory, {});
   await caches.default.put("http://localhost:8787/", testResponse());
   const cached = await caches.default.match("http://localhost:8787/");
   t.is(cached, undefined);
@@ -92,14 +92,14 @@ test("CacheStorage: warns once if caching disabled when deploying", async (t) =>
   const warning =
     "Cache operations will have no impact if you deploy to a workers.dev subdomain!";
 
-  let caches = new CacheStorage({ cacheWarnUsage: true }, log, factory);
+  let caches = new CacheStorage({ cacheWarnUsage: true }, log, factory, {});
   caches.default;
   t.deepEqual(log.logs, [[LogLevel.WARN, warning]]);
   log.logs = [];
   await caches.open("test");
   t.deepEqual(log.logs, []);
 
-  caches = new CacheStorage({ cacheWarnUsage: true }, log, factory);
+  caches = new CacheStorage({ cacheWarnUsage: true }, log, factory, {});
   await caches.open("test");
   t.deepEqual(log.logs, [[LogLevel.WARN, warning]]);
   log.logs = [];
@@ -108,7 +108,7 @@ test("CacheStorage: warns once if caching disabled when deploying", async (t) =>
 });
 test("CacheStorage: hides implementation details", (t) => {
   const factory = new MemoryStorageFactory();
-  const caches = new CacheStorage({}, log, factory);
+  const caches = new CacheStorage({}, log, factory, {});
   t.deepEqual(getObjectProperties(caches), ["default", "open"]);
 });
 
@@ -170,7 +170,7 @@ test("CachePlugin: setup: resolves persist path relative to rootPath", async (t)
   });
 
   const plugin = new CachePlugin(
-    { log, compat, rootPath: tmp },
+    { ...ctx, rootPath: tmp },
     { cachePersist: "test" }
   );
   plugin.setup(factory);
@@ -197,7 +197,7 @@ test("CachePlugin: setup: Responses parse files in FormData as File objects only
   const compat = new Compatibility(undefined, [
     "formdata_parser_supports_files",
   ]);
-  plugin = new CachePlugin({ log, compat, rootPath });
+  plugin = new CachePlugin({ ...ctx, compat });
   caches = plugin.setup(factory).globals?.caches;
   cache = await caches.open("test");
 
@@ -205,4 +205,17 @@ test("CachePlugin: setup: Responses parse files in FormData as File objects only
   t.true((await res?.formData())?.get("file") instanceof File);
   res = await cache.match("http://localhost");
   t.true((await res?.formData())?.get("file") instanceof File);
+});
+test("CachePlugin: setup: operations throw outside request handler unless globalAsyncIO set", async (t) => {
+  const factory = new MemoryStorageFactory();
+  let plugin = new CachePlugin({ log, compat, rootPath });
+  let caches: CacheStorage = plugin.setup(factory).globals?.caches;
+  await t.throwsAsync(caches.default.match("http://localhost"), {
+    instanceOf: Error,
+    message: /^Some functionality, such as asynchronous I\/O/,
+  });
+
+  plugin = new CachePlugin({ log, compat, rootPath, globalAsyncIO: true });
+  caches = plugin.setup(factory).globals?.caches;
+  await caches.default.match("http://localhost");
 });

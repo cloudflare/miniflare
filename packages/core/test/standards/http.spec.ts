@@ -902,15 +902,38 @@ test("fetch: Response body is input gated", async (t) => {
   t.is(body, "upstream");
 });
 
+test("createCompatFetch: throws outside request handler unless globalAsyncIO set", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  const log = new NoOpLog();
+  const compat = new Compatibility();
+  const ctx = new RequestContext();
+
+  let fetch = createCompatFetch({ log, compat });
+  await t.throwsAsync(fetch(upstream), {
+    instanceOf: Error,
+    message: /^Some functionality, such as asynchronous I\/O/,
+  });
+  let res = await ctx.runWith(() => fetch(upstream));
+  t.is(await res.text(), "upstream");
+
+  fetch = createCompatFetch({ log, compat, globalAsyncIO: true });
+  res = await fetch(upstream);
+  t.is(await res.text(), "upstream");
+  res = await ctx.runWith(() => fetch(upstream));
+  t.is(await res.text(), "upstream");
+});
 test("createCompatFetch: refuses unknown protocols if compatibility flag enabled", async (t) => {
   const log = new TestLog();
   let upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   upstream = new URL(upstream.toString().replace("http:", "random:"));
   // Check with flag disabled first
-  let fetch = createCompatFetch(
+  let fetch = createCompatFetch({
     log,
-    new Compatibility(undefined, ["fetch_treats_unknown_protocols_as_http"])
-  );
+    compat: new Compatibility(undefined, [
+      "fetch_treats_unknown_protocols_as_http",
+    ]),
+    globalAsyncIO: true,
+  });
   const res = await fetch(upstream);
   t.is(await res.text(), "upstream");
   // Check original URL copied and protocol not mutated
@@ -929,10 +952,11 @@ test("createCompatFetch: refuses unknown protocols if compatibility flag enabled
 
   // Check with flag enabled
   log.logs = [];
-  fetch = createCompatFetch(
+  fetch = createCompatFetch({
     log,
-    new Compatibility(undefined, ["fetch_refuses_unknown_protocols"])
-  );
+    compat: new Compatibility(undefined, ["fetch_refuses_unknown_protocols"]),
+    globalAsyncIO: true,
+  });
   await t.throwsAsync(async () => fetch(upstream), {
     instanceOf: TypeError,
     message: `Fetch API cannot load: ${upstream.toString()}`,
@@ -941,8 +965,11 @@ test("createCompatFetch: refuses unknown protocols if compatibility flag enabled
 });
 test("createCompatFetch: recognises http and https as known protocols", async (t) => {
   const fetch = createCompatFetch(
-    new NoOpLog(),
-    new Compatibility(undefined, ["fetch_refuses_unknown_protocols"]),
+    {
+      log: new NoOpLog(),
+      compat: new Compatibility(undefined, ["fetch_refuses_unknown_protocols"]),
+      globalAsyncIO: true,
+    },
     async () => new Response("upstream")
   );
   t.is(await (await fetch("http://localhost/")).text(), "upstream");
@@ -957,10 +984,13 @@ test("createCompatFetch: rewrites urls of all types of fetch inputs", async (t) 
     );
   });
   upstream.protocol = "ftp:";
-  const fetch = createCompatFetch(
-    new NoOpLog(),
-    new Compatibility(undefined, ["fetch_treats_unknown_protocols_as_http"])
-  );
+  const fetch = createCompatFetch({
+    log: new NoOpLog(),
+    compat: new Compatibility(undefined, [
+      "fetch_treats_unknown_protocols_as_http",
+    ]),
+    globalAsyncIO: true,
+  });
 
   let res = await fetch(upstream.toString(), {
     method: "POST",
@@ -1031,14 +1061,19 @@ test("createCompatFetch: Responses parse files in FormData as File objects only 
   });
 
   const log = new NoOpLog();
-  let fetch = createCompatFetch(log, new Compatibility());
+  let fetch = createCompatFetch({
+    log,
+    compat: new Compatibility(),
+    globalAsyncIO: true,
+  });
   let formData = await (await fetch(upstream)).formData();
   t.is(formData.get("key"), "file contents");
 
-  fetch = createCompatFetch(
+  fetch = createCompatFetch({
     log,
-    new Compatibility(undefined, ["formdata_parser_supports_files"])
-  );
+    compat: new Compatibility(undefined, ["formdata_parser_supports_files"]),
+    globalAsyncIO: true,
+  });
   formData = await (await fetch(upstream)).formData();
   const file = formData.get("key");
   assert(file instanceof File);
