@@ -16,18 +16,32 @@ export function getRequestContext(): RequestContext | undefined {
   return requestContextStorage.getStore();
 }
 
+export interface RequestContextOptions {
+  /**
+   * In this context, a request is the initial entry fetch to a Worker
+   * (e.g. the incoming HTTP request), or fetch to a Durable Object stub.
+   * The depth starts at 1, and increments for each recursive request.
+   */
+  requestDepth?: number;
+  /**
+   * The pipeline depth starts at 1, and increments for each recursive service
+   * binding fetch. The requestDepth should not be incremented in this case.
+   * The pipeline depth resets for each new request (as described above).
+   */
+  pipelineDepth?: number;
+  subrequestLimit?: boolean | number;
+}
+
 export class RequestContext {
-  constructor(
-    // In this context, a request is the initial entry fetch to a Worker
-    // (e.g. the incoming HTTP request), or fetch to a Durable Object stub.
-    // The depth starts at 1, and increments for each recursive request.
-    readonly requestDepth = 1,
-    // The pipeline depth starts at 1, and increments for each recursive
-    // service binding fetch. The requestDepth should not be incremented in this
-    // case.
-    // The pipeline depth resets for each new request (as described above).
-    readonly pipelineDepth = 1
-  ) {
+  readonly requestDepth: number;
+  readonly pipelineDepth: number;
+  readonly subrequestLimit: false | number;
+
+  constructor({
+    requestDepth = 1,
+    pipelineDepth = 1,
+    subrequestLimit,
+  }: RequestContextOptions = {}) {
     assert(requestDepth >= 1);
     assert(pipelineDepth >= 1);
     if (requestDepth > MAX_REQUEST_DEPTH) {
@@ -39,6 +53,17 @@ export class RequestContext {
       throw new Error(
         `${depthError}\nService bindings can recurse up to ${MAX_PIPELINE_DEPTH} times.`
       );
+    }
+
+    this.requestDepth = requestDepth;
+    this.pipelineDepth = pipelineDepth;
+
+    if (subrequestLimit === false || typeof subrequestLimit === "number") {
+      // Use no limit or custom limit if set
+      this.subrequestLimit = subrequestLimit;
+    } else {
+      // Otherwise, if `true` or `undefined`, default to MAX_SUBREQUESTS
+      this.subrequestLimit = MAX_SUBREQUESTS;
     }
   }
 
@@ -54,7 +79,10 @@ export class RequestContext {
 
   incrementSubrequests(count = 1): void {
     this.#subrequests += count;
-    if (this.#subrequests > MAX_SUBREQUESTS) {
+    if (
+      this.subrequestLimit !== false &&
+      this.#subrequests > this.subrequestLimit
+    ) {
       throw new Error(
         `Too many subrequests. Workers can make up to ${MAX_SUBREQUESTS} subrequests per request.
 A subrequest is a call to fetch(), a redirect, or a call to any Cache API method.`

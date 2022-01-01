@@ -51,12 +51,15 @@ Core Options:
      --mount                 Mount additional named      [array:NAME=PATH[@ENV]]
                              workers
      --name                  Name of service                            [string]
+     --(no-)subreq-limit     Maximum number of subrequests (50  [boolean/number]
+                             by default)
 
 Test Options:
  -b, --boolean-option        Boolean option                            [boolean]
  -n, --num-option            Number option                              [number]
  -s, --string-option                                                    [string]
      --boolean-string-option Boolean/string option              [boolean/string]
+     --boolean-number-option Boolean/number option              [boolean/number]
      --array-option                                                      [array]
  -o, --object-option                                           [array:KEY=VALUE]
      --array-object-option                                     [array:KEY=THING]`

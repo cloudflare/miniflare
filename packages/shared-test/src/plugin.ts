@@ -53,6 +53,7 @@ export interface TestOptions {
   stringOption?: string;
   positionalStringOption?: string;
   booleanStringOption?: boolean | string;
+  booleanNumberOption?: boolean | number;
   arrayOptions?: string[];
   objectOptions?: Record<string, string>;
   arrayObjectOption?: [key: string, value: string][];
@@ -88,6 +89,12 @@ export class TestPlugin extends Plugin<TestOptions> implements TestOptions {
     description: "Boolean/string option",
   })
   booleanStringOption?: boolean | string;
+
+  @Option({
+    type: OptionType.BOOLEAN_NUMBER,
+    description: "Boolean/number option",
+  })
+  booleanNumberOption?: boolean | number;
 
   @Option({ type: OptionType.ARRAY })
   arrayOptions?: string[];

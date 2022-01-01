@@ -400,7 +400,7 @@ test("MiniflareCore: #init: re-runs setup for script-providing plugins if any be
     "- reload(BindingsPlugin)",
   ]);
 });
-test("MiniflareCore: #init: re-creates all plugins if compatibility data or root path changed", async (t) => {
+test("MiniflareCore: #init: re-creates all plugins if compatibility data, root path, or limits changed", async (t) => {
   const tmp1 = await useTmp(t);
   const tmp2 = await useTmp(t);
 
@@ -443,6 +443,11 @@ test("MiniflareCore: #init: re-creates all plugins if compatibility data or root
   // Update root path
   log.logs = [];
   await mf.setOptions({ rootPath: tmp2 });
+  t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), expectedLogs);
+
+  // Update subrequest limit
+  log.logs = [];
+  await mf.setOptions({ subrequestLimit: 25 });
   t.deepEqual(log.logsAtLevel(LogLevel.VERBOSE), expectedLogs);
 });
 test("MiniflareCore: #init: throws if script required but not provided", async (t) => {
@@ -1142,6 +1147,21 @@ test("MiniflareCore: dispatchFetch: creates new request context", async (t) => {
   });
   const res = await mf.dispatchFetch("http://localhost/?n=1");
   t.is(await res.text(), "body");
+
+  // Check with custom subrequest limit
+  await mf.setOptions({ subrequestLimit: 100 });
+  t.is(await (await mf.dispatchFetch("http://localhost/?n=50")).text(), "body");
+  t.is(await (await mf.dispatchFetch("http://localhost/?n=99")).text(), "body");
+  await t.throwsAsync(mf.dispatchFetch("http://localhost/?n=100"), {
+    instanceOf: Error,
+    message: /^Too many subrequests/,
+  });
+  // Check with no subrequest limit
+  await mf.setOptions({ subrequestLimit: false });
+  t.is(
+    await (await mf.dispatchFetch("http://localhost/?n=100")).text(),
+    "body"
+  );
 });
 test("MiniflareCore: dispatchFetch: increases request depth", async (t) => {
   const log = new AsyncTestLog();
@@ -1249,6 +1269,18 @@ test("MiniflareCore: dispatchScheduled: creates new request context", async (t) 
   });
   const waitUntil = await mf.dispatchScheduled(1);
   t.true(waitUntil[0]);
+
+  // Check with custom subrequest limit
+  await mf.setOptions({ subrequestLimit: 100 });
+  t.true((await mf.dispatchScheduled(50))[0]);
+  t.true((await mf.dispatchScheduled(99))[0]);
+  await t.throwsAsync(mf.dispatchScheduled(100), {
+    instanceOf: Error,
+    message: /^Too many subrequests/,
+  });
+  // Check with no subrequest limit
+  await mf.setOptions({ subrequestLimit: false });
+  t.true((await mf.dispatchScheduled(100))[0]);
 });
 
 test("MiniflareCore: dispose: runs dispose for all plugins", async (t) => {

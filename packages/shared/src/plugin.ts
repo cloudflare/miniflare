@@ -18,6 +18,7 @@ export enum OptionType {
   STRING, // string
   STRING_POSITIONAL, // string
   BOOLEAN_STRING, // boolean | string
+  BOOLEAN_NUMBER, // boolean | number
   ARRAY, // string[]
   OBJECT, // any
 }
@@ -28,7 +29,10 @@ export interface OptionMetadataType<Type extends OptionType, Value> {
   name?: string;
   alias?: string;
   description?: string;
-  negatable?: Type extends OptionType.BOOLEAN | OptionType.BOOLEAN_STRING
+  negatable?: Type extends
+    | OptionType.BOOLEAN
+    | OptionType.BOOLEAN_STRING
+    | OptionType.BOOLEAN_NUMBER
     ? boolean
     : undefined;
   logName?: string;
@@ -49,6 +53,7 @@ export type OptionMetadata =
   | OptionMetadataType<OptionType.STRING, string>
   | OptionMetadataType<OptionType.STRING_POSITIONAL, string>
   | OptionMetadataType<OptionType.BOOLEAN_STRING, boolean | string>
+  | OptionMetadataType<OptionType.BOOLEAN_NUMBER, boolean | number>
   | OptionMetadataType<OptionType.ARRAY, string[]>
   | OptionMetadataType<OptionType.OBJECT, any>;
 
@@ -85,6 +90,7 @@ export interface PluginContext {
   log: Log;
   compat: Compatibility;
   rootPath: string;
+  subrequestLimit?: boolean | number;
 }
 
 export abstract class Plugin<Options extends Context = never> {

@@ -12,11 +12,10 @@ import {
 } from "@miniflare/core";
 import {
   Awaitable,
-  Compatibility,
   Context,
   InputGate,
-  Log,
   OutputGate,
+  PluginContext,
   RequestContext,
   getRequestContext,
 } from "@miniflare/shared";
@@ -94,18 +93,15 @@ export type DurableObjectFactory = (
 
 export class DurableObjectStub {
   readonly #factory: DurableObjectFactory;
-  readonly #compat?: Compatibility;
-  readonly #log?: Log;
+  readonly #ctx?: PluginContext;
 
   constructor(
     factory: DurableObjectFactory,
     readonly id: DurableObjectId,
-    compat?: Compatibility,
-    log?: Log
+    ctx?: PluginContext
   ) {
     this.#factory = factory;
-    this.#compat = compat;
-    this.#log = log;
+    this.#ctx = ctx;
   }
 
   get name(): string | undefined {
@@ -118,7 +114,7 @@ export class DurableObjectStub {
 
     // Make sure relative URLs are prefixed with https://fake-host
     if (
-      !this.#compat?.isEnabled("durable_object_fetch_requires_full_url") &&
+      !this.#ctx?.compat.isEnabled("durable_object_fetch_requires_full_url") &&
       typeof input === "string"
     ) {
       input = new URL(input, "https://fake-host");
@@ -128,10 +124,10 @@ export class DurableObjectStub {
     // noinspection SuspiciousTypeOfGuard
     const url = _urlFromRequestInput(input);
     if (url.protocol !== "http:" && url.protocol !== "https:") {
-      if (this.#compat?.isEnabled("fetch_refuses_unknown_protocols")) {
+      if (this.#ctx?.compat.isEnabled("fetch_refuses_unknown_protocols")) {
         throw new TypeError(`Fetch API cannot load: ${url.toString()}`);
       } else {
-        this.#log?.warn(_buildUnknownProtocolWarning(url));
+        this.#ctx?.log.warn(_buildUnknownProtocolWarning(url));
       }
     }
 
@@ -143,9 +139,11 @@ export class DurableObjectStub {
     // depth and reset the pipeline depth.
     const parentContext = getRequestContext();
     const requestDepth = (parentContext?.requestDepth ?? 0) + 1;
-    const res = await new RequestContext(requestDepth, 1).runWith(() =>
-      state[kFetch](withInputGating(withImmutableHeaders(req)))
-    );
+    const res = await new RequestContext({
+      requestDepth,
+      pipelineDepth: 1,
+      subrequestLimit: this.#ctx?.subrequestLimit,
+    }).runWith(() => state[kFetch](withInputGating(withImmutableHeaders(req))));
 
     // noinspection SuspiciousTypeOfGuard
     const validRes =
@@ -172,14 +170,12 @@ export class DurableObjectNamespace {
   readonly #factory: DurableObjectFactory;
   readonly #objectNameHash: Uint8Array;
   readonly #objectNameHashHex: string;
-  readonly #compat?: Compatibility;
-  readonly #log?: Log;
+  readonly #ctx?: PluginContext;
 
   constructor(
     objectName: string,
     factory: DurableObjectFactory,
-    compat?: Compatibility,
-    log?: Log
+    ctx?: PluginContext
   ) {
     this.#objectName = objectName;
     this.#factory = factory;
@@ -192,8 +188,7 @@ export class DurableObjectNamespace {
       .slice(0, 8);
     this.#objectNameHashHex = hexEncode(this.#objectNameHash);
 
-    this.#compat = compat;
-    this.#log = log;
+    this.#ctx = ctx;
   }
 
   newUniqueId(_options?: NewUniqueIdOptions): DurableObjectId {
@@ -247,6 +242,6 @@ export class DurableObjectNamespace {
     ) {
       throw new TypeError("ID is not for this Durable Object class.");
     }
-    return new DurableObjectStub(this.#factory, id, this.#compat, this.#log);
+    return new DurableObjectStub(this.#factory, id, this.#ctx);
   }
 }

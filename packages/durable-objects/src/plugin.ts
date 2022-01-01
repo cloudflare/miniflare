@@ -162,12 +162,7 @@ export class DurableObjectsPlugin
     objectName: string
   ): DurableObjectNamespace {
     const factory: DurableObjectFactory = (id) => this.getObject(storage, id);
-    return new DurableObjectNamespace(
-      objectName,
-      factory,
-      this.ctx.compat,
-      this.ctx.log
-    );
+    return new DurableObjectNamespace(objectName, factory, this.ctx);
   }
 
   setup(storageFactory: StorageFactory): SetupResult {

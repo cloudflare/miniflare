@@ -54,6 +54,8 @@ test("CorePlugin: parses options from argv", (t) => {
     "api=./api",
     "--mount",
     "site=./site@dev",
+    "--subreq-limit",
+    "100",
   ]);
   t.deepEqual(options, {
     scriptPath: "script.js",
@@ -91,6 +93,7 @@ test("CorePlugin: parses options from argv", (t) => {
         wranglerConfigPath: true,
       },
     },
+    subrequestLimit: 100,
   });
   options = parsePluginArgv(CorePlugin, [
     "-c",
@@ -99,6 +102,7 @@ test("CorePlugin: parses options from argv", (t) => {
     "-u",
     "https://miniflare.dev",
     "-wdV",
+    "--no-subreq-limit",
   ]);
   t.deepEqual(options, {
     wranglerConfigPath: "wrangler.custom.toml",
@@ -107,6 +111,7 @@ test("CorePlugin: parses options from argv", (t) => {
     watch: true,
     debug: true,
     verbose: true,
+    subrequestLimit: false,
   });
 });
 test("CorePlugin: parses options from wrangler config", async (t) => {
@@ -140,6 +145,7 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
         mounts: { api: "./api", site: "./site@dev" },
         route: "http://localhost:8787/*",
         routes: ["miniflare.mf:8787/*"],
+        subrequest_limit: 100,
       },
     },
     configDir
@@ -190,6 +196,7 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
       "miniflare.mf:8787/*",
     ],
     logUnhandledRejections: undefined,
+    subrequestLimit: 100,
   });
   // Check build upload dir defaults to dist
   options = parsePluginWranglerConfig(
@@ -218,6 +225,7 @@ test("CorePlugin: logs options", (t) => {
     verbose: true,
     rootPath: "root",
     mounts: { api: "./api", site: "./site" },
+    subrequestLimit: 100,
   });
   t.deepEqual(logs, [
     // script is OptionType.NONE so omitted
@@ -233,6 +241,7 @@ test("CorePlugin: logs options", (t) => {
     "Verbose: true",
     "Root Path: root",
     "Mounts: api, site",
+    "Subrequest Limit: 100",
   ]);
   // Check logs default wrangler config/package paths
   logs = logPluginOptions(CorePlugin, {

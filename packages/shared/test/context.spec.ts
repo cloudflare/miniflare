@@ -7,16 +7,27 @@ test("RequestContext: depths default to 1", (t) => {
   t.is(ctx.pipelineDepth, 1);
 });
 
+test("RequestContext: subrequest limit defaults to 50", (t) => {
+  let ctx = new RequestContext();
+  t.is(ctx.subrequestLimit, 50);
+  ctx = new RequestContext({ subrequestLimit: true });
+  t.is(ctx.subrequestLimit, 50);
+  ctx = new RequestContext({ subrequestLimit: false });
+  t.is(ctx.subrequestLimit, false);
+  ctx = new RequestContext({ subrequestLimit: 25 });
+  t.is(ctx.subrequestLimit, 25);
+});
+
 test("RequestContext: throws if depth limit exceeded", (t) => {
-  new RequestContext(16, 1);
-  t.throws(() => new RequestContext(17, 1), {
+  new RequestContext({ requestDepth: 16, pipelineDepth: 1 });
+  t.throws(() => new RequestContext({ requestDepth: 17, pipelineDepth: 1 }), {
     instanceOf: Error,
     message:
       /^Subrequest depth limit exceeded.+\nWorkers and objects can recurse up to 16 times\./,
   });
 
-  new RequestContext(1, 32);
-  t.throws(() => new RequestContext(1, 33), {
+  new RequestContext({ requestDepth: 1, pipelineDepth: 32 });
+  t.throws(() => new RequestContext({ requestDepth: 1, pipelineDepth: 33 }), {
     instanceOf: Error,
     message:
       /^Subrequest depth limit exceeded.+\nService bindings can recurse up to 32 times\./,
