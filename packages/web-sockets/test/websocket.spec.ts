@@ -2,6 +2,11 @@
 
 import { setImmediate } from "timers/promises";
 import {
+  RequestContext,
+  RequestContextOptions,
+  getRequestContext,
+} from "@miniflare/shared";
+import {
   TestInputGate,
   noop,
   triggerPromise,
@@ -248,3 +253,123 @@ function testWebSocketPairTypes() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   webSocket2 = pair[2];
 }
+
+// Test request context subrequest limits
+function useSubrequest() {
+  getRequestContext()?.incrementSubrequests();
+}
+const ctxOpts: RequestContextOptions = { requestDepth: 5, pipelineDepth: 10 };
+function assertSubrequests(t: ExecutionContext, expected: number) {
+  const ctx = getRequestContext();
+  t.is(ctx?.subrequests, expected);
+  // Also check depths copied across
+  t.is(ctx?.requestDepth, ctxOpts.requestDepth);
+  t.is(ctx?.pipelineDepth, ctxOpts.pipelineDepth);
+}
+test("WebSocket: shares subrequest limit for WebSockets in regular worker handler", async (t) => {
+  // Check WebSocket with both ends terminated in same worker handler
+  await new RequestContext(ctxOpts).runWith(async () => {
+    const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
+    webSocket1.accept();
+    webSocket2.accept();
+    useSubrequest();
+    const [trigger, promise] = triggerPromise<void>();
+    webSocket1.addEventListener("message", () => {
+      assertSubrequests(t, 1);
+      trigger();
+    });
+    webSocket2.send("test");
+    await promise;
+  });
+
+  // Check WebSocket with one end terminated in worker and one in client
+  const [trigger, promise] = triggerPromise<void>();
+  const webSocket2 = await new RequestContext(ctxOpts).runWith(async () => {
+    const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
+    webSocket1.accept();
+    useSubrequest();
+    webSocket1.addEventListener("message", () => {
+      assertSubrequests(t, 1);
+      trigger();
+    });
+    return webSocket2;
+  });
+  webSocket2.accept();
+  webSocket2.send("test");
+  await promise;
+});
+test("WebSocket: resets subrequest limit for WebSockets in Durable Object", async (t) => {
+  // Check WebSocket with both ends terminated in same Durable Object
+  const durableOpts: RequestContextOptions = {
+    ...ctxOpts,
+    durableObject: true,
+  };
+  await new RequestContext(durableOpts).runWith(async () => {
+    const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
+    webSocket1.accept();
+    webSocket2.accept();
+    useSubrequest();
+    const [trigger, promise] = triggerPromise<void>();
+    webSocket1.addEventListener("message", () => {
+      assertSubrequests(t, 0);
+      trigger();
+    });
+    webSocket2.send("test");
+    await promise;
+  });
+
+  // Check WebSocket with one end terminated in Durable Object and one in fetch handler
+  let [trigger, promise] = triggerPromise<void>();
+  let webSocket2 = await new RequestContext(durableOpts).runWith(async () => {
+    const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
+    webSocket1.accept();
+    useSubrequest();
+    webSocket1.addEventListener("message", () => {
+      assertSubrequests(t, 0);
+      trigger();
+    });
+    return webSocket2;
+  });
+  new RequestContext(ctxOpts).runWith(() => {
+    webSocket2.accept();
+    webSocket2.send("test");
+  });
+  await promise;
+
+  // Check WebSocket with one end terminated in Durable Object and one in client
+  [trigger, promise] = triggerPromise<void>();
+  webSocket2 = await new RequestContext(durableOpts).runWith(async () => {
+    const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
+    webSocket1.accept();
+    useSubrequest();
+    webSocket1.addEventListener("message", () => {
+      assertSubrequests(t, 0);
+      trigger();
+    });
+    return webSocket2;
+  });
+  webSocket2.accept();
+  webSocket2.send("test");
+  await promise;
+});
+test("WebSocket: resets subrequest limit for WebSockets outside worker", async (t) => {
+  // Check WebSocket with one end terminate in fetch handler and one in test
+  const webSocket2 = new RequestContext(ctxOpts).runWith(() => {
+    const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
+    webSocket1.accept();
+    useSubrequest();
+    webSocket1.send("test");
+    return webSocket2;
+  });
+  const [trigger, promise] = triggerPromise<void>();
+  webSocket2.accept();
+  webSocket2.addEventListener("message", () => {
+    const ctx = getRequestContext();
+    t.is(ctx?.subrequests, 0);
+    // Depths should have default values in this case
+    t.is(ctx?.requestDepth, 1);
+    t.is(ctx?.pipelineDepth, 1);
+    trigger();
+  });
+  await promise;
+});

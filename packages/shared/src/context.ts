@@ -48,15 +48,22 @@ export interface RequestContextOptions {
    * The pipeline depth resets for each new request (as described above).
    */
   pipelineDepth?: number;
+  /**
+   * Whether this context is for inside a Durable Object fetch. Affects
+   * WebSocket subrequest limits for incoming messages.
+   */
+  durableObject?: boolean;
 }
 
 export class RequestContext {
   readonly requestDepth: number;
   readonly pipelineDepth: number;
+  readonly durableObject: boolean;
 
   constructor({
     requestDepth = 1,
     pipelineDepth = 1,
+    durableObject = false,
   }: RequestContextOptions = {}) {
     assert(requestDepth >= 1);
     assert(pipelineDepth >= 1);
@@ -73,6 +80,7 @@ export class RequestContext {
 
     this.requestDepth = requestDepth;
     this.pipelineDepth = pipelineDepth;
+    this.durableObject = durableObject;
   }
 
   runWith<T>(closure: () => T): T {

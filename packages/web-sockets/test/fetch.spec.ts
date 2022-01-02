@@ -1,17 +1,31 @@
 import assert from "assert";
 import { Blob } from "buffer";
+import { TransformStream } from "stream/web";
 import { URLSearchParams } from "url";
-import { createCompatFetch } from "@miniflare/core";
-import { Compatibility, LogLevel } from "@miniflare/shared";
+import { CachePlugin } from "@miniflare/cache";
+import { BindingsPlugin, createCompatFetch } from "@miniflare/core";
+import { DurableObjectsPlugin } from "@miniflare/durable-objects";
+import {
+  Compatibility,
+  LogLevel,
+  RequestContext,
+  getRequestContext,
+} from "@miniflare/shared";
 import {
   TestLog,
   noop,
   triggerPromise,
+  useMiniflare,
   useServer,
 } from "@miniflare/shared-test";
-import { MessageEvent, upgradingFetch } from "@miniflare/web-sockets";
+import {
+  MessageEvent,
+  WebSocketPlugin,
+  upgradingFetch,
+} from "@miniflare/web-sockets";
 import test from "ava";
 import { FormData } from "undici";
+import StandardWebSocket, { MessageEvent as WebSocketMessageEvent } from "ws";
 
 test("upgradingFetch: performs regular http request", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
@@ -157,4 +171,87 @@ test("upgradingFetch: requires GET for web socket upgrade", async (t) => {
       message: "fetch failed",
     }
   );
+});
+test("upgradingFetch: increments subrequest count", async (t) => {
+  const server = await useServer(
+    t,
+    (req, res) => res.end(),
+    (ws) => ws.close()
+  );
+  const ctx = new RequestContext();
+  let res = await ctx.runWith(() =>
+    upgradingFetch(server.http, { headers: { upgrade: "websocket" } })
+  );
+  t.not(res.webSocket, undefined);
+  t.is(ctx.subrequests, 1);
+  res = await ctx.runWith(() => upgradingFetch(server.http));
+  t.is(res.webSocket, undefined);
+  t.is(ctx.subrequests, 2);
+});
+test("upgradingFetch: creates new request context for each web socket message", async (t) => {
+  const [trigger, promise] = triggerPromise<StandardWebSocket>();
+  const server = await useServer(
+    t,
+    () => t.fail(),
+    (ws) => trigger(ws)
+  );
+  const mf = useMiniflare(
+    { WebSocketPlugin, BindingsPlugin, CachePlugin, DurableObjectsPlugin },
+    {
+      globals: {
+        WS_URL: server.ws,
+        assertSubrequests(expected: number) {
+          t.is(getRequestContext()?.subrequests, expected);
+        },
+      },
+      durableObjects: { TEST_OBJECT: "TestObject" },
+      modules: true,
+      script: `
+      export class TestObject {
+        async fetch() {
+          assertSubrequests(0);
+          await caches.default.match("http://localhost/");
+          assertSubrequests(1);
+          
+          const res = await fetch(WS_URL, {
+            headers: { "upgrade": "websocket" },
+          });
+          assertSubrequests(2);
+          res.webSocket.accept();
+          res.webSocket.addEventListener("message", async (e) => {
+            assertSubrequests(0);
+            const n = parseInt(e.data);
+            try {
+              await Promise.all(
+                Array.from(Array(n)).map(() => caches.default.match("http://localhost/"))
+              );
+              res.webSocket.send(\`success:\${n}\`);
+            } catch (e) {
+              res.webSocket.send(\`error:\${e.message}\`);
+            }
+          });
+          return new Response();
+        }
+      }
+      export default {
+        async fetch(request, env) {
+          const id = env.TEST_OBJECT.newUniqueId();
+          const stub = env.TEST_OBJECT.get(id);
+          return stub.fetch(request);
+        }
+      }
+      `,
+    }
+  );
+  await mf.dispatchFetch("http://localhost/");
+  const ws = await promise;
+  const { readable, writable } = new TransformStream<WebSocketMessageEvent>();
+  const reader = readable.getReader();
+  const writer = writable.getWriter();
+  ws.addEventListener("message", (e) => writer.write(e));
+
+  ws.send("3");
+  t.is((await reader.read()).value?.data, "success:3");
+  ws.send("51");
+  t.regex((await reader.read()).value?.data, /^error:Too many subrequests/);
 });

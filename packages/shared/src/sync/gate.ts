@@ -1,7 +1,7 @@
 import assert from "assert";
 import { AsyncLocalStorage } from "async_hooks";
 import { setImmediate as setImmediatePromise } from "timers/promises";
-import { TypedEventListener, TypedEventTarget, kWrapListener } from "../event";
+import { TypedEventTarget, kWrapListener } from "../event";
 import { Awaitable } from "./awaitable";
 
 const inputGateStorage = new AsyncLocalStorage<InputGate>();
@@ -167,7 +167,7 @@ export class InputGatedEventTarget<
 > extends TypedEventTarget<EventMap> {
   protected [kWrapListener]<Type extends keyof EventMap>(
     listener: (event: EventMap[Type]) => void
-  ): TypedEventListener<EventMap[Type]> {
+  ): (event: EventMap[Type]) => void {
     // Get input gate from the add/remove event listener context, not dispatch
     const inputGate = inputGateStorage.getStore();
     return inputGate

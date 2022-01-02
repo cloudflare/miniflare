@@ -6,6 +6,7 @@ import {
   Response,
   fetch,
 } from "@miniflare/core";
+import { getRequestContext } from "@miniflare/shared";
 import StandardWebSocket from "ws";
 import { coupleWebSocket } from "./couple";
 import { WebSocketPair } from "./websocket";
@@ -21,6 +22,9 @@ export async function upgradingFetch(
     request.method === "GET" &&
     request.headers.get("upgrade") === "websocket"
   ) {
+    // All fetches count as subrequests
+    getRequestContext()?.incrementSubrequests();
+
     // Check request protocol. Note, upgradingFetch will be wrapped with
     // createCompatFetch, which will rewrite the protocol to "http:" (e.g. when
     // it's set to "ws:") if the fetch_refuses_unknown_protocols compatibility

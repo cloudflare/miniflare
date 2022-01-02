@@ -289,6 +289,9 @@ test("DurableObjectStub: fetch: creates new request context", async (t) => {
         assertSubrequests(expected: number) {
           t.is(getRequestContext()?.subrequests, expected);
         },
+        assertDurableObject() {
+          t.true(getRequestContext()?.durableObject);
+        },
       },
       durableObjects: { TEST_OBJECT: "TestObject" },
       modules: true,
@@ -310,6 +313,7 @@ export class TestObject {
   }
 
   async fetch(request) {
+    this.env.assertDurableObject();
     this.env.assertSubrequests(0);
     await caches.default.match("http://localhost/");
     this.env.assertSubrequests(1);
