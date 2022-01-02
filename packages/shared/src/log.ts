@@ -1,5 +1,6 @@
 import path from "path";
 import { Colorize, dim, green, grey, red, reset, yellow } from "kleur/colors";
+import { prefixError } from "./error";
 
 const cwd = process.cwd();
 const cwdNodeModules = path.join(cwd, "node_modules");
@@ -70,6 +71,9 @@ export class Log {
       this.logWithLevel(LogLevel.ERROR, lines.join("\n"));
     } else {
       this.logWithLevel(LogLevel.ERROR, message.toString());
+    }
+    if ((message as any).cause) {
+      this.error(prefixError("Cause", (message as any).cause));
     }
   }
 

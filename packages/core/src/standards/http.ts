@@ -599,12 +599,8 @@ export function _getURLList(res: BaseResponse): URL[] | undefined {
   // too much if the internal representation changes in the future: this code
   // shouldn't throw. Currently we use this to count the number of redirects,
   // and increment the subrequest count accordingly.
-  for (const symbol of Object.getOwnPropertySymbols(res)) {
-    if (symbol.description === "state") {
-      // @ts-expect-error symbol properties are not included type definitions
-      return res[symbol].urlList;
-    }
-  }
+  // @ts-expect-error symbol properties are not included type definitions
+  return res[fetchSymbols.kState]?.urlList;
 }
 
 /** @internal */

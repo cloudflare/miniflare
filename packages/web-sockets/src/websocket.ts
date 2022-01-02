@@ -1,6 +1,9 @@
 import assert from "assert";
 import {
   InputGatedEventTarget,
+  RequestContext,
+  getRequestContext,
+  kWrapListener,
   waitForOpenOutputGate,
 } from "@miniflare/shared";
 
@@ -60,6 +63,36 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
   [kAccepted] = false;
   [kCoupled] = false;
   [kClosed] = false;
+
+  protected [kWrapListener]<Type extends keyof WebSocketEventMap>(
+    listener: (event: WebSocketEventMap[Type]) => void
+  ): (event: WebSocketEventMap[Type]) => void {
+    // Get listener that applies input gating
+    const wrappedListener = super[kWrapListener](listener);
+
+    // Get the add/remove event listener context, not dispatch
+    const addListenerCtx = getRequestContext();
+
+    // Return new listener that dispatches events with the correct
+    // request context, and also applies input gating
+    return (event) => {
+      // TODO: confirm this behaviour
+      if (addListenerCtx?.durableObject || addListenerCtx === undefined) {
+        // If this listener was registered inside a Durable Object, or outside
+        // a request context, create a fresh context, with a new subrequest
+        // counter, using the current depths
+        const ctx = new RequestContext({
+          requestDepth: addListenerCtx?.requestDepth,
+          pipelineDepth: addListenerCtx?.pipelineDepth,
+        });
+        ctx.runWith(() => wrappedListener(event));
+      } else {
+        // Otherwise, if we're in a regular worker handler, share the request
+        // context (i.e. share subrequest count)
+        addListenerCtx.runWith(() => wrappedListener(event));
+      }
+    };
+  }
 
   accept(): void {
     if (this[kCoupled]) {

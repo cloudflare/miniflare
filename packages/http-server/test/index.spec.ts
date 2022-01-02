@@ -9,6 +9,7 @@ import { ReadableStreamDefaultController, TransformStream } from "stream/web";
 import { setTimeout } from "timers/promises";
 import { URL } from "url";
 import zlib from "zlib";
+import { CachePlugin } from "@miniflare/cache";
 import {
   BindingsPlugin,
   IncomingRequestCfProperties,
@@ -18,6 +19,7 @@ import {
   _kInner,
   fetch,
 } from "@miniflare/core";
+import { DurableObjectsPlugin } from "@miniflare/durable-objects";
 import {
   HTTPPlugin,
   RequestMeta,
@@ -25,7 +27,7 @@ import {
   createRequestListener,
   createServer,
 } from "@miniflare/http-server";
-import { LogLevel } from "@miniflare/shared";
+import { LogLevel, getRequestContext } from "@miniflare/shared";
 import {
   TestLog,
   isWithin,
@@ -42,6 +44,7 @@ import StandardWebSocket, {
   CloseEvent as WebSocketCloseEvent,
   ErrorEvent as WebSocketErrorEvent,
   Event as WebSocketEvent,
+  MessageEvent as WebSocketMessageEvent,
 } from "ws";
 
 function listen(
@@ -596,6 +599,71 @@ test("createServer: expects status 101 and web socket response for upgrades", as
   ]);
   t.is(closeEvent.code, 1006);
   t.is(errorEvent.message, "Unexpected server response: 500");
+});
+test("createServer: creates new request context for each web socket message", async (t) => {
+  const mf = useMiniflare(
+    {
+      HTTPPlugin,
+      WebSocketPlugin,
+      BindingsPlugin,
+      CachePlugin,
+      DurableObjectsPlugin,
+    },
+    {
+      globals: {
+        assertSubrequests(expected: number) {
+          t.is(getRequestContext()?.subrequests, expected);
+        },
+      },
+      durableObjects: { TEST_OBJECT: "TestObject" },
+      modules: true,
+      script: `
+      export class TestObject {
+        async fetch() {
+          assertSubrequests(0);
+          await caches.default.match("http://localhost/");
+          assertSubrequests(1);
+    
+          const [client, worker] = Object.values(new WebSocketPair());
+          worker.accept();
+          worker.addEventListener("message", async (e) => {
+            assertSubrequests(0);
+            const n = parseInt(e.data);
+            try {
+              await Promise.all(
+                Array.from(Array(n)).map(() => caches.default.match("http://localhost/"))
+              );
+              worker.send(\`success:\${n}\`);
+            } catch (e) {
+              worker.send(\`error:\${e.message}\`);
+            }
+          });
+          return new Response(null, { status: 101, webSocket: client });
+        }
+      }
+      export default {
+        async fetch(request, env) {
+          const id = env.TEST_OBJECT.newUniqueId();
+          const stub = env.TEST_OBJECT.get(id);
+          return stub.fetch(request);
+        }
+      }
+      `,
+    }
+  );
+  const port = await listen(t, await createServer(mf));
+
+  const ws = new StandardWebSocket(`ws://localhost:${port}`);
+  const { readable, writable } = new TransformStream<WebSocketMessageEvent>();
+  const reader = readable.getReader();
+  const writer = writable.getWriter();
+  ws.addEventListener("message", (e) => writer.write(e));
+  await new Promise((resolve) => ws.addEventListener("open", resolve));
+
+  ws.send("3");
+  t.is((await reader.read()).value?.data, "success:3");
+  ws.send("51");
+  t.regex((await reader.read()).value?.data, /^error:Too many subrequests/);
 });
 test("createServer: notifies connected live reload clients on reload", async (t) => {
   const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {

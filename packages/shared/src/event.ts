@@ -16,7 +16,7 @@ export class TypedEventTarget<
 
   protected [kWrapListener]?<Type extends keyof EventMap>(
     listener: (event: EventMap[Type]) => void
-  ): TypedEventListener<EventMap[Type]>;
+  ): (event: EventMap[Type]) => void;
 
   #wrap<Type extends keyof EventMap>(
     listener: TypedEventListener<EventMap[Type]> | null
@@ -71,7 +71,7 @@ export class ThrowingEventTarget<
 
   protected [kWrapListener]<Type extends keyof EventMap>(
     listener: (event: EventMap[Type]) => void
-  ): TypedEventListener<EventMap[Type]> {
+  ): (event: EventMap[Type]) => void {
     return (event) => {
       try {
         listener(event);
