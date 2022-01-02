@@ -42,8 +42,22 @@ function dimInternalStackLine(line: string): string {
   return line;
 }
 
+export interface LogOptions {
+  prefix?: string;
+  suffix?: string;
+}
+
 export class Log {
-  constructor(readonly level = LogLevel.INFO, readonly suffix?: string) {}
+  readonly #prefix: string;
+  readonly #suffix: string;
+
+  constructor(readonly level = LogLevel.INFO, opts: LogOptions = {}) {
+    const prefix = opts.prefix ?? "mf";
+    const suffix = opts.suffix ?? "";
+    // If prefix/suffix set, add colon at end/start
+    this.#prefix = prefix ? prefix + ":" : "";
+    this.#suffix = suffix ? ":" + suffix : "";
+  }
 
   log(message: string): void {
     console.log(message);
@@ -51,13 +65,8 @@ export class Log {
 
   logWithLevel(level: LogLevel, message: string): void {
     if (level <= this.level) {
-      this.log(
-        LEVEL_COLOUR[level](
-          `[mf:${LEVEL_PREFIX[level]}${
-            this.suffix ? `:${this.suffix}` : ""
-          }] ${message}`
-        )
-      );
+      const prefix = `[${this.#prefix}${LEVEL_PREFIX[level]}${this.#suffix}]`;
+      this.log(LEVEL_COLOUR[level](`${prefix} ${message}`));
     }
   }
 

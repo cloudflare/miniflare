@@ -522,8 +522,9 @@ export class MiniflareCore<
         } else {
           this.#ctx.log.debug(`Mounting \"${name}\"...`);
           let log = this.#ctx.log;
+          // Not using `instanceof` here, we don't want subclasses
           if (Object.getPrototypeOf(this.#ctx.log) === Log.prototype) {
-            log = new Log(this.#ctx.log.level, name);
+            log = new Log(this.#ctx.log.level, { suffix: name });
           }
           const ctx: MiniflareCoreContext = {
             ...this.#ctx,
