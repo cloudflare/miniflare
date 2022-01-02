@@ -298,7 +298,8 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
   name?: string;
 
   @Option({
-    type: OptionType.NONE,
+    type: OptionType.ARRAY,
+    description: "Route to respond with this worker on",
     fromWrangler: ({ route, routes, miniflare }) => {
       const result: string[] = [];
       if (route) result.push(route);

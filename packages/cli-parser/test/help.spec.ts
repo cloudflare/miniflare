@@ -51,6 +51,7 @@ Core Options:
      --mount                 Mount additional named      [array:NAME=PATH[@ENV]]
                              workers
      --name                  Name of service                            [string]
+     --route                 Route to respond with this worker on        [array]
      --global-async-io       Allow async I/O outside handlers          [boolean]
      --global-timers         Allow setting timers outside handlers     [boolean]
      --global-random         Allow secure random generation outside    [boolean]
