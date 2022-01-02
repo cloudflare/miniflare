@@ -29,6 +29,12 @@ test("inputGatedSetTimeout: waits for input gate to open before calling callback
   });
   t.deepEqual(result, [42, "test"]);
 });
+test("inputGatedSetTimeout: throws without a callback", (t) => {
+  // @ts-expect-error intentionally testing incorrect types
+  t.throws(() => inputGatedSetTimeout(), {
+    code: "ERR_INVALID_CALLBACK",
+  });
+});
 
 test("inputGatedSetInterval: calls callback with no input gate in context", async (t) => {
   let [trigger, promise] = triggerPromise<[number, string]>();

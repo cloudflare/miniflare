@@ -14,10 +14,12 @@ export function createTimer<Return>(
   return (callback, ms, ...args) => {
     if (blockGlobalTimers) assertInRequest();
     return func(
-      async (...args) => {
-        await waitForOpenInputGate();
-        callback(...args);
-      },
+      callback
+        ? async (...args) => {
+            await waitForOpenInputGate();
+            callback?.(...args);
+          }
+        : callback,
       ms,
       ...args
     );
