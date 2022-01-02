@@ -142,7 +142,6 @@ export class DurableObjectStub {
     const res = await new RequestContext({
       requestDepth,
       pipelineDepth: 1,
-      subrequestLimit: this.#ctx?.subrequestLimit,
     }).runWith(() => state[kFetch](withInputGating(withImmutableHeaders(req))));
 
     // noinspection SuspiciousTypeOfGuard

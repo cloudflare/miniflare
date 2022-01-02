@@ -1,7 +1,15 @@
 import assert from "assert";
 import { AsyncLocalStorage } from "async_hooks";
 
-const MAX_SUBREQUESTS = 50;
+// Maximum number of subrequests per request context. Cloudflare support can
+// increase the limit for customers with specific needs, so it's configurable.
+// This used to be via a `--subrequest-limit` flag, but it's a niche option,
+// and it was a little annoying to pass the constant around everywhere.
+// 0 means no subrequests are allowed. A negative value disables the limit.
+// Note: `parseInt(undefined)` is `NaN`
+const subrequestLimit = parseInt(process.env.MINIFLARE_SUBREQUEST_LIMIT!);
+const MAX_SUBREQUESTS = isNaN(subrequestLimit) ? 50 : subrequestLimit;
+
 const MAX_REQUEST_DEPTH = 16;
 const MAX_PIPELINE_DEPTH = 32;
 
@@ -40,18 +48,15 @@ export interface RequestContextOptions {
    * The pipeline depth resets for each new request (as described above).
    */
   pipelineDepth?: number;
-  subrequestLimit?: boolean | number;
 }
 
 export class RequestContext {
   readonly requestDepth: number;
   readonly pipelineDepth: number;
-  readonly subrequestLimit: false | number;
 
   constructor({
     requestDepth = 1,
     pipelineDepth = 1,
-    subrequestLimit,
   }: RequestContextOptions = {}) {
     assert(requestDepth >= 1);
     assert(pipelineDepth >= 1);
@@ -68,14 +73,6 @@ export class RequestContext {
 
     this.requestDepth = requestDepth;
     this.pipelineDepth = pipelineDepth;
-
-    if (subrequestLimit === false || typeof subrequestLimit === "number") {
-      // Use no limit or custom limit if set
-      this.subrequestLimit = subrequestLimit;
-    } else {
-      // Otherwise, if `true` or `undefined`, default to MAX_SUBREQUESTS
-      this.subrequestLimit = MAX_SUBREQUESTS;
-    }
   }
 
   runWith<T>(closure: () => T): T {
@@ -90,10 +87,7 @@ export class RequestContext {
 
   incrementSubrequests(count = 1): void {
     this.#subrequests += count;
-    if (
-      this.subrequestLimit !== false &&
-      this.#subrequests > this.subrequestLimit
-    ) {
+    if (MAX_SUBREQUESTS >= 0 && this.#subrequests > MAX_SUBREQUESTS) {
       throw new Error(
         `Too many subrequests. Workers can make up to ${MAX_SUBREQUESTS} subrequests per request.
 A subrequest is a call to fetch(), a redirect, or a call to any Cache API method.`

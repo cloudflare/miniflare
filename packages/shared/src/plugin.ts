@@ -90,7 +90,6 @@ export interface PluginContext {
   log: Log;
   compat: Compatibility;
   rootPath: string;
-  subrequestLimit?: boolean | number;
   globalAsyncIO?: boolean;
 }
 

@@ -54,8 +54,6 @@ test("CorePlugin: parses options from argv", (t) => {
     "api=./api",
     "--mount",
     "site=./site@dev",
-    "--subreq-limit",
-    "100",
     "--global-async-io",
     "--global-timers",
     "--global-random",
@@ -96,7 +94,6 @@ test("CorePlugin: parses options from argv", (t) => {
         wranglerConfigPath: true,
       },
     },
-    subrequestLimit: 100,
     globalAsyncIO: true,
     globalTimers: true,
     globalRandom: true,
@@ -108,7 +105,6 @@ test("CorePlugin: parses options from argv", (t) => {
     "-u",
     "https://miniflare.dev",
     "-wdV",
-    "--no-subreq-limit",
   ]);
   t.deepEqual(options, {
     wranglerConfigPath: "wrangler.custom.toml",
@@ -117,7 +113,6 @@ test("CorePlugin: parses options from argv", (t) => {
     watch: true,
     debug: true,
     verbose: true,
-    subrequestLimit: false,
   });
 });
 test("CorePlugin: parses options from wrangler config", async (t) => {
@@ -151,7 +146,6 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
         mounts: { api: "./api", site: "./site@dev" },
         route: "http://localhost:8787/*",
         routes: ["miniflare.mf:8787/*"],
-        subrequest_limit: 100,
         global_async_io: true,
         global_timers: true,
         global_random: true,
@@ -205,7 +199,6 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
       "miniflare.mf:8787/*",
     ],
     logUnhandledRejections: undefined,
-    subrequestLimit: 100,
     globalAsyncIO: true,
     globalTimers: true,
     globalRandom: true,
@@ -237,7 +230,6 @@ test("CorePlugin: logs options", (t) => {
     verbose: true,
     rootPath: "root",
     mounts: { api: "./api", site: "./site" },
-    subrequestLimit: 100,
     globalAsyncIO: true,
     globalTimers: true,
     globalRandom: true,
@@ -256,7 +248,6 @@ test("CorePlugin: logs options", (t) => {
     "Verbose: true",
     "Root Path: root",
     "Mounts: api, site",
-    "Subrequest Limit: 100",
     "Allow Global Async I/O: true",
     "Allow Global Timers: true",
     "Allow Global Secure Random: true",

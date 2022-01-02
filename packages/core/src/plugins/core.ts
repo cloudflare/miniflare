@@ -99,7 +99,6 @@ export interface CoreOptions {
   name?: string;
   routes?: string[];
   logUnhandledRejections?: boolean;
-  subrequestLimit?: boolean | number;
   globalAsyncIO?: boolean;
   globalTimers?: boolean;
   globalRandom?: boolean;
@@ -313,15 +312,6 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   @Option({ type: OptionType.NONE })
   logUnhandledRejections?: boolean;
-
-  @Option({
-    type: OptionType.BOOLEAN_NUMBER,
-    name: "subreq-limit",
-    description: "Maximum number of subrequests (50 by default)",
-    negatable: true, // Disables limit
-    fromWrangler: ({ miniflare }) => miniflare?.subrequest_limit,
-  })
-  subrequestLimit?: boolean | number;
 
   @Option({
     type: OptionType.BOOLEAN,
