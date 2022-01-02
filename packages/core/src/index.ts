@@ -246,7 +246,6 @@ export class MiniflareCore<
 
   #compat?: Compatibility;
   #previousRootPath?: string;
-  #previousSubrequestLimit?: boolean | number;
   #previousGlobalAsyncIO?: boolean;
   #instances?: PluginInstances<Plugins>;
   #mounts?: Map<string, MiniflareCore<Plugins>>;
@@ -368,20 +367,12 @@ export class MiniflareCore<
 
     // Build compatibility manager, rebuild all plugins if compatibility data,
     // root path or any limits have changed
-    const {
-      compatibilityDate,
-      compatibilityFlags,
-      subrequestLimit,
-      globalAsyncIO,
-    } = options.CorePlugin;
-
+    const { compatibilityDate, compatibilityFlags, globalAsyncIO } =
+      options.CorePlugin;
     let ctxUpdate =
       (this.#previousRootPath && this.#previousRootPath !== rootPath) ||
-      this.#previousSubrequestLimit !== subrequestLimit ||
       this.#previousGlobalAsyncIO !== globalAsyncIO;
-
     this.#previousRootPath = rootPath;
-    this.#previousSubrequestLimit = subrequestLimit;
 
     if (this.#compat) {
       if (this.#compat.update(compatibilityDate, compatibilityFlags)) {
@@ -394,7 +385,6 @@ export class MiniflareCore<
       log: this.#ctx.log,
       compat: this.#compat,
       rootPath,
-      subrequestLimit,
       globalAsyncIO,
     };
 
@@ -1017,7 +1007,7 @@ export class MiniflareCore<
     }
 
     // If upstream set, and the request URL doesn't begin with it, rewrite it
-    const { upstreamURL, subrequestLimit } = this.#instances!.CorePlugin;
+    const { upstreamURL } = this.#instances!.CorePlugin;
     if (upstreamURL && !url.toString().startsWith(upstreamURL.toString())) {
       let path = url.pathname + url.search;
       // Remove leading slash so we resolve relative to upstream's path
@@ -1037,7 +1027,6 @@ export class MiniflareCore<
     return new RequestContext({
       requestDepth,
       pipelineDepth: 1,
-      subrequestLimit,
     }).runWith(() =>
       this[kDispatchFetch](
         request,
@@ -1071,10 +1060,9 @@ export class MiniflareCore<
   ): Promise<WaitUntil> {
     await this.#initPromise;
     const globalScope = this.#globalScope;
-    const { subrequestLimit } = this.#instances!.CorePlugin;
     // Each fetch gets its own context (e.g. 50 subrequests).
     // Start a new pipeline too.
-    return new RequestContext({ subrequestLimit }).runWith(() =>
+    return new RequestContext().runWith(() =>
       globalScope![kDispatchScheduled]<WaitUntil>(scheduledTime, cron)
     );
   }

@@ -51,16 +51,13 @@ export interface BindingsOptions {
 export class Fetcher {
   readonly #service: string | FetcherFetch;
   readonly #getServiceFetch: (name: string) => Promise<FetcherFetch>;
-  readonly #subrequestLimit?: boolean | number;
 
   constructor(
     service: string | FetcherFetch,
-    getServiceFetch: (name: string) => Promise<FetcherFetch>,
-    subrequestLimit?: boolean | number
+    getServiceFetch: (name: string) => Promise<FetcherFetch>
   ) {
     this.#service = service;
     this.#getServiceFetch = getServiceFetch;
-    this.#subrequestLimit = subrequestLimit;
   }
 
   async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
@@ -70,11 +67,7 @@ export class Fetcher {
     const requestDepth = parentCtx?.requestDepth ?? 1;
     const pipelineDepth = (parentCtx?.pipelineDepth ?? 0) + 1;
     // NOTE: `new RequestContext` throws if too deep
-    const ctx = new RequestContext({
-      requestDepth,
-      pipelineDepth,
-      subrequestLimit: this.#subrequestLimit,
-    });
+    const ctx = new RequestContext({ requestDepth, pipelineDepth });
 
     // Always create new Request instance, so clean object passed to services
     const req = new Request(input, init);
@@ -284,11 +277,7 @@ export class BindingsPlugin
 
     // 4) Load service bindings
     for (const { name, service } of this.#processedServiceBindings) {
-      bindings[name] = new Fetcher(
-        service,
-        this.#getServiceFetch,
-        this.ctx.subrequestLimit
-      );
+      bindings[name] = new Fetcher(service, this.#getServiceFetch);
     }
 
     // 5) Copy user's arbitrary bindings

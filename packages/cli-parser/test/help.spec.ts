@@ -51,8 +51,6 @@ Core Options:
      --mount                 Mount additional named      [array:NAME=PATH[@ENV]]
                              workers
      --name                  Name of service                            [string]
-     --(no-)subreq-limit     Maximum number of subrequests (50  [boolean/number]
-                             by default)
      --global-async-io       Allow async I/O outside handlers          [boolean]
      --global-timers         Allow setting timers outside handlers     [boolean]
      --global-random         Allow secure random generation outside    [boolean]
