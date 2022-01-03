@@ -138,5 +138,9 @@ export function _populateBuildConfig(
       "generated",
       "script.wasm"
     );
+
+    // Proxy `instanceof` checks on primitives for wasm-bindgen
+    config.miniflare ??= {};
+    config.miniflare.proxy_primitive_instanceof = true;
   }
 }
