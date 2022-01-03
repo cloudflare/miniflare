@@ -571,7 +571,9 @@ export class Response<
     return this[_kInner].statusText;
   }
   get type(): ResponseType {
-    return this[_kInner].type;
+    throw new Error(
+      "Failed to get the 'type' property on 'Response': the property is not implemented."
+    );
   }
   get url(): string {
     return this[_kInner].url;
@@ -647,7 +649,28 @@ export async function fetch(
   }
 
   // Convert the response to our hybrid Response
-  const res = new Response(baseRes.body, baseRes);
+  let res: Response;
+  if (baseRes.type === "opaqueredirect") {
+    // Unpack opaque responses. This restriction isn't needed server-side,
+    // and Cloudflare doesn't support Response types anyway.
+    // @ts-expect-error symbol properties are not included type definitions
+    const internalResponse = baseRes[fetchSymbols.kState].internalResponse;
+    const headersList = internalResponse.headersList;
+    assert(headersList.length % 2 === 0);
+    const headers = new Headers();
+    for (let i = 0; i < headersList.length; i += 2) {
+      headers.append(headersList[i], headersList[i + 1]);
+    }
+    // Cloudflare returns a body here, but undici aborts the stream so
+    // unfortunately it's unusable :(
+    res = new Response(null, {
+      status: internalResponse.status,
+      statusText: internalResponse.statusText,
+      headers,
+    });
+  } else {
+    res = new Response(baseRes.body, baseRes);
+  }
 
   await waitForOpenInputGate();
   return withInputGating(res);
