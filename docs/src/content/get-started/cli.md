@@ -308,70 +308,76 @@ section.
 ---
 filename: wrangler.toml
 ---
-compatibility_date = "2021-11-12"  ## --compat-date
-compatibility_flags = [            ## --compat-flag
+name = "worker"                    # --name
+
+compatibility_date = "2021-11-12"  # --compat-date
+compatibility_flags = [            # --compat-flag
     "formdata_parser_supports_files"
 ]
 
-kv_namespaces = [                  ## --kv
+kv_namespaces = [                  # --kv
   { binding = "TEST_NAMESPACE", id = "", preview_id = "" }
 ]
 
 [durable_objects]
-bindings = [                       ## --do
+bindings = [                       # --do
   { name = "OBJECT", class_name = "Object" }
 ]
 
-[vars]                             ## --binding
+[vars]                             # --binding
 KEY = "value"
 
 [site]
-bucket = "./public"                ## --site
-include = ["upload_dir"]           ## --site-include
-exclude = ["ignore_dir"]           ## --site-exclude
+bucket = "./public"                # --site
+include = ["upload_dir"]           # --site-include
+exclude = ["ignore_dir"]           # --site-exclude
 
 [triggers]
-crons = ["30 * * * *"]             ## --cron
+crons = ["30 * * * *"]             # --cron
 
 [build]
-command = "npm run build"          ## --build-command
-cwd = "build_cwd"                  ## --build-base-path
-watch_dir = "build_watch_dir"      ## --build-watch-path
+command = "npm run build"          # --build-command
+cwd = "build_cwd"                  # --build-base-path
+watch_dir = "build_watch_dir"      # --build-watch-path
 [build.upload]
-format = "modules"                 ## --modules
+format = "modules"                 # --modules
 dir = "worker"
-main = "./index.mjs"               ## [script]
-[[build.upload.rules]]             ## --modules-rule
+main = "./index.mjs"               # [script]
+[[build.upload.rules]]             # --modules-rule
 type = "ESModule"
 globs = ["**/*.js"]
 
-[wasm_modules]                     ## --wasm
+[wasm_modules]                     # --wasm
 MODULE = "module.wasm"
 
 [miniflare]
-host = "127.0.0.1"                 ## --host
-port = 1337                        ## --port
-upstream = "https://miniflare.dev" ## --upstream
-watch = true                       ## --watch
-live_reload = true                 ## --live-reload
-env_path = ".env.test"             ## --env
-kv_persist = true                  ## --kv-persist
-cache_persist = "./cache"          ## --cache-persist
-cache = false                      ## --no-cache
-durable_objects_persist = true     ## --do-persist
-update_check = false               ## --no-update-check
-cf_fetch = "./cf.json"             ## --cf-fetch ./cf.json
-cf_fetch = false                   ## --no-cf-fetch
-https = true                       ## --https
-https = "./cert_cache"             ## --https ./cert_cache
+host = "127.0.0.1"                 # --host
+port = 1337                        # --port
+upstream = "https://miniflare.dev" # --upstream
+watch = true                       # --watch
+live_reload = true                 # --live-reload
+env_path = ".env.test"             # --env
+kv_persist = true                  # --kv-persist
+cache_persist = "./cache"          # --cache-persist
+cache = false                      # --no-cache
+durable_objects_persist = true     # --do-persist
+update_check = false               # --no-update-check
+cf_fetch = "./cf.json"             # --cf-fetch ./cf.json
+cf_fetch = false                   # --no-cf-fetch
+https = true                       # --https
+https = "./cert_cache"             # --https ./cert_cache
+global_async_io = true             # --global-async-io
+global_timers = true               # --global-timers
+global_random = true               # --global-random
+proxy_primitive_instanceof = true  # --proxy-primitive
 [miniflare.https]
-key = "./key.pem"                  ## --https-key
-cert = "./cert.pem"                ## --https-cert
-ca = "./ca.pem"                    ## --https-ca
-pfx = "./pfx.pfx"                  ## --https-pfx
-passphrase = "pfx passphrase"      ## --https-passphrase
-[miniflare.globals]                ## --global
+key = "./key.pem"                  # --https-key
+cert = "./cert.pem"                # --https-cert
+ca = "./ca.pem"                    # --https-ca
+pfx = "./pfx.pfx"                  # --https-pfx
+passphrase = "pfx passphrase"      # --https-passphrase
+[miniflare.globals]                # --global
 KEY = "value"
-[miniflare.mounts]                 ## --mount
+[miniflare.mounts]                 # --mount
 api = "./api"
 ```
