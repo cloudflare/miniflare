@@ -608,7 +608,6 @@ test("Response: constructing from BaseResponse doesn't create new BaseResponse u
   t.is(res.status, base.status);
   t.is(res.ok, base.ok);
   t.is(res.statusText, base.statusText);
-  t.is(res.type, base.type);
   t.is(res.url, base.url);
   t.is(res.redirected, base.redirected);
 
@@ -800,6 +799,14 @@ test("Response: can use byob reader when cloning", async (t) => {
   t.is(await byobReadFirstChunk(clone.body), "body");
   t.is(await byobReadFirstChunk(res.body), "body");
 });
+test("Response: type throws with unimplemented error", async (t) => {
+  const res = new Response();
+  t.throws(() => res.type, {
+    instanceOf: Error,
+    message:
+      "Failed to get the 'type' property on 'Response': the property is not implemented.",
+  });
+});
 
 test("withWaitUntil: adds wait until to (Base)Response", async (t) => {
   const waitUntil = [1];
@@ -820,7 +827,7 @@ function redirectingServerListener(
   const { searchParams } = new URL(req.url ?? "", "http://localhost");
   const n = parseInt(searchParams.get("n") ?? "0");
   if (n > 0) {
-    res.writeHead(302, { Location: `/?n=${n - 1}` });
+    res.writeHead(302, { Location: `/?n=${n - 1}`, "Set-Cookie": `n=${n}` });
   } else {
     res.writeHead(200);
   }
@@ -888,6 +895,15 @@ test("fetch: removes Host and CF-Connecting-IP headers from Request", async (t) 
     host: upstream.host,
     "x-real-ip": "127.0.0.1",
   });
+});
+test('fetch: returns full Response for "manual" redirect', async (t) => {
+  const upstream = (await useServer(t, redirectingServerListener)).http;
+  const url = new URL("/?n=3", upstream);
+  const res = await fetch(url, { redirect: "manual" });
+  t.is(res.status, 302);
+  t.is(res.statusText, "Found");
+  t.is(res.headers.get("Location"), `/?n=2`);
+  t.is(res.headers.get("Set-Cookie"), "n=3");
 });
 test("fetch: waits for input gate to open before returning", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;

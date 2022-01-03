@@ -130,6 +130,9 @@ export async function convertNodeRequest(
     headers,
     body,
     cf: meta?.cf,
+    // Incoming requests always have their redirect mode set to manual:
+    // https://developers.cloudflare.com/workers/runtime-apis/request#requestinit
+    redirect: "manual",
   });
   return { request, url };
 }

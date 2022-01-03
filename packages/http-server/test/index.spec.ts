@@ -34,6 +34,7 @@ import {
   triggerPromise,
   useMiniflare,
   useMiniflareWithHandler,
+  useServer,
   useTmp,
   utf8Encode,
 } from "@miniflare/shared-test";
@@ -219,6 +220,10 @@ test("convertNodeRequest: includes cf object on request", async (t) => {
   const [req] = await buildConvertNodeRequest(t, { meta: { cf } });
   t.not(req.cf, cf);
   t.deepEqual(req.cf, cf);
+});
+test('convertNodeRequest: defaults to "manual" redirect mode', async (t) => {
+  const [req] = await buildConvertNodeRequest(t);
+  t.is(req.redirect, "manual");
 });
 
 test("createRequestListener: gets cf object from custom provider", async (t) => {
@@ -704,4 +709,32 @@ test("createServer: handles https requests", async (t) => {
   const port = await listen(t, await createServer(mf));
   const [body] = await request(port, "", {}, true);
   t.is(body, `body:https://localhost:${port}/`);
+});
+test("createServer: proxies redirect responses", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/133
+  const upstream = await useServer(t, async (req, res) => {
+    const { pathname } = new URL(req.url ?? "", "http://localhost");
+    if (pathname === "/redirect") {
+      t.is(await text(req), "body");
+      res.writeHead(302, { Location: `/`, "Set-Cookie": `key=value` });
+    } else {
+      t.fail();
+    }
+    res.end();
+  });
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin, WebSocketPlugin },
+    { upstream: upstream.http.toString() },
+    (globals, req) => globals.fetch(req)
+  );
+  const port = await listen(t, await createServer(mf));
+
+  const res = await new Promise<http.IncomingMessage>((resolve) =>
+    http
+      .request({ port, method: "POST", path: "/redirect" }, resolve)
+      .end("body")
+  );
+  t.is(res.statusCode, 302);
+  t.is(res.headers.location, `/`);
+  t.deepEqual(res.headers["set-cookie"], ["key=value"]);
 });
