@@ -56,6 +56,7 @@ Core Options:
      --global-timers         Allow setting timers outside handlers     [boolean]
      --global-random         Allow secure random generation outside    [boolean]
                              handlers
+     --proxy-primitive       Proxy primitives' instanceof (for WASM)   [boolean]
 
 Test Options:
  -b, --boolean-option        Boolean option                            [boolean]

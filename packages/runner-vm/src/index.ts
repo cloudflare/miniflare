@@ -46,7 +46,8 @@ export class VMScriptRunner implements ScriptRunner {
     globalScope: Context,
     blueprint: ScriptBlueprint,
     modulesRules?: ProcessedModuleRule[],
-    additionalModules?: AdditionalModules
+    additionalModules?: AdditionalModules,
+    proxyPrimitiveInstanceOf = false
   ): Promise<ScriptRunnerResult> {
     // If we're using modules, make sure --experimental-vm-modules is enabled
     if (modulesRules && !("SourceTextModule" in vm)) {
@@ -59,9 +60,11 @@ export class VMScriptRunner implements ScriptRunner {
     const linker =
       modulesRules && new ModuleLinker(modulesRules, additionalModules ?? {});
 
-    // Add proxied globals so cross-realm instanceof works correctly.
-    // globalScope will be fresh for each call of run so it's fine to mutate it.
-    Object.assign(globalScope, makeProxiedGlobals(this.blockCodeGeneration));
+    if (proxyPrimitiveInstanceOf) {
+      // Add proxied globals so cross-realm instanceof works correctly.
+      // globalScope will be fresh for each call of run so it's fine to mutate it.
+      Object.assign(globalScope, makeProxiedGlobals(this.blockCodeGeneration));
+    }
 
     let context = this.context;
     if (context) {
