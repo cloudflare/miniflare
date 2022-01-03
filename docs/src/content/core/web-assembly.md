@@ -84,7 +84,59 @@ export default {
 };
 ```
 
+## `instanceof` Checks
+
+When accessing JavaScript objects from WebAssembly, glue code (what
+`wasm-bingen` generates) often needs to check values' types using `instanceof`.
+Due to how Miniflare works, these checks will fail for primitive classes like
+`Object` if values are created outside the Miniflare sandbox (in a different
+JavaScript realm). For example,
+`caches.default.match("https://miniflare.dev") instanceof Object` will always be
+`false` even if the request is cached, since the returned `Response` object is
+created outside the sandbox. To fix this, enable the `proxyPrimitiveInstanceOf`
+option:
+
+<ConfigTabs>
+
+```sh
+$ miniflare --proxy-primitive
+```
+
+```toml
+---
+filename: wrangler.toml
+---
+[miniflare]
+proxy_primitive_instanceof = true
+```
+
+```js
+const mf = new Miniflare({
+  proxyPrimitiveInstanceOf: true,
+});
+```
+
+</ConfigTabs>
+
+This proxies `instanceof` checks for primitive classes, so they succeed
+regardless of the realm the object is created in. See
+[this comment](https://github.com/cloudflare/miniflare/blob/720794accee7582b01e849182244a65ce60c9d60/packages/core/src/plugins/core.ts#L487-L555)
+for more details.
+
+<Aside type="warning" header="Warning">
+
+Enabling this option will cause primitive class `constructor` and `prototype`
+checks to fail:
+
+```js
+{}.constructor === Object; // false
+Object.getPrototypeOf({}) === Object.prototype; // false
+```
+
+</Aside>
+
 ## Rust Wrangler Builds
 
 When using [Rust Wrangler Builds](/developing/builds#rust), `wasm` is
-automatically bound to your compiled WebAssembly module.
+automatically bound to your compiled WebAssembly module. The
+`proxyPrimitiveInstanceOf` option is also automatically enabled.

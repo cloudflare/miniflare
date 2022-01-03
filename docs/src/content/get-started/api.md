@@ -399,9 +399,19 @@ const mf = new Miniflare({
       rootPath: "./site", // Path to resolve files relative to
       scriptPath: "./index.js", // Resolved as ./site/index.js
       sitePath: "./public", // Resolved as ./site/public
-      routes: ["site.mf/*"], // Route requests matching site.mf/* to this worker
+      routes: ["*site.mf/*"], // Route requests matching *site.mf/* to this worker
     },
   },
+  name: "worker", // Name of service
+  routes: ["*site.mf/parent"], // Route requests matching *site.mf/parent to parent over mounts
+
+  logUnhandledRejections: true, // Log unhandled promise rejections instead of crashing
+
+  globalAsyncIO: true, // Allow async I/O outside handlers
+  globalTimers: true, // Allow setting timers outside handlers
+  globalRandom: true, // Allow secure random generation outside handlers
+
+  proxyPrimitiveInstanceOf: true, // Proxy primitives' instanceof (for WebAssembly/Rust development)
 
   host: "127.0.0.1", // Host for HTTP(S) server to listen on
   port: 8787, // Port for HTTP(S) server to listen on
