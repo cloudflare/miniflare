@@ -127,6 +127,7 @@ Like the real Workers runtime, Miniflare will throw errors when:
 - Attempting to perform an operation in a rolledback transaction or in a
   transaction that has already committed
 - Attempting to call `deleteAll()` in a transaction
+- Attempting to recurse more than 16 levels deep with Durable Object `fetch`es
 
 ## Manipulating Outside Workers
 
@@ -255,6 +256,9 @@ const mf = new Miniflare({
 ```
 
 </ConfigTabs>
+
+Mounted workers can access Durable Objects declared in other mounts or the
+parent worker, assuming it has a `name` set.
 
 ## Internal Details
 

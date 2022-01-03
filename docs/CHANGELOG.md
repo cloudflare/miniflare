@@ -184,13 +184,37 @@ if you're upgrading from version 1.
   [as per the Workers runtime](https://developers.cloudflare.com/workers/platform/limits#account-plan-limits).
   Closes [issue #117](https://github.com/cloudflare/miniflare/issues/117),
   thanks [@leader22](https://github.com/leader22) for the suggestion.
+- To match the behaviour of the Workers runtime, some functionality, such as
+  asynchronous I/O (`fetch`, Cache API, KV), timeouts (`setTimeout`,
+  `setInterval`), and generating cryptographically-secure random values
+  (`crypto.getRandomValues`, `crypto.subtle.generateKey`), can now only be
+  performed while handling a request.
+
+  This behaviour can be disabled by setting the
+  `--global-async-io`/`globalAsyncIO`, `--global-timers`/`globalTimers` and
+  `--global-random`/`globalRandom` options respectively, which may be useful for
+  tests or libraries that need async I/O for setup during local development.
+  Note the Miniflare Jest environment automatically enables these options.
+
+  KV namespaces and caches returned from `Miniflare#getKVNamespace()` and
+  `getCaches()` are unaffected by this change, so they can still be used in
+  tests without setting any additional options.
+
+- To match the behaviour of the Workers runtime, Miniflare now enforces
+  recursion depth limits. Durable Object `fetch`es can recurse up to 16 times,
+  and service bindings can recurse up to 32 times. This means if a Durable
+  Object fetch triggers another Durable Object fetch, and so on 16 times, an
+  error will be thrown.
 - Incoming request headers are now immutable. Closes
   [issue #36](https://github.com/cloudflare/miniflare/issues/36), thanks
   [@grahamlyons](https://github.com/grahamlyons).
 - Disabled dynamic WebAssembly compilation in the Miniflare sandbox
-- Fixed `instanceof` on primitives such as `Object`, `Array`, `Promise`, etc.
-  from outside the Miniflare sandbox. This makes it much easier to run Rust
-  workers in Miniflare, as `wasm-bindgen` frequently generates this code.
+- Added a new `--proxy-primitive`/`proxyPrimitiveInstanceOf: true` option. If
+  set, `instanceof` checks on primitives such as `Object`, `Array`, `Promise`,
+  etc. from outside the Miniflare sandbox will pass. This makes it much easier
+  to run Rust workers in Miniflare, as `wasm-bindgen` frequently generates this
+  code. Beware enabling this option will cause `Object` `constructor`/prototype
+  checks to fail.
 - Added a new `--verbose`/`verbose: true` option that enables verbose logging
   with more debugging information
 - Throw a more helpful error with suggested fixes when Miniflare can't find your

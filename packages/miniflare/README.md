@@ -119,10 +119,17 @@ Core Options:
      --(no-)update-check Enable update checker (enabled by default)                  [boolean]
      --root              Path to resolve files relative to                            [string]
      --mount             Mount additional named workers                [array:NAME=PATH[@ENV]]
+     --name              Name of service                                              [string]
+     --route             Route to respond with this worker on                          [array]
+     --global-async-io   Allow async I/O outside handlers                            [boolean]
+     --global-timers     Allow setting timers outside handlers                       [boolean]
+     --global-random     Allow secure random generation outside handlers             [boolean]
+     --proxy-primitive   Proxy primitives' instanceof (for WASM)                     [boolean]
 
 HTTP Options:
  -H, --host              Host for HTTP(S) server to listen on                         [string]
  -p, --port              Port for HTTP(S) server to listen on                         [number]
+ -O, --open              Automatically open browser to URL                    [boolean/string]
      --https             Enable self-signed HTTPS (with optional cert path)   [boolean/string]
      --https-key         Path to PEM SSL key                                          [string]
      --https-cert        Path to PEM SSL cert chain                                   [string]

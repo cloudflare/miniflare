@@ -45,6 +45,7 @@ $ miniflare --mount api=./api --mount site=./site@dev
 ---
 filename: wrangler.toml
 ---
+# Paths resolved relative to wrangler.toml's directory
 [miniflare.mounts]
 api = "./api"
 site = "./site@dev"
@@ -75,7 +76,8 @@ the `watch` option) is copied to mounted workers.
 
 When using the API, you can instead configure the mounted workers using the same
 options as the `new Miniflare` constructor. Note that nested `mounts` are not
-supported: 🙃
+supported, but all mounts are automatically accessible to all other mounts (e.g.
+for use in Durable Object bindings).
 
 ```js
 const mf = new Miniflare({
@@ -130,6 +132,33 @@ const mf = new Miniflare({
   },
 });
 ```
+
+The parent worker is always used as a fallback if no mounts' routes match. If
+the parent worker has a `name` set, and it has more specific routes than other
+mounts, they'll be used instead.
+
+<ConfigTabs>
+
+```sh
+$ miniflare --name worker --route http://127.0.0.1/parent*
+```
+
+```toml
+---
+filename: wrangler.toml
+---
+name = "worker"
+route = "http://127.0.0.1/parent*"
+```
+
+```js
+const mf = new Miniflare({
+  name: "worker",
+  routes: ["http://127.0.0.1/parent*"],
+});
+```
+
+</ConfigTabs>
 
 When using the CLI with hostnames that aren't `localhost` or `127.0.0.1`, you
 may need to edit your computer's `hosts` file, so those hostnames resolve to
