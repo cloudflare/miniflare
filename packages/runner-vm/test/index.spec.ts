@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { VMScriptRunner } from "@miniflare/runner-vm";
+import { ScriptBlueprint } from "@miniflare/shared";
 import test, { ThrowsExpectation } from "ava";
 
 const fixturesPath = path.join(__dirname, "..", "..", "test", "fixtures");
@@ -110,17 +111,20 @@ test("VMScriptRunner: run: allows dynamic code generation if enabled", async (t)
   t.pass();
 });
 test("VMScriptRunner: run: supports cross-realm instanceof", async (t) => {
-  const result = await runner.run(
-    { outsideRegexp: /a/ },
-    {
-      code: `
+  const global = { outsideRegexp: /a/ };
+  const blueprint: ScriptBlueprint = {
+    code: `
       export const outsideInstanceOf = outsideRegexp instanceof RegExp;
       export const insideInstanceOf = /a/ instanceof RegExp;
       `,
-      filePath: "test.js",
-    },
-    []
-  );
+    filePath: "test.js",
+  };
+
+  let result = await runner.run({ ...global }, blueprint, [], undefined, true);
   t.true(result.exports.outsideInstanceOf);
+  t.true(result.exports.insideInstanceOf);
+
+  result = await runner.run({ ...global }, blueprint, []);
+  t.false(result.exports.outsideInstanceOf);
   t.true(result.exports.insideInstanceOf);
 });

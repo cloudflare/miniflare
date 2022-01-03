@@ -71,6 +71,7 @@ export interface WranglerEnvironmentConfig {
     global_async_io?: boolean;
     global_timers?: boolean;
     global_random?: boolean;
+    proxy_primitive_instanceof?: boolean;
   }; // inherited
 }
 

@@ -5,3 +5,6 @@ bindings = [
 
 [build.upload]
 format = "modules"
+
+[miniflare]
+proxy_primitive_instanceof = true
