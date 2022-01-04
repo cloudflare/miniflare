@@ -896,6 +896,54 @@ test("fetch: removes Host and CF-Connecting-IP headers from Request", async (t) 
     "x-real-ip": "127.0.0.1",
   });
 });
+test("fetch: removes default fetch headers from Request unless explicitly added", async (t) => {
+  // Should remove accept, accept-language, sec-fetch-mode, and user-agent
+  // headers unless explicitly added: https://github.com/cloudflare/miniflare/issues/139
+
+  const upstream = (
+    await useServer(t, (req, res) => res.end(JSON.stringify(req.headers)))
+  ).http;
+
+  function removeExpected(headers: any): any {
+    delete headers["accept-encoding"];
+    delete headers["connection"];
+    delete headers["host"];
+    delete headers["mf-loop"];
+    return headers;
+  }
+
+  // Check with no additional headers
+  let res = await fetch(upstream, { headers: { "CF-Ray": "ray1" } });
+  t.deepEqual(removeExpected(await res.json()), { "cf-ray": "ray1" });
+
+  // Check with single additional header
+  res = await fetch(upstream, {
+    headers: {
+      "User-Agent": "miniflare-test2",
+      "CF-Ray": "ray2",
+    },
+  });
+  t.deepEqual(removeExpected(await res.json()), {
+    "user-agent": "miniflare-test2",
+    "cf-ray": "ray2",
+  });
+
+  // Check with all additional headers
+  res = await fetch(upstream, {
+    headers: {
+      Accept: "text/html",
+      "Accept-Language": "en",
+      "User-Agent": "miniflare-test3",
+      "CF-Ray": "ray3",
+    },
+  });
+  t.deepEqual(removeExpected(await res.json()), {
+    accept: "text/html",
+    "accept-language": "en",
+    "user-agent": "miniflare-test3",
+    "cf-ray": "ray3",
+  });
+});
 test('fetch: returns full Response for "manual" redirect', async (t) => {
   const upstream = (await useServer(t, redirectingServerListener)).http;
   const url = new URL("/?n=3", upstream);

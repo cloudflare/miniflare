@@ -2,6 +2,7 @@
 
 import assert from "assert";
 import { Blob } from "buffer";
+import type EventEmitter from "events";
 import http from "http";
 import {
   ReadableByteStreamController,
@@ -30,6 +31,7 @@ import {
   Response as BaseResponse,
   ResponseInit as BaseResponseInit,
   BodyInit,
+  Dispatcher,
   File,
   FormData,
   Headers,
@@ -40,10 +42,9 @@ import {
   RequestRedirect,
   ResponseRedirectStatus,
   ResponseType,
-  fetch as baseFetch,
+  getGlobalDispatcher,
 } from "undici";
-// @ts-expect-error we need these for making Request's Headers immutable
-import fetchSymbols from "undici/lib/fetch/symbols.js";
+import type { fetch as baseFetchType } from "undici";
 import { IncomingRequestCfProperties, RequestInitCfProperties } from "./cf";
 import {
   bufferSourceToArray,
@@ -51,6 +52,29 @@ import {
   isBufferSource,
 } from "./helpers";
 import { kContentLength } from "./streams";
+
+// Note: I'm fully expecting these imports to break in future undici versions
+// and need to be updated, but that's why we pin our undici version and
+// have tests... :)
+
+// The fetch exported by "undici" always uses the global dispatcher, but we'd
+// like to be able to use a custom one, so we import the implementation directly
+const baseFetch: typeof baseFetchType = require("undici/lib/fetch");
+
+// We import this to check the headers passed to dispatch (in the custom
+// dispatcher) are a HeadersList instance, meaning we can use its utility
+// methods to get/remove headers.
+declare class HeadersList extends Array {
+  delete(name: string): void;
+}
+const HeadersListImpl: typeof HeadersList =
+  require("undici/lib/fetch/headers.js").HeadersList;
+
+// We need these for making Request's Headers immutable
+const fetchSymbols: {
+  readonly kState: unique symbol;
+  readonly kGuard: unique symbol;
+} = require("undici/lib/fetch/symbols.js");
 
 export type {
   BodyInit,
@@ -130,7 +154,7 @@ export function _isByteStream(
   // optimisation to avoid creating a byte stream if it's already one.
   for (const symbol of Object.getOwnPropertySymbols(stream)) {
     if (symbol.description === "kState") {
-      // @ts-expect-error symbol properties are not included type definitions
+      // @ts-expect-error symbol properties are not included in type definitions
       const controller = stream[symbol].controller;
       return controller instanceof ReadableByteStreamController;
     }
@@ -601,12 +625,64 @@ export function _getURLList(res: BaseResponse): URL[] | undefined {
   // too much if the internal representation changes in the future: this code
   // shouldn't throw. Currently we use this to count the number of redirects,
   // and increment the subrequest count accordingly.
-  // @ts-expect-error symbol properties are not included type definitions
+  // @ts-expect-error symbol properties are not included in type definitions
   return res[fetchSymbols.kState]?.urlList;
 }
 
 /** @internal */
 export const _kLoopHeader = "MF-Loop";
+
+// undici's fetch includes these headers by default, but Cloudflare's doesn't,
+// so if the user doesn't explicitly include them, we'll remove them in our
+// custom MiniflareDispatcher
+//
+// See https://github.com/cloudflare/miniflare/issues/139
+const kDefaultHeadersToRemove = [
+  "accept",
+  "accept-language",
+  "sec-fetch-mode",
+  "user-agent",
+];
+
+class MiniflareDispatcher extends Dispatcher {
+  // dispatch, close & destroy are the only methods a Dispatcher must implement:
+  // https://github.com/nodejs/undici/blob/09059fb491b4158a25981eb5598262b43a18c6ae/lib/dispatcher.js
+
+  constructor(
+    private readonly inner: Dispatcher,
+    private readonly removeHeaders: string[],
+    // EventEmitterOptions isn't exported by the "events" module
+    options?: ConstructorParameters<typeof EventEmitter>[0]
+  ) {
+    super(options);
+  }
+
+  dispatch(
+    options: Dispatcher.DispatchOptions,
+    handler: Dispatcher.DispatchHandlers
+  ): boolean {
+    const headers = options.headers;
+    if (headers) {
+      // Note: I'm fully expecting this to break in future undici versions
+      // and need to be updated, but that's why we pin our undici version and
+      // have tests
+      assert(headers instanceof HeadersListImpl);
+      // Remove any default fetch headers that the user didn't explicitly set
+      for (const header of this.removeHeaders) headers.delete(header);
+    }
+    return this.inner.dispatch(options, handler);
+  }
+
+  close(...args: any[]) {
+    // @ts-expect-error just want to pass through to global dispatcher here
+    return this.inner.close(...args);
+  }
+
+  destroy(...args: any[]) {
+    // @ts-expect-error just want to pass through to global dispatcher here
+    return this.inner.destroy(...args);
+  }
+}
 
 export async function fetch(
   input: RequestInfo,
@@ -636,7 +712,19 @@ export async function fetch(
   // Add "MF-Loop" header for loop detection
   req.headers.set(_kLoopHeader, String(ctx?.requestDepth ?? 1));
 
-  const baseRes = await baseFetch(req);
+  // Mark default headers for removal that aren't explicitly included
+  const removeHeaders: string[] = [];
+  for (const header of kDefaultHeadersToRemove) {
+    if (!req.headers.has(header)) removeHeaders.push(header);
+  }
+
+  // TODO: instead of using getGlobalDispatcher() here, we could allow a custom
+  //  one to be passed for easy mocking
+  const dispatcher = new MiniflareDispatcher(
+    getGlobalDispatcher(),
+    removeHeaders
+  );
+  const baseRes = await baseFetch.call(dispatcher, req);
 
   // Increment the subrequest count by the number of redirects
   // TODO (someday): technically we should check the subrequest count before
@@ -653,7 +741,7 @@ export async function fetch(
   if (baseRes.type === "opaqueredirect") {
     // Unpack opaque responses. This restriction isn't needed server-side,
     // and Cloudflare doesn't support Response types anyway.
-    // @ts-expect-error symbol properties are not included type definitions
+    // @ts-expect-error symbol properties are not included in type definitions
     const internalResponse = baseRes[fetchSymbols.kState].internalResponse;
     const headersList = internalResponse.headersList;
     assert(headersList.length % 2 === 0);

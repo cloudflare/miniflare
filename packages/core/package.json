@@ -44,7 +44,7 @@
     "dotenv": "^10.0.0",
     "kleur": "^4.1.4",
     "set-cookie-parser": "^2.4.8",
-    "undici": "^4.11.1"
+    "undici": "4.12.1"
   },
   "devDependencies": {
     "@miniflare/durable-objects": "2.0.0-rc.5",
