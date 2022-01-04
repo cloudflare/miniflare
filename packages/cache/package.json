@@ -38,7 +38,7 @@
     "@miniflare/core": "2.0.0-rc.5",
     "@miniflare/shared": "2.0.0-rc.5",
     "http-cache-semantics": "^4.1.0",
-    "undici": "^4.11.1"
+    "undici": "4.12.1"
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.0.0-rc.5",
