@@ -316,7 +316,7 @@ export class MiniflareCore<
   }
 
   readonly #initPromise: Promise<void>;
-  async #init(): Promise<void> {
+  async #init(reloadAll = false): Promise<void> {
     // The caller must eventually call #reload() at some point after #init()
     this.#ctx.log.debug("Initialising worker...");
 
@@ -365,13 +365,14 @@ export class MiniflareCore<
     // through execution. (NOTE: ??= will only assign on undefined, not false)
     this.#watching ??= options.CorePlugin.watch ?? false;
 
-    // Build compatibility manager, rebuild all plugins if compatibility data,
-    // root path or any limits have changed
+    // Build compatibility manager, rebuild all plugins if reloadAll is set,
+    // compatibility data, root path or any limits have changed
     const { compatibilityDate, compatibilityFlags, globalAsyncIO } =
       options.CorePlugin;
     let ctxUpdate =
       (this.#previousRootPath && this.#previousRootPath !== rootPath) ||
-      this.#previousGlobalAsyncIO !== globalAsyncIO;
+      this.#previousGlobalAsyncIO !== globalAsyncIO ||
+      reloadAll;
     this.#previousRootPath = rootPath;
 
     if (this.#compat) {
@@ -930,7 +931,10 @@ export class MiniflareCore<
 
   async reload(): Promise<void> {
     await this.#initPromise;
-    await this.#init();
+    // Force re-build of all plugins, regardless of whether options have changed
+    // or not. This ensures files (scripts, .env files, WASM modules, etc.) are
+    // re-read from disk.
+    await this.#init(/* reloadAll */ true);
     await this.#reload();
   }
 

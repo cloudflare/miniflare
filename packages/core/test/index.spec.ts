@@ -873,22 +873,35 @@ test("MiniflareCore: #watcherCallback: re-runs setup for script-providing plugin
 
 test("MiniflareCore: reload: reloads worker", async (t) => {
   const tmp = await useTmp(t);
+  const scriptPath = path.join(tmp, "worker.js");
   const wranglerConfigPath = path.join(tmp, "wrangler.toml");
+  await fs.writeFile(
+    scriptPath,
+    "export default { fetch: (req, env) => new Response(`1:${env.KEY}`) };"
+  );
   await fs.writeFile(wranglerConfigPath, '[vars]\nKEY = "value1"');
-  const mf = useMiniflare({ BindingsPlugin }, { wranglerConfigPath });
-  let globalScope = await mf.getGlobalScope();
-  t.is(globalScope.KEY, "value1");
+  const mf = useMiniflare(
+    { BindingsPlugin },
+    { modules: true, scriptPath, wranglerConfigPath }
+  );
+  let res = await mf.dispatchFetch("http://localhost/");
+  t.is(await res.text(), "1:value1");
 
-  // Change wrangler config, check not automatically reloaded (watch disabled)
+  // Change wrangler config and script, check not automatically reloaded
+  // (note watch is disabled)
+  await fs.writeFile(
+    scriptPath,
+    "export default { fetch: (req, env) => new Response(`2:${env.KEY}`) };"
+  );
   await fs.writeFile(wranglerConfigPath, '[vars]\nKEY = "value2"');
   await setTimeout(100);
-  globalScope = await mf.getGlobalScope();
-  t.is(globalScope.KEY, "value1");
+  res = await mf.dispatchFetch("http://localhost/");
+  t.is(await res.text(), "1:value1");
 
-  // Manually reload(), check config reloaded
+  // Manually reload(), check config and script reloaded
   await mf.reload();
-  globalScope = await mf.getGlobalScope();
-  t.is(globalScope.KEY, "value2");
+  res = await mf.dispatchFetch("http://localhost/");
+  t.is(await res.text(), "2:value2");
 });
 
 test("MiniflareCore: dispatches reload events", async (t) => {
