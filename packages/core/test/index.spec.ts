@@ -677,61 +677,6 @@ test("MiniflareCore: #reload: only runs script if module exports needed when scr
   await mf.getPlugins(); // Allow script to run
   t.true(calledback);
 });
-test("MiniflareCore: #reload: primitive constructor/prototype/instanceof checks succeed", async (t) => {
-  const mf = useMiniflareWithHandler(
-    { BindingsPlugin },
-    { globals: { outsideObject: {} } },
-    (globals) => {
-      const tests = {
-        // Simulating wasm-bindgen
-        outsideInstanceOf: globals.outsideObject instanceof globals.Object,
-        insideInstanceOf: {} instanceof globals.Object,
-
-        // https://github.com/cloudflare/miniflare/issues/109
-        // https://github.com/cloudflare/miniflare/issues/141
-        outsideConstructor:
-          globals.outsideObject.constructor === globals.Object,
-        insideConstructor: {}.constructor === globals.Object,
-
-        // https://github.com/cloudflare/miniflare/issues/137
-        newObject: new globals.Object({ a: 1 }),
-
-        // https://github.com/cloudflare/wrangler2/issues/91
-        outsidePrototype:
-          Object.getPrototypeOf(globals.outsideObject) ===
-          globals.Object.prototype,
-        insidePrototype: Object.getPrototypeOf({}) === globals.Object.prototype,
-      };
-      return new globals.Response(JSON.stringify(tests), {
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-  );
-
-  let res = await mf.dispatchFetch("http://localhost/");
-  t.deepEqual(await res.json(), {
-    outsideInstanceOf: false, // :(
-    insideInstanceOf: true,
-    outsideConstructor: false, // :(
-    insideConstructor: true,
-    newObject: { a: 1 },
-    outsidePrototype: false, // :(
-    insidePrototype: true,
-  });
-
-  // Check with proxyPrimitiveInstanceOf enabled (for Rust development)
-  await mf.setOptions({ proxyPrimitiveInstanceOf: true });
-  res = await mf.dispatchFetch("http://localhost/");
-  t.deepEqual(await res.json(), {
-    outsideInstanceOf: true,
-    insideInstanceOf: true,
-    outsideConstructor: false,
-    insideConstructor: false,
-    newObject: {}, // This is super strange
-    outsidePrototype: true,
-    insidePrototype: false,
-  });
-});
 test("MiniflareCore: #reload: watches files", async (t) => {
   const log = new TestLog();
   const tmp = await useTmp(t);

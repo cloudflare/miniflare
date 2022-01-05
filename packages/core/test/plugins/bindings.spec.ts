@@ -508,8 +508,6 @@ test("BindingsPlugin: propagates error if service throws", async (t) => {
           script: `export default {
             fetch: () => { throw new Error("oops"); },
           }`,
-          // Required for instanceOf assertion below to work
-          proxyPrimitiveInstanceOf: true,
         },
       },
     }

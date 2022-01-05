@@ -39,7 +39,3 @@ describe("uses Jest fake timers", () => {
 test("can generate secure random numbers", () => {
   crypto.getRandomValues(new Uint8Array(8));
 });
-
-test("Object constructor checks succeed", () => {
-  expect({}.constructor === Object).toBe(true);
-});

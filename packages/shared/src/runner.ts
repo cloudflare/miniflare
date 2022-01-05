@@ -38,7 +38,6 @@ export interface ScriptRunner {
     globalScope: Context,
     blueprint: ScriptBlueprint,
     modulesRules?: ProcessedModuleRule[],
-    additionalModules?: AdditionalModules,
-    proxyPrimitiveInstanceOf?: boolean
+    additionalModules?: AdditionalModules
   ): Promise<ScriptRunnerResult>;
 }

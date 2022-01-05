@@ -102,7 +102,6 @@ export interface CoreOptions {
   globalAsyncIO?: boolean;
   globalTimers?: boolean;
   globalRandom?: boolean;
-  proxyPrimitiveInstanceOf?: boolean;
 }
 
 function mapMountEntries(
@@ -340,15 +339,6 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
   })
   globalRandom?: boolean;
 
-  @Option({
-    type: OptionType.BOOLEAN,
-    name: "proxy-primitive",
-    description: "Proxy primitives' instanceof (for WASM)",
-    logName: "Proxy Primitives' instanceof",
-    fromWrangler: ({ miniflare }) => miniflare?.proxy_primitive_instanceof,
-  })
-  proxyPrimitiveInstanceOf?: boolean;
-
   readonly processedModuleRules: ProcessedModuleRule[] = [];
 
   readonly upstreamURL?: URL;
@@ -483,76 +473,6 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       // could be used as an escape hatch if behaviour needs to be different
       // locally for any reason
       MINIFLARE: true,
-
-      // Object, Array, Promise, RegExp, Error, EvalError, RangeError,
-      // ReferenceError, SyntaxError, TypeError, URIError and Function are
-      // intentionally omitted. There's a trade-off here, ideally we'd like all
-      // these checks to pass:
-      //
-      // ```js
-      // import vm from "vm";
-      //
-      // const ctx1 = vm.createContext({ objectFunction: () => ({}) });
-      //
-      // vm.runInContext("({}) instanceof Object", ctx1); // true
-      // vm.runInContext("({}).constructor === Object", ctx1); // true
-      //
-      // vm.runInContext("objectFunction() instanceof Object", ctx1); // false
-      // vm.runInContext("objectFunction().constructor === Object", ctx1); // false
-      //
-      // const ctx2 = vm.createContext({ Object: Object, objectFunction: () => ({}) });
-      //
-      // vm.runInContext("({}) instanceof Object", ctx2); // false
-      // vm.runInContext("({}).constructor === Object", ctx2); // false
-      //
-      // vm.runInContext("objectFunction() instanceof Object", ctx2); // true
-      // vm.runInContext("objectFunction().constructor === Object", ctx2); // true
-      // ```
-      //
-      // wasm-bindgen (a tool used to make compiling Rust to WebAssembly easier),
-      // often generates code that looks like `value instanceof Object`.
-      // We'd like this check to succeed for both objects generated outside of
-      // the worker (e.g. KV), and inside user code. This is what the
-      // `proxyPrimitiveInstanceOf` option is for. It replaces `Object` with
-      // a proxy that overrides `Symbol.hasInstance` with a cross-realm check:
-      //
-      // ```js
-      // function isObject(value) {
-      //   return value !== null && typeof value === "object";
-      // }
-      //
-      // const ObjectProxy = new Proxy(Object, {
-      //   get(target, property, receiver) {
-      //     if (property === Symbol.hasInstance) return isObject;
-      //     return Reflect.get(target, property, receiver);
-      //   },
-      // });
-      //
-      // const ctx3 = vm.createContext({
-      //   Object: ObjectProxy,
-      //   objectFunction: () => ({}),
-      // });
-      //
-      // vm.runInContext("({}) instanceof Object", ctx3); // true
-      // vm.runInContext("({}).constructor === Object", ctx3); // false
-      //
-      // vm.runInContext("objectFunction() instanceof Object", ctx3); // true
-      // vm.runInContext("objectFunction().constructor === Object", ctx3); // false
-      // ```
-      //
-      // The problem with this option (it used to be the default) is that the
-      // `constructor`/`prototype` checks fail. These are used quite a lot in
-      // JS, and this was the cause of several issues:
-      // - https://github.com/cloudflare/miniflare/issues/109
-      // - https://github.com/cloudflare/miniflare/issues/137
-      // - https://github.com/cloudflare/miniflare/issues/141
-      // - https://github.com/cloudflare/wrangler2/issues/91
-      //
-      // The new default behaviour (omitting `Object` completely) still has
-      // the issue `constructor`/`prototype`/`instanceof` checks for `Object`s
-      // created outside the sandbox (e.g. KV) would fail, but I think that's
-      // less likely to be an issue, since the return types are always known
-      // in those cases.
     };
 
     // Process module rules if modules mode was enabled
