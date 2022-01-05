@@ -105,12 +105,11 @@ test("inputGatedSetInterval: waits for input gate to open before calling callbac
 test("AbortSignal.timeout: triggers signal after timeout", async (t) => {
   // @ts-expect-error `timeout` isn't included in Node.js yet
   const signal = AbortSignal.timeout(50);
-  let aborted;
-  signal.addEventListener("abort", () => (aborted = true));
+  const [trigger, promise] = triggerPromise<void>();
+  signal.addEventListener("abort", trigger);
   t.false(signal.aborted);
-  await setTimeoutPromises(100);
+  await promise;
   t.true(signal.aborted);
-  t.true(aborted);
 });
 test("AbortSignal.timeout: requires numeric timeout", (t) => {
   // @ts-expect-error `timeout` isn't included in Node.js yet
