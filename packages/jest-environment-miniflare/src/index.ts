@@ -11,7 +11,7 @@ import {
 } from "@miniflare/durable-objects";
 import { HTMLRewriterPlugin } from "@miniflare/html-rewriter";
 import { KVPlugin } from "@miniflare/kv";
-import { VMScriptRunner, makeProxiedGlobals } from "@miniflare/runner-vm";
+import { VMScriptRunner, defineHasInstances } from "@miniflare/runner-vm";
 import { Context, NoOpLog } from "@miniflare/shared";
 import { SitesPlugin } from "@miniflare/sites";
 import { WebSocketPlugin } from "@miniflare/web-sockets";
@@ -68,10 +68,12 @@ export default class MiniflareEnvironment implements JestEnvironment {
     this.config = config;
     // Intentionally allowing code generation as some coverage tools require it
     this.context = vm.createContext({});
-    this.scriptRunner = new VMScriptRunner(
-      this.context,
-      /* blockCodeGeneration */ false
-    );
+    // Make sure we define custom [Symbol.hasInstance]s for primitives so
+    // cross-realm instanceof works correctly. This is done automatically
+    // when running scripts using @miniflare/runner-vm, but we might not be
+    // using Durable Objects, so may never do this.
+    defineHasInstances(this.context);
+    this.scriptRunner = new VMScriptRunner(this.context);
 
     const global = (this.global = vm.runInContext("this", this.context));
     global.global = global;
@@ -174,7 +176,6 @@ export default class MiniflareEnvironment implements JestEnvironment {
     mfGlobalScope.self = global;
     // Make sure Miniflare's global scope is assigned to Jest's global context,
     // even if we didn't run a script because we had no Durable Objects
-    Object.assign(global, makeProxiedGlobals(/* blockCodeGeneration */ false));
     Object.assign(global, mfGlobalScope);
 
     // Add a way of getting bindings in modules mode to allow seeding data.

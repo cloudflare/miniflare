@@ -1,13 +1,12 @@
 import vm from "vm";
-import { makeProxiedGlobals } from "@miniflare/runner-vm";
+import { defineHasInstances } from "@miniflare/runner-vm";
 import test, { Macro } from "ava";
-
-const proxiedGlobals = makeProxiedGlobals(false);
 
 const instanceOfMacro: Macro<
   [type: string, create: () => any, invert?: boolean]
 > = (t, type, create, invert) => {
-  const ctx = vm.createContext({ ...proxiedGlobals, outside: create() });
+  const ctx = vm.createContext({ outside: create() });
+  defineHasInstances(ctx);
   const result = vm.runInContext(
     `({
       outsideInstanceOf: outside instanceof ${type},
@@ -50,3 +49,10 @@ test(
   () => new TypeError(),
   true
 );
+
+test("calling defineHasInstances on same context multiple times doesn't throw", (t) => {
+  const ctx = vm.createContext({});
+  defineHasInstances(ctx);
+  defineHasInstances(ctx);
+  t.pass();
+});

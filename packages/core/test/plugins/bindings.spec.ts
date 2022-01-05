@@ -513,7 +513,6 @@ test("BindingsPlugin: propagates error if service throws", async (t) => {
     }
   );
   await t.throwsAsync(mf.dispatchFetch("http://localhost/"), {
-    instanceOf: Error,
     message: "oops",
   });
 });

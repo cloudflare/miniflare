@@ -473,6 +473,11 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       // could be used as an escape hatch if behaviour needs to be different
       // locally for any reason
       MINIFLARE: true,
+
+      // Object, Function, Array, Promise, RegExp, Error, EvalError, RangeError,
+      // ReferenceError, SyntaxError, TypeError and URIError are intentionally
+      // omitted. See packages/runner-vm/src/instanceof.ts for a detailed
+      // explanation of why.
     };
 
     // Process module rules if modules mode was enabled

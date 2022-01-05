@@ -39,3 +39,11 @@ describe("uses Jest fake timers", () => {
 test("can generate secure random numbers", () => {
   crypto.getRandomValues(new Uint8Array(8));
 });
+
+test("Object instanceof checks succeed", () => {
+  expect(new Uint8Array() instanceof Object).toBe(true);
+  expect({} instanceof Object).toBe(true);
+  expect({}.constructor === Object).toBe(true);
+  expect(new Object({ a: 1 })).toEqual({ a: 1 });
+  expect(Object.getPrototypeOf({}) === Object.prototype);
+});

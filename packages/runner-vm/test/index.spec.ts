@@ -52,6 +52,7 @@ test("VMScriptRunner: run: includes module file name in stack traces", async (t)
   }
 });
 test("VMScriptRunner: run: disallows dynamic JavaScript execution", async (t) => {
+  // noinspection JSUnusedGlobalSymbols
   const globals = { callback: () => t.fail() };
   const expectations: ThrowsExpectation = {
     message: "Code generation from strings disallowed for this context",
@@ -97,30 +98,46 @@ test("VMScriptRunner: run: disallows WebAssembly compilation", async (t) => {
       "WebAssembly.compile(): Wasm code generation disallowed by embedder",
   });
 });
-test("VMScriptRunner: run: allows dynamic code generation if enabled", async (t) => {
-  const runner = new VMScriptRunner(undefined, false);
-  const addModule = await fs.readFile(path.join(fixturesPath, "add.wasm"));
-  await runner.run({}, { code: 'eval("1 + 1")', filePath: "test.js" });
-  await runner.run({}, { code: 'new Function("1 + 1")', filePath: "test.js" });
-  await runner.run(
-    { addModule },
-    { code: "await WebAssembly.compile(addModule)", filePath: "test.js" },
-    []
-  );
-  t.pass();
-});
 test("VMScriptRunner: run: supports cross-realm instanceof", async (t) => {
   const result = await runner.run(
-    { outsideRegexp: /a/ },
+    { outsideObject: {}, outsideRegexp: /a/ },
     {
       code: `
-      export const outsideInstanceOf = outsideRegexp instanceof RegExp;
-      export const insideInstanceOf = /a/ instanceof RegExp;
+      // Simulating wasm-bindgen
+      export const outsideInstanceOf = outsideObject instanceof Object;
+      export const insideInstanceOf = {} instanceof Object;
+      
+      export const outsideRegExpInstanceOf = outsideRegexp instanceof RegExp;
+      export const insideRegExpInstanceOf = /a/ instanceof RegExp;
+      
+      // https://github.com/cloudflare/miniflare/issues/109
+      // https://github.com/cloudflare/miniflare/issues/141
+      export const outsideConstructor = outsideObject.constructor === Object;
+      export const insideConstructor = {}.constructor === Object;
+
+      // https://github.com/cloudflare/miniflare/issues/137
+      export const newObject = new Object({ a: 1 });
+      
+      // https://github.com/cloudflare/wrangler2/issues/91
+      export const outsidePrototype = Object.getPrototypeOf(outsideObject) === Object.prototype;
+      export const insidePrototype = Object.getPrototypeOf({}) === Object.prototype;
       `,
       filePath: "test.js",
     },
     []
   );
+
   t.true(result.exports.outsideInstanceOf);
   t.true(result.exports.insideInstanceOf);
+
+  t.true(result.exports.outsideRegExpInstanceOf);
+  t.true(result.exports.insideRegExpInstanceOf);
+
+  t.false(result.exports.outsideConstructor); // :(
+  t.true(result.exports.insideConstructor);
+
+  t.deepEqual(result.exports.newObject, { a: 1 });
+
+  t.false(result.exports.outsidePrototype); // :(
+  t.true(result.exports.insidePrototype);
 });
