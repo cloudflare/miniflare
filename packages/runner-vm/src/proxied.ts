@@ -38,8 +38,6 @@ function proxyHasInstance<T extends object>(
   });
 }
 
-// See `CorePlugin` in `/packages/core/src/plugins/core.ts` for an explanation
-// of what this function does and why it's needed.
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function makeProxiedGlobals(blockCodeGeneration?: boolean) {
   if (!blockCodeGeneration) blockCodeGeneration = undefined;

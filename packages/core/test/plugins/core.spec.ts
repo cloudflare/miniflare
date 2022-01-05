@@ -63,7 +63,6 @@ test("CorePlugin: parses options from argv", (t) => {
     "--global-async-io",
     "--global-timers",
     "--global-random",
-    "--proxy-primitive",
   ]);
   t.deepEqual(options, {
     scriptPath: "script.js",
@@ -106,7 +105,6 @@ test("CorePlugin: parses options from argv", (t) => {
     globalAsyncIO: true,
     globalTimers: true,
     globalRandom: true,
-    proxyPrimitiveInstanceOf: true,
   });
   options = parsePluginArgv(CorePlugin, [
     "-c",
@@ -159,7 +157,6 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
         global_async_io: true,
         global_timers: true,
         global_random: true,
-        proxy_primitive_instanceof: true,
       },
     },
     configDir
@@ -213,7 +210,6 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
     globalAsyncIO: true,
     globalTimers: true,
     globalRandom: true,
-    proxyPrimitiveInstanceOf: true,
   });
   // Check build upload dir defaults to dist
   options = parsePluginWranglerConfig(
@@ -247,7 +243,6 @@ test("CorePlugin: logs options", (t) => {
     globalAsyncIO: true,
     globalTimers: true,
     globalRandom: true,
-    proxyPrimitiveInstanceOf: true,
   });
   t.deepEqual(logs, [
     // script is OptionType.NONE so omitted
@@ -268,7 +263,6 @@ test("CorePlugin: logs options", (t) => {
     "Allow Global Async I/O: true",
     "Allow Global Timers: true",
     "Allow Global Secure Random: true",
-    "Proxy Primitives' instanceof: true",
   ]);
   // Check logs default wrangler config/package paths
   logs = logPluginOptions(CorePlugin, {

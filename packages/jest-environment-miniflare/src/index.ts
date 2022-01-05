@@ -169,18 +169,12 @@ export default class MiniflareEnvironment implements JestEnvironment {
       }
     );
 
-    const plugins = await mf.getPlugins();
     const mfGlobalScope = await mf.getGlobalScope();
     mfGlobalScope.global = global;
     mfGlobalScope.self = global;
     // Make sure Miniflare's global scope is assigned to Jest's global context,
     // even if we didn't run a script because we had no Durable Objects
-    if (plugins.CorePlugin.proxyPrimitiveInstanceOf) {
-      Object.assign(
-        global,
-        makeProxiedGlobals(/* blockCodeGeneration */ false)
-      );
-    }
+    Object.assign(global, makeProxiedGlobals(/* blockCodeGeneration */ false));
     Object.assign(global, mfGlobalScope);
 
     // Add a way of getting bindings in modules mode to allow seeding data.
