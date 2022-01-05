@@ -47,3 +47,7 @@ test("Object instanceof checks succeed", () => {
   expect(new Object({ a: 1 })).toEqual({ a: 1 });
   expect(Object.getPrototypeOf({}) === Object.prototype);
 });
+
+test("allows dynamic code generation", () => {
+  expect(eval("1 + 1")).toBe(2);
+});
