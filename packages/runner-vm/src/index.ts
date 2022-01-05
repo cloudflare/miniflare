@@ -8,18 +8,15 @@ import {
   ScriptRunnerResult,
 } from "@miniflare/shared";
 import { VMScriptRunnerError } from "./error";
+import { defineHasInstances } from "./instanceof";
 import { ModuleLinker } from "./linker";
-import { makeProxiedGlobals } from "./proxied";
 
 export * from "./error";
-export * from "./proxied";
+export * from "./instanceof";
 
 // noinspection JSMethodCanBeStatic
 export class VMScriptRunner implements ScriptRunner {
-  constructor(
-    private context?: vm.Context,
-    private blockCodeGeneration = true
-  ) {}
+  constructor(private context?: vm.Context) {}
 
   private runAsScript(context: vm.Context, blueprint: ScriptBlueprint) {
     const script = new vm.Script(blueprint.code, {
@@ -59,10 +56,6 @@ export class VMScriptRunner implements ScriptRunner {
     const linker =
       modulesRules && new ModuleLinker(modulesRules, additionalModules ?? {});
 
-    // Add proxied globals so cross-realm instanceof works correctly.
-    // globalScope will be fresh for each call of run so it's fine to mutate it.
-    Object.assign(globalScope, makeProxiedGlobals(this.blockCodeGeneration));
-
     let context = this.context;
     if (context) {
       // This path is for custom test environments, where this.context is only
@@ -70,11 +63,13 @@ export class VMScriptRunner implements ScriptRunner {
       Object.assign(context, globalScope);
     } else {
       // Create a new context with eval/new Function/WASM compile disabled
-      const allow = !this.blockCodeGeneration;
       context = vm.createContext(globalScope, {
-        codeGeneration: { strings: allow, wasm: allow },
+        codeGeneration: { strings: false, wasm: false },
       });
     }
+    // Define custom [Symbol.hasInstance]s for primitives so cross-realm
+    // instanceof works correctly.
+    defineHasInstances(context);
 
     // Keep track of module namespaces and total script size
     let exports: Context = {};
