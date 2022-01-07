@@ -347,6 +347,11 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
   constructor(ctx: PluginContext, options?: CoreOptions) {
     super(ctx);
     this.assignOptions(options);
+    if (this.mounts && Object.keys(this.mounts).length) {
+      ctx.log.warn(
+        "Mounts are experimental. There may be breaking changes in the future."
+      );
+    }
 
     // Make sure the kFormDataFiles flag is set correctly when constructing
     let CompatRequest = Request;
