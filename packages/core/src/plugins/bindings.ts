@@ -218,6 +218,12 @@ export class BindingsPlugin
         (typeof options === "object" && options.environment) || "production";
       return { name, service, environment };
     });
+    if (this.#processedServiceBindings.length) {
+      ctx.log.warn(
+        "Service bindings are experimental and primarily meant for internal " +
+          "testing at the moment. There may be breaking changes in the future."
+      );
+    }
   }
 
   #getServiceFetch = async (service: string): Promise<FetcherFetch> => {

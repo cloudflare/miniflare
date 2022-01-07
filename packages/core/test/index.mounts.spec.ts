@@ -383,6 +383,10 @@ test("MiniflareCore: dispose: disposes of mounts too", async (t) => {
     [LogLevel.DEBUG, "Options:"],
     [LogLevel.DEBUG, "- Mounts: test"],
     [LogLevel.DEBUG, "Enabled Compatibility Flags: <none>"],
+    [
+      LogLevel.WARN,
+      "Mounts are experimental. There may be breaking changes in the future.",
+    ],
     [LogLevel.VERBOSE, "- setup(CorePlugin)"],
     [LogLevel.DEBUG, 'Mounting "test"...'],
     [LogLevel.DEBUG, "Initialising worker..."],
