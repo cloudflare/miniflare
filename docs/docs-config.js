@@ -3,7 +3,7 @@ module.exports = {
   pathPrefix: "/",
   productIconKey: "docs-engine",
   contentRepo: "cloudflare/miniflare",
-  contentRepoFolder: "../docs", // "../" removes "production/"
+  contentRepoFolder: "../master/docs", // "../" removes "production/"
   externalLinks: [
     {
       title: "Workers home",
