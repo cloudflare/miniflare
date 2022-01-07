@@ -35,6 +35,6 @@ module.exports = {
       "Fun, full-featured, fully-local simulator for Cloudflare Workers",
     author: "@cloudflare",
     url: "https://miniflare.dev",
-    // image: "http://developers.cloudflare.com/workers/og-image.png",
+    image: "https://blog.cloudflare.com/content/images/2022/01/image1-5.png",
   },
 };

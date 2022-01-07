@@ -14,7 +14,7 @@ for an example using TypeScript.
 The Miniflare environment isn't installed by default, install it and Jest with:
 
 ```sh
-$ npm install -D jest-environment-miniflare@next jest
+$ npm install -D jest-environment-miniflare jest
 ```
 
 In the following examples, we'll assume your `package.json` contains

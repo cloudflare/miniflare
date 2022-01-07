@@ -8,13 +8,6 @@ type: overview
 
 # 🔥 Miniflare
 
-<Aside type="warning" header="Warning">
-
-⚠️ These docs are for the next major version of Miniflare, which is under
-development.
-
-</Aside>
-
 **Miniflare** is a simulator for developing and testing
 [**Cloudflare Workers**](https://workers.cloudflare.com/). It's written in
 TypeScript, and runs your code in a sandbox implementing Workers' runtime APIs.
@@ -28,8 +21,8 @@ TypeScript, and runs your code in a sandbox implementing Workers' runtime APIs.
 
 <ButtonGroup>
   <Button type="primary" href="/get-started/cli">Get Started</Button>
-  <Button type="secondary" href="https://github.com/cloudflare/miniflare/tree/v2">GitHub</Button>
-  <Button type="secondary" href="https://npmjs.com/package/miniflare/v/next">npm</Button>
+  <Button type="secondary" href="https://github.com/cloudflare/miniflare">GitHub</Button>
+  <Button type="secondary" href="https://npmjs.com/package/miniflare">npm</Button>
 </ButtonGroup>
 
 ---

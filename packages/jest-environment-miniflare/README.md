@@ -2,7 +2,7 @@
 
 Jest testing module for [Miniflare](https://github.com/cloudflare/miniflare): a
 fun, full-featured, fully-local simulator for Cloudflare Workers. See
-[🤹 Jest Environment ](https://v2.miniflare.dev/testing/jest) for more details.
+[🤹 Jest Environment ](https://miniflare.dev/testing/jest) for more details.
 
 ## Example
 
