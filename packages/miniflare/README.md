@@ -13,29 +13,7 @@
 It's an alternative to `wrangler dev`, written in TypeScript, that runs your
 workers in a sandbox implementing Workers' runtime APIs.
 
-**See <https://v2.miniflare.dev> for more detailed documentation.**
-
----
-
-> ⚠️ This branch is for the next major version of Miniflare, which is under
-> development.
-
-Miniflare 2 has been completely redesigned from version 1 with 3 primary design
-goals:
-
-1. 📚 **Modular:** Miniflare 2 splits Workers components (KV, Durable Objects,
-   etc.) into **separate packages** (`@miniflare/kv`,
-   `@miniflare/durable-objects`, etc.) that you can import separately for
-   testing.
-2. ✨ **Lightweight:** Miniflare 1 included
-   [122 third-party packages](http://npm.anvaka.com/#/view/2d/miniflare) with a
-   total install size of `88MB`. Miniflare 2 reduces this to **23 packages and
-   `6MB`** 🤯.
-3. ✅ **Accurate:** Miniflare 2 more accurately replicates the quirks and thrown
-   errors of the real Workers runtime, so you'll know before you deploy if
-   things are going to break.
-
----
+**See <https://miniflare.dev> for more detailed documentation.**
 
 ## Features
 
@@ -64,8 +42,8 @@ goals:
 Miniflare is installed using npm:
 
 ```sh
-$ npm install -g miniflare@next # either globally..
-$ npm install -D miniflare@next # ...or as a dev dependency
+$ npm install -g miniflare # either globally..
+$ npm install -D miniflare # ...or as a dev dependency
 ```
 
 ## Using the CLI
@@ -124,7 +102,6 @@ Core Options:
      --global-async-io   Allow async I/O outside handlers                            [boolean]
      --global-timers     Allow setting timers outside handlers                       [boolean]
      --global-random     Allow secure random generation outside handlers             [boolean]
-     --proxy-primitive   Proxy primitives' instanceof (for WASM)                     [boolean]
 
 HTTP Options:
  -H, --host              Host for HTTP(S) server to listen on                         [string]
@@ -173,6 +150,8 @@ Bindings Options:
 
 ## Acknowledgements
 
+Miniflare was created by [Brendan Coll](https://github.com/mrbbot).
+
 Many thanks to
 [dollarshaveclub/cloudworker](https://github.com/dollarshaveclub/cloudworker)
 and
@@ -183,4 +162,4 @@ Durable Object's transactions are implemented using Optimistic Concurrency
 Control (OCC) as described in
 ["On optimistic methods for concurrency control." ACM Transactions on Database Systems](https://dl.acm.org/doi/10.1145/319566.319567).
 Thanks to [Alistair O'Brien](https://github.com/johnyob) for helping the
-Miniflare author understand this.
+Miniflare creator understand this.

@@ -2,7 +2,7 @@
 
 Workers Sites module for [Miniflare](https://github.com/cloudflare/miniflare): a
 fun, full-featured, fully-local simulator for Cloudflare Workers. See
-[🌐 Workers Sites](https://v2.miniflare.dev/storage/sites) for more details.
+[🌐 Workers Sites](https://miniflare.dev/storage/sites) for more details.
 
 ## Example
 
