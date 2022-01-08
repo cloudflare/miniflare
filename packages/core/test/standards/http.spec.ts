@@ -579,6 +579,14 @@ test("withImmutableHeaders: makes Request's headers immutable", (t) => {
     message: "immutable",
   });
   t.is(req.headers.get("X-Key"), "value");
+
+  // Check clone still has immutable headers
+  const clone = req.clone();
+  t.throws(() => clone.headers.set("X-Key", "new"), {
+    instanceOf: TypeError,
+    message: "immutable",
+  });
+  t.is(clone.headers.get("X-Key"), "value");
 });
 
 test("Response.redirect: creates redirect response", (t) => {

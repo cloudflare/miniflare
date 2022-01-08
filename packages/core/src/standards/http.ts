@@ -390,6 +390,8 @@ export class Request extends Body<BaseRequest> {
     const clone = new Request(innerClone);
     clone[kInputGated] = this[kInputGated];
     clone[kFormDataFiles] = this[kFormDataFiles];
+    // @ts-expect-error internal kGuard isn't included in type definitions
+    clone.headers[fetchSymbols.kGuard] = this.headers[fetchSymbols.kGuard];
     clone.#cf = this.cf ? nonCircularClone(this.cf) : undefined;
 
     // Mark both this and the new request as cloned, so we copy array buffers
