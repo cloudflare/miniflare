@@ -466,7 +466,6 @@ const enumerableResponseKeys: (keyof Response)[] = [
   "ok",
   "statusText",
   "status",
-  "type",
 ];
 export class Response<
   WaitUntil extends any[] = unknown[]

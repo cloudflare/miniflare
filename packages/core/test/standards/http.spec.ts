@@ -766,7 +766,6 @@ test("Response: Object.keys() returns getters", async (t) => {
     "ok",
     "statusText",
     "status",
-    "type",
   ];
   t.deepEqual(keys.sort(), expectedKeys.sort());
 });
