@@ -27,9 +27,9 @@
 // wasm-bindgen (a tool used to make compiling Rust to WebAssembly easier),
 // often generates code that looks like `value instanceof Object`.
 // We'd like this check to succeed for objects generated outside the worker
-// (e.g. Workers runtime APIs), and inside user code (instances of classes we
-// pass in e.g. `new Uint8Array()`, and literals e.g. `{}`). To do this, we
-// override the `[Symbol.hasInstance]` property of primitive classes like
+// (e.g. Workers runtime APIs, instances of classes we pass e.g.
+// `new Uint8Array()`), and inside user code (literals e.g. `{}`). To do this,
+// we override the `[Symbol.hasInstance]` property of primitive classes like
 // `Object` so `instanceof` performs a cross-realm check.
 // See `defineHasInstancesScript` later in this file.
 //
@@ -67,66 +67,101 @@
 // - https://github.com/cloudflare/miniflare/issues/141
 // - https://github.com/cloudflare/wrangler2/issues/91
 //
-// The new behaviour still has the issue `constructor`/`prototype`/`instanceof`
-// checks for `Object`s created outside the sandbox would fail, but I think
-// that's less likely to be a problem.
+// The new behaviour still has the issue `constructor`/`prototype` checks for
+// `Object`s created outside the sandbox would fail, but I think that's less
+// likely to be a problem, since the types should always be known in this case.
+// The user can also pass in the classes themselves from Node.js as custom
+// globals, and they'll override the inner realm's ones.
 
-import util from "util";
 import vm from "vm";
+import { ValueOf } from "@miniflare/shared";
 
-// https://nodejs.org/api/util.html#util_util_isobject_object
-function isObject(value: any): value is Object {
-  return value !== null && typeof value === "object";
+// https://tc39.es/ecma262/multipage/abstract-operations.html#sec-ordinaryhasinstance
+function ordinaryHasInstance(C: any, O: any): boolean {
+  // 1. If IsCallable(C) is false, return false.
+  //    - https://tc39.es/ecma262/multipage/abstract-operations.html#sec-iscallable
+  //    - https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#table-typeof-operator-results
+  if (typeof C !== "function") return false;
+  // 2. If C has a [[BoundTargetFunction]] internal slot, ... (IGNORED)
+  // 3. If Type(O) is not Object, return false.
+  if (typeof O !== "object" && typeof O !== "function") return false;
+  // 4. Let P be ? Get(C, "prototype").
+  const P = C.prototype;
+  // 5. If Type(P) is not Object, throw a TypeError exception.
+  if (typeof P !== "object" && typeof P !== "function") {
+    throw new TypeError(
+      `Function has non-object prototype '${P}' in instanceof check`
+    );
+  }
+  // 6. Repeat,
+  //    a. Set O to ? O.[[GetPrototypeOf]]().
+  //    b. If O is null, return false.
+  while ((O = Object.getPrototypeOf(O)) !== null) {
+    //  c. If SameValue(P, O) is true, return true.
+    if (P === O) return true;
+  }
+  return false;
 }
 
-// https://nodejs.org/api/util.html#util_util_isfunction_object
-function isFunction(value: any): value is Function {
-  return typeof value === "function";
+// https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-instanceofoperator
+function instanceOf(V: any, insideTarget: any, outsideTarget: any): boolean {
+  // 1. If Type(target) is not Object, throw a TypeError exception. (IGNORED: we always know target ahead of time)
+  // 2. Let instOfHandler be ? GetMethod(target, @@hasInstance). (IGNORED: we're overriding Symbol.hasInstance ourselves)
+  // 3. If instOfHandler is not undefined, ... (IGNORED: we're overriding Symbol.hasInstance ourselves)
+  // 4. If IsCallable(target) is false, throw a TypeError exception. (IGNORED: we always know target ahead of time)
+  // 5. Return ? OrdinaryHasInstance(target, V).
+  return (
+    ordinaryHasInstance(insideTarget, V) ||
+    ordinaryHasInstance(outsideTarget, V)
+  );
 }
 
-function isError<Ctor extends ErrorConstructor>(errorCtor: Ctor) {
-  const name = errorCtor.prototype.name;
-  return function (value: any): value is InstanceType<Ctor> {
-    if (!util.types.isNativeError(value)) return false;
-    // Traverse up prototype chain and check for matching name
-    let prototype = value;
-    while ((prototype = Object.getPrototypeOf(prototype)) !== null) {
-      if (prototype.name === name) return true;
-    }
-    return false;
-  };
-}
-
-const types = {
-  isObject,
-  isFunction,
-  isArray: Array.isArray,
-  isPromise: util.types.isPromise,
-  isRegExp: util.types.isRegExp,
-  isError,
+const outsideTargets = {
+  Object,
+  Function,
+  Array,
+  Promise,
+  RegExp,
+  Error,
+  EvalError,
+  RangeError,
+  ReferenceError,
+  SyntaxError,
+  TypeError,
+  URIError,
 };
 
+function defineHasInstance(insideTarget: ValueOf<typeof outsideTargets>) {
+  const outsideTarget =
+    outsideTargets[insideTarget.name as keyof typeof outsideTargets];
+  Object.defineProperty(insideTarget, Symbol.hasInstance, {
+    value(value: any) {
+      return instanceOf(value, insideTarget, outsideTarget);
+    },
+  });
+}
+
 const defineHasInstancesScript = new vm.Script(
-  `(function(types) {
-  // Only define properties once, will throw if we try doing this twice
-  if (Object[Symbol.hasInstance] === types.isObject) return;
-  Object.defineProperty(Object, Symbol.hasInstance, { value: types.isObject });
-  Object.defineProperty(Function, Symbol.hasInstance, { value: types.isFunction });
-  Object.defineProperty(Array, Symbol.hasInstance, { value: types.isArray });
-  Object.defineProperty(Promise, Symbol.hasInstance, { value: types.isPromise });
-  Object.defineProperty(RegExp, Symbol.hasInstance, { value: types.isRegExp });
-  Object.defineProperty(Error, Symbol.hasInstance, { value: types.isError(Error) });
-  Object.defineProperty(EvalError, Symbol.hasInstance, { value: types.isError(EvalError) });
-  Object.defineProperty(RangeError, Symbol.hasInstance, { value: types.isError(RangeError) });
-  Object.defineProperty(ReferenceError, Symbol.hasInstance, { value: types.isError(ReferenceError) });
-  Object.defineProperty(SyntaxError, Symbol.hasInstance, { value: types.isError(SyntaxError) });
-  Object.defineProperty(TypeError, Symbol.hasInstance, { value: types.isError(TypeError) });
-  Object.defineProperty(URIError, Symbol.hasInstance, { value: types.isError(URIError) });
+  `(function(defineHasInstance) {
+  // Only define properties once, would throw if we tried doing this twice
+  if (Object.hasOwnProperty(Symbol.hasInstance)) return;
+  defineHasInstance(Object);
+  defineHasInstance(Function);
+  defineHasInstance(Array);
+  defineHasInstance(Promise);
+  defineHasInstance(RegExp);
+  defineHasInstance(Error);
+  defineHasInstance(EvalError);
+  defineHasInstance(RangeError);
+  defineHasInstance(ReferenceError);
+  defineHasInstance(SyntaxError);
+  defineHasInstance(TypeError);
+  defineHasInstance(URIError);
 })`,
   { filename: "<defineHasInstancesScript>" }
 );
 
 // This is called on each new vm.Context before executing arbitrary user code
 export function defineHasInstances(ctx: vm.Context): void {
-  defineHasInstancesScript.runInContext(ctx)(types);
+  defineHasInstancesScript.runInContext(ctx)(defineHasInstance);
 }

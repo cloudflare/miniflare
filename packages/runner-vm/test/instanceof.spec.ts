@@ -20,8 +20,8 @@ const instanceOfMacro: Macro<
   assert(result.insideInstanceOf, "inside " + message);
 };
 instanceOfMacro.title = (providedTitle, type) =>
-  `proxiedGlobals: ${type}: ${
-    providedTitle ?? "supports cross-realm instanceof"
+  `proxiedGlobals: ${type}: supports ${
+    providedTitle ?? "cross-realm instanceof"
   }`;
 test(instanceOfMacro, "Object", () => ({ a: 1 }));
 test(instanceOfMacro, "Array", () => [1]);
@@ -37,17 +37,26 @@ test(instanceOfMacro, "URIError", () => new URIError());
 test(instanceOfMacro, "Function", () => () => {});
 
 test(
-  "supports subclass cross-realm instanceof",
+  "subclass cross-realm instanceof",
   instanceOfMacro,
   "Error",
   () => new RangeError()
 );
 test(
-  "supports not instanceof",
+  "not instanceof",
   instanceOfMacro,
   "EvalError",
   () => new TypeError(),
   true
+);
+
+test("Object instanceof Object", instanceOfMacro, "Object", () => Object);
+test("Function instanceof Object", instanceOfMacro, "Object", () => Function);
+test(
+  "Function instanceof Function",
+  instanceOfMacro,
+  "Function",
+  () => Function
 );
 
 test("calling defineHasInstances on same context multiple times doesn't throw", (t) => {
