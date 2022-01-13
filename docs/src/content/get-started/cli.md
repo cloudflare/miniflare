@@ -247,7 +247,6 @@ Core Options:
      --global-timers     Allow setting timers outside handlers         [boolean]
      --global-random     Allow secure random generation outside        [boolean]
                          handlers
-     --proxy-primitive   Proxy primitives' instanceof (for WASM)       [boolean]
 
 HTTP Options:
  -H, --host              Host for HTTP(S) server to listen on           [string]
@@ -369,7 +368,6 @@ https = "./cert_cache"             # --https ./cert_cache
 global_async_io = true             # --global-async-io
 global_timers = true               # --global-timers
 global_random = true               # --global-random
-proxy_primitive_instanceof = true  # --proxy-primitive
 [miniflare.https]
 key = "./key.pem"                  # --https-key
 cert = "./cert.pem"                # --https-cert

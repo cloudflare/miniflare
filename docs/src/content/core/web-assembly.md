@@ -87,5 +87,4 @@ export default {
 ## Rust Wrangler Builds
 
 When using [Rust Wrangler Builds](/developing/builds#rust), `wasm` is
-automatically bound to your compiled WebAssembly module. The
-`proxyPrimitiveInstanceOf` option is also automatically enabled.
+automatically bound to your compiled WebAssembly module.

@@ -411,8 +411,6 @@ const mf = new Miniflare({
   globalTimers: true, // Allow setting timers outside handlers
   globalRandom: true, // Allow secure random generation outside handlers
 
-  proxyPrimitiveInstanceOf: true, // Proxy primitives' instanceof (for WebAssembly/Rust development)
-
   host: "127.0.0.1", // Host for HTTP(S) server to listen on
   port: 8787, // Port for HTTP(S) server to listen on
   https: true, // Enable self-signed HTTPS (with optional cert path)
