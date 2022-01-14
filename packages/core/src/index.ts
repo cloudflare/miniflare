@@ -862,7 +862,7 @@ export class MiniflareCore<
       }
       if (watchedPaths.size > 0) {
         this.#ctx.log.debug(`Watching ${pathsToString(newWatchPaths)}...`);
-        await watcher.watch(watchedPaths);
+        watcher.watch(watchedPaths);
       }
       this.#previousWatchPaths = newWatchPaths;
     }

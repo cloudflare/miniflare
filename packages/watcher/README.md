@@ -14,10 +14,10 @@ const watcher = new Watcher((changedPath) => {
 });
 
 // Add recursive directory watcher
-await watcher.watch("./dir");
+watcher.watch("./dir");
 
 // Add file watchers
-await watcher.watch(/* any iterable */ ["./file1.txt", "./file2.txt"]);
+watcher.watch(/* any iterable */ ["./file1.txt", "./file2.txt"]);
 
 // Remove watchers
 watcher.unwatch("./file1.txt");

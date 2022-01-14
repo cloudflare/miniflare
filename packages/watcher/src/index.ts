@@ -2,7 +2,6 @@ import assert from "assert";
 import fs from "fs";
 import path from "path";
 import { debuglog } from "util";
-const fsp = fs.promises;
 
 // TODO: maybe remove this?
 const log = debuglog("mf-watch");
@@ -14,16 +13,13 @@ function withinDir(dir: string, file: string): boolean {
   return !!rel && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
-async function walkDirs(root: string, callback: (dir: string) => void) {
+function walkDirs(root: string, callback: (dir: string) => void) {
   callback(root);
-  const names = await fsp.readdir(root);
-  await Promise.all(
-    names.map(async (name) => {
-      const filePath = path.join(root, name);
-      if (!(await fsp.stat(filePath)).isDirectory()) return;
-      return walkDirs(filePath, callback);
-    })
-  );
+  for (const name of fs.readdirSync(root)) {
+    const filePath = path.join(root, name);
+    if (!fs.statSync(filePath).isDirectory()) return;
+    walkDirs(filePath, callback);
+  }
 }
 
 export type WatcherCallback = (path: string) => void;
@@ -108,7 +104,7 @@ class PathWatcher {
   }
 
   // Watch listener for fs.watch()ing directories
-  private listener: fs.WatchListener<string> = async (event, fileName) => {
+  private listener: fs.WatchListener<string> = (event, fileName) => {
     log(`${this.filePath}: ${event}: ${fileName}`);
     // Try to detect and ignore spurious events where mtime is unchanged
     if (fileName) {
@@ -116,7 +112,7 @@ class PathWatcher {
         // filePath will always be a directory when using this listener. We
         // always poll single files, never fs.watch them.
         const resolved = path.resolve(this.filePath, fileName);
-        const mtime = (await fsp.stat(resolved)).mtimeMs;
+        const mtime = fs.statSync(resolved).mtimeMs;
         const previousMtime = this.lastMtimes?.get(resolved);
         if (previousMtime === mtime) {
           log(`${this.filePath}: ${resolved}: ignored spurious event`);
@@ -137,7 +133,7 @@ class PathWatcher {
   };
 
   private startDeletedWatcher(): void {
-    // Watch for root directory to be deleted, so we can clean up it's watchers
+    // Watch for root directory to be deleted, so we can clean up its watchers
     this.watchFileListener = (curr) => {
       if (curr.mtimeMs === 0) {
         this.callback();
@@ -161,7 +157,7 @@ class PathWatcher {
     this.startDeletedWatcher();
   }
 
-  private async startRecursiveWatcher() {
+  private startRecursiveWatcher() {
     assert(!this.watching);
     log(`${this.filePath}: recursively watching...`);
     const watchers = (this.watchers = new Map<string, fs.FSWatcher>());
@@ -175,7 +171,7 @@ class PathWatcher {
     //
     // dir is the watched directory, fileName is the name of the file
     // within dir that triggered the event.
-    const update = async (
+    const update = (
       dir: string,
       event: fs.WatchEventType,
       fileName: string
@@ -185,25 +181,25 @@ class PathWatcher {
       // so just reset the watcher
       let dirIsDirectory = false;
       try {
-        dirIsDirectory = (await fsp.stat(dir)).isDirectory();
+        dirIsDirectory = fs.statSync(dir).isDirectory();
       } catch {}
       if (!dirIsDirectory) {
         // TODO: don't reset the entire watcher if this isn't the root
         log(`${this.filePath}: ${dir} is no longer a directory, resetting...`);
         this.callback();
         this.dispose();
-        await this.start();
+        this.start();
         return;
       }
 
       // Trigger the user's callback
       const filePath = path.join(dir, fileName);
-      await this.listener(event, filePath);
+      this.listener(event, filePath);
       try {
         // If the changed path is a directory, it might be a new one, so
         // make sure it's recursively watched
-        if ((await fsp.stat(filePath)).isDirectory()) {
-          await walkDirs(filePath, walkCallback);
+        if (fs.statSync(filePath).isDirectory()) {
+          walkDirs(filePath, walkCallback);
         }
       } catch (e: any) {
         // Rethrow if due to anything other than file not existing
@@ -228,7 +224,7 @@ class PathWatcher {
     };
 
     try {
-      await walkDirs(this.filePath, walkCallback);
+      walkDirs(this.filePath, walkCallback);
       this.startDeletedWatcher();
     } catch (e: any) {
       // Rethrow if due to anything other than file not existing
@@ -239,13 +235,12 @@ class PathWatcher {
     }
   }
 
-  async start(): Promise<void> {
+  start(): void {
     try {
       // Check whether filePath is a file or directory. This will throw an
       // ENOENT error if filePath doesn't exist, in which case we want to watch
       // for a file or directory to be created.
-      const stat = await fsp.stat(this.filePath);
-      if (stat.isDirectory()) {
+      if (fs.statSync(this.filePath).isDirectory()) {
         // If this is a directory, try use an efficient platform recursive
         // watcher. This will throw an ERR_FEATURE_UNAVAILABLE_ON_PLATFORM error
         // on Linux, in which case we'll need to walk the directory ourselves.
@@ -253,7 +248,7 @@ class PathWatcher {
         // the stat check and now, in which case we want to watch for a file
         // or directory to be created.
         if (this.options.forceRecursive) {
-          return await this.startRecursiveWatcher();
+          return this.startRecursiveWatcher();
         } else {
           return this.startPlatformRecursiveWatcher();
         }
@@ -278,7 +273,7 @@ class PathWatcher {
       if (e.code === "ERR_FEATURE_UNAVAILABLE_ON_PLATFORM") {
         // If we couldn't use a platform recursive watcher, manually walk the
         // directory ourselves, and watch each directory with fs.watch().
-        return await this.startRecursiveWatcher();
+        return this.startRecursiveWatcher();
       }
       // Rethrow any other errors (e.g. permissions)
       throw e;
@@ -324,7 +319,7 @@ export class Watcher {
     };
   }
 
-  async watch(paths: string | Iterable<string>): Promise<void> {
+  watch(paths: string | Iterable<string>): void {
     if (typeof paths === "string") paths = [paths];
     for (const rawPath of paths) {
       // Use a consistent absolute path key for the watchers map
@@ -347,7 +342,7 @@ export class Watcher {
       };
       const watcher = new PathWatcher(this.#options, resolved, callback);
       this.#watchers.set(resolved, watcher);
-      await watcher.start();
+      watcher.start();
     }
   }
 
