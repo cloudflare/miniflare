@@ -39,8 +39,12 @@ export class BuildPlugin extends Plugin<BuildOptions> implements BuildOptions {
   @Option({
     type: OptionType.ARRAY,
     description: "Directory to watch for rebuilding on changes",
-    fromWrangler: ({ build }) => {
-      if (build?.watch_dir) return [build.watch_dir];
+    fromWrangler: ({ build, miniflare }) => {
+      const watchPaths = miniflare?.build_watch_dirs ?? [];
+      if (build?.watch_dir) watchPaths.push(build.watch_dir);
+      if (watchPaths.length) return watchPaths;
+
+      // If build command set and no paths set, fallback to watching "src"
       if (build?.command) return ["src"];
     },
   })

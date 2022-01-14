@@ -62,11 +62,14 @@ test("BuildPlugin: parses options from wrangler config", (t) => {
       cwd: "cwd",
       watch_dir: "source",
     },
+    miniflare: {
+      build_watch_dirs: ["source1", "source2"],
+    },
   });
   t.deepEqual(options, {
     buildCommand: "npm run build",
     buildBasePath: "cwd",
-    buildWatchPaths: ["source"],
+    buildWatchPaths: ["source1", "source2", "source"],
   });
   // Check buildWatchPaths defaults to "src" if any command specified
   options = parsePluginWranglerConfig(BuildPlugin, {
