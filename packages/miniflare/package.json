@@ -79,6 +79,9 @@
     "@miniflare/storage-redis": {
       "optional": true
     },
+    "cron-schedule": {
+      "optional": true
+    },
     "ioredis": {
       "optional": true
     }
