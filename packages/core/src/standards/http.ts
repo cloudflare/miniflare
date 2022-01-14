@@ -631,6 +631,19 @@ export function _getURLList(res: BaseResponse): URL[] | undefined {
 }
 
 /** @internal */
+export function _getBodyLength(
+  res: Response | BaseResponse
+): number | undefined {
+  // Extract the actual body length of the Response body. Cloudflare will return
+  // this for the Content-Length header instead of the user specified value
+  // if its set. When the body is a stream, it's the user's responsibility to
+  // set the Content-Length header if they want to.
+  if (res instanceof Response) res = res[_kInner];
+  // @ts-expect-error symbol properties are not included in type definitions
+  return res[fetchSymbols.kState]?.body?.length ?? undefined; // (normalise nullish to undefined)
+}
+
+/** @internal */
 export const _kLoopHeader = "MF-Loop";
 
 // undici's fetch includes these headers by default, but Cloudflare's doesn't,

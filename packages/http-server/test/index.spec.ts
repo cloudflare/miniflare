@@ -304,6 +304,24 @@ test("createRequestListener: handles http headers in response", async (t) => {
   });
   t.is(status, 404);
 });
+test("createRequestListener: uses body length instead of Content-Length header", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/148
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin, BindingsPlugin },
+    { globals: { t } },
+    (globals) => {
+      const res = new globals.Response("body", {
+        headers: { "Content-Length": "50" },
+      });
+      globals.t.is(res.headers.get("Content-Length"), "50");
+      return res;
+    }
+  );
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+  const [body, headers] = await request(port);
+  t.is(body, "body");
+  t.is(headers["content-length"], "4");
+});
 test("createRequestListener: handles scheduled event trigger over http", async (t) => {
   const events: ScheduledEvent[] = [];
   const mf = useMiniflare(

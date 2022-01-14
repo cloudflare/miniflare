@@ -14,6 +14,7 @@ export {
   Response,
   withWaitUntil,
   _getURLList,
+  _getBodyLength,
   _kLoopHeader,
   fetch,
   _urlFromRequestInput,

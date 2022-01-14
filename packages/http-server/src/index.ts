@@ -12,6 +12,7 @@ import {
   MiniflareCore,
   Request,
   Response,
+  _getBodyLength,
   logResponse,
 } from "@miniflare/core";
 import { prefixError, randomHex } from "@miniflare/shared";
@@ -196,6 +197,15 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
           }
         }
 
+        // Use body's actual length instead of the Content-Length header if set,
+        // see https://github.com/cloudflare/miniflare/issues/148. We also might
+        // need to adjust this later for live reloading so hold onto it.
+        const contentLengthHeader = response.headers.get("Content-Length");
+        const contentLength =
+          _getBodyLength(response) ??
+          (contentLengthHeader === null ? null : parseInt(contentLengthHeader));
+        if (contentLength !== null) headers["content-length"] = contentLength;
+
         // If a Content-Encoding is set, and the user hasn't encoded the body,
         // we're responsible for doing so.
         const encoders: Transform[] = [];
@@ -239,12 +249,10 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
 
         // If Content-Length is specified, and we're live-reloading, we'll
         // need to adjust it to make room for the live reload script
-        const contentLength = response.headers.get("content-length");
         if (liveReloadEnabled && contentLength !== null) {
-          const length = parseInt(contentLength);
-          if (!isNaN(length)) {
+          if (!isNaN(contentLength)) {
             // Append length of live reload script
-            headers["content-length"] = length + liveReloadScriptLength;
+            headers["content-length"] = contentLength + liveReloadScriptLength;
           }
         }
 
