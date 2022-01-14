@@ -120,6 +120,31 @@ Headers.prototype.getAll = function (key: string): string[] {
   return value ? splitCookiesString(value) : [];
 };
 
+/** @internal */
+export function _headersFromIncomingRequest(
+  req: http.IncomingMessage
+): Headers {
+  const headers = new Headers();
+  for (const [name, values] of Object.entries(req.headers)) {
+    // These headers are unsupported in undici fetch requests, they're added
+    // automatically
+    if (
+      name === "transfer-encoding" ||
+      name === "connection" ||
+      name === "keep-alive" ||
+      name === "expect"
+    ) {
+      continue;
+    }
+    if (Array.isArray(values)) {
+      for (const value of values) headers.append(name, value);
+    } else if (values !== undefined) {
+      headers.append(name, values);
+    }
+  }
+  return headers;
+}
+
 // Instead of subclassing our customised Request and Response classes from
 // BaseRequest and BaseResponse, we instead compose them and implement the same
 // interface.

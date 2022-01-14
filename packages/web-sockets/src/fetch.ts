@@ -4,9 +4,11 @@ import {
   RequestInfo,
   RequestInit,
   Response,
+  _headersFromIncomingRequest,
   fetch,
 } from "@miniflare/core";
 import { getRequestContext } from "@miniflare/shared";
+import { Headers } from "undici";
 import StandardWebSocket from "ws";
 import { coupleWebSocket } from "./couple";
 import { WebSocketPair } from "./websocket";
@@ -55,12 +57,22 @@ export async function upgradingFetch(
       headers,
     });
 
+    // Get response headers from upgrade
+    let headersResolve: (headers: Headers) => void;
+    const headersPromise = new Promise<Headers>((resolve) => {
+      headersResolve = resolve;
+    });
+    ws.once("upgrade", (req) => {
+      headersResolve(_headersFromIncomingRequest(req));
+    });
+
     // Couple web socket with pair and resolve
     const [worker, client] = Object.values(new WebSocketPair());
     await coupleWebSocket(ws, client);
     return new Response(null, {
       status: 101,
       webSocket: worker,
+      headers: await headersPromise,
     });
   }
 

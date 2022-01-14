@@ -598,6 +598,29 @@ test("createServer: handles web socket upgrades", async (t) => {
   });
   t.is(await eventPromise, "worker:hello");
 });
+test("createServer: includes headers from web socket upgrade response", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/151
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin, WebSocketPlugin },
+    {},
+    async (globals) => {
+      const [client, worker] = Object.values(new globals.WebSocketPair());
+      worker.accept();
+      return new globals.Response(null, {
+        status: 101,
+        webSocket: client,
+        headers: { "Set-Cookie": "key=value" },
+      });
+    }
+  );
+  const port = await listen(t, await createServer(mf));
+
+  const ws = new StandardWebSocket(`ws://localhost:${port}`);
+  const [trigger, promise] = triggerPromise<http.IncomingMessage>();
+  ws.addListener("upgrade", (req) => trigger(req));
+  const req = await promise;
+  t.deepEqual(req.headers["set-cookie"], ["key=value"]);
+});
 test("createServer: expects status 101 and web socket response for upgrades", async (t) => {
   const log = new TestLog();
   log.error = (message) => log.logWithLevel(LogLevel.ERROR, message.toString());

@@ -4,6 +4,7 @@ export * from "./domexception";
 export * from "./encoding";
 export * from "./event";
 export {
+  _headersFromIncomingRequest,
   _kInner,
   _isByteStream,
   Body,

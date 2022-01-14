@@ -1,5 +1,7 @@
 import assert from "assert";
 import { Blob } from "buffer";
+import http from "http";
+import { AddressInfo } from "net";
 import { TransformStream } from "stream/web";
 import { URLSearchParams } from "url";
 import { CachePlugin } from "@miniflare/cache";
@@ -25,7 +27,10 @@ import {
 } from "@miniflare/web-sockets";
 import test from "ava";
 import { FormData } from "undici";
-import StandardWebSocket, { MessageEvent as WebSocketMessageEvent } from "ws";
+import StandardWebSocket, {
+  MessageEvent as WebSocketMessageEvent,
+  WebSocketServer,
+} from "ws";
 
 test("upgradingFetch: performs regular http request", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
@@ -97,6 +102,28 @@ test("upgradingFetch: performs web socket upgrade with Sec-WebSocket-Protocol he
 
   const event = await eventPromise;
   t.is(event.data, "protocol1,proto2,p3");
+});
+test("upgradingFetch: includes headers from web socket upgrade response", async (t) => {
+  const server = http.createServer();
+  const wss = new WebSocketServer({ server });
+  wss.on("connection", (ws) => {
+    ws.send("hello");
+    ws.close();
+  });
+  wss.on("headers", (headers) => {
+    headers.push("Set-Cookie: key=value");
+  });
+  const port = await new Promise<number>((resolve) => {
+    server.listen(0, () => {
+      t.teardown(() => server.close());
+      resolve((server.address() as AddressInfo).port);
+    });
+  });
+  const res = await upgradingFetch(`http://localhost:${port}`, {
+    headers: { upgrade: "websocket" },
+  });
+  t.not(res.webSocket, undefined);
+  t.is(res.headers.get("set-cookie"), "key=value");
 });
 test("upgradingFetch: throws on ws(s) protocols", async (t) => {
   await t.throwsAsync(

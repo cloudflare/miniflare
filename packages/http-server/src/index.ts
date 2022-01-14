@@ -1,7 +1,7 @@
 // noinspection ES6ConvertVarToLetConst
 
 import assert from "assert";
-import http, { OutgoingHttpHeaders } from "http";
+import http from "http";
 import https from "https";
 import { Transform, Writable } from "stream";
 import { ReadableStream } from "stream/web";
@@ -13,6 +13,7 @@ import {
   Request,
   Response,
   _getBodyLength,
+  _headersFromIncomingRequest,
   logResponse,
 } from "@miniflare/core";
 import { prefixError, randomHex } from "@miniflare/shared";
@@ -105,24 +106,7 @@ export async function convertNodeRequest(
   req.headers["host"] = url.host;
 
   // Build Headers object from request
-  const headers = new Headers();
-  for (const [name, values] of Object.entries(req.headers)) {
-    // These headers are unsupported in undici fetch requests, they're added
-    // automatically
-    if (
-      name === "transfer-encoding" ||
-      name === "connection" ||
-      name === "keep-alive" ||
-      name === "expect"
-    ) {
-      continue;
-    }
-    if (Array.isArray(values)) {
-      for (const value of values) headers.append(name, value);
-    } else if (values !== undefined) {
-      headers.append(name, values);
-    }
-  }
+  const headers = _headersFromIncomingRequest(req);
 
   // Create Request with additional Cloudflare specific properties:
   // https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties
@@ -183,7 +167,7 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
         response = await mf.dispatchFetch(request);
         waitUntil = response.waitUntil();
         status = response.status;
-        const headers: OutgoingHttpHeaders = {};
+        const headers: http.OutgoingHttpHeaders = {};
         // eslint-disable-next-line prefer-const
         for (let [key, value] of response.headers) {
           key = key.toLowerCase();
@@ -334,6 +318,12 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
   };
 }
 
+const restrictedWebSocketUpgradeHeaders = [
+  "upgrade",
+  "connection",
+  "sec-websocket-accept",
+];
+
 export async function createServer<Plugins extends HTTPPluginSignatures>(
   mf: MiniflareCore<Plugins>,
   options?: http.ServerOptions & https.ServerOptions
@@ -356,6 +346,21 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
   // Setup WebSocket servers
   const webSocketServer = new WebSocketServer({ noServer: true });
   const liveReloadServer = new WebSocketServer({ noServer: true });
+
+  // Add custom headers included in response to WebSocket upgrade requests
+  const extraHeaders = new WeakMap<http.IncomingMessage, Headers>();
+  webSocketServer.on("headers", (headers, req) => {
+    const extra = extraHeaders.get(req);
+    extraHeaders.delete(req);
+    if (extra) {
+      for (const [key, value] of extra) {
+        if (!restrictedWebSocketUpgradeHeaders.includes(key)) {
+          headers.push(`${key}: ${value}`);
+        }
+      }
+    }
+  });
+
   server.on("upgrade", async (request, socket, head) => {
     // Only interested in pathname so base URL doesn't matter
     const { pathname } = new URL(request.url ?? "", "http://localhost");
@@ -382,6 +387,7 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
       }
 
       // Accept and couple the Web Socket
+      extraHeaders.set(request, response.headers);
       webSocketServer.handleUpgrade(request, socket as any, head, (ws) => {
         void coupleWebSocket(ws, webSocket);
         webSocketServer.emit("connection", ws, request);
