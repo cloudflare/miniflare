@@ -1012,6 +1012,7 @@ export class MiniflareCore<
     }
 
     // If upstream set, and the request URL doesn't begin with it, rewrite it
+    // so fetching the incoming request gets a response from the upstream
     const { upstreamURL } = this.#instances!.CorePlugin;
     if (upstreamURL && !url.toString().startsWith(upstreamURL.toString())) {
       let path = url.pathname + url.search;
@@ -1019,8 +1020,8 @@ export class MiniflareCore<
       if (path.startsWith("/")) path = path.substring(1);
       const newURL = new URL(path, upstreamURL);
       request = new Request(newURL, request);
-      // Make sure Host header is correct
-      request.headers.set("host", upstreamURL.host);
+      // We don't set the Host header here, fetch will automatically set it
+      // based on the request url
     }
 
     // Each fetch gets its own context (e.g. 50 subrequests).

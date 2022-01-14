@@ -41,6 +41,7 @@ import {
   triggerPromise,
   useMiniflare,
   useMiniflareWithHandler,
+  useServer,
   useTmp,
   utf8Decode,
   utf8Encode,
@@ -1087,17 +1088,29 @@ test("MiniflareCore: dispatchFetch: rewrites url to match upstream if different"
       new globals.Response(`${req.url}:${req.headers.get("host")}`)
   );
   // Check url and host header are correct
-  let res = await mf.dispatchFetch("http://localhost/a");
-  t.is(await res.text(), "https://miniflare.dev/a:miniflare.dev");
+  const init: RequestInit = { headers: { host: "localhost" } };
+  let res = await mf.dispatchFetch("http://localhost/a", init);
+  t.is(await res.text(), "https://miniflare.dev/a:localhost");
 
   // Check includes query string
-  res = await mf.dispatchFetch("http://localhost/a?b=c");
-  t.is(await res.text(), "https://miniflare.dev/a?b=c:miniflare.dev");
+  res = await mf.dispatchFetch("http://localhost/a?b=c", init);
+  t.is(await res.text(), "https://miniflare.dev/a?b=c:localhost");
 
   // Check includes subpath
   await mf.setOptions({ upstream: "https://miniflare.dev/subpath/" });
-  res = await mf.dispatchFetch("http://localhost/a");
-  t.is(await res.text(), "https://miniflare.dev/subpath/a:miniflare.dev");
+  res = await mf.dispatchFetch("http://localhost/a", init);
+  t.is(await res.text(), "https://miniflare.dev/subpath/a:localhost");
+});
+test("MiniflareCore: dispatchFetch: fetching incoming request responds with upstream", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  const mf = useMiniflareWithHandler(
+    {},
+    { upstream: upstream.toString() },
+    (globals, req) => globals.fetch(req)
+  );
+  // Host should be rewritten to match upstream
+  const res = await mf.dispatchFetch("https://random.mf/");
+  t.is(await res.text(), "upstream");
 });
 test("MiniflareCore: dispatchFetch: request gets immutable headers", async (t) => {
   const mf = useMiniflareWithHandler({}, {}, (globals, req) => {
