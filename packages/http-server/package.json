@@ -39,7 +39,7 @@
     "@miniflare/shared": "2.0.0",
     "@miniflare/web-sockets": "2.0.0",
     "kleur": "^4.1.4",
-    "selfsigned": "^1.10.11",
+    "selfsigned": "^2.0.0",
     "undici": "4.12.1",
     "ws": "^8.2.2",
     "youch": "^2.2.2"
