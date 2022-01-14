@@ -1,5 +1,53 @@
 # 🚧 Changelog
 
+## 2.1.0
+
+### Features
+
+- Allow multiple build watch paths to be set in `wrangler.toml` files. Use the
+  `[miniflare] build_watch_dirs` option. Note this gets merged with the regular
+  `[build] watch_dir` option:
+
+  ```toml
+  [build]
+  watch_dir = "src1"
+
+  [miniflare]
+  build_watch_dirs = ["src2", "src3"]
+  ```
+
+- WebSocket handshake headers are now included in responses from the HTTP server
+  and WebSocket upgrade `fetch`es. Closes
+  [issue #151](https://github.com/cloudflare/miniflare/issues/151), thanks
+  [@jed](https://github.com/jed).
+
+### Fixes
+
+- Allow Miniflare to be installed with
+  [Yarn PnP](https://yarnpkg.com/features/pnp). Closes
+  [issue #144](https://github.com/cloudflare/miniflare/issues/144), thanks
+  [@lookfirst](https://github.com/lookfirst),
+  [@merceyz](https://github.com/merceyz), and
+  [@DJtheRedstoner](https://github.com/DJtheRedstoner).
+- Use the actual body length for the `Content-Length` header in HTTP server
+  responses, instead of the value provided in the `Response` constructor. Closes
+  [issue #148](https://github.com/cloudflare/miniflare/issues/148), thanks
+  [@lukaszczerpak](https://github.com/lukaszczerpak).
+- Don't rewrite the `Host` header to match the upstream URL. Closes
+  [issue #149](https://github.com/cloudflare/miniflare/issues/149), thanks
+  [@hansede](https://github.com/hansede).
+- Bump dependencies, fixing `npm audit` warnings. Thanks
+  [@leader22](https://github.com/leader22) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/150).
+- Make `instanceof` spec-compliant, ensuring checks like
+  `Object instanceof Object` succeed. This particular check was used by Lodash's
+  `_.isPlainObject()` method, which is internally called by `_.merge()`, causing
+  unexpected results.
+- Make the unimplemented `Response#type` property non-enumerable
+- Copy header guard when `clone()`ing `Request`s, ensuring `Request`s with
+  immutable headers still have immutable headers when `clone()`ed
+- Fix race conditions in file-system watcher
+
 ## 2.0.0
 
 Miniflare 2 has been completely redesigned from version 1 with 3 primary design

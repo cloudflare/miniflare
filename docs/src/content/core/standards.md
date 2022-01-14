@@ -108,7 +108,7 @@ they succeed for values created both inside and outside the Miniflare sandbox
 performed by WebAssembly glue code (e.g. `wasm-bindgen`) always succeeds. Note
 that values returned by Workers runtime APIs are created outside the Miniflare
 sandbox. See
-[this file](https://github.com/cloudflare/miniflare/blob/v2/packages/runner-vm/src/instanceof.ts)
+[this file](https://github.com/cloudflare/miniflare/blob/master/packages/runner-vm/src/instanceof.ts)
 for more details.
 
 Primitive classes in this case are defined as JavaScript built-ins that can be

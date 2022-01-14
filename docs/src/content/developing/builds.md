@@ -30,6 +30,11 @@ command = "npm run build"
 # Below options are optional
 cwd = "build"
 watch_dir = "source" # Defaults to "src" if command set
+
+# Extra build watch paths can be specified here,
+# they'll get merged with `watch_dir`
+[miniflare]
+build_watch_dirs = ["source1", "source2"]
 ```
 
 ```js
