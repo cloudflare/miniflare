@@ -304,6 +304,24 @@ test("createRequestListener: handles http headers in response", async (t) => {
   });
   t.is(status, 404);
 });
+test("createRequestListener: uses body length instead of Content-Length header", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/148
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin, BindingsPlugin },
+    { globals: { t } },
+    (globals) => {
+      const res = new globals.Response("body", {
+        headers: { "Content-Length": "50" },
+      });
+      globals.t.is(res.headers.get("Content-Length"), "50");
+      return res;
+    }
+  );
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+  const [body, headers] = await request(port);
+  t.is(body, "body");
+  t.is(headers["content-length"], "4");
+});
 test("createRequestListener: handles scheduled event trigger over http", async (t) => {
   const events: ScheduledEvent[] = [];
   const mf = useMiniflare(
@@ -579,6 +597,29 @@ test("createServer: handles web socket upgrades", async (t) => {
     ws.send("hello");
   });
   t.is(await eventPromise, "worker:hello");
+});
+test("createServer: includes headers from web socket upgrade response", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/151
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin, WebSocketPlugin },
+    {},
+    async (globals) => {
+      const [client, worker] = Object.values(new globals.WebSocketPair());
+      worker.accept();
+      return new globals.Response(null, {
+        status: 101,
+        webSocket: client,
+        headers: { "Set-Cookie": "key=value" },
+      });
+    }
+  );
+  const port = await listen(t, await createServer(mf));
+
+  const ws = new StandardWebSocket(`ws://localhost:${port}`);
+  const [trigger, promise] = triggerPromise<http.IncomingMessage>();
+  ws.addListener("upgrade", (req) => trigger(req));
+  const req = await promise;
+  t.deepEqual(req.headers["set-cookie"], ["key=value"]);
 });
 test("createServer: expects status 101 and web socket response for upgrades", async (t) => {
   const log = new TestLog();

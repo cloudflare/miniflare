@@ -44,6 +44,7 @@ export interface WranglerEnvironmentConfig {
     globals?: Record<string, any>;
     upstream?: string;
     watch?: boolean;
+    build_watch_dirs?: string[];
     kv_persist?: boolean | string;
     cache?: boolean;
     cache_persist?: boolean | string;

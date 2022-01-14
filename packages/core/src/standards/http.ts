@@ -120,6 +120,31 @@ Headers.prototype.getAll = function (key: string): string[] {
   return value ? splitCookiesString(value) : [];
 };
 
+/** @internal */
+export function _headersFromIncomingRequest(
+  req: http.IncomingMessage
+): Headers {
+  const headers = new Headers();
+  for (const [name, values] of Object.entries(req.headers)) {
+    // These headers are unsupported in undici fetch requests, they're added
+    // automatically
+    if (
+      name === "transfer-encoding" ||
+      name === "connection" ||
+      name === "keep-alive" ||
+      name === "expect"
+    ) {
+      continue;
+    }
+    if (Array.isArray(values)) {
+      for (const value of values) headers.append(name, value);
+    } else if (values !== undefined) {
+      headers.append(name, values);
+    }
+  }
+  return headers;
+}
+
 // Instead of subclassing our customised Request and Response classes from
 // BaseRequest and BaseResponse, we instead compose them and implement the same
 // interface.
@@ -628,6 +653,19 @@ export function _getURLList(res: BaseResponse): URL[] | undefined {
   // and increment the subrequest count accordingly.
   // @ts-expect-error symbol properties are not included in type definitions
   return res[fetchSymbols.kState]?.urlList;
+}
+
+/** @internal */
+export function _getBodyLength(
+  res: Response | BaseResponse
+): number | undefined {
+  // Extract the actual body length of the Response body. Cloudflare will return
+  // this for the Content-Length header instead of the user specified value
+  // if its set. When the body is a stream, it's the user's responsibility to
+  // set the Content-Length header if they want to.
+  if (res instanceof Response) res = res[_kInner];
+  // @ts-expect-error symbol properties are not included in type definitions
+  return res[fetchSymbols.kState]?.body?.length ?? undefined; // (normalise nullish to undefined)
 }
 
 /** @internal */

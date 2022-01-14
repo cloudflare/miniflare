@@ -44,7 +44,7 @@ test("PathWatcher: startCreatedWatcher: watches for file to be created", async (
   const testPath = path.join(tmp, "test.txt");
 
   const [watcher, events] = useWatcher(t);
-  await watcher.watch(testPath);
+  watcher.watch(testPath);
   await setImmediate();
 
   await fs.writeFile(testPath, "test");
@@ -56,7 +56,7 @@ test("PathWatcher: startCreatedWatcher: watches for directory to be created", as
   const testPath = path.join(tmp, "test");
 
   const [watcher, events] = useWatcher(t);
-  await watcher.watch(testPath);
+  watcher.watch(testPath);
   await setImmediate();
 
   await fs.mkdir(testPath);
@@ -70,7 +70,7 @@ test("PathWatcher: startPollingWatcher: watches single files", async (t) => {
   await fs.writeFile(testPath, "test");
 
   const [watcher, events] = useWatcher(t);
-  await watcher.watch(testPath);
+  watcher.watch(testPath);
   await setImmediate();
 
   await fs.writeFile(testPath, "test2");
@@ -83,7 +83,7 @@ test("PathWatcher: startPollingWatcher: watches for file to be created again if 
   await fs.writeFile(testPath, "test");
 
   const [watcher, events] = useWatcher(t);
-  await watcher.watch(testPath);
+  watcher.watch(testPath);
   await setImmediate();
 
   await fs.rm(testPath);
@@ -101,7 +101,7 @@ test("PathWatcher: startPollingWatcher: handles file being replaced by rename", 
   await fs.writeFile(testPath, "0");
 
   const [watcher, events] = useWatcher(t);
-  await watcher.watch(testPath);
+  watcher.watch(testPath);
   await setImmediate();
 
   await fs.writeFile(testTmpPath, "1");
@@ -126,7 +126,7 @@ const recursiveTitle =
 const recursiveRootMacro: Macro<[force?: boolean]> = async (t, force) => {
   const tmp = await useTmp(t);
   const [watcher, events] = useWatcher(t, force);
-  await watcher.watch(tmp);
+  watcher.watch(tmp);
 
   await fs.writeFile(path.join(tmp, "test.txt"), "value");
   t.is(await events.next(), tmp);
@@ -142,7 +142,7 @@ const recursiveNestedMacro: Macro<[force?: boolean]> = async (t, force) => {
   const nestedDir = path.join(tmp, "nested");
   await fs.mkdir(nestedDir);
   const [watcher, events] = useWatcher(t, force);
-  await watcher.watch(tmp);
+  watcher.watch(tmp);
 
   await fs.writeFile(path.join(nestedDir, "test.txt"), "value");
   t.is(await events.next(), tmp);
@@ -159,7 +159,7 @@ const recursiveNewMacro: Macro<[force?: boolean]> = async (t, force) => {
   const tmp = await useTmp(t);
   const nestedDir = path.join(tmp, "nested");
   const [watcher, events] = useWatcher(t, force);
-  await watcher.watch(tmp);
+  watcher.watch(tmp);
   await setImmediate();
 
   await fs.mkdir(nestedDir);
@@ -188,7 +188,7 @@ const recursiveNewNestedMacro: Macro<[force?: boolean]> = async (t, force) => {
   await fs.writeFile(tmp2NestedFile, "1");
 
   const [watcher, events] = useWatcher(t, force);
-  await watcher.watch(tmp1);
+  watcher.watch(tmp1);
   await setImmediate();
 
   // Move tmp2 to inside tmp1
@@ -229,7 +229,7 @@ const recursiveNestedDeleteMacro: Macro<[force?: boolean]> = async (
   await fs.mkdir(nestedDir);
 
   const [watcher, events] = useWatcher(t, force);
-  await watcher.watch(tmp);
+  watcher.watch(tmp);
   await setImmediate();
 
   // Delete nested directory
@@ -266,7 +266,7 @@ const recursiveRootDeleteMacro: Macro<[force?: boolean]> = async (t, force) => {
   await fs.writeFile(newRootDirNestedFile, "1");
 
   const [watcher, events] = useWatcher(t, force);
-  await watcher.watch(root);
+  watcher.watch(root);
   await setImmediate();
 
   // Delete root directory and move new root in it's place
@@ -298,7 +298,7 @@ const recursiveRootReplaceFileMacro: Macro<[force?: boolean]> = async (
   await fs.mkdir(root);
 
   const [watcher, events] = useWatcher(t, force);
-  await watcher.watch(root);
+  watcher.watch(root);
   await setImmediate();
 
   // Delete root directory and replace with file
@@ -325,7 +325,7 @@ test("PathWatcher: dispose: cleans up polling watchers", async (t) => {
   await fs.writeFile(testPath, "1");
 
   const [watcher, events] = useWatcher(t);
-  await watcher.watch(testPath);
+  watcher.watch(testPath);
   watcher.dispose();
 
   await fs.writeFile(testPath, "1");
@@ -338,7 +338,7 @@ test("PathWatcher: dispose: cleans up platform recursive watchers", async (t) =>
   await fs.writeFile(testPath, "1");
 
   const [watcher, events] = useWatcher(t);
-  await watcher.watch(tmp);
+  watcher.watch(tmp);
   watcher.dispose();
 
   await fs.writeFile(testPath, "1");
@@ -351,7 +351,7 @@ test("PathWatcher: dispose: cleans up recursive watchers", async (t) => {
   await fs.writeFile(testPath, "1");
 
   const [watcher, events] = useWatcher(t, true);
-  await watcher.watch(tmp);
+  watcher.watch(tmp);
   watcher.dispose();
 
   await fs.writeFile(testPath, "1");
@@ -367,7 +367,7 @@ test("Watcher: watches and un-watches files", async (t) => {
   await fs.writeFile(test2Path, "test2 value1");
 
   const [watcher, events] = useWatcher(t);
-  await watcher.watch([test1Path, test2Path]);
+  watcher.watch([test1Path, test2Path]);
 
   // Check event emitted on change
   await fs.writeFile(test2Path, "test2 value2");
@@ -386,8 +386,8 @@ test("Watcher: watches files once", async (t) => {
   await fs.writeFile(testPath, "value1");
 
   const [watcher, events] = useWatcher(t);
-  await watcher.watch([testPath, testPath]);
-  await watcher.watch(testPath);
+  watcher.watch([testPath, testPath]);
+  watcher.watch(testPath);
   await fs.writeFile(testPath, "value2");
   t.is(await events.next(), testPath);
   await setTimeout(100);
@@ -401,7 +401,7 @@ test("Watcher: dispose: cleans up watchers", async (t) => {
   await fs.writeFile(test2Path, "test2 value1");
 
   const [watcher, events] = useWatcher(t);
-  await watcher.watch([test1Path, test2Path]);
+  watcher.watch([test1Path, test2Path]);
 
   watcher.dispose();
 

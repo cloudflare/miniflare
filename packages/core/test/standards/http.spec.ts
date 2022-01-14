@@ -8,6 +8,7 @@ import {
   IncomingRequestCfProperties,
   Request,
   Response,
+  _getBodyLength,
   _getURLList,
   _isByteStream,
   createCompatFetch,
@@ -851,6 +852,19 @@ test("_getURLList: extracts URL list from Response", async (t) => {
     `${upstream.origin}/?n=1`,
     `${upstream.origin}/?n=0`,
   ]);
+});
+
+test("_getBodyLength: extracts actual Response Content-Length", async (t) => {
+  let res = new Response("body", { headers: { "Content-Length": "100" } });
+  t.is(_getBodyLength(res), 4);
+  res = new Response(new Uint8Array([1, 2, 3]));
+  t.is(_getBodyLength(res), 3);
+  res = new Response(null);
+  t.is(_getBodyLength(res), undefined);
+  res = new Response(new ReadableStream(), {
+    headers: { "Content-Length": "50" },
+  });
+  t.is(_getBodyLength(res), undefined);
 });
 
 test("fetch: can fetch from existing Request", async (t) => {

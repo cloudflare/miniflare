@@ -467,7 +467,7 @@ test("MiniflareCore: uses original protocol and host when matching mount routes"
       async (res) => resolve(await text(res))
     );
   });
-  t.is(body, "https://example.com/a:example.com");
+  t.is(body, "https://example.com/a:custom.mf");
 });
 
 // Shared storage persistence tests

@@ -4,6 +4,7 @@ export * from "./domexception";
 export * from "./encoding";
 export * from "./event";
 export {
+  _headersFromIncomingRequest,
   _kInner,
   _isByteStream,
   Body,
@@ -14,6 +15,7 @@ export {
   Response,
   withWaitUntil,
   _getURLList,
+  _getBodyLength,
   _kLoopHeader,
   fetch,
   _urlFromRequestInput,
