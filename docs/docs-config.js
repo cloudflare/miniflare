@@ -23,10 +23,12 @@ module.exports = {
     },
   ],
   search: {
-    // apiKey: "f0ffcd9dba78827de321d7fce21a8181",
-    // indexName: "miniflare",
-    apiKey: "",
-    indexName: "",
+    // TODO: migrate to https://docsearch.algolia.com/docs/migrating-from-legacy/
+    //  appId: AYF9TLWKTY
+    //  apiKey: fd375d87d44c5b94352fa1ddd580ebdc
+    //  indexName: miniflare
+    apiKey: "f0ffcd9dba78827de321d7fce21a8181",
+    indexName: "miniflare",
     algoliaOptions: {},
   },
   siteMetadata: {
