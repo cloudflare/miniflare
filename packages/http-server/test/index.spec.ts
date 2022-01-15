@@ -609,7 +609,11 @@ test("createServer: includes headers from web socket upgrade response", async (t
       return new globals.Response(null, {
         status: 101,
         webSocket: client,
-        headers: { "Set-Cookie": "key=value" },
+        headers: {
+          "Set-Cookie": "key=value",
+          Connection: "close", // This header should be ignored
+          "SeC-WebSoCKet-aCCePt": ":(", // ...as should this
+        },
       });
     }
   );
@@ -619,6 +623,9 @@ test("createServer: includes headers from web socket upgrade response", async (t
   const [trigger, promise] = triggerPromise<http.IncomingMessage>();
   ws.addListener("upgrade", (req) => trigger(req));
   const req = await promise;
+  t.is(req.headers.connection, "Upgrade");
+  t.not(req.headers["sec-websocket-accept"], undefined);
+  t.not(req.headers["sec-websocket-accept"], ":(");
   t.deepEqual(req.headers["set-cookie"], ["key=value"]);
 });
 test("createServer: expects status 101 and web socket response for upgrades", async (t) => {

@@ -354,7 +354,7 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
     extraHeaders.delete(req);
     if (extra) {
       for (const [key, value] of extra) {
-        if (!restrictedWebSocketUpgradeHeaders.includes(key)) {
+        if (!restrictedWebSocketUpgradeHeaders.includes(key.toLowerCase())) {
           headers.push(`${key}: ${value}`);
         }
       }
