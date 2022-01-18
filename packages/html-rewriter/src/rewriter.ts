@@ -9,10 +9,13 @@ import { Response as BaseResponse } from "undici";
 
 type SelectorElementHandlers = [selector: string, handlers: ElementHandlers];
 
+const kEnableEsiTags = Symbol("kEnableEsiTags");
+
 // noinspection SuspiciousTypeOfGuard
 export class HTMLRewriter {
   readonly #elementHandlers: SelectorElementHandlers[] = [];
   readonly #documentHandlers: DocumentHandlers[] = [];
+  [kEnableEsiTags] = false;
 
   on(selector: string, handlers: ElementHandlers): this {
     this.#elementHandlers.push([selector, handlers]);
@@ -48,10 +51,13 @@ export class HTMLRewriter {
         const {
           HTMLRewriter: BaseHTMLRewriter,
         }: typeof import("html-rewriter-wasm") = require("html-rewriter-wasm");
-        rewriter = new BaseHTMLRewriter((output) => {
-          // enqueue will throw on empty chunks
-          if (output.length !== 0) controller.enqueue(output);
-        });
+        rewriter = new BaseHTMLRewriter(
+          (output) => {
+            // enqueue will throw on empty chunks
+            if (output.length !== 0) controller.enqueue(output);
+          },
+          { enableEsiTags: this[kEnableEsiTags] }
+        );
         // Add all registered handlers
         for (const [selector, handlers] of this.#elementHandlers) {
           rewriter.on(selector, handlers);
@@ -76,4 +82,9 @@ export class HTMLRewriter {
     res.headers.delete("Content-Length");
     return res;
   }
+}
+
+export function withEnableEsiTags(rewriter: HTMLRewriter): HTMLRewriter {
+  rewriter[kEnableEsiTags] = true;
+  return rewriter;
 }

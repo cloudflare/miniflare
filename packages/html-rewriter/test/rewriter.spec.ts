@@ -221,6 +221,77 @@ test("HTMLRewriter: handles element class handler", async (t) => {
     .transform(new Response("<p>test</p>"));
   t.is(await res.text(), "<p>new</p>");
 });
+
+test("HTMLRewriter: handles end tag properties", async (t) => {
+  const res = new HTMLRewriter()
+    .on("p", {
+      element(element) {
+        element.onEndTag(function (end) {
+          t.is(this, element);
+          t.is(end.name, "p");
+          end.name = "h1";
+        });
+      },
+    })
+    .transform(new Response("<p>test</p>"));
+  t.is(await res.text(), "<p>test</h1>");
+});
+test("HTMLRewriter: handles end tag mutations", async (t) => {
+  const input = "<p>test</p>";
+  const beforeAfterExpected = [
+    "<p>",
+    "test",
+    "&lt;span&gt;before&lt;/span&gt;",
+    "<span>before html</span>",
+    "</p>",
+    "<span>after html</span>",
+    "&lt;span&gt;after&lt;/span&gt;",
+  ].join("");
+  const removeExpected = "<p>test";
+
+  // before/after
+  let res = new HTMLRewriter()
+    .on("p", {
+      element(element) {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        const that = this;
+        element.onEndTag((end) => {
+          t.is(this, that);
+          end.before("<span>before</span>");
+          end.before("<span>before html</span>", { html: true });
+          end.after("<span>after</span>");
+          end.after("<span>after html</span>", { html: true });
+        });
+      },
+    })
+    .transform(new Response(input));
+  t.is(await res.text(), beforeAfterExpected);
+
+  // remove
+  res = new HTMLRewriter()
+    .on("p", {
+      element(element) {
+        element.onEndTag((end) => {
+          end.remove();
+        });
+      },
+    })
+    .transform(new Response(input));
+  t.is(await res.text(), removeExpected);
+});
+test.serial("HTMLRewriter: handles end tag async handler", async (t) => {
+  const res = new HTMLRewriter()
+    .on("p", {
+      element(element) {
+        element.onEndTag(async (end) => {
+          await setTimeout(50);
+          end.before("!");
+        });
+      },
+    })
+    .transform(new Response("<p>test</p>"));
+  t.is(await res.text(), "<p>test!</p>");
+});
 // endregion: element
 
 // region: comments

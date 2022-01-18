@@ -11,7 +11,8 @@ export interface CompatibilityFeature {
 export type CompatibilityEnableFlag =
   | "durable_object_fetch_requires_full_url"
   | "fetch_refuses_unknown_protocols"
-  | "formdata_parser_supports_files";
+  | "formdata_parser_supports_files"
+  | "html_rewriter_treats_esi_include_as_void_tag";
 export type CompatibilityDisableFlag =
   | "durable_object_fetch_allows_relative_url"
   | "fetch_treats_unknown_protocols_as_http"
@@ -35,6 +36,9 @@ const FEATURES: CompatibilityFeature[] = [
     defaultAsOf: "2021-11-03",
     enableFlag: "formdata_parser_supports_files",
     disableFlag: "formdata_parser_converts_files_to_strings",
+  },
+  {
+    enableFlag: "html_rewriter_treats_esi_include_as_void_tag",
   },
 ];
 
