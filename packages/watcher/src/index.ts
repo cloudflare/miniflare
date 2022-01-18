@@ -17,7 +17,7 @@ function walkDirs(root: string, callback: (dir: string) => void) {
   callback(root);
   for (const name of fs.readdirSync(root)) {
     const filePath = path.join(root, name);
-    if (!fs.statSync(filePath).isDirectory()) return;
+    if (!fs.statSync(filePath).isDirectory()) continue;
     walkDirs(filePath, callback);
   }
 }
