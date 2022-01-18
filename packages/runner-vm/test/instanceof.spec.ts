@@ -58,6 +58,14 @@ test(
   "Function",
   () => Function
 );
+test(
+  "undefined not instanceof Object",
+  instanceOfMacro,
+  "Object",
+  () => undefined,
+  true
+);
+test("null not instanceof Object", instanceOfMacro, "Object", () => null, true);
 
 test("calling defineHasInstances on same context multiple times doesn't throw", (t) => {
   const ctx = vm.createContext({});
