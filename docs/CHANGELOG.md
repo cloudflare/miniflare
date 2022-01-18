@@ -1,5 +1,33 @@
 # 🚧 Changelog
 
+## 2.2.0
+
+### Features
+
+- Add support for the `HTMLRewriter`
+  [`Element#onEndTag(handler)`](https://github.com/cloudflare/workers-types/blob/17d21e9ae7cfee0c5d6ca4bf247978e5618c0386/index.d.ts#L466-L474)
+  [method](https://community.cloudflare.com/t/2022-01-17-workers-runtime-release-notes/346596)
+- Add support for the
+  [`html_rewriter_treats_esi_include_as_void_tag`](https://developers.cloudflare.com/workers/platform/compatibility-dates#htmlrewriter-handling-of-esiinclude)
+  compatibility flag
+- Make the error message when attempting to import Node.js built-in modules more
+  helpful
+
+### Fixes
+
+- Fix `instanceof` checks with `null` values. Closes issues
+  [#152](https://github.com/cloudflare/miniflare/issues/152) and
+  [#154](https://github.com/cloudflare/miniflare/issues/154). Thanks
+  [@Cerberus](https://github.com/Cerberus) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/155), and
+  [@bduff9](https://github.com/bduff9), [@huw](https://github.com/huw) &
+  [@g45t345rt](https://github.com/g45t345rt) for reporting this.
+- Fix subdirectory watching on Linux. Closes
+  [issue #153](https://github.com/cloudflare/miniflare/issues/153), thanks
+  [@huw](https://github.com/huw) for reporting this.
+- Throw a `TypeError` instead of a `string` when the parameter passed to a
+  `HTMLRewriter` handler is used outside the handler
+
 ## 2.1.0
 
 ### Features
