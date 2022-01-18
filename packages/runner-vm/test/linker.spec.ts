@@ -110,7 +110,16 @@ test("ModuleLinker: throws error if no matching module rule via ES module", asyn
   await t.throwsAsync(result, {
     instanceOf: VMScriptRunnerError,
     code: "ERR_MODULE_RULE",
-    message: /no matching module rules/,
+    message: /no matching module rules.*\nIf you're trying to import an npm/,
+  });
+});
+test("ModuleLinker: throws error for Node built-in module via ES module", async (t) => {
+  const result = run(`import fs from "fs"`);
+  await t.throwsAsync(result, {
+    instanceOf: VMScriptRunnerError,
+    code: "ERR_MODULE_RULE",
+    message:
+      /no matching module rules.*\nIf you're trying to import a Node\.js built-in/,
   });
 });
 test("ModuleLinker: throws error for unsupported module type via ES module", async (t) => {
@@ -181,7 +190,18 @@ test("ModuleLinker: throws error if no matching module rule via CommonJS module"
   await t.throwsAsync(result, {
     instanceOf: VMScriptRunnerError,
     code: "ERR_MODULE_RULE",
-    message: /no matching module rules/,
+    message: /no matching module rules.*\nIf you're trying to import an npm/,
+  });
+});
+test("ModuleLinker: throws error for Node built-in module via CommonJS module", async (t) => {
+  const result = run(
+    `import value from "./cjsbuiltin.cjs"; export default value;`
+  );
+  await t.throwsAsync(result, {
+    instanceOf: VMScriptRunnerError,
+    code: "ERR_MODULE_RULE",
+    message:
+      /no matching module rules.*\nIf you're trying to import a Node\.js built-in/,
   });
 });
 test("ModuleLinker: throws error for unsupported module type via CommonJS module", async (t) => {

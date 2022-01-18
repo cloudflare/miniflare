@@ -1,5 +1,6 @@
 import { readFileSync } from "fs";
 import fs from "fs/promises";
+import { builtinModules } from "module";
 import path from "path";
 import vm from "vm";
 import {
@@ -13,6 +14,13 @@ import { VMScriptRunnerError } from "./error";
 
 const SUGGEST_BUNDLE =
   "If you're trying to import an npm package, you'll need to bundle your Worker first.";
+
+const SUGGEST_NODE =
+  "If you're trying to import a Node.js built-in module, or an npm package " +
+  "that uses Node.js built-ins, you'll either need to:" +
+  "\n- Bundle your Worker, configuring your bundler to polyfill Node.js built-ins" +
+  "\n- Configure your bundler to load Workers-compatible builds by changing the main fields/conditions" +
+  "\n- Find an alternative package that doesn't require Node.js built-ins";
 
 interface CommonJSModule {
   exports: any;
@@ -87,9 +95,11 @@ export class ModuleLinker {
       rule.include.test(relativeIdentifier)
     );
     if (rule === undefined) {
+      const isBuiltin = builtinModules.includes(spec);
+      const suggestion = isBuiltin ? SUGGEST_NODE : SUGGEST_BUNDLE;
       throw new VMScriptRunnerError(
         "ERR_MODULE_RULE",
-        `${errorBase}: no matching module rules.\n${SUGGEST_BUNDLE}`
+        `${errorBase}: no matching module rules.\n${suggestion}`
       );
     }
 
@@ -179,9 +189,11 @@ export class ModuleLinker {
       rule.include.test(relativeIdentifier)
     );
     if (rule === undefined) {
+      const isBuiltin = builtinModules.includes(spec);
+      const suggestion = isBuiltin ? SUGGEST_NODE : SUGGEST_BUNDLE;
       throw new VMScriptRunnerError(
         "ERR_MODULE_RULE",
-        `${errorBase}: no matching module rules.\n${SUGGEST_BUNDLE}`
+        `${errorBase}: no matching module rules.\n${suggestion}`
       );
     }
 
