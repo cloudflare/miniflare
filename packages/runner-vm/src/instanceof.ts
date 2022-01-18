@@ -93,6 +93,9 @@ function ordinaryHasInstance(C: any, O: any): boolean {
       `Function has non-object prototype '${P}' in instanceof check`
     );
   }
+  if (O == null) {
+    return false
+  }
   // 6. Repeat,
   //    a. Set O to ? O.[[GetPrototypeOf]]().
   //    b. If O is null, return false.
