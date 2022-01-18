@@ -85,6 +85,7 @@ function ordinaryHasInstance(C: any, O: any): boolean {
   // 2. If C has a [[BoundTargetFunction]] internal slot, ... (IGNORED)
   // 3. If Type(O) is not Object, return false.
   if (typeof O !== "object" && typeof O !== "function") return false;
+  if (O === null) return false
   // 4. Let P be ? Get(C, "prototype").
   const P = C.prototype;
   // 5. If Type(P) is not Object, throw a TypeError exception.
@@ -92,9 +93,6 @@ function ordinaryHasInstance(C: any, O: any): boolean {
     throw new TypeError(
       `Function has non-object prototype '${P}' in instanceof check`
     );
-  }
-  if (O == null) {
-    return false
   }
   // 6. Repeat,
   //    a. Set O to ? O.[[GetPrototypeOf]]().
