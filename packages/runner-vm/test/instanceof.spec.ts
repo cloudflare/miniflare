@@ -73,3 +73,41 @@ test("calling defineHasInstances on same context multiple times doesn't throw", 
   defineHasInstances(ctx);
   t.pass();
 });
+
+test("Error subclasses have correct instanceof behaviour", (t) => {
+  // https://github.com/cloudflare/miniflare/issues/159
+  const ctx = vm.createContext({});
+  defineHasInstances(ctx);
+  const result = vm.runInContext(
+    `
+    class CustomError extends Error {}
+    ({
+      errorInstanceOfError: new Error() instanceof Error,
+      errorInstanceOfTypeError: new Error() instanceof TypeError,
+      errorInstanceOfCustomError: new Error() instanceof CustomError,
+      
+      typeErrorInstanceOfError: new TypeError() instanceof Error,
+      typeErrorInstanceOfTypeError: new TypeError() instanceof TypeError,
+      typeErrorInstanceOfCustomError: new TypeError() instanceof CustomError,
+      
+      customErrorInstanceOfError: new CustomError() instanceof Error,
+      customErrorInstanceOfTypeError: new CustomError() instanceof TypeError,
+      customErrorInstanceOfCustomError: new CustomError() instanceof CustomError,
+    })
+    `,
+    ctx
+  );
+  t.deepEqual(result, {
+    errorInstanceOfError: true,
+    errorInstanceOfTypeError: false,
+    errorInstanceOfCustomError: false,
+
+    typeErrorInstanceOfError: true,
+    typeErrorInstanceOfTypeError: true,
+    typeErrorInstanceOfCustomError: false,
+
+    customErrorInstanceOfError: true,
+    customErrorInstanceOfTypeError: false,
+    customErrorInstanceOfCustomError: true,
+  });
+});

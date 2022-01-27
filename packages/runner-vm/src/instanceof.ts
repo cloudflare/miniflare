@@ -77,7 +77,7 @@ import vm from "vm";
 import { ValueOf } from "@miniflare/shared";
 
 // https://tc39.es/ecma262/multipage/abstract-operations.html#sec-ordinaryhasinstance
-function ordinaryHasInstance(C: any, O: any): boolean {
+function ordinaryHasInstance(C: unknown, O: unknown): boolean {
   // 1. If IsCallable(C) is false, return false.
   //    - https://tc39.es/ecma262/multipage/abstract-operations.html#sec-iscallable
   //    - https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#table-typeof-operator-results
@@ -133,11 +133,11 @@ const outsideTargets = {
 };
 
 function defineHasInstance(insideTarget: ValueOf<typeof outsideTargets>) {
-  const outsideTarget =
-    outsideTargets[insideTarget.name as keyof typeof outsideTargets];
   Object.defineProperty(insideTarget, Symbol.hasInstance, {
     value(value: any) {
-      return instanceOf(value, insideTarget, outsideTarget);
+      const outsideTarget =
+        outsideTargets[this.name as keyof typeof outsideTargets];
+      return instanceOf(value, this, outsideTarget);
     },
   });
 }
@@ -152,12 +152,6 @@ const defineHasInstancesScript = new vm.Script(
   defineHasInstance(Promise);
   defineHasInstance(RegExp);
   defineHasInstance(Error);
-  defineHasInstance(EvalError);
-  defineHasInstance(RangeError);
-  defineHasInstance(ReferenceError);
-  defineHasInstance(SyntaxError);
-  defineHasInstance(TypeError);
-  defineHasInstance(URIError);
 })`,
   { filename: "<defineHasInstancesScript>" }
 );
