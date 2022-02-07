@@ -480,8 +480,9 @@ export interface ResponseInit extends BaseResponseInit {
 
 const kWaitUntil = Symbol("kWaitUntil");
 
-// From https://github.com/nodejs/undici/blob/3f6b564b7d3023d506cad75b16207006b23956a8/lib/fetch/constants.js#L28, minus 101
-const nullBodyStatus: (number | undefined)[] = [204, 205, 304];
+// From https://github.com/nodejs/undici/blob/3f6b564b7d3023d506cad75b16207006b23956a8/lib/fetch/constants.js#L28
+// https://fetch.spec.whatwg.org/#null-body-status
+const nullBodyStatus: (number | undefined)[] = [101, 204, 205, 304];
 
 const enumerableResponseKeys: (keyof Response)[] = [
   "encodeBody",
@@ -796,7 +797,11 @@ export async function fetch(
       headers,
     });
   } else {
-    res = new Response(baseRes.body, baseRes);
+    // https://fetch.spec.whatwg.org/#null-body-status
+    res = new Response(
+      nullBodyStatus.includes(baseRes.status) ? null : baseRes.body,
+      baseRes
+    );
   }
 
   await waitForOpenInputGate();
