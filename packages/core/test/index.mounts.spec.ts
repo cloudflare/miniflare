@@ -27,7 +27,7 @@ import {
   useTmp,
   waitForReload,
 } from "@miniflare/shared-test";
-import test, { Macro } from "ava";
+import test, { Macro, ThrowsExpectation } from "ava";
 import { MiniflareOptions } from "miniflare";
 
 // Specific tests for `mounts` option
@@ -98,16 +98,26 @@ test("MiniflareCore: #init: mounts object-optioned mounts", async (t) => {
   t.is(await res.text(), "mounted");
 });
 test("MiniflareCore: #init: throws when attempting to mount recursively", async (t) => {
-  const mf = useMiniflare(
+  const expectations: ThrowsExpectation = {
+    instanceOf: MiniflareCoreError,
+    code: "ERR_MOUNT_NESTED",
+    message: "Nested mounts are unsupported",
+  };
+
+  let mf = useMiniflare(
     {},
     // @ts-expect-error type definitions shouldn't allow this
     { mounts: { test: { mounts: { recursive: {} } } } }
   );
-  await t.throwsAsync(mf.getPlugins(), {
-    instanceOf: MiniflareCoreError,
-    code: "ERR_MOUNT_NESTED",
-    message: "Nested mounts are unsupported",
-  });
+  await t.throwsAsync(mf.getPlugins(), expectations);
+
+  // Check nested mounts still disallowed via setOptions on mount
+  mf = useMiniflare({}, { mounts: { test: {} } });
+  const mount = await mf.getMount("test");
+  await t.throwsAsync(
+    mount.setOptions({ mounts: { recursive: {} } }),
+    expectations
+  );
 });
 test("MiniflareCore: #init: updates existing mount options", async (t) => {
   const mf = useMiniflare(

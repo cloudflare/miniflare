@@ -506,7 +506,10 @@ export class MiniflareCore<
                 ...defaultMountOptions,
                 ...rawOptions,
               };
-        if ("mounts" in mountOptions) {
+        // - `"mounts" in mountOptions` detects nested mount options,
+        // - `this.#ctx.isMount` detects if `setOptions()` has been called on a
+        //   mount with an object containing mount options
+        if ("mounts" in mountOptions || this.#ctx.isMount) {
           throw new MiniflareCoreError(
             "ERR_MOUNT_NESTED",
             "Nested mounts are unsupported"
