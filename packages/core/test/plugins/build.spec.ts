@@ -197,6 +197,8 @@ webpackTest(
     const plugins = await mf.getPlugins(); // Resolves once worker has been built
     // Check correct env used
     t.is(plugins.BuildPlugin.buildCommand, "wrangler build --env dev");
+    // Check watch paths
+    t.deepEqual(plugins.BuildPlugin.buildWatchPaths, ["src", "index.js"]);
     t.true(existsSync(path.join(webpackPath, "worker", "script.js")));
 
     const res = await mf.dispatchFetch("http://localhost:8787/");

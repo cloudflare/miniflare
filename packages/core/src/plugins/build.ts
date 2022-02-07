@@ -126,6 +126,12 @@ export function _populateBuildConfig(
 
     config.build.command = `wrangler build${env}`;
     config.build.upload.main = path.join(packageDir, "worker", "script.js");
+
+    // Rerun webpack on changes in src or index.js
+    // TODO (someday): this should be based off the webpack config entrypoint,
+    //  but this is the default, and users can always set custom watch paths
+    config.miniflare ??= {};
+    config.miniflare.build_watch_dirs = ["src", "index.js"];
   } else if (config.type === "rust") {
     // This script will be included in the root index.js bundle, but rust.mjs
     // will be in the plugins subdirectory
@@ -142,8 +148,5 @@ export function _populateBuildConfig(
       "generated",
       "script.wasm"
     );
-
-    // Proxy `instanceof` checks on primitives for wasm-bindgen
-    config.miniflare ??= {};
   }
 }
