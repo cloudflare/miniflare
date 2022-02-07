@@ -444,6 +444,21 @@ test("Request: supports non-standard properties", (t) => {
   // Check cf has been cloned
   t.not(req.cf, cf);
 });
+test("Request: doesn't detach ArrayBuffers", async (t) => {
+  // Check with ArrayBuffer
+  const buffer = utf8Encode("test1").buffer;
+  let req = new Request("http://localhost", { method: "POST", body: buffer });
+  t.is(await text(req.body as any), "test1");
+  req = new Request("http://localhost", { method: "POST", body: buffer });
+  t.is(await text(req.body as any), "test1");
+
+  // Check with Uint8Array
+  const array = utf8Encode("test2");
+  req = new Request("http://localhost", { method: "POST", body: array });
+  t.is(await text(req.body as any), "test2");
+  req = new Request("http://localhost", { method: "POST", body: array });
+  t.is(await text(req.body as any), "test2");
+});
 test("Request: clones non-standard properties", (t) => {
   const req = new Request("http://localhost", {
     method: "POST",
@@ -676,6 +691,22 @@ test("Response: allows empty string for null body", (t) => {
     t.is(res.status, nullBodyStatus);
     t.is(res.body, null, nullBodyStatus.toString());
   }
+});
+test("Response: doesn't detach ArrayBuffers", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/171
+  // Check with ArrayBuffer
+  const buffer = utf8Encode("test1").buffer;
+  let res = new Response(buffer);
+  t.is(await text(res.body as any), "test1");
+  res = new Response(buffer);
+  t.is(await text(res.body as any), "test1");
+
+  // Check with Uint8Array
+  const array = utf8Encode("test2");
+  res = new Response(array);
+  t.is(await text(res.body as any), "test2");
+  res = new Response(array);
+  t.is(await text(res.body as any), "test2");
 });
 test("Response: clones non-standard properties", async (t) => {
   const res = new Response("body", { encodeBody: "manual" });

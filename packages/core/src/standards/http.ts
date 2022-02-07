@@ -376,6 +376,10 @@ export interface RequestInit extends BaseRequestInit {
   readonly cf?: IncomingRequestCfProperties | RequestInitCfProperties;
 }
 
+type Mutable<T> = {
+  -readonly [P in keyof T]: T[P];
+};
+
 const enumerableRequestKeys: (keyof Request)[] = [
   "cf",
   "signal",
@@ -395,6 +399,11 @@ export class Request extends Body<BaseRequest> {
     } else {
       // Don't pass our strange hybrid Request to undici
       if (input instanceof Request) input = input[_kInner];
+      // If body is an ArrayBuffer, clone it, so it doesn't get detached when
+      // enqueuing the chunk to the body stream
+      if (init?.body instanceof ArrayBuffer) {
+        (init as Mutable<RequestInit>).body = init.body.slice(0);
+      }
       super(new BaseRequest(input, init));
     }
     this.#cf = cf ? nonCircularClone(cf) : undefined;
@@ -522,6 +531,12 @@ export class Response<
       // For cloning
       super(init);
     } else {
+      // If body is an ArrayBuffer, clone it, so it doesn't get detached when
+      // enqueuing the chunk to the body stream
+      if (body instanceof ArrayBuffer) {
+        body = body.slice(0);
+      }
+
       if (init instanceof Response) {
         encodeBody = init.#encodeBody;
         // No need to check status here, will have been validated when
@@ -554,6 +569,7 @@ export class Response<
         // change in the future.
         if (nullBodyStatus.includes(init.status) && body === "") body = null;
       }
+
       super(new BaseResponse(body, init));
     }
 
