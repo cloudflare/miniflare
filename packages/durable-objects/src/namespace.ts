@@ -82,7 +82,16 @@ export class DurableObjectState {
     // TODO: catch, reset object on error
     const outputGate = new OutputGate();
     return outputGate.runWith(() =>
-      this.#inputGate.runWith(() => this[kInstance]!.fetch(request))
+      this.#inputGate.runWith(() => {
+        const instance = this[kInstance];
+        if (!instance?.fetch) {
+          throw new DurableObjectError(
+            "ERR_NO_HANDLER",
+            "No fetch handler defined in Durable Object"
+          );
+        }
+        return instance.fetch(request);
+      })
     );
   }
 }

@@ -147,6 +147,25 @@ test("DurableObjectState: kFetch: waits for writes to be confirmed before return
   assert(value);
   t.is(deserialize(value), "value");
 });
+test("DurableObjectState: kFetch: throws clear error if missing fetch handler", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/164
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: "TestObject" },
+  });
+
+  class TestObject {}
+  plugin.beforeReload();
+  plugin.reload({}, { TestObject }, new Map());
+
+  const ns = plugin.getNamespace(factory, "TEST");
+  const id = ns.newUniqueId();
+  await t.throwsAsync(ns.get(id).fetch("http://localhost"), {
+    instanceOf: DurableObjectError,
+    code: "ERR_NO_HANDLER",
+    message: "No fetch handler defined in Durable Object",
+  });
+});
 test("DurableObjectState: hides implementation details", async (t) => {
   const [ns, plugin, factory] = getTestObjectNamespace();
   const state = await plugin.getObject(factory, ns.newUniqueId());
