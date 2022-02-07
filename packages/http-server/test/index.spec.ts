@@ -348,6 +348,30 @@ test("createRequestListener: handles scheduled event trigger over http", async (
   t.is(events[2].scheduledTime, 1000);
   t.is(events[2].cron, "* * * * *");
 });
+test("createRequestListener: handles scheduled event triggers over http for mounts", async (t) => {
+  const events: string[] = [];
+  const mf = useMiniflare(
+    { HTTPPlugin, BindingsPlugin },
+    {
+      globals: { events },
+      script: `addEventListener("scheduled", () => events.push("parent"))`,
+      mounts: {
+        a: {
+          routes: ["http://mount.mf/*"],
+          globals: { events },
+          script: `addEventListener("scheduled", () => events.push("child"))`,
+        },
+      },
+    }
+  );
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+
+  await request(port, "/cdn-cgi/mf/scheduled");
+  t.deepEqual(events, ["parent"]);
+
+  await request(port, "/cdn-cgi/mf/scheduled", { host: "mount.mf" });
+  t.deepEqual(events, ["parent", "child"]);
+});
 test("createRequestListener: displays appropriately-formatted error page", async (t) => {
   const log = new TestLog();
   log.error = (message) =>

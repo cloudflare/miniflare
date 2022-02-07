@@ -480,6 +480,40 @@ test("MiniflareCore: uses original protocol and host when matching mount routes"
   t.is(body, "https://example.com/a:custom.mf");
 });
 
+test("MiniflareCore: dispatches scheduled event to mount", async (t) => {
+  const mf = useMiniflare(
+    {},
+    {
+      modules: true,
+      script: `export default {
+        scheduled(controller, env, ctx) {
+          ctx.waitUntil("parent");
+          ctx.waitUntil(controller.scheduledTime);
+          ctx.waitUntil(controller.cron);
+        }
+      }`,
+      mounts: {
+        a: {
+          routes: ["https://test.mf/*"],
+          script: `addEventListener("scheduled", (event) => {
+            event.waitUntil("mount");
+            event.waitUntil(event.scheduledTime);
+            event.waitUntil(event.cron);
+          })`,
+        },
+      },
+    }
+  );
+  let waitUntil = await mf.dispatchScheduled(1000, "* * * * *");
+  t.deepEqual(waitUntil, ["parent", 1000, "* * * * *"]);
+  waitUntil = await mf.dispatchScheduled(
+    1000,
+    "* * * * *",
+    "https://test.mf/cdn-cgi/mf/scheduled"
+  );
+  t.deepEqual(waitUntil, ["mount", 1000, "* * * * *"]);
+});
+
 // Shared storage persistence tests
 type PersistOptions = Pick<
   MiniflareOptions,

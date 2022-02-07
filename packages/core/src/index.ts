@@ -991,6 +991,18 @@ export class MiniflareCore<
     return this.#mounts!.get(name)!;
   }
 
+  #matchMount(url: URL): MiniflareCore<Plugins> | undefined {
+    if (this.#mounts?.size) {
+      const mountMatch = this.#router!.match(url);
+      const name = this.#instances!.CorePlugin.name;
+      // If there was a match, and it isn't the current (parent) worker,
+      // forward the request to the matching mount instead
+      if (mountMatch !== null && mountMatch !== name) {
+        return this.#mounts.get(mountMatch);
+      }
+    }
+  }
+
   async dispatchFetch<WaitUntil extends any[] = unknown[]>(
     input: RequestInfo,
     init?: RequestInit
@@ -1003,16 +1015,8 @@ export class MiniflareCore<
     const url = new URL(request.url);
 
     // Forward to matching mount if any
-    if (this.#mounts?.size) {
-      const mountMatch = this.#router!.match(url);
-      const name = this.#instances!.CorePlugin.name;
-      // If there was a match, and it isn't the current (parent) worker,
-      // forward the request to the matching mount instead
-      if (mountMatch !== null && mountMatch !== name) {
-        const mount = this.#mounts.get(mountMatch);
-        if (mount) return mount.dispatchFetch(request);
-      }
-    }
+    const mount = this.#matchMount(url);
+    if (mount) return mount.dispatchFetch(request);
 
     // If upstream set, and the request URL doesn't begin with it, rewrite it
     // so fetching the incoming request gets a response from the upstream
@@ -1065,9 +1069,19 @@ export class MiniflareCore<
 
   async dispatchScheduled<WaitUntil extends any[] = unknown[]>(
     scheduledTime?: number,
-    cron?: string
+    cron?: string,
+    url?: string | URL
   ): Promise<WaitUntil> {
     await this.#initPromise;
+
+    // Forward to matching mount if any (this is primarily intended for the
+    // "/cdn-cgi/mf/scheduled" route)
+    if (url !== undefined) {
+      if (typeof url === "string") url = new URL(url);
+      const mount = this.#matchMount(url);
+      if (mount) return mount.dispatchScheduled(scheduledTime, cron);
+    }
+
     const globalScope = this.#globalScope;
     // Each fetch gets its own context (e.g. 50 subrequests).
     // Start a new pipeline too.

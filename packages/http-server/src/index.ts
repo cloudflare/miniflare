@@ -154,7 +154,8 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
         const cron = url.searchParams.get("cron");
         waitUntil = mf.dispatchScheduled(
           time ? parseInt(time) : undefined,
-          cron ?? undefined
+          cron ?? undefined,
+          url
         );
         status = 200;
       } else {
