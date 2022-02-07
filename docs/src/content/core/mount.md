@@ -211,6 +211,14 @@ const res = await mf.dispatchFetch("http://api.mf/todos/update/1", {
 console.log(await res.text()); // URL: https://example.com/api/todos/update/1 Host: example.com
 ```
 
+## Scheduled Events HTTP Triggers
+
+[⏰ Scheduled Events](/core/scheduled) can be triggered by making
+[HTTP requests to `/cdn-cgi/mf/scheduled`](/core/scheduled#http-triggers). These
+requests respect the same routes as `fetch` events. For example, requesting
+`http://api.mf/cdn-cgi/mf/scheduled` will trigger a scheduled event in the `api`
+worker if its routes include `api.mf/*`.
+
 ## Durable Objects
 
 Miniflare supports the `script_name` option for accessing Durable Objects

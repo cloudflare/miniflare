@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/web-sockets",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "WebSocket module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -35,13 +35,13 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/core": "2.2.0",
-    "@miniflare/shared": "2.2.0",
+    "@miniflare/core": "2.3.0",
+    "@miniflare/shared": "2.3.0",
     "ws": "^8.2.2",
     "undici": "4.13.0"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.2.0",
+    "@miniflare/shared-test": "2.3.0",
     "@types/ws": "^8.2.0"
   }
 }

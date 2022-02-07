@@ -1,5 +1,37 @@
 # 🚧 Changelog
 
+## 2.3.0
+
+### Features
+
+- Route `/cdn-cgi/mf/scheduled` requests based on mount routes. Closes
+  [issue #163](https://github.com/cloudflare/miniflare/issues/163), thanks
+  [@jed](https://github.com/jed).
+- Add clear error if a Durable Object class is missing a `fetch` handler. Closes
+  [issue #164](https://github.com/cloudflare/miniflare/issues/164), thanks
+  [@aboodman](https://github.com/aboodman).
+- Upgrade [`undici`](https://github.com/nodejs/undici) to
+  [`4.13.0`](https://github.com/nodejs/undici/releases/tag/v4.13.0)
+
+### Fixes
+
+- Fix `instanceof` when subclassing `Error`. Subclasses of `Error` were
+  previously treated as `Error`s themselves in `instanceof` checks. Closes
+  [issue #159](https://github.com/cloudflare/miniflare/issues/159), thanks
+  [@valeriangalliat](https://github.com/valeriangalliat).
+- Return `null` bodies when `fetch`ing `Response`s with a null status. Closes
+  [issue #165](https://github.com/cloudflare/miniflare/issues/165), thanks
+  [@lukaszczerpak](https://github.com/lukaszczerpak) for reporting this and
+  [@GregBrimble](https://github.com/GregBrimble) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/172).
+- Clone `ArrayBuffer` bodies when constructing `Request`/`Response`s. Closes
+  [issue #171](https://github.com/cloudflare/miniflare/issues/171), thanks
+  [@segator](https://github.com/segator) and
+  [@leader22](https://github.com/leader22).
+- Watch `index.js` by default in `type = "webpack"` projects
+- Throw `TypeError`s instead of `string`s on `HTMLRewriter` parser errors
+- Disable nested mounts via `Miniflare#getMount().setOptions()`
+
 ## 2.2.0
 
 ### Features

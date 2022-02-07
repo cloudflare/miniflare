@@ -1,6 +1,6 @@
 {
   "name": "jest-environment-miniflare",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Jest testing module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -35,23 +35,23 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/cache": "2.2.0",
-    "@miniflare/core": "2.2.0",
-    "@miniflare/durable-objects": "2.2.0",
-    "@miniflare/html-rewriter": "2.2.0",
-    "@miniflare/kv": "2.2.0",
-    "@miniflare/runner-vm": "2.2.0",
-    "@miniflare/shared": "2.2.0",
-    "@miniflare/sites": "2.2.0",
-    "@miniflare/storage-memory": "2.2.0",
-    "@miniflare/web-sockets": "2.2.0",
-    "miniflare": "2.2.0"
+    "@miniflare/cache": "2.3.0",
+    "@miniflare/core": "2.3.0",
+    "@miniflare/durable-objects": "2.3.0",
+    "@miniflare/html-rewriter": "2.3.0",
+    "@miniflare/kv": "2.3.0",
+    "@miniflare/runner-vm": "2.3.0",
+    "@miniflare/shared": "2.3.0",
+    "@miniflare/sites": "2.3.0",
+    "@miniflare/storage-memory": "2.3.0",
+    "@miniflare/web-sockets": "2.3.0",
+    "miniflare": "2.3.0"
   },
   "peerDependencies": {
     "jest": ">=27"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.2.0",
+    "@miniflare/shared-test": "2.3.0",
     "jest": "^27.2.1"
   }
 }
