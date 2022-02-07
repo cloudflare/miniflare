@@ -873,6 +873,18 @@ test("fetch: can fetch from existing Request", async (t) => {
   const res = await fetch(req);
   t.is(await res.text(), "upstream");
 });
+test("fetch: gives a null body for upstream null body status codes", async (t) => {
+  const upstream = (
+    await useServer(t, (req, res) => {
+      res.statusCode = 304;
+      res.end();
+    })
+  ).http;
+  const req = new Request(upstream);
+  const res = await fetch(req);
+  t.is(res.status, 304);
+  t.is(await res.text(), "");
+});
 test("fetch: increments subrequest count", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   const ctx = new RequestContext();
