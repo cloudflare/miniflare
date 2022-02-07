@@ -1076,13 +1076,11 @@ test.serial("HTMLRewriter: throws error on unsupported selector", async (t) => {
       },
     })
     .transform(new Response("<p>old</p>"));
-  // Cannot use t.throwsAsync here as promise rejects with string not error type
-  try {
-    await res.text();
-    t.fail();
-  } catch (e) {
-    t.is(e, "Unsupported pseudo-class or pseudo-element in selector.");
-  }
+  await t.throwsAsync(res.text(), {
+    instanceOf: TypeError,
+    message:
+      "Parser error: Unsupported pseudo-class or pseudo-element in selector.",
+  });
   t.true(freed.freed);
 });
 
