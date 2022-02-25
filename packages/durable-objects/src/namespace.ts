@@ -208,7 +208,7 @@ export class DurableObjectNamespace {
     const view = new DataView(id.buffer);
     view.setBigUint64(1, BigInt(Date.now()));
     // ...then fill 15 (32 - 1 - 8 - 8) bytes with random data
-    webcrypto.getRandomValues(new DataView(id.buffer, 9, 15));
+    webcrypto.getRandomValues(new Uint8Array(id.buffer, 9, 15));
     // ...then copy objectName hash
     id.set(this.#objectNameHash, 24 /* 32 - 8 */);
     return new DurableObjectId(this.#objectName, hexEncode(id));
