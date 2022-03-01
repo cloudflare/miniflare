@@ -134,6 +134,10 @@ function convertStoredToGetValue(stored: Uint8Array, type: KVGetValueType) {
           await waitForOpenInputGate();
           controller.enqueue(stored);
           controller.close();
+          // Not documented in MDN but if there's an ongoing request that's waiting,
+          // we need to tell it that there was 0 bytes delivered so that it unblocks
+          // and notices the end of stream.
+	  controller.byobRequest?.respond(0);
         },
       });
   }
