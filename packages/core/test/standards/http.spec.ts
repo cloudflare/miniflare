@@ -960,6 +960,23 @@ test("fetch: removes Host and CF-Connecting-IP headers from Request", async (t) 
     "x-real-ip": "127.0.0.1",
   });
 });
+test("fetch: removes Content-Length 0 from body-less requests", async (t) => {
+  // Should remove content-length: 0 from certain methods because undici sees it
+  // as an error: https://github.com/cloudflare/miniflare/issues/193
+  const upstream = (
+    await useServer(t, (req, res) => res.end(JSON.stringify(req.headers)))
+  ).http;
+  const res = await fetch(upstream, {
+    method: "DELETE",
+    headers: {
+      "Content-Length": "0"
+    },
+  });
+  const headers = await res.json();
+  t.like(headers, {
+    host: upstream.host,
+  });
+});
 test("fetch: removes default fetch headers from Request unless explicitly added", async (t) => {
   // Should remove accept, accept-language, sec-fetch-mode, and user-agent
   // headers unless explicitly added: https://github.com/cloudflare/miniflare/issues/139
