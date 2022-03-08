@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readFileSync, realpathSync, existsSync } from "fs";
 import fs from "fs/promises";
 import { builtinModules } from "module";
 import path from "path";
@@ -61,10 +61,22 @@ export class ModuleLinker {
     }
 
     const additionalModule = this.additionalModules[spec];
-    const identifier = additionalModule
+    let identifier = additionalModule
       ? spec
       : // Get path to specified module relative to referencing module
         path.resolve(path.dirname(referencing.identifier), spec);
+
+    // When running the miniflare cli from a different cwd than the project,
+    // and the modules are in temporary directories, we can get into a
+    // situation where process.cwd() and referenced modules are in /private/var/...
+    // and /var/... On macs, these are symlinks to each other, but node doesn't
+    // know that. So we use realpathSync to resolve `identifier` to a "real" path.
+    // This is wrapped in a try/catch because we also generate path identifiers for
+    // node builtins, etc, and we generate a separate error for that further down.
+    identifier =
+      path.isAbsolute(identifier) && existsSync(identifier)
+        ? realpathSync(identifier)
+        : identifier;
 
     // If we've already seen a module with the same identifier, return it, to
     // handle import cycles
