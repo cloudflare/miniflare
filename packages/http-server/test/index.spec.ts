@@ -368,6 +368,13 @@ test("createRequestListener: displays appropriately-formatted error page", async
   t.is(headers["content-type"], "text/html; charset=UTF-8");
   [, headers] = await request(port, "/", { accept: "image/png, */*" });
   t.is(headers["content-type"], "text/html; charset=UTF-8");
+
+  // Check pretty HTML error page isn't returned for cURL
+  [, headers] = await request(port, "/", {
+    accept: "*/*",
+    "user-agent": "curl/7.77.0",
+  });
+  t.is(headers["content-type"], "text/plain; charset=UTF-8");
 });
 test("createRequestListener: includes live reload script in html responses if enabled", async (t) => {
   const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {

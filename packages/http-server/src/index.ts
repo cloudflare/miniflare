@@ -282,10 +282,12 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
       } catch (e: any) {
         // MIME types aren't case sensitive
         const accept = req.headers.accept?.toLowerCase() ?? "";
+        const userAgent = req.headers["user-agent"]?.toLowerCase() ?? "";
         if (
-          accept.includes("text/html") ||
-          accept.includes("*/*") ||
-          accept.includes("text/*")
+          !userAgent.includes("curl/") &&
+          (accept.includes("text/html") ||
+            accept.includes("*/*") ||
+            accept.includes("text/*"))
         ) {
           // Send pretty HTML error page if client accepts it
           const Youch: typeof import("youch").default = require("youch");
