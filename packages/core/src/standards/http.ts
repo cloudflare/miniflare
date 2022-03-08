@@ -700,6 +700,12 @@ const kDefaultHeadersToRemove = [
   "user-agent",
 ];
 
+const methodsExpectingPayload = [
+  "PUT",
+  "POST",
+  "PATCH"
+];
+
 class MiniflareDispatcher extends Dispatcher {
   // dispatch, close & destroy are the only methods a Dispatcher must implement:
   // https://github.com/nodejs/undici/blob/09059fb491b4158a25981eb5598262b43a18c6ae/lib/dispatcher.js
@@ -767,6 +773,13 @@ export async function fetch(
   req.headers.delete("cf-connecting-ip");
   // Add "MF-Loop" header for loop detection
   req.headers.set(_kLoopHeader, String(ctx?.requestDepth ?? 1));
+  // Delete "content-length: 0" from bodyless requests. Some proxies add this,
+  // but undici considers it an error.
+  // See https://github.com/cloudflare/miniflare/issues/193
+  
+  if (!methodsExpectingPayload.includes(req.method) && req.headers.get("content-length") === "0") {
+    req.headers.delete("content-length");
+  }
 
   // Mark default headers for removal that aren't explicitly included
   const removeHeaders: string[] = [];
