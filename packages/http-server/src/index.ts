@@ -103,7 +103,6 @@ export async function convertNodeRequest(
   req.headers["cf-ipcountry"] ??= meta?.cf?.country ?? "US";
   req.headers["cf-ray"] ??= randomHex(16);
   req.headers["cf-visitor"] ??= `{"scheme":"${proto}"}`;
-  req.headers["cf-ew-preview-server"] = `https://${randomHex(7)}.cfops.net`;
   req.headers["accept-encoding"] = "gzip";
   req.headers["host"] = url.host;
 

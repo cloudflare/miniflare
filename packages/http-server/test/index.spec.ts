@@ -203,10 +203,6 @@ test("convertNodeRequest: includes cf headers on request", async (t) => {
   t.is(req.headers.get("cf-connecting-ip"), "127.0.0.1");
   t.is(req.headers.get("cf-ipcountry"), "US");
   t.regex(req.headers.get("cf-ray") ?? "", /^[a-z0-9]{16}$/);
-  t.regex(
-    req.headers.get("cf-ew-preview-server") ?? "",
-    /^https:\/\/[a-z0-9]{7}\.cfops\.net$/
-  );
   t.is(req.headers.get("cf-visitor"), '{"scheme":"https"}');
 
   // Check overridden by meta object
