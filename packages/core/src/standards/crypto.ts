@@ -65,11 +65,11 @@ function digest(
 
 export function createCrypto(blockGlobalRandom = false): typeof webcrypto {
   const getRandomValues = assertsInRequest(
-    webcrypto.getRandomValues,
+    webcrypto.getRandomValues.bind(webcrypto),
     blockGlobalRandom
   );
   const generateKey = assertsInRequest(
-    webcrypto.subtle.generateKey,
+    webcrypto.subtle.generateKey.bind(webcrypto.subtle),
     blockGlobalRandom
   );
 
