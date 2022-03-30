@@ -281,16 +281,14 @@ test("BindingsPlugin: setup: loads text blob bindings", async (t) => {
     textBlobBindings: { LOREM_IPSUM: loremIpsumPath },
   });
   let result = await plugin.setup();
-  t.not(result.bindings?.LOREM_IPSUM, undefined);
   t.is(result.bindings?.LOREM_IPSUM, loremIpsum);
 
   // Check resolves text blob bindings path relative to rootPath
   plugin = new BindingsPlugin(
     { log, compat, rootPath: path.dirname(loremIpsumPath) },
-    { textBlobBindings: { LOREM_IPSUM: loremIpsumPath } }
+    { textBlobBindings: { LOREM_IPSUM: "lorem-ipsum.txt" } }
   );
   result = await plugin.setup();
-  t.not(result.bindings?.LOREM_IPSUM, undefined);
   t.is(result.bindings?.LOREM_IPSUM, loremIpsum);
 });
 
