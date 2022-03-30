@@ -45,6 +45,7 @@ export interface BindingsOptions {
   bindings?: Record<string, any>;
   globals?: Record<string, any>;
   wasmBindings?: Record<string, string>;
+  textBlobBindings?: Record<string, string>;
   serviceBindings?: ServiceBindingsOptions;
 }
 
@@ -166,6 +167,16 @@ export class BindingsPlugin
 
   @Option({
     type: OptionType.OBJECT,
+    typeFormat: "NAME=PATH",
+    name: "text-blob",
+    description: "Text blob to bind",
+    logName: "Text Blob Bindings",
+    fromWrangler: ({ text_blobs }) => text_blobs,
+  })
+  textBlobBindings?: Record<string, string>;
+
+  @Option({
+    type: OptionType.OBJECT,
     typeFormat: "NAME=MOUNT[@ENV]",
     name: "service",
     alias: "S",
@@ -246,8 +257,9 @@ export class BindingsPlugin
     // 1) Wrangler [vars]
     // 2) .env Variables
     // 3) WASM Module Bindings
-    // 4) Service Bindings
-    // 5) Custom Bindings
+    // 4) Text blob Bindings
+    // 5) Service Bindings
+    // 6) Custom Bindings
 
     const bindings: Context = {};
     const watch: string[] = [];
@@ -281,12 +293,22 @@ export class BindingsPlugin
       }
     }
 
-    // 4) Load service bindings
+    // 4) Load text blobs from files
+    if (this.textBlobBindings) {
+      // eslint-disable-next-line prefer-const
+      for (let [name, textPath] of Object.entries(this.textBlobBindings)) {
+        textPath = path.resolve(this.ctx.rootPath, textPath);
+        bindings[name] = await fs.readFile(textPath, "utf-8");
+        watch.push(textPath);
+      }
+    }
+
+    // 5) Load service bindings
     for (const { name, service } of this.#processedServiceBindings) {
       bindings[name] = new Fetcher(service, this.#getServiceFetch);
     }
 
-    // 5) Copy user's arbitrary bindings
+    // 6) Copy user's arbitrary bindings
     Object.assign(bindings, this.bindings);
 
     return { globals: this.globals, bindings, watch };

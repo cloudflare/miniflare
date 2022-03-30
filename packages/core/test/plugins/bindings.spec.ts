@@ -1,4 +1,5 @@
 import assert from "assert";
+import { readFileSync } from "fs";
 import fs from "fs/promises";
 import path from "path";
 import { setImmediate } from "timers/promises";
@@ -37,6 +38,9 @@ const fixturesPath = path.join(__dirname, "..", "..", "..", "test", "fixtures");
 // its 2 integer parameters together and returns the result, it is from:
 // https://webassembly.github.io/wabt/demo/wat2wasm/
 const addModulePath = path.join(fixturesPath, "add.wasm");
+// lorem-ipsum.txt is five paragraphs of lorem ipsum nonsense text
+const loremIpsumPath = path.join(fixturesPath, "lorem-ipsum.txt");
+const loremIpsum = readFileSync(loremIpsumPath, "utf-8");
 
 test("BindingsPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(BindingsPlugin, [
@@ -54,6 +58,10 @@ test("BindingsPlugin: parses options from argv", (t) => {
     "MODULE1=module1.wasm",
     "--wasm",
     "MODULE2=module2.wasm",
+    "--text-blob",
+    "TEXT1=text-blob-1.txt",
+    "--text-blob",
+    "TEXT2=text-blob-2.txt",
     "--service",
     "SERVICE1=service1",
     "--service",
@@ -64,6 +72,7 @@ test("BindingsPlugin: parses options from argv", (t) => {
     bindings: { KEY1: "value1", KEY2: "value2" },
     globals: { KEY3: "value3", KEY4: "value4" },
     wasmBindings: { MODULE1: "module1.wasm", MODULE2: "module2.wasm" },
+    textBlobBindings: { TEXT1: "text-blob-1.txt", TEXT2: "text-blob-2.txt" },
     serviceBindings: {
       SERVICE1: "service1",
       SERVICE2: { service: "service2", environment: "development" },
@@ -96,6 +105,10 @@ test("BindingsPlugin: parses options from wrangler config", async (t) => {
       MODULE1: "module1.wasm",
       MODULE2: "module2.wasm",
     },
+    text_blobs: {
+      TEXT1: "text-blob-1.txt",
+      TEXT2: "text-blob-2.txt",
+    },
     experimental_services: [
       { name: "SERVICE1", service: "service1", environment: "development" },
       { name: "SERVICE2", service: "service2", environment: "production" },
@@ -109,6 +122,7 @@ test("BindingsPlugin: parses options from wrangler config", async (t) => {
     envPath: ".env.test",
     globals: { KEY5: "value5", KEY6: false, KEY7: 10 },
     wasmBindings: { MODULE1: "module1.wasm", MODULE2: "module2.wasm" },
+    textBlobBindings: { TEXT1: "text-blob-1.txt", TEXT2: "text-blob-2.txt" },
     serviceBindings: {
       SERVICE1: { service: "service1", environment: "development" },
       SERVICE2: { service: "service2", environment: "production" },
@@ -141,6 +155,7 @@ test("BindingsPlugin: logs options", (t) => {
     bindings: { KEY3: "value3", KEY4: "value4" },
     globals: { KEY5: "value5", KEY6: "value6" },
     wasmBindings: { MODULE1: "module1.wasm", MODULE2: "module2.wasm" },
+    textBlobBindings: { TEXT1: "text-blob-1.txt", TEXT2: "text-blob-2.txt" },
     serviceBindings: {
       SERVICE1: "service1",
       SERVICE2: { service: "service2", environment: "development" },
@@ -152,6 +167,7 @@ test("BindingsPlugin: logs options", (t) => {
     "Custom Bindings: KEY3, KEY4",
     "Custom Globals: KEY5, KEY6",
     "WASM Bindings: MODULE1, MODULE2",
+    "Text Blob Bindings: TEXT1, TEXT2",
     "Service Bindings: SERVICE1, SERVICE2",
   ]);
   logs = logPluginOptions(BindingsPlugin, { envPath: true });
@@ -259,22 +275,40 @@ test("BindingsPlugin: setup: loads WebAssembly bindings", async (t) => {
   result = await plugin.setup();
   t.not(result.bindings?.ADD, undefined);
 });
+
+test("BindingsPlugin: setup: loads text blob bindings", async (t) => {
+  let plugin = new BindingsPlugin(ctx, {
+    textBlobBindings: { LOREM_IPSUM: loremIpsumPath },
+  });
+  let result = await plugin.setup();
+  t.is(result.bindings?.LOREM_IPSUM, loremIpsum);
+
+  // Check resolves text blob bindings path relative to rootPath
+  plugin = new BindingsPlugin(
+    { log, compat, rootPath: path.dirname(loremIpsumPath) },
+    { textBlobBindings: { LOREM_IPSUM: "lorem-ipsum.txt" } }
+  );
+  result = await plugin.setup();
+  t.is(result.bindings?.LOREM_IPSUM, loremIpsum);
+});
+
 test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
   // Bindings should be loaded in this order, from lowest to highest priority:
   // 1) Wrangler [vars]
   // 2) .env Variables
   // 3) WASM Module Bindings
-  // 4) Service Bindings
-  // 5) Custom Bindings
+  // 4) Text Blob Bindings
+  // 5) Service Bindings
+  // 6) Custom Bindings
 
   // wranglerOptions should contain [kWranglerBindings]
   const wranglerOptions = parsePluginWranglerConfig(BindingsPlugin, {
-    vars: { A: "w", B: "w", C: "w", D: "w", E: "w" },
+    vars: { A: "w", B: "w", C: "w", D: "w", E: "w", F: "w" },
   });
 
   const tmp = await useTmp(t);
   const envPath = path.join(tmp, ".env");
-  await fs.writeFile(envPath, "A=env\nB=env\nC=env\nD=env");
+  await fs.writeFile(envPath, "A=env\nB=env\nC=env\nD=env\nE=env");
 
   const obj = { ping: "pong" };
   const throws = () => {
@@ -286,6 +320,12 @@ test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
       A: addModulePath,
       B: addModulePath,
       C: addModulePath,
+      D: addModulePath,
+    },
+    textBlobBindings: {
+      A: loremIpsumPath,
+      B: loremIpsumPath,
+      C: loremIpsumPath,
     },
     serviceBindings: { A: throws, B: throws },
     bindings: { A: obj },
@@ -294,9 +334,10 @@ test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
   const result = await plugin.setup();
   assert(result.bindings);
 
-  t.is(result.bindings.E, "w");
-  t.is(result.bindings.D, "env");
-  t.true(result.bindings.C instanceof WebAssembly.Module);
+  t.is(result.bindings.F, "w");
+  t.is(result.bindings.E, "env");
+  t.true(result.bindings.D instanceof WebAssembly.Module);
+  t.is(result.bindings.C, loremIpsum);
   t.true(result.bindings.B instanceof Fetcher);
   t.is(result.bindings.A, obj);
 });
