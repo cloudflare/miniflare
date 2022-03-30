@@ -303,12 +303,12 @@ test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
 
   // wranglerOptions should contain [kWranglerBindings]
   const wranglerOptions = parsePluginWranglerConfig(BindingsPlugin, {
-    vars: { A: "w", B: "w", C: "w", D: "w", E: "w" },
+    vars: { A: "w", B: "w", C: "w", D: "w", E: "w", F: "w" },
   });
 
   const tmp = await useTmp(t);
   const envPath = path.join(tmp, ".env");
-  await fs.writeFile(envPath, "A=env\nB=env\nC=env\nD=env");
+  await fs.writeFile(envPath, "A=env\nB=env\nC=env\nD=env\nE=env");
 
   const obj = { ping: "pong" };
   const throws = () => {
@@ -334,7 +334,8 @@ test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
   const result = await plugin.setup();
   assert(result.bindings);
 
-  t.is(result.bindings.E, "w");
+  t.is(result.bindings.F, "w");
+  t.is(result.bindings.E, "env");
   t.true(result.bindings.D instanceof WebAssembly.Module);
   t.is(result.bindings.C, loremIpsum);
   t.true(result.bindings.B instanceof Fetcher);
