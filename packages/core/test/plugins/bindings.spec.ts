@@ -320,9 +320,12 @@ test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
       A: addModulePath,
       B: addModulePath,
       C: addModulePath,
+      D: addModulePath,
     },
     textBlobBindings: {
-      D: loremIpsumPath,
+      A: loremIpsumPath,
+      B: loremIpsumPath,
+      C: loremIpsumPath,
     },
     serviceBindings: { A: throws, B: throws },
     bindings: { A: obj },
@@ -332,8 +335,8 @@ test("BindingsPlugin: setup: loads bindings from all sources", async (t) => {
   assert(result.bindings);
 
   t.is(result.bindings.E, "w");
-  t.is(result.bindings.D, loremIpsum);
-  t.true(result.bindings.C instanceof WebAssembly.Module);
+  t.true(result.bindings.D instanceof WebAssembly.Module);
+  t.is(result.bindings.C, loremIpsum);
   t.true(result.bindings.B instanceof Fetcher);
   t.is(result.bindings.A, obj);
 });
