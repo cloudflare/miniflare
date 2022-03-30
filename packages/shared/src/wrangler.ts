@@ -35,6 +35,7 @@ export interface WranglerEnvironmentConfig {
   }; // inherited
   usage_model?: "bundled" | "unbound"; // inherited
   wasm_modules?: Record<string, string>; // (probably) inherited
+  text_blobs?: Record<string, string>;
   experimental_services?: {
     name: string;
     service: string;
