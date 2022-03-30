@@ -45,7 +45,7 @@ export interface BindingsOptions {
   bindings?: Record<string, any>;
   globals?: Record<string, any>;
   wasmBindings?: Record<string, string>;
-  textBlobs?: Record<string, string>;
+  textBlobBindings?: Record<string, string>;
   serviceBindings?: ServiceBindingsOptions;
 }
 
@@ -168,12 +168,12 @@ export class BindingsPlugin
   @Option({
     type: OptionType.OBJECT,
     typeFormat: "NAME=PATH",
-    name: "text",
+    name: "text-blob",
     description: "Text blob to bind",
-    logName: "Text blobs",
+    logName: "Text Blob Bindings",
     fromWrangler: ({ text_blobs }) => text_blobs,
   })
-  textBlobs?: Record<string, string>;
+  textBlobBindings?: Record<string, string>;
 
   @Option({
     type: OptionType.OBJECT,
@@ -257,7 +257,7 @@ export class BindingsPlugin
     // 1) Wrangler [vars]
     // 2) .env Variables
     // 3) WASM Module Bindings
-    // 4) Text blobs
+    // 4) Text blob Bindings
     // 5) Service Bindings
     // 6) Custom Bindings
 
@@ -294,11 +294,11 @@ export class BindingsPlugin
     }
 
     // 4) Load text blobs from files
-    if (this.textBlobs) {
+    if (this.textBlobBindings) {
       // eslint-disable-next-line prefer-const
-      for (let [name, textPath] of Object.entries(this.textBlobs)) {
+      for (let [name, textPath] of Object.entries(this.textBlobBindings)) {
         textPath = path.resolve(this.ctx.rootPath, textPath);
-        bindings[name] = (await fs.readFile(textPath)).toString();
+        bindings[name] = await fs.readFile(textPath, "utf-8");
         watch.push(textPath);
       }
     }
