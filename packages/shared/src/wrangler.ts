@@ -34,8 +34,9 @@ export interface WranglerEnvironmentConfig {
     crons?: string[];
   }; // inherited
   usage_model?: "bundled" | "unbound"; // inherited
-  wasm_modules?: Record<string, string>; // (probably) inherited
-  text_blobs?: Record<string, string>;
+  wasm_modules?: Record<string, string>; // inherited
+  text_blobs?: Record<string, string>; // inherited
+  data_blobs?: Record<string, string>; // inherited
   experimental_services?: {
     name: string;
     service: string;

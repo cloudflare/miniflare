@@ -12,6 +12,7 @@ import {
   RequestContext,
   SetupResult,
   getRequestContext,
+  viewToBuffer,
 } from "@miniflare/shared";
 import dotenv from "dotenv";
 import { MiniflareCoreError } from "../error";
@@ -46,6 +47,7 @@ export interface BindingsOptions {
   globals?: Record<string, any>;
   wasmBindings?: Record<string, string>;
   textBlobBindings?: Record<string, string>;
+  dataBlobBindings?: Record<string, string>;
   serviceBindings?: ServiceBindingsOptions;
 }
 
@@ -177,6 +179,16 @@ export class BindingsPlugin
 
   @Option({
     type: OptionType.OBJECT,
+    typeFormat: "NAME=PATH",
+    name: "data-blob",
+    description: "Data blob to bind",
+    logName: "Data Blob Bindings",
+    fromWrangler: ({ data_blobs }) => data_blobs,
+  })
+  dataBlobBindings?: Record<string, string>;
+
+  @Option({
+    type: OptionType.OBJECT,
     typeFormat: "NAME=MOUNT[@ENV]",
     name: "service",
     alias: "S",
@@ -258,8 +270,9 @@ export class BindingsPlugin
     // 2) .env Variables
     // 3) WASM Module Bindings
     // 4) Text blob Bindings
-    // 5) Service Bindings
-    // 6) Custom Bindings
+    // 5) Data blob Bindings
+    // 6) Service Bindings
+    // 7) Custom Bindings
 
     const bindings: Context = {};
     const watch: string[] = [];
@@ -303,12 +316,23 @@ export class BindingsPlugin
       }
     }
 
-    // 5) Load service bindings
+    // 5) Load data blobs from files
+    if (this.dataBlobBindings) {
+      // eslint-disable-next-line prefer-const
+      for (let [name, dataPath] of Object.entries(this.dataBlobBindings)) {
+        dataPath = path.resolve(this.ctx.rootPath, dataPath);
+        const fileContent = await fs.readFile(dataPath);
+        bindings[name] = viewToBuffer(fileContent);
+        watch.push(dataPath);
+      }
+    }
+
+    // 6) Load service bindings
     for (const { name, service } of this.#processedServiceBindings) {
       bindings[name] = new Fetcher(service, this.#getServiceFetch);
     }
 
-    // 6) Copy user's arbitrary bindings
+    // 7) Copy user's arbitrary bindings
     Object.assign(bindings, this.bindings);
 
     return { globals: this.globals, bindings, watch };
