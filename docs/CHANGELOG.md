@@ -1,5 +1,35 @@
 # 🚧 Changelog
 
+## 2.4.0
+
+### Features
+
+- Add support for `[text_blobs]`. Closes
+  [issue #211](https://github.com/cloudflare/miniflare/issues/211), thanks
+  [@caass](https://github.com/caass) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/228).
+- Add support for `[data_blobs]`. Closes
+  [issue #231](https://github.com/cloudflare/miniflare/issues/231), thanks
+  [@threepointone](https://github.com/threepointone) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/232).
+- Do not display the pretty error page when making requests with `curl`. Closes
+  [issue #198](https://github.com/cloudflare/miniflare/issues/198), thanks
+  [@GregBrimble](https://github.com/GregBrimble) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/210).
+
+### Fixes
+
+- Pass correctly-typed value to `webcrypto.getRandomValues()`. Closes
+  [issue #188](https://github.com/cloudflare/miniflare/issues/188), thanks
+  [@vlovich](https://github.com/vlovich).
+- Fix `fetch` with `Content-Length: 0` header. Closes
+  [issue #193](https://github.com/cloudflare/miniflare/issues/193), thanks
+  [@orls](https://github.com/orls) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/204).
+- Bind `this` to `webcrypto` methods, fixing `crypto.getRandomValues()` and
+  `crypto.subtle.generateKey()`. Thanks [@szkl](https://github.com/szkl) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/216).
+
 ## 2.3.0
 
 ### Features

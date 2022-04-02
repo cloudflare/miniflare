@@ -468,6 +468,8 @@ const mf = new Miniflare({
   bindings: { SECRET: "sssh" }, // Binds variable/secret to environment
   globals: { LOG: () => console.log("magic") }, // Binds variable/secret to global scope
   wasmBindings: { ADD_MODULE: "./add.wasm" }, // WASM module to bind
+  textBlobBindings: { TEXT: "./text.txt" }, // Text blob to bind
+  dataBlobBindings: { DATA: "./data.bin" }, // Data blob to bind
 });
 
 await mf.reload(); // Reload scripts and configuration files

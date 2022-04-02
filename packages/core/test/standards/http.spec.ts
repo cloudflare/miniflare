@@ -969,7 +969,7 @@ test("fetch: removes Content-Length 0 from body-less requests", async (t) => {
   const res = await fetch(upstream, {
     method: "DELETE",
     headers: {
-      "Content-Length": "0"
+      "Content-Length": "0",
     },
   });
   const headers = await res.json();

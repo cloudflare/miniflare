@@ -73,6 +73,36 @@ const mf = new Miniflare({
 
 </ConfigTabs>
 
+## Text and Data Blobs
+
+Text and data blobs can be loaded from files. File contents will be read and
+bound as `string`s and `ArrayBuffer`s respectively.
+
+<ConfigTabs>
+
+```sh
+$ miniflare --text-blob text.txt --data-blob data.bin
+```
+
+```toml
+---
+filename: wrangler.toml
+---
+[text_blobs]
+TEXT = "text.txt"
+[data_blobs]
+DATA = "data.bin"
+```
+
+```js
+const mf = new Miniflare({
+  textBlobBindings: { TEXT: "text.txt" },
+  dataBlobBindings: { DATA: "data.bin" },
+});
+```
+
+</ConfigTabs>
+
 ## Bindings Priority
 
 Higher priority bindings override lower priority bindings with the same name.
@@ -81,7 +111,9 @@ The order (from lowest to highest priority) is:
 1. Variables from `wrangler.toml` `[vars]`
 2. Variables from `.env` files
 3. WASM module bindings (`--wasm`, `[wasm_modules]`)
-4. Custom bindings (`--binding`, `bindings`)
+4. Text blob bindings (`--text-blob`, `[text_blobs]`)
+5. Data blob bindings (`--data-blob`, `[data_blobs]`)
+6. Custom bindings (`--binding`, `bindings`)
 
 ## Globals
 

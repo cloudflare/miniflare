@@ -20,7 +20,11 @@ assert(version);
  * @returns {boolean}
  */
 function isMiniflarePkg(name) {
-  return name.startsWith(scope) || name === "miniflare";
+  return (
+    name.startsWith(scope) ||
+    name === "miniflare" ||
+    name === "jest-environment-miniflare"
+  );
 }
 
 /**

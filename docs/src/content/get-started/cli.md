@@ -295,6 +295,9 @@ Bindings Options:
  -b, --binding           Binds variable/secret to environment  [array:KEY=VALUE]
      --global            Binds variable/secret to global scope [array:KEY=VALUE]
      --wasm              WASM module to bind                   [array:NAME=PATH]
+     --text-blob         Text blob to bind                     [array:NAME=PATH]
+     --data-blob         Data blob to bind                     [array:NAME=PATH]
+ -S, --service           Mounted service to bind        [array:NAME=MOUNT[@ENV]]
 ```
 
 ### Wrangler Configuration
@@ -348,6 +351,10 @@ globs = ["**/*.js"]
 
 [wasm_modules]                     # --wasm
 MODULE = "module.wasm"
+[text_blobs]                       # --text-blob
+TEXT = "text.txt"
+[data_blobs]                       # --data-blob
+DATA = "data.bin"
 
 [miniflare]
 host = "127.0.0.1"                 # --host

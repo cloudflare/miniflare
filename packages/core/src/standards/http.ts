@@ -700,11 +700,7 @@ const kDefaultHeadersToRemove = [
   "user-agent",
 ];
 
-const methodsExpectingPayload = [
-  "PUT",
-  "POST",
-  "PATCH"
-];
+const methodsExpectingPayload = ["PUT", "POST", "PATCH"];
 
 class MiniflareDispatcher extends Dispatcher {
   // dispatch, close & destroy are the only methods a Dispatcher must implement:
@@ -776,8 +772,11 @@ export async function fetch(
   // Delete "content-length: 0" from bodyless requests. Some proxies add this,
   // but undici considers it an error.
   // See https://github.com/cloudflare/miniflare/issues/193
-  
-  if (!methodsExpectingPayload.includes(req.method) && req.headers.get("content-length") === "0") {
+
+  if (
+    !methodsExpectingPayload.includes(req.method) &&
+    req.headers.get("content-length") === "0"
+  ) {
     req.headers.delete("content-length");
   }
 
