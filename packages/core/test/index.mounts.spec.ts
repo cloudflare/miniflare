@@ -48,6 +48,7 @@ test("MiniflareCore: #init: mounts string-optioned mounts", async (t) => {
   const scriptPath = path.join(tmp, "worker.js");
   const packagePath = path.join(tmp, "package.json");
   const envPath = path.join(tmp, ".env");
+  const envPathAlt = path.join(tmp, ".env.alt");
   const wranglerConfigPath = path.join(tmp, "wrangler.toml");
   await fs.writeFile(
     scriptPath,
@@ -55,27 +56,36 @@ test("MiniflareCore: #init: mounts string-optioned mounts", async (t) => {
   );
   await fs.writeFile(packagePath, '{ "module": "worker.js" }');
   await fs.writeFile(envPath, "KEY=value");
-  await fs.writeFile(
-    wranglerConfigPath,
-    `
+  await fs.writeFile(envPathAlt, "KEY=value-alt");
+  const wranglerConfig = `
 [build.upload]
 format = "modules"
 
 [miniflare]
 route = "localhost/tmp*"
-`
-  );
+`;
+  await fs.writeFile(wranglerConfigPath, wranglerConfig);
 
   const mf = useMiniflare({ BindingsPlugin }, { watch: true, mounts: { tmp } });
   let res = await mf.dispatchFetch("http://localhost/tmp");
   t.is(await res.text(), "mounted:value");
 
   // Check mounted worker files watched
-  const reloadPromise = waitForReload(mf);
+  let reloadPromise = waitForReload(mf);
   await fs.writeFile(envPath, "KEY=value2");
   await reloadPromise;
   res = await mf.dispatchFetch("http://localhost/tmp");
   t.is(await res.text(), "mounted:value2");
+
+  // Check env_path in wrangler.toml respected
+  reloadPromise = waitForReload(mf);
+  await fs.writeFile(
+    wranglerConfigPath,
+    wranglerConfig + 'env_path = ".env.alt"'
+  );
+  await reloadPromise;
+  res = await mf.dispatchFetch("http://localhost/tmp");
+  t.is(await res.text(), "mounted:value-alt");
 });
 test("MiniflareCore: #init: mounts object-optioned mounts", async (t) => {
   const mf = useMiniflare(

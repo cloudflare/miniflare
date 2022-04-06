@@ -138,7 +138,7 @@ export default class MiniflareEnvironment implements JestEnvironment {
         // like the CLI (but allow the user to disable this/customise locations)
         wranglerConfigPath: true,
         packagePath: true,
-        envPath: true,
+        envPathDefaultFallback: true,
 
         // Apply user's custom Miniflare options
         ...this.config.testEnvironmentOptions,

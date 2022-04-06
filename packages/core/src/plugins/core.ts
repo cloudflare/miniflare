@@ -122,7 +122,7 @@ function mapMountEntries(
       wranglerConfigEnv,
       // Autoload configuration from files
       packagePath: true,
-      envPath: true,
+      envPathDefaultFallback: true,
       wranglerConfigPath: true,
     },
   ];

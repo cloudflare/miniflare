@@ -499,7 +499,7 @@ export class MiniflareCore<
                 rootPath: rawOptions,
                 // Autoload configuration from files
                 packagePath: true,
-                envPath: true,
+                envPathDefaultFallback: true,
                 wranglerConfigPath: true,
               } as any)
             : {
