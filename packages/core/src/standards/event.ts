@@ -8,9 +8,9 @@ import {
   ValueOf,
   prefixError,
 } from "@miniflare/shared";
-import { Response as BaseResponse, fetch as baseFetch } from "undici";
+import { Response as BaseResponse } from "undici";
 import { DOMException } from "./domexception";
-import { Request, Response, _kInner, withWaitUntil } from "./http";
+import { Request, Response, fetch, withWaitUntil } from "./http";
 
 export type FetchErrorCode =
   | "ERR_RESPONSE_TYPE" // respondWith returned non Response promise
@@ -411,7 +411,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
 
     // noinspection ES6MissingAwait
     const waitUntil = Promise.all(event[kWaitUntil]) as Promise<WaitUntil>;
-    return withWaitUntil(await baseFetch(request[_kInner]), waitUntil);
+    return withWaitUntil(await fetch(request), waitUntil);
   }
 
   async [kDispatchScheduled]<WaitUntil extends any[] = any[]>(
