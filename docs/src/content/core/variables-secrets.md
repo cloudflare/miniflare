@@ -81,7 +81,7 @@ bound as `string`s and `ArrayBuffer`s respectively.
 <ConfigTabs>
 
 ```sh
-$ miniflare --text-blob text.txt --data-blob data.bin
+$ miniflare --text-blob TEXT=text.txt --data-blob DATA=data.bin
 ```
 
 ```toml
