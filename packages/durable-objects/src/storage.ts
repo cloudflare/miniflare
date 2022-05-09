@@ -28,8 +28,6 @@ function intersects<T>(a: Set<T>, b: Set<T>): boolean {
   return false;
 }
 
-export type DurableObjectAlarm = number | Date;
-
 export interface DurableObjectGetOptions {
   allowConcurrency?: boolean;
   noCache?: boolean; // Currently ignored
@@ -45,6 +43,17 @@ export interface DurableObjectListOptions extends DurableObjectGetOptions {
   prefix?: string;
   reverse?: boolean;
   limit?: number;
+}
+
+export type DurableObjectScheduledAlarm = number | Date;
+
+export interface DurableObjectSetAlarmOptions {
+  allowConcurrency?: boolean;
+  allowUnconfirmed?: boolean;
+}
+
+export interface DurableObjectGetAlarmOptions {
+  allowConcurrency?: boolean;
 }
 
 export interface DurableObjectOperator {
@@ -73,6 +82,17 @@ export interface DurableObjectOperator {
   list<Value = unknown>(
     options?: DurableObjectListOptions
   ): Promise<Map<string, Value>>;
+
+  getAlarm(
+    options?: DurableObjectGetAlarmOptions
+  ): Promise<DurableObjectScheduledAlarm | undefined>;
+
+  setAlarm(
+    scheduledTime: DurableObjectScheduledAlarm,
+    options?: DurableObjectSetAlarmOptions
+  ): Promise<void>;
+
+  deleteAlarm(options?: DurableObjectSetAlarmOptions): Promise<void>;
 }
 
 function assertKeySize(key: string, many = false) {
@@ -366,6 +386,20 @@ export class DurableObjectTransaction implements DurableObjectOperator {
       options.allowConcurrency
     );
   }
+
+  getAlarm(options?: DurableObjectGetAlarmOptions): Promise<number | null> {
+  }
+
+  setAlarm(
+    scheduledTime: number | Date,
+    options?: DurableObjectSetAlarmOptions
+  ): Promise<void> {
+    return new Promise();
+  };
+
+  deleteAlarm(options?: DurableObjectSetAlarmOptions): Promise<void> {
+
+  };
 
   rollback(): void {
     if (this[kRolledback]) return; // Allow multiple rollback() calls
@@ -691,13 +725,34 @@ export class DurableObjectStorage implements DurableObjectOperator {
   }
 
   // returns integer milliseconds since epoch or null
-  async getAlarm(): Promise<number | undefined> {
-    return this.#alarmBridge.getAlarm(this.#mutex);
+  async getAlarm(
+    options?: DurableObjectGetAlarmOptions
+  ): Promise<number | undefined> {
+    return runWithInputGateClosed(
+      () => this.#mutex.runWithRead(() => this.#alarmBridge.getAlarm()),
+      options?.allowConcurrency
+    );
   }
 
   // setAlarm accepts integer milliseconds since epoch or a js date
-  async setAlarm(alarm: DurableObjectAlarm): Promise<void> {
-    return this.#alarmBridge.setAlarm(alarm, this.#mutex);
+  async setAlarm(
+    scheduledTime: DurableObjectScheduledAlarm,
+    options?: DurableObjectSetAlarmOptions
+  ): Promise<void> {
+    return runWithGatesClosed(async () => {
+      await this.#mutex.runWithWrite(() => {
+        this.#alarmBridge.setAlarm(scheduledTime);
+        // "Commit" write
+        this.#txnRecordWriteSet(new Set(["__MINIFLARE_ALARM__"]));
+      });
+      // Promise.resolve() allows other puts/deletes (coalescing) before flush
+      await Promise.resolve();
+      return this.#mutex.runWithWrite(this.#flush);
+    }, options);
+  }
+
+  async deleteAlarm(options?: DurableObjectSetAlarmOptions): Promise<void> {
+    return this.#alarmBridge.deleteAlarm(this.#mutex, options);
   }
 }
 
@@ -705,6 +760,7 @@ export class AlarmBridge {
   readonly #alarmStorage: Storage;
   readonly #objectName: string;
   readonly #hexId: string;
+  #txnCount = 0;
   constructor(alarmStorage: Storage, objectName: string, hexId: string) {
     this.#alarmStorage = alarmStorage;
     this.#objectName = objectName;
@@ -712,28 +768,31 @@ export class AlarmBridge {
   }
 
   // returns integer milliseconds since epoch or null
-  async getAlarm(mutex: ReadWriteMutex): Promise<number | undefined> {
-    return runWithInputGateClosed(async () => {
-      const entries = await mutex.runWithRead(() =>
-        list(this.#alarmStorage, { end: `${this.#objectName}:${this.#hexId}` })
-      );
-      const [key] = entries.entries().next().value;
-      if (key) return parseInt(key.split(":")[0]);
-    }, true);
+  async getAlarm(): Promise<number | undefined> {
+    const map = await list(this.#alarmStorage, {
+      end: `${this.#objectName}:${this.#hexId}`,
+    });
+    const [key] = map.entries().next().value;
+    if (key) return parseInt(key.split(":")[0]);
   }
 
   // setAlarm accepts integer milliseconds since epoch or a js date
-  async setAlarm(
-    alarm: DurableObjectAlarm,
-    mutex: ReadWriteMutex
-  ): Promise<void> {
+  async setAlarm(scheduledTime: DurableObjectScheduledAlarm): Promise<void> {
     // if date convert alarm to number
-    if (alarm instanceof Date) alarm = alarm.getTime();
-    const key = `${alarm}:${this.#objectName}:${this.#hexId}`;
-    return runWithGatesClosed(() =>
-      mutex.runWithWrite(() =>
-        this.#alarmStorage.put(key, { value: new Uint8Array([]) })
-      )
-    );
+    if (scheduledTime instanceof Date) scheduledTime = scheduledTime.getTime();
+    const key = `${scheduledTime}:${this.#objectName}:${this.#hexId}`;
+
+    return this.#alarmStorage.put(key, { value: new Uint8Array([]) });
+  }
+
+  async deleteAlarm(
+    mutex: ReadWriteMutex,
+    options?: DurableObjectSetAlarmOptions
+  ): Promise<void> {
+    return runWithInputGateClosed(async () => {
+      await mutex.runWithWrite(() => {
+        this.#alarmStorage.delete(`${this.#objectName}:${this.#hexId}`);
+      });
+    }, options?.allowConcurrency);
   }
 }
