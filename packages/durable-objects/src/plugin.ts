@@ -302,8 +302,21 @@ export class DurableObjectsPlugin
     this.#contextResolve();
   }
 
+  async reloadAlarms(storage: StorageFactory): Promise<void> {
+    this.#disposeAlarms();
+    await this.#setupAlarms(storage);
+  }
+
   dispose(): void {
-    if (this.#alarmInterval) clearTimeout(this.#alarmInterval);
+    this.#disposeAlarms();
+    return this.beforeReload();
+  }
+
+  #disposeAlarms(): void {
+    if (this.#alarmInterval) {
+      clearTimeout(this.#alarmInterval);
+      this.#alarmInterval = undefined;
+    }
     for (
       let it = this.#alarms.values(), timeout = null;
       (timeout = it.next().value);
@@ -312,6 +325,5 @@ export class DurableObjectsPlugin
       clearTimeout(timeout);
     }
     this.#alarms.clear();
-    return this.beforeReload();
   }
 }
