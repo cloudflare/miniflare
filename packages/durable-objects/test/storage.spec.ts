@@ -985,6 +985,7 @@ test("hides implementation details", (t) => {
   const { storage } = t.context;
   t.deepEqual(getObjectProperties(storage), [
     "delete",
+    "deleteAlarm",
     "deleteAll",
     "get",
     "getAlarm",
@@ -1002,10 +1003,13 @@ test("transaction: hides implementation details", async (t) => {
   });
   t.deepEqual(properties, [
     "delete",
+    "deleteAlarm",
     "deleteAll",
     "get",
+    "getAlarm",
     "list",
     "put",
     "rollback",
+    "setAlarm",
   ]);
 });

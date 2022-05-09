@@ -387,19 +387,16 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     );
   }
 
-  getAlarm(options?: DurableObjectGetAlarmOptions): Promise<number | null> {
-  }
+  getAlarm(options?: DurableObjectGetAlarmOptions): Promise<number | null> {}
 
   setAlarm(
     scheduledTime: number | Date,
     options?: DurableObjectSetAlarmOptions
   ): Promise<void> {
     return new Promise();
-  };
+  }
 
-  deleteAlarm(options?: DurableObjectSetAlarmOptions): Promise<void> {
-
-  };
+  deleteAlarm(options?: DurableObjectSetAlarmOptions): Promise<void> {}
 
   rollback(): void {
     if (this[kRolledback]) return; // Allow multiple rollback() calls
