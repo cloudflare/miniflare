@@ -95,6 +95,7 @@ test("DurableObjectState: blockConcurrencyWhile: prevents fetch events dispatch 
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
+    ignoreAlarms: true,
   });
   const [trigger, promise] = triggerPromise<void>();
   const events: number[] = [];
@@ -128,6 +129,7 @@ test("DurableObjectState: kFetch: waits for writes to be confirmed before return
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
+    ignoreAlarms: true,
   });
 
   class TestObject implements DurableObject {
@@ -156,6 +158,7 @@ test("DurableObjectState: kFetch: throws clear error if missing fetch handler", 
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
+    ignoreAlarms: true,
   });
 
   class TestObject {}
@@ -211,7 +214,7 @@ test("DurableObjectStub: fetch: throws with relative urls if compatibility flag 
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
     { log, compat, rootPath },
-    { durableObjects: { TEST: "TestObject" } }
+    { durableObjects: { TEST: "TestObject" }, ignoreAlarms: true }
   );
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -232,7 +235,7 @@ test("DurableObjectStub: fetch: throws with unknown protocols if compatibility f
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
     { log, compat, rootPath },
-    { durableObjects: { TEST: "TestObject" } }
+    { durableObjects: { TEST: "TestObject" }, ignoreAlarms: true }
   );
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -255,7 +258,7 @@ test("DurableObjectStub: fetch: logs warning with unknown protocol if compatibil
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
     { log, compat, rootPath },
-    { durableObjects: { TEST: "TestObject" } }
+    { durableObjects: { TEST: "TestObject" }, ignoreAlarms: true }
   );
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -276,6 +279,7 @@ test("DurableObjectStub: fetch: passes through web socket requests", async (t) =
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
+    ignoreAlarms: true,
   });
 
   const [dataTrigger, dataPromise] = triggerPromise<string | ArrayBuffer>();
@@ -486,6 +490,7 @@ test("DurableObjectStub: fetch: throws if handler doesn't return Response", asyn
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
+    ignoreAlarms: true,
   });
 
   class TestObject implements DurableObject {
@@ -679,6 +684,7 @@ function getExampleObjectStub(): DurableObjectStub {
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { EXAMPLE: "ExampleDurableObject" },
+    ignoreAlarms: true,
   });
   plugin.beforeReload();
   plugin.reload({}, { ExampleDurableObject }, new Map());
@@ -725,6 +731,7 @@ test("writes are coalesced", async (t) => {
 
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { EXAMPLE: "ExampleDurableObject" },
+    ignoreAlarms: true,
   });
   plugin.beforeReload();
   plugin.reload({}, { ExampleDurableObject }, new Map());

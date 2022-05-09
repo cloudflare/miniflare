@@ -36,7 +36,7 @@ export type DurableObjectsObjectsOptions = Record<
 export interface DurableObjectsOptions {
   durableObjects?: DurableObjectsObjectsOptions;
   durableObjectsPersist?: boolean | string;
-  useAlarm?: boolean;
+  ignoreAlarms?: boolean;
 }
 
 interface ProcessedDurableObject {
@@ -89,8 +89,17 @@ export class DurableObjectsPlugin
     fromWrangler: ({ miniflare }) => miniflare?.durable_objects_persist,
   })
   durableObjectsPersist?: boolean | string;
+
+  @Option({
+    type: OptionType.BOOLEAN,
+    name: "do-ignore-alarms",
+    description: "Durable Objects will not monitor or trigger alarms.",
+    logName: "Durable Object Alarms",
+    fromWrangler: ({ miniflare }) => miniflare?.ignore_alarms,
+  })
+  ignoreAlarms?: boolean;
+
   readonly #persist?: boolean | string;
-  readonly #useAlarm?: boolean;
 
   readonly #processedObjects: ProcessedDurableObject[];
   readonly #requireFullUrl: boolean;
@@ -201,7 +210,7 @@ export class DurableObjectsPlugin
       );
     }
     // if alarmInterval is created, we don't need to create it again
-    if (this.#alarmInterval || !this.#useAlarm) return this.#alarmStore;
+    if (this.#alarmInterval || this.ignoreAlarms) return this.#alarmStore;
     const now = Date.now();
 
     const { keys } = (await this.#alarmStore?.list({}, true)) || { keys: [] };
