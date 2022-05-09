@@ -1,10 +1,12 @@
 import { createHash, webcrypto } from "crypto";
 import { URL } from "url";
 import {
+  ExecutionContext,
   Request,
   RequestInfo,
   RequestInit,
   Response,
+  ScheduledController,
   _buildUnknownProtocolWarning,
   _urlFromRequestInput,
   withImmutableHeaders,
@@ -57,10 +59,15 @@ export interface DurableObjectConstructor {
 
 export interface DurableObject {
   fetch(request: Request): Awaitable<Response>;
+  alarm(
+    controller: ScheduledController,
+    ctx: ExecutionContext
+  ): Awaitable<void>;
 }
 
 export const kInstance = Symbol("kInstance");
 const kFetch = Symbol("kFetch");
+const kAlarm = Symbol("kAlarm");
 
 export class DurableObjectState {
   #inputGate = new InputGate();
@@ -91,6 +98,26 @@ export class DurableObjectState {
           );
         }
         return instance.fetch(request);
+      })
+    );
+  }
+
+  [kAlarm](
+    controller: ScheduledController,
+    ctx: ExecutionContext
+  ): Promise<void> {
+    // TODO: catch, reset object on error
+    const outputGate = new OutputGate();
+    return outputGate.runWith(() =>
+      this.#inputGate.runWith(() => {
+        const instance = this[kInstance];
+        if (!instance?.alarm) {
+          throw new DurableObjectError(
+            "ERR_NO_HANDLER",
+            "No alarm handler defined in Durable Object"
+          );
+        }
+        return instance.alarm(controller, ctx);
       })
     );
   }
@@ -165,6 +192,14 @@ export class DurableObjectStub {
     }
 
     return res;
+  }
+
+  async alarm(
+    controller: ScheduledController,
+    ctx: ExecutionContext
+  ): Promise<void> {
+    const state = await this.#factory(this.id);
+    await state[kAlarm](controller, ctx);
   }
 }
 

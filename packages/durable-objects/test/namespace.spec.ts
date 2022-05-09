@@ -112,6 +112,8 @@ test("DurableObjectState: blockConcurrencyWhile: prevents fetch events dispatch 
       events.push(3);
       return new Response("body");
     }
+
+    alarm(): void {}
   }
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -135,6 +137,8 @@ test("DurableObjectState: kFetch: waits for writes to be confirmed before return
       this.state.storage.put("key", "value");
       return new Response("body");
     }
+
+    alarm(): void {}
   }
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -285,6 +289,8 @@ test("DurableObjectStub: fetch: passes through web socket requests", async (t) =
         webSocket: webSocket1,
       });
     }
+
+    alarm(): void {}
   }
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -486,6 +492,8 @@ test("DurableObjectStub: fetch: throws if handler doesn't return Response", asyn
     fetch(): Response {
       return "definitely a response" as any;
     }
+
+    alarm(): void {}
   }
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -502,7 +510,7 @@ test("DurableObjectStub: fetch: throws if handler doesn't return Response", asyn
 test("DurableObjectStub: hides implementation details", async (t) => {
   const [ns] = getTestObjectNamespace();
   const stub = ns.get(testId);
-  t.deepEqual(getObjectProperties(stub), ["fetch", "id", "name"]);
+  t.deepEqual(getObjectProperties(stub), ["alarm", "fetch", "id", "name"]);
 });
 
 test("DurableObjectNamespace: newUniqueId: generates unique IDs", (t) => {
@@ -663,6 +671,8 @@ class ExampleDurableObject implements DurableObject {
     }
     return new Response(null, { status: 404 });
   }
+
+  alarm(): void {}
 }
 
 function getExampleObjectStub(): DurableObjectStub {

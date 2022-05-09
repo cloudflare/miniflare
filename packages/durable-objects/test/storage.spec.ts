@@ -987,8 +987,10 @@ test("hides implementation details", (t) => {
     "delete",
     "deleteAll",
     "get",
+    "getAlarm",
     "list",
     "put",
+    "setAlarm",
     "transaction",
   ]);
 });

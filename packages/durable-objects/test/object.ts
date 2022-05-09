@@ -1,5 +1,5 @@
 import { URL } from "url";
-import { Request, Response } from "@miniflare/core";
+import { Request, Response, ScheduledController } from "@miniflare/core";
 import {
   DurableObject,
   DurableObjectId,
@@ -39,4 +39,6 @@ export class TestObject implements DurableObject {
       `${this.state.id}:request${count}:${request.method}:${request.url}`
     );
   }
+
+  async alarm(_controller: ScheduledController, _ctx: Context): Promise<void> {}
 }

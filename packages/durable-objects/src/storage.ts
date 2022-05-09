@@ -28,6 +28,8 @@ function intersects<T>(a: Set<T>, b: Set<T>): boolean {
   return false;
 }
 
+export type DurableObjectAlarm = number | Date;
+
 export interface DurableObjectGetOptions {
   allowConcurrency?: boolean;
   noCache?: boolean; // Currently ignored
@@ -399,13 +401,15 @@ export class DurableObjectStorage implements DurableObjectOperator {
   readonly #deletedKeyResults = new Map<string[], number>();
 
   readonly #inner: Storage;
+  readonly #alarmBridge: AlarmBridge;
   // Shadow copies only used for write coalescing, not caching. Caching might
   // be added in the future, but it seemed redundant since most users will be
   // using in-memory storage anyways, and the file system isn't *too* slow.
   readonly #shadow: ShadowStorage;
 
-  constructor(inner: Storage) {
+  constructor(inner: Storage, alarmBridge?: AlarmBridge) {
     this.#inner = inner;
+    this.#alarmBridge = alarmBridge || new AlarmBridge(inner, "null", "null");
     // false disables recording readSet, only needed for transactions
     this.#shadow = new ShadowStorage(inner, false);
   }
@@ -425,7 +429,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
   }
 
   async #txnValidateWrite(txn: DurableObjectTransaction): Promise<boolean> {
-    // This function returns false iff the transaction should be retried
+    // This function returns false if the transaction should be retried
 
     // Don't commit if rolledback
     if (txn[kRolledback]) return true;
@@ -683,6 +687,53 @@ export class DurableObjectStorage implements DurableObjectOperator {
     return runWithInputGateClosed(
       () => this.#mutex.runWithRead(() => list(this.#shadow, options)),
       options?.allowConcurrency
+    );
+  }
+
+  // returns integer milliseconds since epoch or null
+  async getAlarm(): Promise<number | undefined> {
+    return this.#alarmBridge.getAlarm(this.#mutex);
+  }
+
+  // setAlarm accepts integer milliseconds since epoch or a js date
+  async setAlarm(alarm: DurableObjectAlarm): Promise<void> {
+    return this.#alarmBridge.setAlarm(alarm, this.#mutex);
+  }
+}
+
+export class AlarmBridge {
+  readonly #alarmStorage: Storage;
+  readonly #objectName: string;
+  readonly #hexId: string;
+  constructor(alarmStorage: Storage, objectName: string, hexId: string) {
+    this.#alarmStorage = alarmStorage;
+    this.#objectName = objectName;
+    this.#hexId = hexId;
+  }
+
+  // returns integer milliseconds since epoch or null
+  async getAlarm(mutex: ReadWriteMutex): Promise<number | undefined> {
+    return runWithInputGateClosed(async () => {
+      const entries = await mutex.runWithRead(() =>
+        list(this.#alarmStorage, { end: `${this.#objectName}:${this.#hexId}` })
+      );
+      const [key] = entries.entries().next().value;
+      if (key) return parseInt(key.split(":")[0]);
+    }, true);
+  }
+
+  // setAlarm accepts integer milliseconds since epoch or a js date
+  async setAlarm(
+    alarm: DurableObjectAlarm,
+    mutex: ReadWriteMutex
+  ): Promise<void> {
+    // if date convert alarm to number
+    if (alarm instanceof Date) alarm = alarm.getTime();
+    const key = `${alarm}:${this.#objectName}:${this.#hexId}`;
+    return runWithGatesClosed(() =>
+      mutex.runWithWrite(() =>
+        this.#alarmStorage.put(key, { value: new Uint8Array([]) })
+      )
     );
   }
 }
