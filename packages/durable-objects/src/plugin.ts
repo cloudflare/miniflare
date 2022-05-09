@@ -95,7 +95,7 @@ export class DurableObjectsPlugin
     name: "do-ignore-alarms",
     description: "Durable Objects will not monitor or trigger alarms.",
     logName: "Durable Object Alarms",
-    fromWrangler: ({ miniflare }) => miniflare?.ignore_alarms,
+    fromWrangler: ({ miniflare }) => miniflare?.durable_objects_ignore_alarms,
   })
   ignoreAlarms?: boolean;
 
