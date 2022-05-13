@@ -75,18 +75,22 @@ export function createCrypto(blockGlobalRandom = false): typeof webcrypto {
 
   const subtle = new Proxy(webcrypto.subtle, {
     get(target, propertyKey, receiver) {
-      if (propertyKey === "digest") return digest;
-      if (propertyKey === "generateKey") return generateKey;
-      return Reflect.get(target, propertyKey, receiver);
+      let result = null;
+      if (propertyKey === "digest") result = digest;
+      else if (propertyKey === "generateKey") result = generateKey;
+      else result = Reflect.get(target, propertyKey, receiver);
+      return result.bind(webcrypto.subtle);
     },
   });
 
   return new Proxy(webcrypto, {
     get(target, propertyKey, receiver) {
-      if (propertyKey === "getRandomValues") return getRandomValues;
-      if (propertyKey === "subtle") return subtle;
-      if (propertyKey === "DigestStream") return DigestStream;
-      return Reflect.get(target, propertyKey, receiver);
+      let result = null;
+      if (propertyKey === "getRandomValues") result = getRandomValues;
+      else if (propertyKey === "subtle") result = subtle;
+      else if (propertyKey === "DigestStream") result = DigestStream;
+      else result = Reflect.get(target, propertyKey, receiver);
+      return result.bind(webcrypto);
     },
   });
 }
