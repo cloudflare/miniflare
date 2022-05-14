@@ -314,6 +314,7 @@ test("CorePlugin: setup: includes web standards", async (t) => {
   t.true(typeof globals.File === "function");
   t.true(typeof globals.URL === "function");
   t.true(typeof globals.URLSearchParams === "function");
+  t.true(typeof globals.URLPattern === "function");
 
   t.true(typeof globals.ByteLengthQueuingStrategy === "function");
   t.true(typeof globals.CountQueuingStrategy === "function");

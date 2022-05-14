@@ -55,6 +55,7 @@ import {
 } from "../standards";
 import { assertsInRequest } from "../standards/helpers";
 import type { BindingsOptions } from "./bindings";
+import { URLPattern } from "urlpattern-polyfill";
 
 const DEFAULT_MODULE_RULES: ModuleRule[] = [
   { type: "ESModule", include: ["**/*.mjs"] },
@@ -416,6 +417,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       File,
       URL,
       URLSearchParams,
+      URLPattern,
 
       ByteLengthQueuingStrategy,
       CountQueuingStrategy,
