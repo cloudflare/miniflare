@@ -77,7 +77,10 @@ export function createCrypto(blockGlobalRandom = false): typeof webcrypto {
     get(target, propertyKey, receiver) {
       if (propertyKey === "digest") return digest;
       if (propertyKey === "generateKey") return generateKey;
-      return Reflect.get(target, propertyKey, receiver);
+
+      let result = Reflect.get(target, propertyKey, receiver);
+      if (typeof result === "function") result = result.bind(webcrypto.subtle);
+      return result;
     },
   });
 
@@ -86,7 +89,10 @@ export function createCrypto(blockGlobalRandom = false): typeof webcrypto {
       if (propertyKey === "getRandomValues") return getRandomValues;
       if (propertyKey === "subtle") return subtle;
       if (propertyKey === "DigestStream") return DigestStream;
-      return Reflect.get(target, propertyKey, receiver);
+
+      let result = Reflect.get(target, propertyKey, receiver);
+      if (typeof result === "function") result = result.bind(webcrypto);
+      return result;
     },
   });
 }
