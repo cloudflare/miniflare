@@ -281,7 +281,7 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
           // we need to tell it that there was 0 bytes delivered so that it unblocks
           // and notices the end of stream.
           controller.byobRequest?.respond(0);
-	}
+	       }
       },
       cancel: (reason) => reader.cancel(reason),
     };
