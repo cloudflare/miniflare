@@ -222,7 +222,6 @@ const kStartTxnCount = Symbol("kStartTxnCount");
 const kRolledback = Symbol("kRolledback");
 const kCommitted = Symbol("kCommitted");
 const kWriteSet = Symbol("kWriteSet");
-const kPending = Symbol("kPending");
 
 export class DurableObjectTransaction implements DurableObjectOperator {
   readonly [kInner]: ShadowStorage;
@@ -230,7 +229,6 @@ export class DurableObjectTransaction implements DurableObjectOperator {
   [kRolledback] = false;
   [kCommitted] = false;
   readonly [kWriteSet] = new Set<string>();
-  readonly [kPending] = new Array<Promise<unknown>>();
 
   constructor(inner: Storage, startTxnCount: number) {
     this[kInner] = new ShadowStorage(inner);
@@ -313,15 +311,13 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     }
     this.#check("put");
     if (!options && typeof keyEntries !== "string") options = valueOptions;
-    const promise = waitUntilOnOutputGate<void>(
+    return waitUntilOnOutputGate(
       runWithInputGateClosed(
         () => this.#put(keyEntries, valueOptions),
         options?.allowConcurrency
       ),
       options?.allowUnconfirmed
     );
-    this[kPending].push(promise)
-    return promise
   }
 
   #delete(keys: string | string[]): Promise<boolean | number> {
@@ -346,15 +342,13 @@ export class DurableObjectTransaction implements DurableObjectOperator {
       );
     }
     this.#check("delete");
-    const promise = waitUntilOnOutputGate<boolean | number>(
+    return waitUntilOnOutputGate(
       runWithInputGateClosed(
         () => this.#delete(keys),
         options?.allowConcurrency
       ),
       options?.allowUnconfirmed
     );
-    this[kPending].push(promise)
-    return promise
   }
 
   deleteAll(): never {
@@ -438,9 +432,6 @@ export class DurableObjectStorage implements DurableObjectOperator {
 
     // Mutex needed as these phases need to be performed as a critical section
     return this.#mutex.runWithWrite(async () => {
-      // Make sure all writes within the transaction completed even if not explicitly awaited.
-      await Promise.all(txn[kPending])
-
       // 2. Validate Phase
       const finishTxnCount = this.#txnCount;
       const readSet = txn[kInner].readSet!;
