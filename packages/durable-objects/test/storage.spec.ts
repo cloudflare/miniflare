@@ -980,6 +980,15 @@ test("transaction: allows delivery of events inside transaction closure even tho
   });
   t.is(await storage.get("result"), "body");
 });
+test("transaction: waits for un-awaited writes before committing", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/250
+  const { storage } = t.context;
+  await storage.transaction((txn) => {
+    void txn.put("key", "value");
+    return Promise.resolve();
+  });
+  t.is(await storage.get("key"), "value");
+});
 
 test("hides implementation details", (t) => {
   const { storage } = t.context;
