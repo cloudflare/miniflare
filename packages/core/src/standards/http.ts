@@ -275,7 +275,13 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
         }
 
         // If the body is finished, close this stream too
-        if (done) controller.close();
+        if (done) {
+          controller.close();
+          // Not documented in MDN but if there's an ongoing request that's waiting,
+          // we need to tell it that there was 0 bytes delivered so that it unblocks
+          // and notices the end of stream.
+          controller.byobRequest?.respond(0);
+	       }
       },
       cancel: (reason) => reader.cancel(reason),
     };
