@@ -103,8 +103,15 @@ export async function convertNodeRequest(
   req.headers["cf-ipcountry"] ??= meta?.cf?.country ?? "US";
   req.headers["cf-ray"] ??= randomHex(16);
   req.headers["cf-visitor"] ??= `{"scheme":"${proto}"}`;
-  req.headers["accept-encoding"] = "gzip";
   req.headers["host"] = url.host;
+
+  const clientAcceptEncoding = req.headers["accept-encoding"];
+  // This should be fixed
+  req.headers["accept-encoding"] = "gzip";
+  // Instead, set actual encoding if exists
+  if (meta?.cf && clientAcceptEncoding) {
+    meta.cf.clientAcceptEncoding = clientAcceptEncoding;
+  }
 
   // Build Headers object from request
   const headers = _headersFromIncomingRequest(req);

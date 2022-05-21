@@ -192,9 +192,24 @@ test("convertNodeRequest: removes unsupported fetch headers", async (t) => {
   t.false(req.headers.has("keep-alive"));
   t.false(req.headers.has("expect"));
 });
-test("convertNodeRequest: includes accept-encoding headers on request", async (t) => {
+test("convertNodeRequest: includes fixed accept-encoding headers on request", async (t) => {
   const [req] = await buildConvertNodeRequest(t);
   t.is(req.headers.get("accept-encoding"), "gzip");
+
+  const [req2] = await buildConvertNodeRequest(t, {
+    headers: { "accept-encoding": "br" },
+  });
+  t.is(req2.headers.get("accept-encoding"), "gzip");
+});
+test("convertNodeRequest: includes acutual accept-encoding headers as cf.clientAcceptEncoding on request", async (t) => {
+  const [req] = await buildConvertNodeRequest(t, {
+    headers: { "accept-encoding": "br" },
+    meta: { cf: {} as IncomingRequestCfProperties },
+  });
+  t.is(req.headers.get("accept-encoding"), "gzip");
+  t.deepEqual(req.cf, {
+    clientAcceptEncoding: "br",
+  } as IncomingRequestCfProperties);
 });
 test("convertNodeRequest: includes cf headers on request", async (t) => {
   let [req] = await buildConvertNodeRequest(t);
