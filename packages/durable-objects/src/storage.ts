@@ -1,6 +1,7 @@
 import assert from "assert";
 import { deserialize, serialize } from "v8";
 import {
+  OutputGate,
   Storage,
   StoredValue,
   addAll,
@@ -468,7 +469,10 @@ export class DurableObjectStorage implements DurableObjectOperator {
     return runWithGatesClosed(async () => {
       // TODO (someday): maybe throw exception after n retries?
       while (true) {
-        const { txn, result } = await this.#txnRead(closure);
+        const outputGate = new OutputGate();
+        const { txn, result } = await outputGate.runWith(() =>
+          this.#txnRead(closure)
+        );
         if (await this.#txnValidateWrite(txn)) return result;
       }
     });
