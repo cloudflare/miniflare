@@ -54,7 +54,7 @@ export class AlarmStore {
     }
   }
 
-  // and alarms 30 seconds in the future are returned
+  // any alarms 30 seconds in the future or sooner are returned
   async setupAlarms(cb: (objectKey: string, scheduledTime: number) => void) {
     if (this.#alarmInterval) return;
     const now = Date.now();
