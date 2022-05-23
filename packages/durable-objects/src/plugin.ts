@@ -202,6 +202,7 @@ export class DurableObjectsPlugin
   async #setupAlarms(storage: StorageFactory): Promise<void> {
     if (this.ignoreAlarms) return;
     // if the alarm store doesn't exist yet, create
+    await this.#alarmStore.setupStore();
     await this.#alarmStore.setupAlarms(
       (objectKey: string, scheduledTime: number) => {
         const [objectName, hexId] = objectKey.split(":");

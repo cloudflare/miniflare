@@ -43,10 +43,19 @@ export class AlarmStore {
     }
   }
 
+  // build a map of all alarms from file storage if persist
+  async setupStore() {
+    if (typeof this.#persist !== "string") return;
+    const alarmList = await readdir(this.#persist);
+    for (const alarm of alarmList) {
+      const alarmPath = path.join(this.#persist, alarm);
+      const alarmData = await readFile(alarmPath);
+      this.#alarms.set(alarm, { scheduledTime: Number(alarmData) });
+    }
+  }
+
   // and alarms 30 seconds in the future are returned
   async setupAlarms(cb: (objectKey: string, scheduledTime: number) => void) {
-    await this.#setupStore();
-
     if (this.#alarmInterval) return;
     const now = Date.now();
 
@@ -69,17 +78,6 @@ export class AlarmStore {
       this.#alarmInterval = undefined;
       this.setupAlarms(cb);
     }, 30_000);
-  }
-
-  // build a map of all alarms from file storage if persist
-  async #setupStore() {
-    if (typeof this.#persist !== "string") return;
-    const alarmList = await readdir(this.#persist);
-    for (const alarm of alarmList) {
-      const alarmPath = path.join(this.#persist, alarm);
-      const alarmData = await readFile(alarmPath);
-      this.#alarms.set(alarm, { scheduledTime: Number(alarmData) });
-    }
   }
 
   buildBridge(objectKey: string): DurableObjectAlarmBridge {
