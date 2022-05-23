@@ -8,6 +8,12 @@ import {
   viewToArray,
   waitUntilOnOutputGate,
 } from "@miniflare/shared";
+import {
+  DurableObjectGetAlarmOptions,
+  DurableObjectScheduledAlarm,
+  DurableObjectSetAlarmOptions,
+} from "./alarms";
+import { DurableObjectAlarmBridge } from "./alarms";
 import { DurableObjectError } from "./error";
 import { ReadWriteMutex } from "./rwmutex";
 import { ShadowStorage } from "./shadow";
@@ -45,17 +51,6 @@ export interface DurableObjectListOptions extends DurableObjectGetOptions {
   limit?: number;
 }
 
-export type DurableObjectScheduledAlarm = number | Date;
-
-export interface DurableObjectSetAlarmOptions {
-  allowConcurrency?: boolean;
-  allowUnconfirmed?: boolean;
-}
-
-export interface DurableObjectGetAlarmOptions {
-  allowConcurrency?: boolean;
-}
-
 export interface DurableObjectOperator {
   get<Value = unknown>(
     key: string,
@@ -83,9 +78,7 @@ export interface DurableObjectOperator {
     options?: DurableObjectListOptions
   ): Promise<Map<string, Value>>;
 
-  getAlarm(
-    options?: DurableObjectGetAlarmOptions
-  ): Promise<DurableObjectScheduledAlarm | undefined>;
+  getAlarm(options?: DurableObjectGetAlarmOptions): Promise<number | null>;
 
   setAlarm(
     scheduledTime: DurableObjectScheduledAlarm,
@@ -387,16 +380,32 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     );
   }
 
-  getAlarm(options?: DurableObjectGetAlarmOptions): Promise<number | null> {}
-
-  setAlarm(
-    scheduledTime: number | Date,
-    options?: DurableObjectSetAlarmOptions
-  ): Promise<void> {
-    return new Promise();
+  getAlarm(options?: DurableObjectGetAlarmOptions): Promise<number | null> {
+    this.#check("getAlarm");
+    return runWithInputGateClosed(
+      () => this[kInner].getAlarm(),
+      options?.allowConcurrency
+    );
   }
 
-  deleteAlarm(options?: DurableObjectSetAlarmOptions): Promise<void> {}
+  setAlarm(
+    scheduledTime: number,
+    options?: DurableObjectSetAlarmOptions
+  ): Promise<void> {
+    this.#check("setAlarm");
+    return runWithInputGateClosed(
+      () => this[kInner].setAlarm(scheduledTime),
+      options?.allowConcurrency
+    );
+  }
+
+  deleteAlarm(options?: DurableObjectSetAlarmOptions): Promise<void> {
+    this.#check("deleteAlarm");
+    return runWithInputGateClosed(
+      () => this[kInner].deleteAlarm(),
+      options?.allowConcurrency
+    );
+  }
 
   rollback(): void {
     if (this[kRolledback]) return; // Allow multiple rollback() calls
@@ -432,15 +441,15 @@ export class DurableObjectStorage implements DurableObjectOperator {
   readonly #deletedKeyResults = new Map<string[], number>();
 
   readonly #inner: Storage;
-  readonly #alarmBridge: AlarmBridge;
   // Shadow copies only used for write coalescing, not caching. Caching might
   // be added in the future, but it seemed redundant since most users will be
   // using in-memory storage anyways, and the file system isn't *too* slow.
   readonly #shadow: ShadowStorage;
+  readonly #alarmBridge?: DurableObjectAlarmBridge;
 
-  constructor(inner: Storage, alarmBridge?: AlarmBridge) {
+  constructor(inner: Storage, alarmBridge?: DurableObjectAlarmBridge) {
     this.#inner = inner;
-    this.#alarmBridge = alarmBridge || new AlarmBridge(inner, "null", "null");
+    this.#alarmBridge = alarmBridge;
     // false disables recording readSet, only needed for transactions
     this.#shadow = new ShadowStorage(inner, false);
   }
@@ -471,7 +480,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
       const finishTxnCount = this.#txnCount;
       const readSet = txn[kInner].readSet!;
       for (let t = txn[kStartTxnCount] + 1; t <= finishTxnCount; t++) {
-        const otherWriteSet = await this.#txnWriteSets.get(t);
+        const otherWriteSet = this.#txnWriteSets.get(t);
         if (!otherWriteSet || intersects(otherWriteSet, readSet)) {
           return false;
         }
@@ -724,9 +733,9 @@ export class DurableObjectStorage implements DurableObjectOperator {
   // returns integer milliseconds since epoch or null
   async getAlarm(
     options?: DurableObjectGetAlarmOptions
-  ): Promise<number | undefined> {
+  ): Promise<number | null> {
     return runWithInputGateClosed(
-      () => this.#mutex.runWithRead(() => this.#alarmBridge.getAlarm()),
+      () => this.#mutex.runWithRead(() => this.#shadow.getAlarm()),
       options?.allowConcurrency
     );
   }
@@ -738,7 +747,11 @@ export class DurableObjectStorage implements DurableObjectOperator {
   ): Promise<void> {
     return runWithGatesClosed(async () => {
       await this.#mutex.runWithWrite(() => {
-        this.#alarmBridge.setAlarm(scheduledTime);
+        // if scheduledTime is a date, convert to integer milliseconds since epoch
+        if (scheduledTime instanceof Date)
+          scheduledTime = scheduledTime.getTime();
+        this.#alarmBridge?.setAlarm(scheduledTime);
+        this.#shadow.setAlarm(scheduledTime);
         // "Commit" write
         this.#txnRecordWriteSet(new Set(["__MINIFLARE_ALARM__"]));
       });
@@ -749,47 +762,13 @@ export class DurableObjectStorage implements DurableObjectOperator {
   }
 
   async deleteAlarm(options?: DurableObjectSetAlarmOptions): Promise<void> {
-    return this.#alarmBridge.deleteAlarm(this.#mutex, options);
-  }
-}
-
-export class AlarmBridge {
-  readonly #alarmStorage: Storage;
-  readonly #objectName: string;
-  readonly #hexId: string;
-  #txnCount = 0;
-  constructor(alarmStorage: Storage, objectName: string, hexId: string) {
-    this.#alarmStorage = alarmStorage;
-    this.#objectName = objectName;
-    this.#hexId = hexId;
-  }
-
-  // returns integer milliseconds since epoch or null
-  async getAlarm(): Promise<number | undefined> {
-    const map = await list(this.#alarmStorage, {
-      end: `${this.#objectName}:${this.#hexId}`,
-    });
-    const [key] = map.entries().next().value;
-    if (key) return parseInt(key.split(":")[0]);
-  }
-
-  // setAlarm accepts integer milliseconds since epoch or a js date
-  async setAlarm(scheduledTime: DurableObjectScheduledAlarm): Promise<void> {
-    // if date convert alarm to number
-    if (scheduledTime instanceof Date) scheduledTime = scheduledTime.getTime();
-    const key = `${scheduledTime}:${this.#objectName}:${this.#hexId}`;
-
-    return this.#alarmStorage.put(key, { value: new Uint8Array([]) });
-  }
-
-  async deleteAlarm(
-    mutex: ReadWriteMutex,
-    options?: DurableObjectSetAlarmOptions
-  ): Promise<void> {
-    return runWithInputGateClosed(async () => {
-      await mutex.runWithWrite(() => {
-        this.#alarmStorage.delete(`${this.#objectName}:${this.#hexId}`);
+    return runWithGatesClosed(async () => {
+      await this.#mutex.runWithWrite(() => {
+        this.#alarmBridge?.deleteAlarm();
+        this.#shadow.deleteAlarm();
+        // "Commit" write
+        this.#txnRecordWriteSet(new Set(["__MINIFLARE_ALARM__"]));
       });
-    }, options?.allowConcurrency);
+    }, options);
   }
 }

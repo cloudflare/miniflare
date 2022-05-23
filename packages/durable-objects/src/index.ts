@@ -1,3 +1,4 @@
+export * from "./alarms";
 export * from "./error";
 export {
   DurableObjectId,

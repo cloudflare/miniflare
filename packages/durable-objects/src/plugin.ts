@@ -12,10 +12,10 @@ import {
   Plugin,
   PluginContext,
   SetupResult,
-  Storage,
   StorageFactory,
   resolveStoragePersist,
 } from "@miniflare/shared";
+import { AlarmStore } from "./alarms";
 import { DurableObjectError } from "./error";
 import {
   DurableObjectConstructor,
@@ -26,7 +26,7 @@ import {
   kInstance,
   kObjectName,
 } from "./namespace";
-import { AlarmBridge, DurableObjectStorage } from "./storage";
+import { DurableObjectStorage } from "./storage";
 
 export type DurableObjectsObjectsOptions = Record<
   string,
@@ -111,9 +111,7 @@ export class DurableObjectsPlugin
 
   readonly #objects = new Map<string, Promise<DurableObjectState>>();
 
-  #alarmStore?: Storage;
-  #alarmInterval?: NodeJS.Timeout;
-  #alarms: Set<NodeJS.Timeout> = new Set();
+  #alarmStore: AlarmStore;
 
   constructor(ctx: PluginContext, options?: DurableObjectsOptions) {
     super(ctx);
@@ -122,6 +120,7 @@ export class DurableObjectsPlugin
       ctx.rootPath,
       this.durableObjectsPersist
     );
+    this.#alarmStore = new AlarmStore(this.#persist);
 
     this.#processedObjects = Object.entries(this.durableObjects ?? {}).map(
       ([name, options]) => {
@@ -147,7 +146,6 @@ export class DurableObjectsPlugin
       "beforeReload() must be called before getObject()"
     );
 
-    const alarmStore = await this.#setupAlarms(storage);
     await this.#contextPromise;
 
     // Reuse existing instances
@@ -165,7 +163,7 @@ export class DurableObjectsPlugin
     statePromise = (async () => {
       const objectStorage = new DurableObjectStorage(
         await storage.storage(key, this.#persist),
-        new AlarmBridge(alarmStore, objectName, id.toString())
+        this.#alarmStore.buildBridge(key)
       );
       const state = new DurableObjectState(id, objectStorage);
 
@@ -201,57 +199,26 @@ export class DurableObjectsPlugin
     };
   }
 
-  async #setupAlarms(storage: StorageFactory): Promise<Storage> {
+  async #setupAlarms(storage: StorageFactory): Promise<void> {
+    if (this.ignoreAlarms) return;
     // if the alarm store doesn't exist yet, create
-    if (!this.#alarmStore) {
-      this.#alarmStore = await storage.storage(
-        "__MINIFLARE_ALARMS",
-        this.#persist
-      );
-    }
-    // if alarmInterval is created, we don't need to create it again
-    if (this.#alarmInterval || this.ignoreAlarms) return this.#alarmStore;
-    const now = Date.now();
-
-    const { keys } = (await this.#alarmStore?.list({}, true)) || { keys: [] };
-    for (const { name } of keys) {
-      const [dateString, objectName, hexId] = name.split(":");
-      const date = new Date(dateString).getTime();
-
-      if (date < now + 30_000) {
-        this.#alarms.add(
-          setTimeout(() => {
-            // delete the alarm
-            this.#alarmStore?.delete(name);
-            // grab the stub
-            const ns = this.getNamespace(storage, objectName);
-            const stub = ns.get(new DurableObjectId(objectName, hexId));
-            // build the controller and context
-            const controller = new ScheduledController(date, "alarm");
-            const event = new ScheduledEvent("scheduled", {
-              scheduledTime: date,
-              cron: "alarm",
-            });
-            const ctx = new ExecutionContext(event);
-            // execute the alarm
-            stub.alarm(controller, ctx);
-          }, Math.max(date - now, 0))
-        );
-      } else {
-        // if we made it here, all future alarms are further than 30 seconds in the future
-        break;
+    await this.#alarmStore.setupAlarms(
+      (objectKey: string, scheduledTime: number) => {
+        const [objectName, hexId] = objectKey.split(":");
+        // grab the stub
+        const ns = this.getNamespace(storage, objectName);
+        const stub = ns.get(new DurableObjectId(objectName, hexId));
+        // build the controller and context
+        const controller = new ScheduledController(scheduledTime, "alarm");
+        const event = new ScheduledEvent("scheduled", {
+          scheduledTime,
+          cron: "alarm",
+        });
+        const ctx = new ExecutionContext(event);
+        // execute the alarm
+        stub.alarm(controller, ctx);
       }
-    }
-
-    // We queue after the other timeouts to ensure:
-    // a) so active alarms are not doubly called.
-    // b) if someone kills the program, alarms are not lost.
-    this.#alarmInterval = setTimeout(() => {
-      this.#alarmInterval = undefined;
-      this.#setupAlarms(storage);
-    }, 30_000);
-
-    return this.#alarmStore;
+    );
   }
 
   beforeReload(): void {
@@ -302,28 +269,8 @@ export class DurableObjectsPlugin
     this.#contextResolve();
   }
 
-  async reloadAlarms(storage: StorageFactory): Promise<void> {
-    this.#disposeAlarms();
-    await this.#setupAlarms(storage);
-  }
-
   dispose(): void {
-    this.#disposeAlarms();
+    this.#alarmStore.dispose();
     return this.beforeReload();
-  }
-
-  #disposeAlarms(): void {
-    if (this.#alarmInterval) {
-      clearTimeout(this.#alarmInterval);
-      this.#alarmInterval = undefined;
-    }
-    for (
-      let it = this.#alarms.values(), timeout = null;
-      (timeout = it.next().value);
-
-    ) {
-      clearTimeout(timeout);
-    }
-    this.#alarms.clear();
   }
 }

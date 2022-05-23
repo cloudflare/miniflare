@@ -1,3 +1,4 @@
+import { TextEncoder } from "util";
 import { defaultClock } from "@miniflare/shared";
 import { StoredKeyMeta, StoredMeta, StoredValueMeta } from "@miniflare/shared";
 import { cloneMetadata } from "./helpers";
@@ -63,5 +64,14 @@ export class MemoryStorage extends LocalStorage {
     return Array.from(this.map.entries()).map(
       MemoryStorage.entryToStoredKey
     ) as StoredKeyMeta<Meta>[];
+  }
+
+  setAlarm(scheduledTime: number): void {
+    // convert scheduledTime to uint8array
+    const keyUint8Array = new TextEncoder().encode(String(scheduledTime));
+    // Store fresh copy so further mutations from caller aren't stored
+    this.map.set("__MINIFLARE_ALARM__", {
+      value: keyUint8Array,
+    });
   }
 }

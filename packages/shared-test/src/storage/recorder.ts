@@ -16,7 +16,10 @@ export type StorageEvent =
   | { type: "hasMany"; keys: string[] }
   | { type: "getMany"; keys: string[] }
   | { type: "putMany"; keys: string[] }
-  | { type: "deleteMany"; keys: string[] };
+  | { type: "deleteMany"; keys: string[] }
+  | { type: "getAlarm" }
+  | { type: "setAlarm" }
+  | { type: "deleteAlarm" };
 
 export class RecorderStorage extends Storage {
   events: StorageEvent[] = [];
@@ -82,5 +85,20 @@ export class RecorderStorage extends Storage {
   async deleteMany(keys: string[]): Promise<number> {
     this.events.push({ type: "deleteMany", keys });
     return this.inner.deleteMany(keys);
+  }
+
+  getAlarm(): Awaitable<number | null> {
+    this.events.push({ type: "getAlarm" });
+    return this.inner.getAlarm();
+  }
+
+  setAlarm(value: number): Awaitable<void> {
+    this.events.push({ type: "setAlarm" });
+    return this.inner.setAlarm(value);
+  }
+
+  deleteAlarm(): Awaitable<void> {
+    this.events.push({ type: "deleteAlarm" });
+    return this.inner.deleteAlarm();
   }
 }

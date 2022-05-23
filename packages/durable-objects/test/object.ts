@@ -1,6 +1,7 @@
 import { URL } from "url";
 import { Request, Response, ScheduledController } from "@miniflare/core";
 import {
+  AlarmStore,
   DurableObject,
   DurableObjectId,
   DurableObjectState,
@@ -10,6 +11,8 @@ import { Context } from "@miniflare/shared";
 export const testIdHex = // ID with name "test" for object with name "TEST"
   "a856dbbd5109f5217920084de35ee0a24072ca790341ed4e94ee059335e587e5";
 export const testId = new DurableObjectId("TEST", testIdHex, "instance");
+export const testKey = `TEST:${testIdHex}`;
+export const alarmStore = new AlarmStore(false);
 
 // Durable Object that stores its constructed data and requests in storage
 export class TestObject implements DurableObject {

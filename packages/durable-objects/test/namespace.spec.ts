@@ -42,7 +42,7 @@ import { MemoryStorage } from "@miniflare/storage-memory";
 import { WebSocketPair } from "@miniflare/web-sockets";
 import test, { ThrowsExpectation } from "ava";
 import { Request as BaseRequest } from "undici";
-import { TestObject, testId, testIdHex } from "./object";
+import { TestObject, alarmStore, testId, testIdHex, testKey } from "./object";
 
 const log = new NoOpLog();
 const compat = new Compatibility();
@@ -86,7 +86,10 @@ test("DurableObjectId: hides implementation details", (t) => {
 });
 
 test("DurableObjectState: waitUntil: does nothing", (t) => {
-  const storage = new DurableObjectStorage(new MemoryStorage());
+  const storage = new DurableObjectStorage(
+    new MemoryStorage(),
+    alarmStore.buildBridge(testKey)
+  );
   const state = new DurableObjectState(testId, storage);
   state.waitUntil(Promise.resolve());
   t.pass();

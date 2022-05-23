@@ -101,13 +101,9 @@ test("DurableObjectsPlugin: getObject: waits for constructors and bindings", asy
   plugin.beforeReload();
   const promise = plugin.getObject(factory, testId);
   await setImmediate();
-  if (factory.storages.has("__MINIFLARE_ALARMS"))
-    factory.storages.delete("__MINIFLARE_ALARMS");
   t.is(factory.storages.size, 0);
   plugin.reload({}, { TestObject }, new Map());
   await promise;
-  if (factory.storages.has("__MINIFLARE_ALARMS"))
-    factory.storages.delete("__MINIFLARE_ALARMS");
   t.is(factory.storages.size, 1);
 });
 test("DurableObjectsPlugin: getObject: object storage is namespaced by object name", async (t) => {

@@ -28,6 +28,7 @@ import anyTest, {
   TestInterface,
   ThrowsExpectation,
 } from "ava";
+import { alarmStore, testKey } from "./object";
 
 interface Context {
   backing: Storage;
@@ -38,7 +39,10 @@ const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
   const backing = new MemoryStorage();
-  const storage = new DurableObjectStorage(backing);
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   t.context = { backing, storage };
 });
 
@@ -271,7 +275,10 @@ test("get: validates keys", async (t) => {
 });
 test("get: getting multiple keys ignores undefined keys", async (t) => {
   const backing = new RecorderStorage(new MemoryStorage());
-  const storage = new DurableObjectStorage(backing);
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   // @ts-expect-error intentionally testing not passing correct types
   await storage.get(["a", undefined, "b"]);
   t.deepEqual(backing.events, [{ type: "getMany", keys: ["a", "b"] }]);
@@ -439,7 +446,10 @@ test("put: validates values", async (t) => {
 });
 test("put: putting multiple values ignores undefined values", async (t) => {
   const backing = new RecorderStorage(new MemoryStorage());
-  const storage = new DurableObjectStorage(backing);
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   await storage.put({ a: 1, b: undefined, c: 2 });
   t.deepEqual(backing.events, [{ type: "putMany", keys: ["a", "c"] }]);
 
@@ -449,7 +459,10 @@ test("put: putting multiple values ignores undefined values", async (t) => {
 });
 test("put: coalesces writes", async (t) => {
   const backing = new RecorderStorage(new MemoryStorage());
-  const storage = new DurableObjectStorage(backing);
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   const outputGate = new OutputGate();
   await outputGate.runWith(() => {
     storage.put("key", 1);
@@ -559,7 +572,10 @@ test("delete: validates keys", async (t) => {
 });
 test("delete: delete multiple keys ignores undefined keys", async (t) => {
   const backing = new RecorderStorage(new MemoryStorage());
-  const storage = new DurableObjectStorage(backing);
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   // @ts-expect-error intentionally testing not passing correct types
   await storage.delete(["a", undefined, "b"]);
   t.deepEqual(backing.events, [{ type: "deleteMany", keys: ["a", "b"] }]);
@@ -602,7 +618,10 @@ test("delete: reports key not deleted if already deleted in shadow copy", async 
 });
 test("delete: coalesces deletes", async (t) => {
   const backing = new RecorderStorage(new MemoryStorage());
-  const storage = new DurableObjectStorage(backing);
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   await storage.put("key6", 6);
   backing.events = [];
   const outputGate = new OutputGate();
@@ -688,7 +707,10 @@ test("deleteAll: closes output gate unless allowConfirmed", async (t) => {
 });
 test("deleteAll: coalesces with previous puts", async (t) => {
   const backing = new RecorderStorage(new MemoryStorage());
-  const storage = new DurableObjectStorage(backing);
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   await storage.put({ a: 1, b: 2 });
 
   backing.events = [];
