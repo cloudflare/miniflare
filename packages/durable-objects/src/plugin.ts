@@ -120,7 +120,7 @@ export class DurableObjectsPlugin
       ctx.rootPath,
       this.durableObjectsPersist
     );
-    this.#alarmStore = new AlarmStore(this.#persist);
+    this.#alarmStore = new AlarmStore(ctx.rootPath, this.#persist);
 
     this.#processedObjects = Object.entries(this.durableObjects ?? {}).map(
       ([name, options]) => {

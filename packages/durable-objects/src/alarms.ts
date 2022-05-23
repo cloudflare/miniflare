@@ -28,18 +28,18 @@ export class AlarmStore {
   // 'objectName:hexId' -> DurableObjectAlarm [pulled from plugin.getObject]
   #alarms: Map<string, DurableObjectAlarm> = new Map();
   #alarmInterval: NodeJS.Timeout | undefined;
-  constructor(persist: boolean | string | undefined) {
-    if (typeof persist === "string") {
+  constructor(rootPath: string, persist: boolean | string | undefined) {
+    if (persist === true) {
+      this.#persist = path.join(rootPath, ".mf", "alarms");
+    } else if (typeof persist === "string") {
       this.#persist = path.resolve(persist, "alarms");
-      // if directory does not exist create
-      try {
-        if (!existsSync(this.#persist))
-          mkdirSync(this.#persist, { recursive: true });
-      } catch (_) {
-        this.#persist = false;
-      }
     } else {
       this.#persist = false;
+    }
+    // if directory does not exist create
+    if (this.#persist) {
+      if (!existsSync(this.#persist))
+        mkdirSync(this.#persist, { recursive: true });
     }
   }
 
@@ -66,6 +66,7 @@ export class AlarmStore {
     // By calling this after setting up the alarms,
     // we can gaurentee that this will be called after.
     this.#alarmInterval = setInterval(() => {
+      this.#alarmInterval = undefined;
       this.setupAlarms(cb);
     }, 30_000);
   }
