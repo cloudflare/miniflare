@@ -270,8 +270,8 @@ export class DurableObjectsPlugin
     this.#contextResolve();
   }
 
-  dispose(): void {
-    this.#alarmStore.dispose();
+  dispose(disposeAlarms = false): void {
+    if (disposeAlarms) this.#alarmStore.dispose();
     return this.beforeReload();
   }
 }

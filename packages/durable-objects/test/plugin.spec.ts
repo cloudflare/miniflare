@@ -305,3 +305,14 @@ test("DurableObjectsPlugin: dispose: deletes all instances", async (t) => {
   // Check new instance created
   t.not(await res1.text(), await res2.text());
 });
+
+test("DurableObjectsPlugin: setup alarms and dispose alarms", async (t) => {
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: "TestObject" },
+    ignoreAlarms: false,
+  });
+  plugin.setup(factory);
+  plugin.dispose(true);
+  t.false(plugin.ignoreAlarms);
+});
