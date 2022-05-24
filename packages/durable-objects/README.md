@@ -71,19 +71,6 @@ interface DurableObjectSetAlarmOptions {
 }
 ```
 
-### encode(input: ProtocolInput): string
-* input: an object containing the same keys and values as described by the protocol submitted on instantiation
-* output: encoded trytes
-
-## Flags
-
-```
-Durable Objects Options:
- -o, --do                Durable Object to bind                             [array:NAME=CLASS[@MOUNT]]
-     --do-persist        Persist Durable Object data (to optional path)               [boolean/string]
-     --do-ignore-alarms  Durable Objects will not monitor or trigger alarms.          [boolean]
-```
-
 
 ## Acknowledgements
 
