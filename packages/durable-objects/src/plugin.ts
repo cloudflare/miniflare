@@ -120,7 +120,7 @@ export class DurableObjectsPlugin
       ctx.rootPath,
       this.durableObjectsPersist
     );
-    this.#alarmStore = new AlarmStore(ctx.rootPath, this.#persist);
+    this.#alarmStore = new AlarmStore();
 
     this.#processedObjects = Object.entries(this.durableObjects ?? {}).map(
       ([name, options]) => {
@@ -202,7 +202,7 @@ export class DurableObjectsPlugin
   async #setupAlarms(storage: StorageFactory): Promise<void> {
     if (this.ignoreAlarms) return;
     // if the alarm store doesn't exist yet, create
-    await this.#alarmStore.setupStore();
+    await this.#alarmStore.setupStore(storage, this.#persist);
     await this.#alarmStore.setupAlarms(
       (objectKey: string, scheduledTime: number) => {
         const [objectName, hexId] = objectKey.split(":");

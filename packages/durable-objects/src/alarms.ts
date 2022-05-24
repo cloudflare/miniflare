@@ -1,6 +1,5 @@
-import { existsSync, mkdirSync } from "fs";
-import { readFile, readdir, unlink, writeFile } from "fs/promises";
-import path from "path";
+import { TextDecoder, TextEncoder } from "util";
+import { Storage, StorageFactory } from "@miniflare/shared";
 
 export type DurableObjectScheduledAlarm = number | Date;
 
@@ -24,33 +23,25 @@ export type DurableObjectAlarm = {
 };
 
 export class AlarmStore {
-  #persist: string | false;
+  #store: Storage | undefined;
   // 'objectName:hexId' -> DurableObjectAlarm [pulled from plugin.getObject]
   #alarms: Map<string, DurableObjectAlarm> = new Map();
   #alarmInterval: NodeJS.Timeout | undefined;
-  constructor(rootPath: string, persist: boolean | string | undefined) {
-    if (persist === true) {
-      this.#persist = path.join(rootPath, ".mf", "alarms");
-    } else if (typeof persist === "string") {
-      this.#persist = path.resolve(persist, "alarms");
-    } else {
-      this.#persist = false;
-    }
-    // if directory does not exist create
-    if (this.#persist) {
-      if (!existsSync(this.#persist))
-        mkdirSync(this.#persist, { recursive: true });
-    }
-  }
 
   // build a map of all alarms from file storage if persist
-  async setupStore() {
-    if (typeof this.#persist !== "string") return;
-    const alarmList = await readdir(this.#persist);
-    for (const alarm of alarmList) {
-      const alarmPath = path.join(this.#persist, alarm);
-      const alarmData = await readFile(alarmPath);
-      this.#alarms.set(alarm, { scheduledTime: Number(alarmData) });
+  async setupStore(storage: StorageFactory, persist?: boolean | string) {
+    if (persist) {
+      // pull in the store & iterate the store for all alarms
+      this.#store = await storage.storage("__MINIFLARE_ALARMS__", persist);
+      const { keys } = (await this.#store?.list({}, true)) || { keys: [] };
+      for (const { name } of keys) {
+        // grab, parse, than set in memory.
+        const { value } = (await this.#store?.get(name, true)) || {
+          value: new Uint8Array(),
+        };
+        const scheduledTime = Number(new TextDecoder().decode(value));
+        this.#alarms.set(name, { scheduledTime });
+      }
     }
   }
 
@@ -93,14 +84,11 @@ export class AlarmStore {
 
   async setAlarm(objectKey: string, scheduledTime: number) {
     // set the alarm in the store
-    this.#alarms.set(objectKey, {
-      scheduledTime,
-    });
+    this.#alarms.set(objectKey, { scheduledTime });
     // if persist, store the alarm in file storage
-    if (typeof this.#persist === "string") {
-      const alarmPath = path.join(this.#persist, objectKey);
-      await writeFile(alarmPath, String(scheduledTime));
-    }
+    this.#store?.put(objectKey, {
+      value: new Uint8Array(new TextEncoder().encode(String(scheduledTime))),
+    });
   }
 
   async deleteAlarm(key: string) {
@@ -114,10 +102,7 @@ export class AlarmStore {
     // delete the alarm from the store
     this.#alarms.delete(key);
     // if persist, delete from storage
-    if (typeof this.#persist === "string") {
-      const alarmPath = path.join(this.#persist, key);
-      await unlink(alarmPath);
-    }
+    this.#store?.delete(key);
   }
 
   dispose() {
