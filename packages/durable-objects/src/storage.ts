@@ -393,17 +393,23 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     options?: DurableObjectSetAlarmOptions
   ): Promise<void> {
     this.#check("setAlarm");
-    return runWithInputGateClosed(
-      () => this[kInner].setAlarm(scheduledTime),
-      options?.allowConcurrency
+    return waitUntilOnOutputGate(
+      runWithInputGateClosed(
+        () => this[kInner].setAlarm(scheduledTime),
+        options?.allowConcurrency
+      ),
+      options?.allowUnconfirmed
     );
   }
 
   deleteAlarm(options?: DurableObjectSetAlarmOptions): Promise<void> {
     this.#check("deleteAlarm");
-    return runWithInputGateClosed(
-      () => this[kInner].deleteAlarm(),
-      options?.allowConcurrency
+    return waitUntilOnOutputGate(
+      runWithInputGateClosed(
+        () => this[kInner].deleteAlarm(),
+        options?.allowConcurrency
+      ),
+      options?.allowUnconfirmed
     );
   }
 
@@ -544,6 +550,13 @@ export class DurableObjectStorage implements DurableObjectOperator {
 
   #flush = async (): Promise<void> => {
     // Must be called with #mutex's write lock held
+
+    // flush alarm should it exist
+    if (typeof this.#shadow.alarm === "number") {
+      if (this.#shadow.alarm === -1) await this.#inner.deleteAlarm();
+      else await this.#inner.setAlarm(this.#shadow.alarm);
+      this.#shadow.alarm = null;
+    }
 
     // If already flushed everything, don't flush again
     if (this.#shadow.copies.size === 0) {
@@ -736,7 +749,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
     options?: DurableObjectGetAlarmOptions
   ): Promise<number | null> {
     return runWithInputGateClosed(
-      () => this.#mutex.runWithRead(() => this.#shadow.getAlarm()),
+      () => this.#mutex.runWithRead(() => this.#inner.getAlarm()),
       options?.allowConcurrency
     );
   }
@@ -747,16 +760,18 @@ export class DurableObjectStorage implements DurableObjectOperator {
     options?: DurableObjectSetAlarmOptions
   ): Promise<void> {
     return runWithGatesClosed(async () => {
-      await this.#mutex.runWithWrite(() => {
+      await this.#mutex.runWithWrite(async () => {
         // if scheduledTime is a date, convert to integer milliseconds since epoch
         if (scheduledTime instanceof Date)
           scheduledTime = scheduledTime.getTime();
-        this.#alarmBridge?.setAlarm(scheduledTime);
-        this.#shadow.setAlarm(scheduledTime);
+        // ensure the timer is greater than or equal to 0 (to avoid issues with transactional management)
+        if (scheduledTime < 0) scheduledTime = 0;
+        await this.#alarmBridge?.setAlarm(scheduledTime);
+        await this.#shadow.setAlarm(scheduledTime);
         // "Commit" write
         this.#txnRecordWriteSet(new Set(["__MINIFLARE_ALARM__"]));
       });
-      // Promise.resolve() allows other puts/deletes (coalescing) before flush
+      // Promise.resolve() allows other setAlarms/deleteAlarms (coalescing) before flush
       await Promise.resolve();
       return this.#mutex.runWithWrite(this.#flush);
     }, options);
@@ -764,12 +779,15 @@ export class DurableObjectStorage implements DurableObjectOperator {
 
   async deleteAlarm(options?: DurableObjectSetAlarmOptions): Promise<void> {
     return runWithGatesClosed(async () => {
-      await this.#mutex.runWithWrite(() => {
-        this.#alarmBridge?.deleteAlarm();
-        this.#shadow.deleteAlarm();
+      await this.#mutex.runWithWrite(async () => {
+        await this.#alarmBridge?.deleteAlarm();
+        await this.#shadow.deleteAlarm();
         // "Commit" write
         this.#txnRecordWriteSet(new Set(["__MINIFLARE_ALARM__"]));
       });
+      // Promise.resolve() allows other setAlarms/deleteAlarms (coalescing) before flush
+      await Promise.resolve();
+      return this.#mutex.runWithWrite(this.#flush);
     }, options);
   }
 }

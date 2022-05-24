@@ -13,8 +13,8 @@ export interface DurableObjectGetAlarmOptions {
 }
 
 export interface DurableObjectAlarmBridge {
-  setAlarm(scheduledTime: number): void;
-  deleteAlarm(): void;
+  setAlarm: (scheduledTime: number) => Promise<void>;
+  deleteAlarm: () => Promise<void>;
 }
 
 export type DurableObjectAlarm = {
@@ -73,11 +73,11 @@ export class AlarmStore {
 
   buildBridge(objectKey: string): DurableObjectAlarmBridge {
     return {
-      setAlarm: (scheduledTime: number) => {
-        this.setAlarm(objectKey, scheduledTime);
+      setAlarm: async (scheduledTime: number) => {
+        await this.setAlarm(objectKey, scheduledTime);
       },
-      deleteAlarm: () => {
-        this.deleteAlarm(objectKey);
+      deleteAlarm: async () => {
+        await this.deleteAlarm(objectKey);
       },
     };
   }
@@ -86,7 +86,7 @@ export class AlarmStore {
     // set the alarm in the store
     this.#alarms.set(objectKey, { scheduledTime });
     // if persist, store the alarm in file storage
-    this.#store?.put(objectKey, {
+    await this.#store?.put(objectKey, {
       value: new Uint8Array(new TextEncoder().encode(String(scheduledTime))),
     });
   }
@@ -102,7 +102,7 @@ export class AlarmStore {
     // delete the alarm from the store
     this.#alarms.delete(key);
     // if persist, delete from storage
-    this.#store?.delete(key);
+    await this.#store?.delete(key);
   }
 
   dispose() {

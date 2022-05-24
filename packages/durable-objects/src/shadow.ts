@@ -164,17 +164,15 @@ export class ShadowStorage extends Storage {
     return { keys, cursor: "" /* unsupported */ };
   }
 
-  getAlarm(): Promise<number | null> {
-    return Promise.resolve(this.alarm);
+  async getAlarm(): Promise<number | null> {
+    return this.alarm;
   }
 
-  setAlarm(scheduledTime: number): Promise<void> {
+  async setAlarm(scheduledTime: number): Promise<void> {
     this.alarm = scheduledTime;
-    return Promise.resolve();
   }
 
-  deleteAlarm(): Promise<void> {
-    this.alarm = null;
-    return Promise.resolve();
+  async deleteAlarm(): Promise<void> {
+    this.alarm = -1;
   }
 }

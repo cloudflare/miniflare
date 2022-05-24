@@ -87,17 +87,17 @@ export class RecorderStorage extends Storage {
     return this.inner.deleteMany(keys);
   }
 
-  getAlarm(): Awaitable<number | null> {
+  async getAlarm(): Promise<number | null> {
     this.events.push({ type: "getAlarm" });
     return this.inner.getAlarm();
   }
 
-  setAlarm(value: number): Awaitable<void> {
+  async setAlarm(value: number): Promise<void> {
     this.events.push({ type: "setAlarm" });
     return this.inner.setAlarm(value);
   }
 
-  deleteAlarm(): Awaitable<void> {
+  async deleteAlarm(): Promise<void> {
     this.events.push({ type: "deleteAlarm" });
     return this.inner.deleteAlarm();
   }

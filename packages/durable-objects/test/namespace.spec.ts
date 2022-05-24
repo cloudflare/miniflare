@@ -61,6 +61,7 @@ function getTestObjectNamespace(): [
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
+    ignoreAlarms: false,
   });
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
