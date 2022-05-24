@@ -491,6 +491,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
       for (const [key, value] of txn[kInner].copies.entries()) {
         this.#shadow.copies.set(key, value);
       }
+      this.#shadow.alarm = txn[kInner].alarm;
       await this.#flush();
 
       return true;
