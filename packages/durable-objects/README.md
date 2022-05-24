@@ -16,7 +16,28 @@ await storage.put("key", "value");
 console.log(await storage.get("key")); // value
 ```
 
+## Using the Plugin
+
+```js
+import { Compatibility, NoOpLog, PluginContext } from "@miniflare/shared";
+
+// prep the context
+const log = new NoOpLog();
+const compat = new Compatibility();
+const rootPath = process.cwd();
+const ctx: PluginContext = { log, compat, rootPath };
+
+// build the plugin
+const plugin = new DurableObjectsPlugin(ctx, {
+  durableObjects: { TEST: "TestObject" }, // add the DOs
+  durableObjectsPersist: true, // enable data persistence [boolean | string]
+  ignoreAlarms: false, // set to true to ignore alarms
+});
+```
+
 ## Alarms
+
+### Example
 
 ```js
 import { DurableObjectStorage, AlarmStore } from "@miniflare/durable-objects";
@@ -29,6 +50,29 @@ const storage = new DurableObjectStorage(new MemoryStorage(), alarmStore);
 await storage.setAlarm(Date.now() + 5 * 1000)
 console.log(await storage.getAlarm()); // time in milliseconds
 ```
+
+### Functions
+
+#### getAlarm(): Promise<number>
+ * get the alarm time in milliseconds from epoch
+
+#### setAlarm(scheduledTime: Date | number, options?: DurableObjectSetAlarmOptions): Promise<void>
+ * scheduledTime - If number, must be in milliseconds from epoch.
+ * options - set `allowConcurrency` and/or `allowUnconfirmed`
+
+#### deleteAlarm(): Promise<void>
+ * clear the alarm
+
+```ts
+interface DurableObjectSetAlarmOptions {
+  allowConcurrency?: boolean;
+  allowUnconfirmed?: boolean;
+}
+```
+
+### encode(input: ProtocolInput): string
+* input: an object containing the same keys and values as described by the protocol submitted on instantiation
+* output: encoded trytes
 
 ## Flags
 
