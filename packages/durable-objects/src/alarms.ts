@@ -71,10 +71,10 @@ export class AlarmStore {
       }
     }
 
-    // set up the interval to check for alarms.
-    // By calling this after setting up the alarms,
-    // we can gaurentee that this will be called after.
-    this.#alarmInterval = setInterval(() => {
+    // set up the "interval" to check for alarms. By calling this after
+    // setting up the alarms, we can gaurentee active alarms are flushed
+    // prior to our next check.
+    this.#alarmInterval = setTimeout(() => {
       this.#alarmInterval = undefined;
       this.setupAlarms(cb);
     }, 30_000);
