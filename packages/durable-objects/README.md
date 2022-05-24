@@ -47,20 +47,21 @@ const alarmStore = new AlarmStore();
 const storage = new DurableObjectStorage(new MemoryStorage(), alarmStore);
 
 // set an alarm 5 seconds from now
-await storage.setAlarm(Date.now() + 5 * 1000)
+await storage.setAlarm(Date.now() + 5 * 1000);
 console.log(await storage.getAlarm()); // time in milliseconds
+await storageg.deleteAlarm();
 ```
 
 ### Functions
 
-#### getAlarm(): Promise<number>
+#### getAlarm(): `Promise<number>`
  * get the alarm time in milliseconds from epoch
 
-#### setAlarm(scheduledTime: Date | number, options?: DurableObjectSetAlarmOptions): Promise<void>
+#### setAlarm(scheduledTime: Date | number, options?: DurableObjectSetAlarmOptions): `Promise<void>`
  * scheduledTime - If number, must be in milliseconds from epoch.
  * options - set `allowConcurrency` and/or `allowUnconfirmed`
 
-#### deleteAlarm(): Promise<void>
+#### deleteAlarm(): `Promise<void>`
  * clear the alarm
 
 ```ts
