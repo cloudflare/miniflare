@@ -1,7 +1,5 @@
 import { Storage, StorageFactory } from "@miniflare/shared";
 
-export type DurableObjectScheduledAlarm = number | Date;
-
 export interface DurableObjectSetAlarmOptions {
   allowConcurrency?: boolean;
   allowUnconfirmed?: boolean;
@@ -12,7 +10,7 @@ export interface DurableObjectGetAlarmOptions {
 }
 
 export interface DurableObjectAlarmBridge {
-  setAlarm: (scheduledTime: Date | number) => Promise<void>;
+  setAlarm: (scheduledTime: number | Date) => Promise<void>;
   deleteAlarm: () => Promise<void>;
 }
 
@@ -71,13 +69,13 @@ export class AlarmStore {
 
   buildBridge(objectKey: string): DurableObjectAlarmBridge {
     return {
-      setAlarm: (scheduledTime: Date | number) =>
+      setAlarm: (scheduledTime: number | Date) =>
         this.setAlarm(objectKey, scheduledTime),
       deleteAlarm: () => this.deleteAlarm(objectKey),
     };
   }
 
-  async setAlarm(objectKey: string, scheduledTime: Date | number) {
+  async setAlarm(objectKey: string, scheduledTime: number | Date) {
     if (typeof scheduledTime !== "number")
       scheduledTime = scheduledTime.getTime();
     // set the alarm in the store

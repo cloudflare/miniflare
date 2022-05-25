@@ -174,7 +174,7 @@ export class ShadowStorage extends Storage {
     return metadata?.scheduledAlarm ?? null;
   }
 
-  setAlarm(scheduledTime: Date | number): Promise<void> {
+  setAlarm(scheduledTime: number | Date): Promise<void> {
     if (typeof scheduledTime !== "number")
       scheduledTime = scheduledTime.getTime();
     this.alarm = scheduledTime;

@@ -10,7 +10,6 @@ import {
 } from "@miniflare/shared";
 import {
   DurableObjectGetAlarmOptions,
-  DurableObjectScheduledAlarm,
   DurableObjectSetAlarmOptions,
 } from "./alarms";
 import { DurableObjectAlarmBridge } from "./alarms";
@@ -81,7 +80,7 @@ export interface DurableObjectOperator {
   getAlarm(options?: DurableObjectGetAlarmOptions): Promise<number | null>;
 
   setAlarm(
-    scheduledTime: DurableObjectScheduledAlarm,
+    scheduledTime: number | Date,
     options?: DurableObjectSetAlarmOptions
   ): Promise<void>;
 
@@ -389,7 +388,7 @@ export class DurableObjectTransaction implements DurableObjectOperator {
   }
 
   setAlarm(
-    scheduledTime: number,
+    scheduledTime: number | Date,
     options?: DurableObjectSetAlarmOptions
   ): Promise<void> {
     this.#check("setAlarm");
@@ -766,7 +765,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
 
   // setAlarm accepts integer milliseconds since epoch or a js date
   async setAlarm(
-    scheduledTime: DurableObjectScheduledAlarm,
+    scheduledTime: number | Date,
     options?: DurableObjectSetAlarmOptions
   ): Promise<void> {
     if (!this[kAlarmExists]) throw new Error("Alarm method not set.");
