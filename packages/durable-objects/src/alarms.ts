@@ -17,36 +17,36 @@ export interface DurableObjectAlarmBridge {
   deleteAlarm: () => Promise<void>;
 }
 
-export type DurableObjectAlarm = {
+export interface DurableObjectAlarm {
   scheduledTime: number;
   timeout?: NodeJS.Timeout;
-};
+}
 
 export class AlarmStore {
-  #store: Storage | undefined;
+  #store?: Storage;
   // 'objectName:hexId' -> DurableObjectAlarm [pulled from plugin.getObject]
   #alarms: Map<string, DurableObjectAlarm> = new Map();
-  #alarmInterval: NodeJS.Timeout | undefined;
+  #alarmInterval?: NodeJS.Timeout;
 
   // build a map of all alarms from file storage if persist
   async setupStore(storage: StorageFactory, persist?: boolean | string) {
-    if (persist) {
-      // pull in the store & iterate the store for all alarms
-      this.#store = await storage.storage("__MINIFLARE_ALARMS__", persist);
-      const { keys } = (await this.#store?.list({}, true)) || { keys: [] };
-      for (const { name } of keys) {
-        // grab, parse, than set in memory.
-        const { value } = (await this.#store?.get(name, true)) || {
-          value: new Uint8Array(),
-        };
-        const scheduledTime = Number(new TextDecoder().decode(value));
-        this.#alarms.set(name, { scheduledTime });
-      }
+    // pull in the store & iterate the store for all alarms
+    this.#store = await storage.storage("__MINIFLARE_ALARMS__", persist);
+    const { keys } = await this.#store.list({}, true);
+    for (const { name } of keys) {
+      // grab, parse, than set in memory.
+      const { value } = (await this.#store?.get(name, true)) || {
+        value: new Uint8Array(),
+      };
+      const scheduledTime = Number(new TextDecoder().decode(value));
+      this.#alarms.set(name, { scheduledTime });
     }
   }
 
   // any alarms 30 seconds in the future or sooner are returned
-  async setupAlarms(cb: (objectKey: string, scheduledTime: number) => void) {
+  async setupAlarms(
+    callback: (objectKey: string, scheduledTime: number) => void
+  ) {
     if (this.#alarmInterval) return;
     const now = Date.now();
 
@@ -57,7 +57,7 @@ export class AlarmStore {
       if (scheduledTime < now + 30_000) {
         doAlarm.timeout = setTimeout(() => {
           this.#deleteAlarm(objectKey, doAlarm);
-          cb(objectKey, scheduledTime);
+          callback(objectKey, scheduledTime);
         }, Math.max(scheduledTime - now, 0));
       }
     }
@@ -67,18 +67,15 @@ export class AlarmStore {
     // prior to our next check.
     this.#alarmInterval = setTimeout(() => {
       this.#alarmInterval = undefined;
-      this.setupAlarms(cb);
+      this.setupAlarms(callback);
     }, 30_000);
   }
 
   buildBridge(objectKey: string): DurableObjectAlarmBridge {
     return {
-      setAlarm: async (scheduledTime: number) => {
-        await this.setAlarm(objectKey, scheduledTime);
-      },
-      deleteAlarm: async () => {
-        await this.deleteAlarm(objectKey);
-      },
+      setAlarm: (scheduledTime: number) =>
+        this.setAlarm(objectKey, scheduledTime),
+      deleteAlarm: () => this.deleteAlarm(objectKey),
     };
   }
 
@@ -92,13 +89,13 @@ export class AlarmStore {
   }
 
   async deleteAlarm(key: string) {
-    if (this.#alarms.has(key))
-      await this.#deleteAlarm(key, this.#alarms.get(key));
+    const alarm = this.#alarms.get(key);
+    if (alarm) await this.#deleteAlarm(key, alarm);
   }
 
-  async #deleteAlarm(key: string, alarm: DurableObjectAlarm | undefined) {
+  async #deleteAlarm(key: string, alarm: DurableObjectAlarm) {
     // delete the timeout should it exist
-    if (alarm?.timeout) clearTimeout(alarm.timeout);
+    if (alarm.timeout) clearTimeout(alarm.timeout);
     // delete the alarm from the store
     this.#alarms.delete(key);
     // if persist, delete from storage
