@@ -750,6 +750,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
   async getAlarm(
     options?: DurableObjectGetAlarmOptions
   ): Promise<number | null> {
+    if (!this.alarmExists) return null;
     return runWithInputGateClosed(
       () => this.#mutex.runWithRead(() => this.#inner.getAlarm()),
       options?.allowConcurrency
