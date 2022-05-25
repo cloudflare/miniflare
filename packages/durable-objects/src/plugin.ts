@@ -1,18 +1,15 @@
 import assert from "assert";
 import {
-  ExecutionContext,
-  ScheduledController,
-  ScheduledEvent,
-} from "@miniflare/core";
-import {
   Context,
   Mount,
   Option,
   OptionType,
   Plugin,
   PluginContext,
+  RequestContext,
   SetupResult,
   StorageFactory,
+  getRequestContext,
   resolveStoragePersist,
 } from "@miniflare/shared";
 import { AlarmStore } from "./alarms";
@@ -23,10 +20,11 @@ import {
   DurableObjectId,
   DurableObjectNamespace,
   DurableObjectState,
+  kAlarm,
   kInstance,
   kObjectName,
 } from "./namespace";
-import { DurableObjectStorage } from "./storage";
+import { DurableObjectStorage, kAlarmExists } from "./storage";
 
 export type DurableObjectsObjectsOptions = Record<
   string,
@@ -92,10 +90,11 @@ export class DurableObjectsPlugin
 
   @Option({
     type: OptionType.BOOLEAN,
-    name: "do-ignore-alarms",
+    name: "do-alarms",
     description: "Durable Objects will not monitor or trigger alarms.",
+    negatable: true,
     logName: "Durable Object Alarms",
-    fromWrangler: ({ miniflare }) => miniflare?.durable_objects_ignore_alarms,
+    fromWrangler: ({ miniflare }) => miniflare?.do_alarms,
   })
   ignoreAlarms?: boolean;
 
@@ -172,7 +171,9 @@ export class DurableObjectsPlugin
       // Should've thrown error earlier in reload if class not found
       assert(constructor);
 
-      state.injectDurableObject(new constructor(state, this.#bindings));
+      state[kInstance] = new constructor(state, this.#bindings);
+      // we need to throw an error on "setAlarm" if the "alarm" method does not exist
+      if (!state[kInstance]?.alarm) objectStorage[kAlarmExists] = false;
       return state;
     })();
     this.#objects.set(key, statePromise);
@@ -203,23 +204,20 @@ export class DurableObjectsPlugin
     if (this.ignoreAlarms) return;
     // if the alarm store doesn't exist yet, create
     await this.#alarmStore.setupStore(storage, this.#persist);
-    await this.#alarmStore.setupAlarms(
-      (objectKey: string, scheduledTime: number) => {
-        const [objectName, hexId] = objectKey.split(":");
-        // grab the stub
-        const ns = this.getNamespace(storage, objectName);
-        const stub = ns.get(new DurableObjectId(objectName, hexId));
-        // build the controller and context
-        const controller = new ScheduledController(scheduledTime, "alarm");
-        const event = new ScheduledEvent("scheduled", {
-          scheduledTime,
-          cron: "alarm",
-        });
-        const ctx = new ExecutionContext(event);
-        // execute the alarm
-        stub.alarm(controller, ctx);
-      }
-    );
+    await this.#alarmStore.setupAlarms(async (objectKey: string) => {
+      const [objectName, hexId] = objectKey.split(":");
+      // grab the instance
+      const id = new DurableObjectId(objectName, hexId);
+      const state = await this.getObject(storage, id);
+      // execute the alarm
+      const parentContext = getRequestContext();
+      const requestDepth = (parentContext?.requestDepth ?? 0) + 1;
+      await new RequestContext({
+        requestDepth,
+        pipelineDepth: 1,
+        durableObject: true,
+      }).runWith(() => state[kAlarm]());
+    });
   }
 
   beforeReload(): void {

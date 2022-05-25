@@ -1,4 +1,3 @@
-import { TextDecoder, TextEncoder } from "util";
 import { Storage, StorageFactory } from "@miniflare/shared";
 
 export type DurableObjectScheduledAlarm = number | Date;
@@ -13,7 +12,7 @@ export interface DurableObjectGetAlarmOptions {
 }
 
 export interface DurableObjectAlarmBridge {
-  setAlarm: (scheduledTime: number) => Promise<void>;
+  setAlarm: (scheduledTime: Date | number) => Promise<void>;
   deleteAlarm: () => Promise<void>;
 }
 
@@ -26,7 +25,7 @@ export class AlarmStore {
   #store?: Storage;
   // 'objectName:hexId' -> DurableObjectAlarm [pulled from plugin.getObject]
   #alarms: Map<string, DurableObjectAlarm> = new Map();
-  #alarmInterval?: NodeJS.Timeout;
+  #alarmTimeout?: NodeJS.Timeout;
 
   // build a map of all alarms from file storage if persist
   async setupStore(storage: StorageFactory, persist?: boolean | string) {
@@ -35,19 +34,18 @@ export class AlarmStore {
     const { keys } = await this.#store.list({}, true);
     for (const { name } of keys) {
       // grab, parse, than set in memory.
-      const { value } = (await this.#store?.get(name, true)) || {
-        value: new Uint8Array(),
+      const { metadata } = (await this.#store?.get<{ scheduledTime: number }>(
+        name
+      )) || {
+        metadata: { scheduledTime: 0 },
       };
-      const scheduledTime = Number(new TextDecoder().decode(value));
-      this.#alarms.set(name, { scheduledTime });
+      this.#alarms.set(name, { scheduledTime: metadata?.scheduledTime || 0 });
     }
   }
 
   // any alarms 30 seconds in the future or sooner are returned
-  async setupAlarms(
-    callback: (objectKey: string, scheduledTime: number) => void
-  ) {
-    if (this.#alarmInterval) return;
+  async setupAlarms(callback: (objectKey: string) => Promise<void>) {
+    if (this.#alarmTimeout) return;
     const now = Date.now();
 
     // iterate the store. For every alarm within 30 seconds of now,
@@ -57,7 +55,7 @@ export class AlarmStore {
       if (scheduledTime < now + 30_000) {
         doAlarm.timeout = setTimeout(() => {
           this.#deleteAlarm(objectKey, doAlarm);
-          callback(objectKey, scheduledTime);
+          callback(objectKey);
         }, Math.max(scheduledTime - now, 0));
       }
     }
@@ -65,26 +63,29 @@ export class AlarmStore {
     // set up the "interval" to check for alarms. By calling this after
     // setting up the alarms, we can gaurentee active alarms are flushed
     // prior to our next check.
-    this.#alarmInterval = setTimeout(() => {
-      this.#alarmInterval = undefined;
+    this.#alarmTimeout = setTimeout(() => {
+      this.#alarmTimeout = undefined;
       this.setupAlarms(callback);
     }, 30_000);
   }
 
   buildBridge(objectKey: string): DurableObjectAlarmBridge {
     return {
-      setAlarm: (scheduledTime: number) =>
+      setAlarm: (scheduledTime: Date | number) =>
         this.setAlarm(objectKey, scheduledTime),
       deleteAlarm: () => this.deleteAlarm(objectKey),
     };
   }
 
-  async setAlarm(objectKey: string, scheduledTime: number) {
+  async setAlarm(objectKey: string, scheduledTime: Date | number) {
+    if (typeof scheduledTime !== "number")
+      scheduledTime = scheduledTime.getTime();
     // set the alarm in the store
     this.#alarms.set(objectKey, { scheduledTime });
     // if persist, store the alarm in file storage
     await this.#store?.put(objectKey, {
-      value: new Uint8Array(new TextEncoder().encode(String(scheduledTime))),
+      metadata: { scheduledTime },
+      value: new Uint8Array(),
     });
   }
 
@@ -104,9 +105,9 @@ export class AlarmStore {
 
   dispose() {
     // clear the primary "intervals"
-    if (this.#alarmInterval) {
-      clearTimeout(this.#alarmInterval);
-      this.#alarmInterval = undefined;
+    if (this.#alarmTimeout) {
+      clearTimeout(this.#alarmTimeout);
+      this.#alarmTimeout = undefined;
     }
     // clear all alarms
     for (const doAlarm of this.#alarms.values()) {

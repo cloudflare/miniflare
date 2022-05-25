@@ -1,5 +1,4 @@
 import assert from "assert";
-import { TextDecoder, TextEncoder } from "util";
 import {
   Storage,
   StorageListOptions,
@@ -298,31 +297,5 @@ export class RedisStorage extends Storage {
         ttl >= 0 ? millisToSeconds(now + ttl) : undefined;
     }
     return res;
-  }
-
-  async getAlarm(): Promise<number | null> {
-    const value = await this.#redis.getBuffer(this.#alarmKey());
-    if (value) {
-      const valueUint8Array = viewToArray(value);
-      return Number(new TextDecoder().decode(valueUint8Array));
-    } else {
-      return null;
-    }
-  }
-
-  async setAlarm(scheduledTime: number): Promise<void> {
-    let pipeline = this.#redis.pipeline();
-    const redisKey = this.#alarmKey();
-    const valueUint8Array = new TextEncoder().encode(String(scheduledTime));
-    const buffer = _bufferFromArray(valueUint8Array);
-    // prep pipeline
-    pipeline = pipeline.set(redisKey, buffer);
-    // Assert pipeline completed successfully
-    const pipelineRes = await pipeline.exec();
-    this.throwPipelineErrors(pipelineRes);
-  }
-
-  async deleteAlarm(): Promise<void> {
-    await this.#redis.del(this.#alarmKey());
   }
 }

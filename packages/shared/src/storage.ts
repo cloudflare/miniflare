@@ -77,9 +77,6 @@ export abstract class Storage {
     options: StorageListOptions,
     skipMetadata: true
   ): Awaitable<StorageListResult<StoredKey>>;
-  abstract getAlarm(): Awaitable<number | null>;
-  abstract setAlarm(scheduledTime: number): Awaitable<void>;
-  abstract deleteAlarm(): Awaitable<void>;
 
   // Batch functions, default implementations may be overridden to optimise
 

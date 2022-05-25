@@ -1,12 +1,10 @@
 import { createHash, webcrypto } from "crypto";
 import { URL } from "url";
 import {
-  ExecutionContext,
   Request,
   RequestInfo,
   RequestInit,
   Response,
-  ScheduledController,
   _buildUnknownProtocolWarning,
   _urlFromRequestInput,
   withImmutableHeaders,
@@ -59,15 +57,12 @@ export interface DurableObjectConstructor {
 
 export interface DurableObject {
   fetch(request: Request): Awaitable<Response>;
-  alarm?(
-    controller: ScheduledController,
-    ctx: ExecutionContext
-  ): Awaitable<void>;
+  alarm?(): Awaitable<void>;
 }
 
 export const kInstance = Symbol("kInstance");
+export const kAlarm = Symbol("kAlarm");
 const kFetch = Symbol("kFetch");
-const kAlarm = Symbol("kAlarm");
 
 export class DurableObjectState {
   #inputGate = new InputGate();
@@ -77,12 +72,6 @@ export class DurableObjectState {
     readonly id: DurableObjectId,
     readonly storage: DurableObjectStorage
   ) {}
-
-  injectDurableObject(durableObject: DurableObject): void {
-    this[kInstance] = durableObject;
-    // we need to throw an error on "setAlarm" if the "alarm" method does not exist
-    if (!durableObject.alarm) this.storage.alarmExists = false;
-  }
 
   waitUntil(_promise: Promise<void>): void {}
 
@@ -108,10 +97,7 @@ export class DurableObjectState {
     );
   }
 
-  [kAlarm](
-    controller: ScheduledController,
-    ctx: ExecutionContext
-  ): Promise<void> {
+  [kAlarm](): Promise<void> {
     // TODO: catch, reset object on error
     const outputGate = new OutputGate();
     return outputGate.runWith(() =>
@@ -126,7 +112,7 @@ export class DurableObjectState {
             "No alarm handler defined in Durable Object"
           );
         }
-        return instance.alarm(controller, ctx);
+        return instance.alarm();
       })
     );
   }
@@ -201,14 +187,6 @@ export class DurableObjectStub {
     }
 
     return res;
-  }
-
-  async alarm(
-    controller: ScheduledController,
-    ctx: ExecutionContext
-  ): Promise<void> {
-    const state = await this.#factory(this.id);
-    await state[kAlarm](controller, ctx);
   }
 }
 

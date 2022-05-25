@@ -1,4 +1,3 @@
-import { TextDecoder } from "util";
 import {
   Awaitable,
   Storage,
@@ -82,19 +81,5 @@ export abstract class LocalStorage extends Storage {
     const res = listPaginate(options, keys);
     await Promise.all(deletePromises);
     return res;
-  }
-
-  async getAlarm<Meta = unknown>(): Promise<number | null> {
-    const stored = await this.getMaybeExpired<Meta>("__MINIFLARE_ALARM__");
-    if (stored === undefined) return null;
-    // convert stored.value to number
-    const value = Number(new TextDecoder().decode(stored.value));
-    if (isNaN(value)) return null;
-    return value;
-  }
-
-  async deleteAlarm(): Promise<void> {
-    await this.deleteMaybeExpired("__MINIFLARE_ALARM__");
-    return;
   }
 }

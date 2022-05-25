@@ -279,7 +279,7 @@ Durable Objects Options:
  -o, --do                Durable Object to bind       [array:NAME=CLASS[@MOUNT]]
      --do-persist        Persist Durable Object data (to        [boolean/string]
                          optional path)
-    --do-ignore-alarms   Durable Objects will not monitor       [boolean]
+    --(no-)do-alarms     Durable Objects will not monitor       [boolean]
                          or trigger alarms.
 
 Cache Options:

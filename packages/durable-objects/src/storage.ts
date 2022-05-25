@@ -435,6 +435,8 @@ function runWithGatesClosed<T>(
   );
 }
 
+export const kAlarmExists = Symbol("kAlarmExists");
+
 export class DurableObjectStorage implements DurableObjectOperator {
   readonly #mutex = new ReadWriteMutex();
 
@@ -453,7 +455,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
   readonly #shadow: ShadowStorage;
   readonly #alarmBridge?: DurableObjectAlarmBridge;
   // Let's storage know if the parent instance includes an alarm method or not
-  alarmExists = true;
+  [kAlarmExists] = true;
 
   constructor(inner: Storage, alarmBridge?: DurableObjectAlarmBridge) {
     this.#inner = inner;
@@ -477,7 +479,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
   }
 
   async #txnValidateWrite(txn: DurableObjectTransaction): Promise<boolean> {
-    // This function returns false if the transaction should be retried
+    // This function returns false iff the transaction should be retried
 
     // Don't commit if rolledback
     if (txn[kRolledback]) return true;
@@ -555,9 +557,14 @@ export class DurableObjectStorage implements DurableObjectOperator {
 
     // flush alarm should it exist
     if (typeof this.#shadow.alarm === "number") {
-      if (this.#shadow.alarm === -1) await this.#inner.deleteAlarm();
-      else await this.#inner.setAlarm(this.#shadow.alarm);
-      this.#shadow.alarm = null;
+      if (this.#shadow.alarm === -1)
+        await this.#inner.delete("__MINIFLARE_ALARM__");
+      else
+        await this.#inner?.put("__MINIFLARE_ALARM__", {
+          metadata: { scheduledTime: this.#shadow.alarm },
+          value: new Uint8Array(),
+        });
+      this.#shadow.alarm = undefined;
     }
 
     // If already flushed everything, don't flush again
@@ -750,9 +757,9 @@ export class DurableObjectStorage implements DurableObjectOperator {
   async getAlarm(
     options?: DurableObjectGetAlarmOptions
   ): Promise<number | null> {
-    if (!this.alarmExists) return null;
+    if (!this[kAlarmExists]) return null;
     return runWithInputGateClosed(
-      () => this.#mutex.runWithRead(() => this.#inner.getAlarm()),
+      () => this.#mutex.runWithRead(() => this.#shadow.getAlarm()),
       options?.allowConcurrency
     );
   }
@@ -762,16 +769,11 @@ export class DurableObjectStorage implements DurableObjectOperator {
     scheduledTime: DurableObjectScheduledAlarm,
     options?: DurableObjectSetAlarmOptions
   ): Promise<void> {
-    if (!this.alarmExists) throw new Error("Alarm method not set.");
+    if (!this[kAlarmExists]) throw new Error("Alarm method not set.");
     return runWithGatesClosed(async () => {
       await this.#mutex.runWithWrite(async () => {
-        // if scheduledTime is a date, convert to integer milliseconds since epoch
-        if (scheduledTime instanceof Date)
-          scheduledTime = scheduledTime.getTime();
-        // ensure the timer is greater than or equal to 0 (to avoid issues with transactional management)
-        if (scheduledTime < 0) scheduledTime = 0;
         await this.#alarmBridge?.setAlarm(scheduledTime);
-        await this.#shadow.setAlarm(scheduledTime);
+        this.#shadow.setAlarm(scheduledTime);
         // "Commit" write
         this.#txnRecordWriteSet(new Set(["__MINIFLARE_ALARM__"]));
       });

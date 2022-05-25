@@ -92,7 +92,9 @@ export class RecorderStorage extends Storage {
     return this.inner.getAlarm();
   }
 
-  async setAlarm(value: number): Promise<void> {
+  async setAlarm(value: Date | number): Promise<void> {
+    // if scheduledTime is a date, convert to integer milliseconds since epoch
+    if (value instanceof Date) value = value.getTime();
     this.events.push({ type: "setAlarm" });
     return this.inner.setAlarm(value);
   }

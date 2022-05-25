@@ -1,6 +1,5 @@
 import { existsSync } from "fs";
 import path from "path";
-import { TextDecoder, TextEncoder } from "util";
 import {
   MiniflareError,
   StoredKeyMeta,
@@ -166,65 +165,5 @@ export class FileStorage extends LocalStorage {
       });
     }
     return keys;
-  }
-
-  async getAlarm(): Promise<number | null> {
-    const [filePath] = this.keyPath("__MINIFLARE_ALARM__");
-    if (!filePath) return null;
-    try {
-      const value = await readFile(filePath);
-      if (value === undefined) return null;
-      const valueUint8Array = viewToArray(value);
-      return Number(new TextDecoder().decode(valueUint8Array));
-    } catch (e: any) {
-      // We'll get this error if we try to get a namespaced key, where the
-      // namespace itself is also a key (e.g. trying to get "key/sub-key" where
-      // "key" is also a key). In this case, "key/sub-key" doesn't exist.
-      if (e.code === "ENOTDIR") return null;
-      throw e;
-    }
-  }
-
-  async setAlarm(scheduledTime: number): Promise<void> {
-    const [filePath] = this.keyPath("__MINIFLARE_ALARM__");
-    if (!filePath) {
-      // This should only be a problem if this.sanitise is false. For Miniflare,
-      // we only set that with read-only namespaces, but others may not.
-      throw new FileStorageError(
-        "ERR_TRAVERSAL",
-        "Cannot store values outside of storage root directory"
-      );
-    }
-    try {
-      // Write value to file
-      const valueUint8Array = new TextEncoder().encode(String(scheduledTime));
-      await writeFile(filePath, valueUint8Array);
-    } catch (e: any) {
-      if (e.code !== "EEXIST") throw e;
-      throw new FileStorageError(
-        "ERR_NAMESPACE_KEY_CHILD",
-        'Cannot put key "' +
-          "__MINIFLARE_ALARM__" +
-          '" as a parent namespace is also a key.\n' +
-          "This is a limitation of Miniflare's file-system storage. Please " +
-          "use in-memory/Redis storage instead, or change your key layout.",
-        e
-      );
-    }
-  }
-
-  async deleteAlarm(): Promise<void> {
-    const [filePath] = this.keyPath("__MINIFLARE_ALARM__");
-    if (!filePath) return;
-    try {
-      await deleteFile(filePath);
-      await deleteFile(filePath + metaSuffix);
-    } catch (e: any) {
-      // We'll get this error if we try to get a namespaced key, where the
-      // namespace itself is also a key (e.g. trying to get "key/sub-key" where
-      // "key" is also a key). In this case, "key/sub-key" doesn't exist.
-      if (e.code === "ENOTDIR") return;
-      throw e;
-    }
   }
 }
