@@ -1237,6 +1237,7 @@ test("transaction: allows delivery of events inside transaction closure even tho
 test("hides implementation details", (t) => {
   const { storage } = t.context;
   t.deepEqual(getObjectProperties(storage), [
+    "alarmExists",
     "delete",
     "deleteAlarm",
     "deleteAll",

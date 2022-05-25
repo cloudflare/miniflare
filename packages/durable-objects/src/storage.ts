@@ -452,6 +452,8 @@ export class DurableObjectStorage implements DurableObjectOperator {
   // using in-memory storage anyways, and the file system isn't *too* slow.
   readonly #shadow: ShadowStorage;
   readonly #alarmBridge?: DurableObjectAlarmBridge;
+  // Let's storage know if the parent instance includes an alarm method or not
+  alarmExists = true;
 
   constructor(inner: Storage, alarmBridge?: DurableObjectAlarmBridge) {
     this.#inner = inner;
@@ -759,6 +761,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
     scheduledTime: DurableObjectScheduledAlarm,
     options?: DurableObjectSetAlarmOptions
   ): Promise<void> {
+    if (!this.alarmExists) throw new Error("Alarm method not set.");
     return runWithGatesClosed(async () => {
       await this.#mutex.runWithWrite(async () => {
         // if scheduledTime is a date, convert to integer milliseconds since epoch

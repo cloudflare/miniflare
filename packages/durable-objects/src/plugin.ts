@@ -172,7 +172,7 @@ export class DurableObjectsPlugin
       // Should've thrown error earlier in reload if class not found
       assert(constructor);
 
-      state[kInstance] = new constructor(state, this.#bindings);
+      state.injectDurableObject(new constructor(state, this.#bindings));
       return state;
     })();
     this.#objects.set(key, statePromise);

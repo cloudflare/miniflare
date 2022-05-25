@@ -59,7 +59,7 @@ export interface DurableObjectConstructor {
 
 export interface DurableObject {
   fetch(request: Request): Awaitable<Response>;
-  alarm(
+  alarm?(
     controller: ScheduledController,
     ctx: ExecutionContext
   ): Awaitable<void>;
@@ -77,6 +77,12 @@ export class DurableObjectState {
     readonly id: DurableObjectId,
     readonly storage: DurableObjectStorage
   ) {}
+
+  injectDurableObject(durableObject: DurableObject): void {
+    this[kInstance] = durableObject;
+    // we need to throw an error on "setAlarm" if the "alarm" method does not exist
+    if (!this[kInstance]?.alarm) this.storage.alarmExists = false;
+  }
 
   waitUntil(_promise: Promise<void>): void {}
 

@@ -120,8 +120,6 @@ test("DurableObjectState: blockConcurrencyWhile: prevents fetch events dispatch 
       events.push(3);
       return new Response("body");
     }
-
-    alarm(): void {}
   }
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -238,7 +236,7 @@ test("DurableObjectState: kFetch: alarm has appropriate inputs", async (t) => {
   await ns.get(id).alarm(controller, ctxAlarm);
   plugin.dispose(true);
 });
-test("DurableObjectState: kFetch: alarm can be set inside alarm", async (t) => {
+test("DurableObjectState: kAlarm: alarm can be set inside alarm", async (t) => {
   t.plan(1);
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
@@ -276,6 +274,36 @@ test("DurableObjectState: kFetch: alarm can be set inside alarm", async (t) => {
   t.is(value, 1000);
   plugin.dispose(true);
 });
+test("DurableObjectState: kAlarm: no alarm method; setAlarm throws while getAlarm returns null", async (t) => {
+  t.plan(2);
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: "TestObject" },
+    ignoreAlarms: false,
+  });
+
+  class TestObject implements DurableObject {
+    constructor(private readonly state: DurableObjectState) {}
+
+    fetch(): Response {
+      return new Response();
+    }
+  }
+  plugin.setup(factory);
+  plugin.beforeReload();
+  plugin.reload({}, { TestObject }, new Map());
+
+  const ns = plugin.getNamespace(factory, "TEST");
+  const id = ns.newUniqueId();
+  const durableObjectState = await plugin.getObject(factory, id);
+  const storage = durableObjectState.storage;
+  await t.throwsAsync(async () => {
+    await storage.setAlarm(1);
+  });
+  const get = await storage.getAlarm();
+  t.is(get, null);
+  plugin.dispose(true);
+});
 test("DurableObjectState: kFetch: throws clear error if missing fetch handler", async (t) => {
   // https://github.com/cloudflare/miniflare/issues/164
   const factory = new MemoryStorageFactory();
@@ -296,7 +324,7 @@ test("DurableObjectState: kFetch: throws clear error if missing fetch handler", 
     message: "No fetch handler defined in Durable Object",
   });
 });
-test("DurableObjectState: kAlarm: throws clear error if missing fetch handler", async (t) => {
+test("DurableObjectState: kAlarm: throws clear error if missing alarm handler", async (t) => {
   // https://github.com/cloudflare/miniflare/issues/164
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
@@ -330,6 +358,7 @@ test("DurableObjectState: hides implementation details", async (t) => {
   t.deepEqual(getObjectProperties(state), [
     "blockConcurrencyWhile",
     "id",
+    "injectDurableObject",
     "storage",
     "waitUntil",
   ]);
