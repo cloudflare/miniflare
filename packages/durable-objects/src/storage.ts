@@ -9,6 +9,7 @@ import {
   waitUntilOnOutputGate,
 } from "@miniflare/shared";
 import {
+  ALARM_KEY,
   DurableObjectGetAlarmOptions,
   DurableObjectSetAlarmOptions,
 } from "./alarms";
@@ -556,10 +557,9 @@ export class DurableObjectStorage implements DurableObjectOperator {
 
     // flush alarm should it exist
     if (typeof this.#shadow.alarm === "number") {
-      if (this.#shadow.alarm === -1)
-        await this.#inner.delete("__MINIFLARE_ALARM__");
+      if (this.#shadow.alarm === -1) await this.#inner.delete(ALARM_KEY);
       else
-        await this.#inner?.put("__MINIFLARE_ALARM__", {
+        await this.#inner?.put(ALARM_KEY, {
           metadata: { scheduledTime: this.#shadow.alarm },
           value: new Uint8Array(),
         });
@@ -774,7 +774,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
         await this.#alarmBridge?.setAlarm(scheduledTime);
         this.#shadow.setAlarm(scheduledTime);
         // "Commit" write
-        this.#txnRecordWriteSet(new Set(["__MINIFLARE_ALARM__"]));
+        this.#txnRecordWriteSet(new Set([ALARM_KEY]));
       });
       // Promise.resolve() allows other setAlarms/deleteAlarms (coalescing) before flush
       await Promise.resolve();
@@ -788,7 +788,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
         await this.#alarmBridge?.deleteAlarm();
         await this.#shadow.deleteAlarm();
         // "Commit" write
-        this.#txnRecordWriteSet(new Set(["__MINIFLARE_ALARM__"]));
+        this.#txnRecordWriteSet(new Set([ALARM_KEY]));
       });
       // Promise.resolve() allows other setAlarms/deleteAlarms (coalescing) before flush
       await Promise.resolve();

@@ -86,21 +86,4 @@ export class RecorderStorage extends Storage {
     this.events.push({ type: "deleteMany", keys });
     return this.inner.deleteMany(keys);
   }
-
-  async getAlarm(): Promise<number | null> {
-    this.events.push({ type: "getAlarm" });
-    return this.inner.getAlarm();
-  }
-
-  async setAlarm(value: Date | number): Promise<void> {
-    // if scheduledTime is a date, convert to integer milliseconds since epoch
-    if (value instanceof Date) value = value.getTime();
-    this.events.push({ type: "setAlarm" });
-    return this.inner.setAlarm(value);
-  }
-
-  async deleteAlarm(): Promise<void> {
-    this.events.push({ type: "deleteAlarm" });
-    return this.inner.deleteAlarm();
-  }
 }

@@ -19,6 +19,8 @@ export interface DurableObjectAlarm {
   timeout?: NodeJS.Timeout;
 }
 
+export const ALARM_KEY = "__MINIFLARE_ALARMS__";
+
 export class AlarmStore {
   #store?: Storage;
   // 'objectName:hexId' -> DurableObjectAlarm [pulled from plugin.getObject]
@@ -28,7 +30,7 @@ export class AlarmStore {
   // build a map of all alarms from file storage if persist
   async setupStore(storage: StorageFactory, persist?: boolean | string) {
     // pull in the store & iterate the store for all alarms
-    this.#store = await storage.storage("__MINIFLARE_ALARMS__", persist);
+    this.#store = await storage.storage(ALARM_KEY, persist);
     const { keys } = await this.#store.list({}, true);
     for (const { name } of keys) {
       // grab, parse, than set in memory.

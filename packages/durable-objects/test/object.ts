@@ -1,5 +1,5 @@
 import { URL } from "url";
-import { Request, Response, ScheduledController } from "@miniflare/core";
+import { Request, Response } from "@miniflare/core";
 import {
   AlarmStore,
   DurableObject,
@@ -43,5 +43,5 @@ export class TestObject implements DurableObject {
     );
   }
 
-  async alarm(_controller: ScheduledController, _ctx: Context): Promise<void> {}
+  async alarm(): Promise<void> {}
 }

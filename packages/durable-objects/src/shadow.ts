@@ -8,6 +8,7 @@ import {
   addAll,
 } from "@miniflare/shared";
 import { listFilterMatch } from "@miniflare/storage-memory";
+import { ALARM_KEY } from "./alarms";
 
 const collator = new Intl.Collator();
 
@@ -165,12 +166,10 @@ export class ShadowStorage extends Storage {
   }
 
   async getAlarm(): Promise<number | null> {
-    this.readSet?.add("__MINIFLARE_ALARM__");
+    this.readSet?.add(ALARM_KEY);
     if (this.alarm) return this.alarm;
     const { metadata } =
-      (await this.inner.get<{ scheduledAlarm: number }>(
-        "__MINIFLARE_ALARM__"
-      )) ?? {};
+      (await this.inner.get<{ scheduledAlarm: number }>(ALARM_KEY)) ?? {};
     return metadata?.scheduledAlarm ?? null;
   }
 
