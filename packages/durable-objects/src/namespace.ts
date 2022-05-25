@@ -81,7 +81,7 @@ export class DurableObjectState {
   injectDurableObject(durableObject: DurableObject): void {
     this[kInstance] = durableObject;
     // we need to throw an error on "setAlarm" if the "alarm" method does not exist
-    if (!this[kInstance]?.alarm) this.storage.alarmExists = false;
+    if (!durableObject.alarm) this.storage.alarmExists = false;
   }
 
   waitUntil(_promise: Promise<void>): void {}
