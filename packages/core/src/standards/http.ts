@@ -21,7 +21,6 @@ import {
   waitForOpenOutputGate,
 } from "@miniflare/shared";
 import type { WebSocket } from "@miniflare/web-sockets";
-import type { BusboyHeaders } from "busboy";
 import { Colorize, blue, bold, green, grey, red, yellow } from "kleur/colors";
 import { splitCookiesString } from "set-cookie-parser";
 import {
@@ -281,7 +280,7 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
           // we need to tell it that there was 0 bytes delivered so that it unblocks
           // and notices the end of stream.
           controller.byobRequest?.respond(0);
-	       }
+        }
       },
       cancel: (reason) => reader.cancel(reason),
     };
@@ -318,11 +317,12 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
     const formData = new FormData();
     await new Promise<void>(async (resolve) => {
       const Busboy: typeof import("busboy") = require("busboy");
-      const busboy = new Busboy({ headers: headers as BusboyHeaders });
+      const busboy = Busboy({ headers: headers as http.IncomingHttpHeaders });
       busboy.on("field", (name, value) => {
         formData.append(name, value);
       });
-      busboy.on("file", (name, value, filename, encoding, type) => {
+      busboy.on("file", (name, value, info) => {
+        const { filename, encoding, mimeType } = info;
         const base64 = encoding.toLowerCase() === "base64";
         const chunks: Buffer[] = [];
         let totalLength = 0;
@@ -333,7 +333,7 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
         });
         value.on("end", () => {
           if (this[kFormDataFiles]) {
-            const file = new File(chunks, filename, { type });
+            const file = new File(chunks, filename, { type: mimeType });
             formData.append(name, file);
           } else {
             const text = Buffer.concat(chunks, totalLength).toString();
