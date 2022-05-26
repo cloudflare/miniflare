@@ -77,8 +77,9 @@ export class AlarmStore {
       scheduledTime = scheduledTime.getTime();
     // set the alarm in the store
     this.#alarms.set(objectKey, { scheduledTime });
-    // if persist, store the alarm in file storage
-    await this.#store?.put(objectKey, {
+    // store the alarm in storage
+    assert(this.#store);
+    await this.#store.put(objectKey, {
       metadata: { scheduledTime },
       value: new Uint8Array(),
     });
