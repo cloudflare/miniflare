@@ -149,7 +149,7 @@ test("BuildPlugin: beforeSetup: includes MINIFLARE environment variable", async 
   const tmp = await useTmp(t);
   const plugin = new BuildPlugin(ctx, {
     // Cross-platform get environment variable
-    buildCommand: `${process.execPath} -e "console.log(JSON.stringify(process.env))" > env.json`,
+    buildCommand: `"${process.execPath}" -e "console.log(JSON.stringify(process.env))" > env.json`,
     buildBasePath: tmp,
   });
   await plugin.beforeSetup();
