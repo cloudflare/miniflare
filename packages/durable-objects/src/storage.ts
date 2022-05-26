@@ -768,7 +768,10 @@ export class DurableObjectStorage implements DurableObjectOperator {
     scheduledTime: number | Date,
     options?: DurableObjectSetAlarmOptions
   ): Promise<void> {
-    if (!this[kAlarmExists]) throw new Error("Alarm method not set.");
+    if (!this[kAlarmExists])
+      throw new Error(
+        "Your Durable Object class must have an alarm() handler in order to call setAlarm()"
+      );
     return runWithGatesClosed(async () => {
       await this.#mutex.runWithWrite(async () => {
         await this.#alarmBridge?.setAlarm(scheduledTime);
