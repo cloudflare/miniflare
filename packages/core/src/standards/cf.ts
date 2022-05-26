@@ -26,6 +26,7 @@ export interface IncomingRequestCfProperties {
   asn: number;
   botManagement?: IncomingRequestCfPropertiesBotManagement;
   city?: string;
+  clientAcceptEncoding?: string | string[];
   clientTcpRtt: number;
   clientTrustScore?: number;
   colo: string;
