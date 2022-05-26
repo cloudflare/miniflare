@@ -16,10 +16,7 @@ export type StorageEvent =
   | { type: "hasMany"; keys: string[] }
   | { type: "getMany"; keys: string[] }
   | { type: "putMany"; keys: string[] }
-  | { type: "deleteMany"; keys: string[] }
-  | { type: "getAlarm" }
-  | { type: "setAlarm" }
-  | { type: "deleteAlarm" };
+  | { type: "deleteMany"; keys: string[] };
 
 export class RecorderStorage extends Storage {
   events: StorageEvent[] = [];

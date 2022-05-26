@@ -245,7 +245,11 @@ export class DurableObjectTransaction implements DurableObjectOperator {
   [kCommitted] = false;
   readonly [kWriteSet] = new Set<string>();
 
-  constructor(inner: Storage, startTxnCount: number) {
+  constructor(
+    inner: Storage,
+    startTxnCount: number,
+    readonly alarmExists: boolean
+  ) {
     this[kInner] = new ShadowStorage(inner);
     this[kStartTxnCount] = startTxnCount;
   }
@@ -380,8 +384,11 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     );
   }
 
-  getAlarm(options?: DurableObjectGetAlarmOptions): Promise<number | null> {
+  async getAlarm(
+    options?: DurableObjectGetAlarmOptions
+  ): Promise<number | null> {
     this.#check("getAlarm");
+    if (!this.alarmExists) return null;
     return runWithInputGateClosed(
       () => this[kInner].getAlarm(),
       options?.allowConcurrency
@@ -393,6 +400,11 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     options?: DurableObjectSetAlarmOptions
   ): Promise<void> {
     this.#check("setAlarm");
+    if (!this.alarmExists) {
+      throw new Error(
+        "Your Durable Object class must have an alarm() handler in order to call setAlarm()"
+      );
+    }
     return waitUntilOnOutputGate(
       runWithInputGateClosed(
         () => this[kInner].setAlarm(scheduledTime),
@@ -471,7 +483,11 @@ export class DurableObjectStorage implements DurableObjectOperator {
     const startTxnCount = this.#txnCount;
     // Note txn uses #shadow as its inner storage, so in-progress non-durable
     // puts/deletes are visible
-    const txn = new DurableObjectTransaction(this.#shadow, startTxnCount);
+    const txn = new DurableObjectTransaction(
+      this.#shadow,
+      startTxnCount,
+      this[kAlarmExists]
+    );
     const result = await closure(txn);
     // Might not actually commit, this is just for #check()
     txn[kCommitted] = true;
@@ -557,14 +573,16 @@ export class DurableObjectStorage implements DurableObjectOperator {
 
     // flush alarm should it exist
     if (typeof this.#shadow.alarm === "number") {
-      if (this.#shadow.alarm === -1) await this.#inner.delete(ALARM_KEY);
-      else
-        await this.#inner?.put(ALARM_KEY, {
-          metadata: { scheduledTime: this.#shadow.alarm },
-          value: new Uint8Array(),
-        });
-      this.#shadow.alarm = undefined;
+      await this.#inner?.put(ALARM_KEY, {
+        metadata: { scheduledTime: this.#shadow.alarm },
+        value: new Uint8Array(),
+      });
+      await this.#alarmBridge?.setAlarm(this.#shadow.alarm);
+    } else if (this.#shadow.alarm === null) {
+      await this.#inner.delete(ALARM_KEY);
+      await this.#alarmBridge?.deleteAlarm();
     }
+    this.#shadow.alarm = undefined;
 
     // If already flushed everything, don't flush again
     if (this.#shadow.copies.size === 0) {
@@ -768,13 +786,13 @@ export class DurableObjectStorage implements DurableObjectOperator {
     scheduledTime: number | Date,
     options?: DurableObjectSetAlarmOptions
   ): Promise<void> {
-    if (!this[kAlarmExists])
+    if (!this[kAlarmExists]) {
       throw new Error(
         "Your Durable Object class must have an alarm() handler in order to call setAlarm()"
       );
+    }
     return runWithGatesClosed(async () => {
       await this.#mutex.runWithWrite(async () => {
-        await this.#alarmBridge?.setAlarm(scheduledTime);
         this.#shadow.setAlarm(scheduledTime);
         // "Commit" write
         this.#txnRecordWriteSet(new Set([ALARM_KEY]));
@@ -788,7 +806,6 @@ export class DurableObjectStorage implements DurableObjectOperator {
   async deleteAlarm(options?: DurableObjectSetAlarmOptions): Promise<void> {
     return runWithGatesClosed(async () => {
       await this.#mutex.runWithWrite(async () => {
-        await this.#alarmBridge?.deleteAlarm();
         await this.#shadow.deleteAlarm();
         // "Commit" write
         this.#txnRecordWriteSet(new Set([ALARM_KEY]));

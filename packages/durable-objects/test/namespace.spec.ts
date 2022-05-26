@@ -5,12 +5,9 @@ import { CachePlugin } from "@miniflare/cache";
 import {
   BindingsPlugin,
   CorePlugin,
-  ExecutionContext,
   MiniflareCore,
   Request,
   Response,
-  ScheduledController,
-  ScheduledEvent,
   fetch,
 } from "@miniflare/core";
 import {
@@ -45,6 +42,7 @@ import { MemoryStorage } from "@miniflare/storage-memory";
 import { WebSocketPair } from "@miniflare/web-sockets";
 import test, { ThrowsExpectation } from "ava";
 import { Request as BaseRequest } from "undici";
+import { kAlarm } from "../src/namespace";
 import { TestObject, alarmStore, testId, testIdHex, testKey } from "./object";
 
 const log = new NoOpLog();
@@ -64,7 +62,6 @@ function getTestObjectNamespace(): [
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
-    ignoreAlarms: false,
   });
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -102,7 +99,6 @@ test("DurableObjectState: blockConcurrencyWhile: prevents fetch events dispatch 
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
-    ignoreAlarms: true,
   });
   const [trigger, promise] = triggerPromise<void>();
   const events: number[] = [];
@@ -134,14 +130,7 @@ test("DurableObjectState: blockConcurrencyWhile: prevents alarm events dispatch 
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
-    ignoreAlarms: false,
   });
-  const controller = new ScheduledController(0, "alarm");
-  const event = new ScheduledEvent("scheduled", {
-    scheduledTime: 0,
-    cron: "alarm",
-  });
-  const ctxAlarm = new ExecutionContext(event);
   const [trigger, promise] = triggerPromise<void>();
   const events: number[] = [];
 
@@ -166,8 +155,9 @@ test("DurableObjectState: blockConcurrencyWhile: prevents alarm events dispatch 
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
 
-  const ns = plugin.getNamespace(factory, "TEST");
-  const fetchPromise = ns.get(ns.newUniqueId()).alarm(controller, ctxAlarm);
+  // grab the instance
+  const state = await plugin.getObject(factory, testId);
+  const fetchPromise = state[kAlarm]();
   trigger();
   await fetchPromise;
   t.deepEqual(events, [1, 2, 3]);
@@ -177,7 +167,6 @@ test("DurableObjectState: kFetch: waits for writes to be confirmed before return
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
-    ignoreAlarms: true,
   });
 
   class TestObject implements DurableObject {
@@ -201,85 +190,78 @@ test("DurableObjectState: kFetch: waits for writes to be confirmed before return
   assert(value);
   t.is(deserialize(value), "value");
 });
-test("DurableObjectState: kFetch: alarm has appropriate inputs", async (t) => {
-  t.plan(2);
-  const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
-    durableObjects: { TEST: "TestObject" },
-    ignoreAlarms: false,
-  });
-  const controller = new ScheduledController(0, "alarm");
-  const event = new ScheduledEvent("scheduled", {
-    scheduledTime: 0,
-    cron: "alarm",
-  });
-  const ctxAlarm = new ExecutionContext(event);
+// test("DurableObjectState: kFetch: alarm has appropriate inputs", async (t) => {
+//   t.plan(2);
+//   const factory = new MemoryStorageFactory();
+//   const plugin = new DurableObjectsPlugin(ctx, {
+//     durableObjects: { TEST: "TestObject" },
+//   });
+//   const controller = new ScheduledController(0, "alarm");
+//   const event = new ScheduledEvent("scheduled", {
+//     scheduledTime: 0,
+//     cron: "alarm",
+//   });
+//   const ctxAlarm = new ExecutionContext(event);
 
-  class TestObject implements DurableObject {
-    constructor(private readonly state: DurableObjectState) {}
+//   class TestObject implements DurableObject {
+//     constructor(private readonly state: DurableObjectState) {}
 
-    fetch(): Response {
-      return new Response();
-    }
+//     fetch(): Response {
+//       return new Response();
+//     }
 
-    alarm(controller: ScheduledController, _ctx: ExecutionContext): void {
-      t.is(controller.cron, "alarm");
-      t.is(controller.scheduledTime, 0);
-    }
-  }
-  plugin.setup(factory);
-  plugin.beforeReload();
-  plugin.reload({}, { TestObject }, new Map());
+//     alarm(controller: ScheduledController, _ctx: ExecutionContext): void {
+//       t.is(controller.cron, "alarm");
+//       t.is(controller.scheduledTime, 0);
+//     }
+//   }
+//   plugin.setup(factory);
+//   plugin.beforeReload();
+//   plugin.reload({}, { TestObject }, new Map());
 
-  const ns = plugin.getNamespace(factory, "TEST");
-  const id = ns.newUniqueId();
-  await ns.get(id).alarm(controller, ctxAlarm);
-  plugin.dispose(true);
-});
-test("DurableObjectState: kAlarm: alarm can be set inside alarm", async (t) => {
-  t.plan(1);
-  const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
-    durableObjects: { TEST: "TestObject" },
-    ignoreAlarms: false,
-  });
-  const controller = new ScheduledController(0, "alarm");
-  const event = new ScheduledEvent("scheduled", {
-    scheduledTime: 0,
-    cron: "alarm",
-  });
-  const ctxAlarm = new ExecutionContext(event);
+//   const ns = plugin.getNamespace(factory, "TEST");
+//   const id = ns.newUniqueId();
+//   await ns.get(id).alarm(controller, ctxAlarm);
+//   plugin.dispose(true);
+// });
+// test("DurableObjectState: kAlarm: alarm can be set inside alarm", async (t) => {
+//   t.plan(1);
+//   const factory = new MemoryStorageFactory();
+//   const plugin = new DurableObjectsPlugin(ctx, {
+//     durableObjects: { TEST: "TestObject" },
+//   });
+//   const controller = new ScheduledController(0, "alarm");
+//   const event = new ScheduledEvent("scheduled", {
+//     scheduledTime: 0,
+//     cron: "alarm",
+//   });
+//   const ctxAlarm = new ExecutionContext(event);
 
-  class TestObject implements DurableObject {
-    constructor(private readonly state: DurableObjectState) {}
+//   class TestObject implements DurableObject {
+//     constructor(private readonly state: DurableObjectState) {}
 
-    fetch(): Response {
-      return new Response();
-    }
+//     fetch(): Response {
+//       return new Response();
+//     }
+//   }
+//   plugin.setup(factory);
+//   plugin.beforeReload();
+//   plugin.reload({}, { TestObject }, new Map());
 
-    alarm(_controller: ScheduledController, _ctx: ExecutionContext): void {
-      this.state.storage.setAlarm(1000);
-    }
-  }
-  plugin.setup(factory);
-  plugin.beforeReload();
-  plugin.reload({}, { TestObject }, new Map());
-
-  const ns = plugin.getNamespace(factory, "TEST");
-  const id = ns.newUniqueId();
-  await ns.get(id).alarm(controller, ctxAlarm);
-  const storage = factory.storage(`TEST:${id.toString()}`);
-  const value = await storage.getAlarm();
-  assert(value);
-  t.is(value, 1000);
-  plugin.dispose(true);
-});
+//   const ns = plugin.getNamespace(factory, "TEST");
+//   const id = ns.newUniqueId();
+//   await ns.get(id).alarm(controller, ctxAlarm);
+//   const storage = factory.storage(`TEST:${id.toString()}`);
+//   const value = await storage.getAlarm();
+//   assert(value);
+//   t.is(value, 1000);
+//   plugin.dispose(true);
+// });
 test("DurableObjectState: kAlarm: no alarm method; setAlarm throws while getAlarm returns null", async (t) => {
   t.plan(2);
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
-    ignoreAlarms: false,
   });
 
   class TestObject implements DurableObject {
@@ -296,20 +278,19 @@ test("DurableObjectState: kAlarm: no alarm method; setAlarm throws while getAlar
   const ns = plugin.getNamespace(factory, "TEST");
   const id = ns.newUniqueId();
   const durableObjectState = await plugin.getObject(factory, id);
-  const storage = durableObjectState.storage;
+  const { storage } = durableObjectState;
   await t.throwsAsync(async () => {
     await storage.setAlarm(1);
   });
   const get = await storage.getAlarm();
   t.is(get, null);
-  plugin.dispose(true);
+  plugin.dispose();
 });
 test("DurableObjectState: kFetch: throws clear error if missing fetch handler", async (t) => {
   // https://github.com/cloudflare/miniflare/issues/164
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
-    ignoreAlarms: true,
   });
 
   class TestObject {}
@@ -324,41 +305,39 @@ test("DurableObjectState: kFetch: throws clear error if missing fetch handler", 
     message: "No fetch handler defined in Durable Object",
   });
 });
-test("DurableObjectState: kAlarm: throws clear error if missing alarm handler", async (t) => {
-  // https://github.com/cloudflare/miniflare/issues/164
-  const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
-    durableObjects: { TEST: "TestObject" },
-    ignoreAlarms: false,
-  });
-  const controller = new ScheduledController(0, "alarm");
-  const event = new ScheduledEvent("scheduled", {
-    scheduledTime: 0,
-    cron: "alarm",
-  });
-  const ctxAlarm = new ExecutionContext(event);
+// test("DurableObjectState: kAlarm: throws clear error if missing alarm handler", async (t) => {
+//   // https://github.com/cloudflare/miniflare/issues/164
+//   const factory = new MemoryStorageFactory();
+//   const plugin = new DurableObjectsPlugin(ctx, {
+//     durableObjects: { TEST: "TestObject" },
+//   });
+//   const controller = new ScheduledController(0, "alarm");
+//   const event = new ScheduledEvent("scheduled", {
+//     scheduledTime: 0,
+//     cron: "alarm",
+//   });
+//   const ctxAlarm = new ExecutionContext(event);
 
-  class TestObject {}
-  plugin.setup(factory);
-  plugin.beforeReload();
-  plugin.reload({}, { TestObject }, new Map());
+//   class TestObject {}
+//   plugin.setup(factory);
+//   plugin.beforeReload();
+//   plugin.reload({}, { TestObject }, new Map());
 
-  const ns = plugin.getNamespace(factory, "TEST");
-  const id = ns.newUniqueId();
-  await t.throwsAsync(ns.get(id).alarm(controller, ctxAlarm), {
-    instanceOf: DurableObjectError,
-    code: "ERR_NO_HANDLER",
-    message: "No alarm handler defined in Durable Object",
-  });
-  plugin.dispose(true);
-});
+//   const ns = plugin.getNamespace(factory, "TEST");
+//   const id = ns.newUniqueId();
+//   await t.throwsAsync(ns.get(id).alarm(controller, ctxAlarm), {
+//     instanceOf: DurableObjectError,
+//     code: "ERR_NO_HANDLER",
+//     message: "No alarm handler defined in Durable Object",
+//   });
+//   plugin.dispose(true);
+// });
 test("DurableObjectState: hides implementation details", async (t) => {
   const [ns, plugin, factory] = getTestObjectNamespace();
   const state = await plugin.getObject(factory, ns.newUniqueId());
   t.deepEqual(getObjectProperties(state), [
     "blockConcurrencyWhile",
     "id",
-    "injectDurableObject",
     "storage",
     "waitUntil",
   ]);
@@ -394,7 +373,7 @@ test("DurableObjectStub: fetch: throws with relative urls if compatibility flag 
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
     { log, compat, rootPath },
-    { durableObjects: { TEST: "TestObject" }, ignoreAlarms: true }
+    { durableObjects: { TEST: "TestObject" }, durableObjectAlarms: true }
   );
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -415,7 +394,7 @@ test("DurableObjectStub: fetch: throws with unknown protocols if compatibility f
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
     { log, compat, rootPath },
-    { durableObjects: { TEST: "TestObject" }, ignoreAlarms: true }
+    { durableObjects: { TEST: "TestObject" }, durableObjectAlarms: true }
   );
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -438,7 +417,7 @@ test("DurableObjectStub: fetch: logs warning with unknown protocol if compatibil
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
     { log, compat, rootPath },
-    { durableObjects: { TEST: "TestObject" }, ignoreAlarms: true }
+    { durableObjects: { TEST: "TestObject" }, durableObjectAlarms: true }
   );
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -459,7 +438,6 @@ test("DurableObjectStub: fetch: passes through web socket requests", async (t) =
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
-    ignoreAlarms: true,
   });
 
   const [dataTrigger, dataPromise] = triggerPromise<string | ArrayBuffer>();
@@ -670,7 +648,6 @@ test("DurableObjectStub: fetch: throws if handler doesn't return Response", asyn
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
-    ignoreAlarms: true,
   });
 
   class TestObject implements DurableObject {
@@ -695,7 +672,7 @@ test("DurableObjectStub: fetch: throws if handler doesn't return Response", asyn
 test("DurableObjectStub: hides implementation details", async (t) => {
   const [ns] = getTestObjectNamespace();
   const stub = ns.get(testId);
-  t.deepEqual(getObjectProperties(stub), ["alarm", "fetch", "id", "name"]);
+  t.deepEqual(getObjectProperties(stub), ["fetch", "id", "name"]);
 });
 
 test("DurableObjectNamespace: newUniqueId: generates unique IDs", (t) => {
@@ -864,7 +841,6 @@ function getExampleObjectStub(): DurableObjectStub {
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { EXAMPLE: "ExampleDurableObject" },
-    ignoreAlarms: true,
   });
   plugin.beforeReload();
   plugin.reload({}, { ExampleDurableObject }, new Map());
@@ -911,7 +887,6 @@ test("writes are coalesced", async (t) => {
 
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { EXAMPLE: "ExampleDurableObject" },
-    ignoreAlarms: true,
   });
   plugin.beforeReload();
   plugin.reload({}, { ExampleDurableObject }, new Map());

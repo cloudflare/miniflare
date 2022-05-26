@@ -15,7 +15,7 @@ const collator = new Intl.Collator();
 export class ShadowStorage extends Storage {
   readonly readSet?: Set<string>;
   readonly copies = new Map<string, StoredValue | undefined>();
-  alarm?: number;
+  alarm?: number | null;
 
   constructor(protected readonly inner: Storage, recordReads = true) {
     super();
@@ -167,7 +167,7 @@ export class ShadowStorage extends Storage {
 
   async getAlarm(): Promise<number | null> {
     this.readSet?.add(ALARM_KEY);
-    if (this.alarm) return this.alarm;
+    if (typeof this.alarm === "number") return this.alarm;
     const { metadata } =
       (await this.inner.get<{ scheduledAlarm: number }>(ALARM_KEY)) ?? {};
     return metadata?.scheduledAlarm ?? null;
@@ -181,7 +181,7 @@ export class ShadowStorage extends Storage {
   }
 
   deleteAlarm(): Promise<void> {
-    this.alarm = undefined;
+    this.alarm = null;
     return Promise.resolve();
   }
 }

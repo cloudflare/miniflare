@@ -1,3 +1,4 @@
+import assert from "assert";
 import { Storage, StorageFactory } from "@miniflare/shared";
 
 export interface DurableObjectSetAlarmOptions {
@@ -31,14 +32,11 @@ export class AlarmStore {
   async setupStore(storage: StorageFactory, persist?: boolean | string) {
     // pull in the store & iterate the store for all alarms
     this.#store = await storage.storage(ALARM_KEY, persist);
-    const { keys } = await this.#store.list({}, true);
-    for (const { name } of keys) {
-      // grab, parse, than set in memory.
-      const { metadata } = (await this.#store?.get<{ scheduledTime: number }>(
-        name
-      )) || {
-        metadata: { scheduledTime: 0 },
-      };
+    const { keys } = await this.#store.list<{ scheduledTime: number }>(
+      {},
+      false
+    );
+    for (const { name, metadata } of keys) {
       this.#alarms.set(name, { scheduledTime: metadata?.scheduledTime || 0 });
     }
   }
@@ -100,7 +98,8 @@ export class AlarmStore {
     // delete the alarm from the store
     this.#alarms.delete(key);
     // if persist, delete from storage
-    await this.#store?.delete(key);
+    assert(this.#store);
+    await this.#store.delete(key);
   }
 
   dispose() {

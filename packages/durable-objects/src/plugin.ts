@@ -9,7 +9,6 @@ import {
   RequestContext,
   SetupResult,
   StorageFactory,
-  getRequestContext,
   resolveStoragePersist,
 } from "@miniflare/shared";
 import { AlarmStore } from "./alarms";
@@ -34,7 +33,7 @@ export type DurableObjectsObjectsOptions = Record<
 export interface DurableObjectsOptions {
   durableObjects?: DurableObjectsObjectsOptions;
   durableObjectsPersist?: boolean | string;
-  ignoreAlarms?: boolean;
+  durableObjectAlarms?: boolean;
 }
 
 interface ProcessedDurableObject {
@@ -91,12 +90,12 @@ export class DurableObjectsPlugin
   @Option({
     type: OptionType.BOOLEAN,
     name: "do-alarms",
-    description: "Durable Objects will not monitor or trigger alarms.",
+    description: "Enable Durable Object alarms (enabled by default)",
     negatable: true,
     logName: "Durable Object Alarms",
-    fromWrangler: ({ miniflare }) => miniflare?.do_alarms,
+    fromWrangler: ({ miniflare }) => miniflare?.do_alarms ?? true,
   })
-  ignoreAlarms?: boolean;
+  durableObjectAlarms?: boolean;
 
   readonly #persist?: boolean | string;
 
@@ -110,7 +109,7 @@ export class DurableObjectsPlugin
 
   readonly #objects = new Map<string, Promise<DurableObjectState>>();
 
-  #alarmStore: AlarmStore;
+  readonly #alarmStore: AlarmStore;
 
   constructor(ctx: PluginContext, options?: DurableObjectsOptions) {
     super(ctx);
@@ -201,19 +200,19 @@ export class DurableObjectsPlugin
   }
 
   async #setupAlarms(storage: StorageFactory): Promise<void> {
-    if (this.ignoreAlarms) return;
+    if (!this.durableObjectAlarms) return;
     // if the alarm store doesn't exist yet, create
     await this.#alarmStore.setupStore(storage, this.#persist);
     await this.#alarmStore.setupAlarms(async (objectKey: string) => {
-      const [objectName, hexId] = objectKey.split(":");
+      const index = objectKey.lastIndexOf(":");
+      const objectName = objectKey.substring(0, index);
+      const hexId = objectKey.substring(index + 1);
       // grab the instance
       const id = new DurableObjectId(objectName, hexId);
       const state = await this.getObject(storage, id);
       // execute the alarm
-      const parentContext = getRequestContext();
-      const requestDepth = (parentContext?.requestDepth ?? 0) + 1;
       await new RequestContext({
-        requestDepth,
+        requestDepth: 1,
         pipelineDepth: 1,
         durableObject: true,
       }).runWith(() => state[kAlarm]());
@@ -268,8 +267,8 @@ export class DurableObjectsPlugin
     this.#contextResolve();
   }
 
-  dispose(disposeAlarms = false): void {
-    if (disposeAlarms) this.#alarmStore.dispose();
+  dispose(): void {
+    this.#alarmStore.dispose();
     return this.beforeReload();
   }
 }

@@ -30,7 +30,6 @@ export class RedisStorage extends Storage {
   // returns one, and we can fetch metadata separately for listing
   readonly #key = (key: string): string => `${this.namespace}:value:${key}`;
   readonly #metaKey = (key: string): string => `${this.namespace}:meta:${key}`;
-  readonly #alarmKey = (): string => `${this.namespace}:alarm`;
 
   // Throws any errors from the result of a pipeline
   // noinspection JSMethodCanBeStatic
