@@ -152,6 +152,40 @@ test("DurableObjectState: kFetch: waits for writes to be confirmed before return
   assert(value);
   t.is(deserialize(value), "value");
 });
+test("DurableObjectState: kAlarm: no alarm method; setAlarm throws while getAlarm returns null", async (t) => {
+  t.plan(3);
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: "TestObject" },
+  });
+
+  class TestObject implements DurableObject {
+    constructor(private readonly state: DurableObjectState) {}
+
+    fetch(): Response {
+      return new Response();
+    }
+  }
+  plugin.setup(factory);
+  plugin.beforeReload();
+  plugin.reload({}, { TestObject }, new Map());
+
+  const ns = plugin.getNamespace(factory, "TEST");
+  const id = ns.newUniqueId();
+  const durableObjectState = await plugin.getObject(factory, id);
+  const { storage } = durableObjectState;
+  await t.throwsAsync(async () => {
+    await storage.setAlarm(1);
+  });
+  await t.throwsAsync(async () => {
+    await storage.transaction(async (txn) => {
+      await txn.setAlarm(1);
+    });
+  });
+  const get = await storage.getAlarm();
+  t.is(get, null);
+  plugin.dispose();
+});
 test("DurableObjectState: kFetch: throws clear error if missing fetch handler", async (t) => {
   // https://github.com/cloudflare/miniflare/issues/164
   const factory = new MemoryStorageFactory();

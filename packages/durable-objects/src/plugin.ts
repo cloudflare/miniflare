@@ -143,7 +143,6 @@ export class DurableObjectsPlugin
       this.#contextPromise,
       "beforeReload() must be called before getObject()"
     );
-
     await this.#contextPromise;
 
     // Reuse existing instances
