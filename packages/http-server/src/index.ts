@@ -9,6 +9,7 @@ import { URL } from "url";
 import zlib from "zlib";
 import {
   CorePluginSignatures,
+  IncomingRequestCfProperties,
   MiniflareCore,
   Request,
   Response,
@@ -105,13 +106,10 @@ export async function convertNodeRequest(
   req.headers["cf-visitor"] ??= `{"scheme":"${proto}"}`;
   req.headers["host"] = url.host;
 
+  // Keep it to use later
   const clientAcceptEncoding = req.headers["accept-encoding"];
   // This should be fixed
   req.headers["accept-encoding"] = "gzip";
-  // Instead, set actual encoding if exists
-  if (meta?.cf && clientAcceptEncoding) {
-    meta.cf.clientAcceptEncoding = clientAcceptEncoding;
-  }
 
   // Build Headers object from request
   const headers = _headersFromIncomingRequest(req);
@@ -122,7 +120,10 @@ export async function convertNodeRequest(
     method: req.method,
     headers,
     body,
-    cf: meta?.cf,
+    cf: {
+      ...meta?.cf,
+      clientAcceptEncoding,
+    } as IncomingRequestCfProperties,
     // Incoming requests always have their redirect mode set to manual:
     // https://developers.cloudflare.com/workers/runtime-apis/request#requestinit
     redirect: "manual",
