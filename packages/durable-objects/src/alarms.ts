@@ -32,10 +32,7 @@ export class AlarmStore {
   async setupStore(storage: StorageFactory, persist?: boolean | string) {
     // pull in the store & iterate the store for all alarms
     this.#store = await storage.storage(ALARM_KEY, persist);
-    const { keys } = await this.#store.list<{ scheduledTime: number }>(
-      {},
-      false
-    );
+    const { keys } = await this.#store.list<{ scheduledTime: number }>();
     for (const { name, metadata } of keys) {
       this.#alarms.set(name, { scheduledTime: metadata?.scheduledTime || 0 });
     }

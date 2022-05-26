@@ -76,13 +76,14 @@ test("DurableObjectsPlugin: parses options from wrangler config", (t) => {
       OBJECT2: { className: "Object2", scriptName: "other_script" },
     },
     durableObjectsPersist: "path",
-    durableObjectAlarms: undefined,
+    durableObjectAlarms: true,
   });
 });
 test("DurableObjectsPlugin: logs options", (t) => {
   const logs = logPluginOptions(DurableObjectsPlugin, {
     durableObjects: { OBJECT1: "Object1", OBJECT2: "Object2" },
     durableObjectsPersist: true,
+    durableObjectAlarms: true,
   });
   t.deepEqual(logs, [
     "Durable Objects: OBJECT1, OBJECT2",

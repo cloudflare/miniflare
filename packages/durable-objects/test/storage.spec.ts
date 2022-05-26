@@ -3,6 +3,7 @@ import { setTimeout } from "timers/promises";
 import { serialize } from "v8";
 import {
   ALARM_KEY,
+  AlarmStore,
   DurableObjectError,
   DurableObjectListOptions,
   DurableObjectStorage,
@@ -17,6 +18,7 @@ import {
   waitForOpenInputGate,
 } from "@miniflare/shared";
 import {
+  MemoryStorageFactory,
   RecorderStorage,
   getObjectProperties,
   triggerPromise,
@@ -40,6 +42,8 @@ const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
   const backing = new MemoryStorage();
+  const alarmStore = new AlarmStore();
+  alarmStore.setupStore(new MemoryStorageFactory());
   const storage = new DurableObjectStorage(
     backing,
     alarmStore.buildBridge(testKey)
@@ -859,44 +863,44 @@ test("getAlarm: storage returns inputed number", async (t) => {
   await storage.setAlarm(testNumber);
   t.is(await storage.getAlarm(), testNumber);
 });
-// test("getAlarm: backing returns inputed number", async (t) => {
-//   const { backing } = t.context;
-//   await backing.setAlarm(testNumber);
-//   t.is(await backing.getAlarm(), testNumber);
-// });
-// test("transaction: getAlarm: gets uncommitted values", async (t) => {
-//   t.plan(6);
-//   const { backing, storage } = t.context;
-//   await backing.setAlarm(1);
-//   await storage.transaction(async (txn) => {
-//     // Test overwriting existing alarm
-//     await txn.setAlarm(2);
-//     t.is(await txn.getAlarm(), 2);
-//     t.deepEqual(await backing.getAlarm(), 1);
+test("getAlarm: backing returns inputed number", async (t) => {
+  const { backing } = t.context;
+  await backing.put(ALARM_KEY, storedValue(testNumber));
+  t.deepEqual(await backing.get(ALARM_KEY), storedValue(testNumber));
+});
+test("transaction: getAlarm: gets uncommitted values", async (t) => {
+  t.plan(6);
+  const { backing, storage } = t.context;
+  await backing.put(ALARM_KEY, storedValue(1));
+  await storage.transaction(async (txn) => {
+    // Test overwriting existing alarm
+    await txn.setAlarm(2);
+    t.is(await txn.getAlarm(), 2);
+    t.deepEqual(await backing.get(ALARM_KEY), storedValue(1));
 
-//     // Test deleting alarm
-//     await txn.deleteAlarm();
-//     t.is(await txn.getAlarm(), -1);
-//     t.is(await backing.getAlarm(), 1);
+    // Test deleting alarm
+    await txn.deleteAlarm();
+    t.is(await txn.getAlarm(), null);
+    t.deepEqual(await backing.get(ALARM_KEY), storedValue(1));
 
-//     // Test creating new alarm
-//     await txn.setAlarm(3);
-//     t.is(await txn.getAlarm(), 3);
-//     t.is(await backing.getAlarm(), 1);
-//   });
-// });
-// test("transaction: getAlarm: gets committed and uncommitted values in same transaction", async (t) => {
-//   t.plan(3);
-//   const { backing, storage } = t.context;
-//   await backing.setAlarm(1);
-//   await backing.setAlarm(3);
-//   await storage.transaction(async (txn) => {
-//     t.is(await txn.getAlarm(), null);
-//     await txn.setAlarm(2);
-//     t.is(await txn.getAlarm(), 2);
-//     t.is(await backing.getAlarm(), 3);
-//   });
-// });
+    // Test creating new alarm
+    await txn.setAlarm(3);
+    t.is(await txn.getAlarm(), 3);
+    t.deepEqual(await backing.get(ALARM_KEY), storedValue(1));
+  });
+});
+test("transaction: getAlarm: gets committed and uncommitted values in same transaction", async (t) => {
+  t.plan(3);
+  const { backing, storage } = t.context;
+  await backing.put(ALARM_KEY, storedValue(1));
+  await backing.put(ALARM_KEY, storedValue(3));
+  await storage.transaction(async (txn) => {
+    t.is(await txn.getAlarm(), null);
+    await txn.setAlarm(2);
+    t.is(await txn.getAlarm(), 2);
+    t.deepEqual(await backing.get(ALARM_KEY), storedValue(3));
+  });
+});
 test("getAlarm: closes input gate unless allowConcurrency", async (t) => {
   const { storage } = t.context;
   await closesInputGate(t, (allowConcurrency) =>
@@ -926,11 +930,11 @@ test("setAlarm: storage as date returns inputed number", async (t) => {
   await storage.setAlarm(testDate);
   t.is(await storage.getAlarm(), testNumber);
 });
-// test("setAlarm: backing returns inputed number", async (t) => {
-//   const { backing } = t.context;
-//   await backing.setAlarm(testNumber);
-//   t.is(await backing.getAlarm(), testNumber);
-// });
+test("setAlarm: backing returns inputed number", async (t) => {
+  const { backing } = t.context;
+  await backing.put(ALARM_KEY, storedValue(testNumber));
+  t.deepEqual(await backing.get(ALARM_KEY), storedValue(testNumber));
+});
 test("setAlarm: overide alarm", async (t) => {
   const { storage } = t.context;
   await storage.setAlarm(testNumber);
@@ -971,10 +975,7 @@ test("setAlarm: coalesces writes", async (t) => {
     storage.setAlarm(1);
     storage.setAlarm(2);
   });
-  t.deepEqual(backing.events, [
-    { type: "put", key: ALARM_KEY },
-    { type: "put", key: ALARM_KEY },
-  ]);
+  t.deepEqual(backing.events, [{ type: "put", key: ALARM_KEY }]);
   t.is(await storage.getAlarm(), 2);
 });
 
@@ -995,25 +996,25 @@ test("setAlarm: marks alarm as written, retrying conflicting transactions", asyn
   await storage.setAlarm(2);
   finishTrigger();
   // the transaction should clear the alarm from shadow storage
-  t.is(await txnPromise, null);
+  t.is(await txnPromise, 2);
   t.is(retries, 2);
 });
 
-// test("deleteAlarm: deletes active alarm", async (t) => {
-//   const { backing, storage } = t.context;
-//   await backing.setAlarm(testNumber);
-//   t.not(await backing.getAlarm(), null);
-//   t.is(await storage.deleteAlarm(), undefined);
-//   t.is(await backing.getAlarm(), null);
-// });
-// test("deleteAlarm: removing from storage works", async (t) => {
-//   t.plan(2);
-//   const { backing, storage } = t.context;
-//   await backing.setAlarm(testNumber);
-//   await storage.deleteAlarm();
-//   t.is(await backing.getAlarm(), null);
-//   t.is(await storage.getAlarm(), null);
-// });
+test("deleteAlarm: deletes active alarm", async (t) => {
+  const { backing, storage } = t.context;
+  await backing.put(ALARM_KEY, storedValue(testNumber));
+  t.not(await backing.get(ALARM_KEY), null);
+  t.is(await storage.deleteAlarm(), undefined);
+  t.is(await backing.get(ALARM_KEY), undefined);
+});
+test("deleteAlarm: removing from storage works", async (t) => {
+  t.plan(2);
+  const { backing, storage } = t.context;
+  await backing.put(ALARM_KEY, storedValue(testNumber));
+  await storage.deleteAlarm();
+  t.is(await backing.get(ALARM_KEY), undefined);
+  t.is(await storage.getAlarm(), null);
+});
 test("deleteAlarm: closes input gate unless allowConcurrency", async (t) => {
   const { storage } = t.context;
   await closesInputGate(t, (allowConcurrency) =>
@@ -1051,7 +1052,6 @@ test("deleteAlarm: coalesces delete", async (t) => {
     await storage.setAlarm(2);
   });
   t.deepEqual(backing.events, [
-    { key: ALARM_KEY, type: "put" },
     { key: ALARM_KEY, type: "put" },
     { key: ALARM_KEY, type: "put" },
   ]);
@@ -1105,7 +1105,7 @@ test("transaction: alarm: checks if committed and uncommitted values exist in sa
 
     // Test deleting existing key
     await txn.deleteAlarm();
-    t.is(await txn.getAlarm(), null);
+    t.is(await txn.getAlarm(), 1);
   });
 });
 test("transaction: gets uncommitted values", async (t) => {

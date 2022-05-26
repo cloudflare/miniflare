@@ -169,8 +169,8 @@ export class ShadowStorage extends Storage {
     this.readSet?.add(ALARM_KEY);
     if (typeof this.alarm === "number") return this.alarm;
     const { metadata } =
-      (await this.inner.get<{ scheduledAlarm: number }>(ALARM_KEY)) ?? {};
-    return metadata?.scheduledAlarm ?? null;
+      (await this.inner.get<{ scheduledTime: number }>(ALARM_KEY)) ?? {};
+    return metadata?.scheduledTime ?? null;
   }
 
   setAlarm(scheduledTime: number | Date): Promise<void> {

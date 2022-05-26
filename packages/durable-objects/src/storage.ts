@@ -237,6 +237,7 @@ const kStartTxnCount = Symbol("kStartTxnCount");
 const kRolledback = Symbol("kRolledback");
 const kCommitted = Symbol("kCommitted");
 const kWriteSet = Symbol("kWriteSet");
+export const kAlarmExists = Symbol("kAlarmExists");
 
 export class DurableObjectTransaction implements DurableObjectOperator {
   readonly [kInner]: ShadowStorage;
@@ -244,14 +245,12 @@ export class DurableObjectTransaction implements DurableObjectOperator {
   [kRolledback] = false;
   [kCommitted] = false;
   readonly [kWriteSet] = new Set<string>();
+  readonly [kAlarmExists]: boolean;
 
-  constructor(
-    inner: Storage,
-    startTxnCount: number,
-    readonly alarmExists: boolean
-  ) {
+  constructor(inner: Storage, startTxnCount: number, alarmExists: boolean) {
     this[kInner] = new ShadowStorage(inner);
     this[kStartTxnCount] = startTxnCount;
+    this[kAlarmExists] = alarmExists;
   }
 
   #check(op: string): void {
@@ -388,7 +387,7 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     options?: DurableObjectGetAlarmOptions
   ): Promise<number | null> {
     this.#check("getAlarm");
-    if (!this.alarmExists) return null;
+    if (!this[kAlarmExists]) return null;
     return runWithInputGateClosed(
       () => this[kInner].getAlarm(),
       options?.allowConcurrency
@@ -400,7 +399,7 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     options?: DurableObjectSetAlarmOptions
   ): Promise<void> {
     this.#check("setAlarm");
-    if (!this.alarmExists) {
+    if (!this[kAlarmExists]) {
       throw new Error(
         "Your Durable Object class must have an alarm() handler in order to call setAlarm()"
       );
@@ -446,8 +445,6 @@ function runWithGatesClosed<T>(
     options?.allowUnconfirmed
   );
 }
-
-export const kAlarmExists = Symbol("kAlarmExists");
 
 export class DurableObjectStorage implements DurableObjectOperator {
   readonly #mutex = new ReadWriteMutex();
