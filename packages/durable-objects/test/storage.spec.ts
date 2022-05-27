@@ -901,6 +901,20 @@ test("transaction: getAlarm: gets committed and uncommitted values in same trans
     t.deepEqual(await backing.get(ALARM_KEY), storedValue(3));
   });
 });
+test("transaction: getAlarm: respect transactional updates", async (t) => {
+  t.plan(2);
+  const { backing, storage } = t.context;
+  await backing.put(ALARM_KEY, storedValue(1));
+  await storage.setAlarm(2);
+  await storage.transaction(async (txn) => {
+    const time = Date.now() + 30_000;
+    await txn.setAlarm(time);
+    await txn.getAlarm();
+    t.is(await txn.getAlarm(), time);
+    await txn.deleteAlarm();
+    t.is(await txn.getAlarm(), null);
+  });
+});
 test("getAlarm: closes input gate unless allowConcurrency", async (t) => {
   const { storage } = t.context;
   await closesInputGate(t, (allowConcurrency) =>
@@ -1095,19 +1109,19 @@ test("transaction: checks if committed and uncommitted values exist in same tran
     t.truthy(await txn.get("key3"));
   });
 });
-test("transaction: alarm: checks if committed and uncommitted values exist in same transaction", async (t) => {
-  const { storage } = t.context;
-  await storage.setAlarm(1);
-  await storage.transaction(async (txn) => {
-    // Test overriding existing key
-    await txn.setAlarm(2);
-    t.is(await txn.getAlarm(), 2);
+// test("transaction: alarm: checks if committed and uncommitted values exist in same transaction", async (t) => {
+//   const { storage } = t.context;
+//   await storage.setAlarm(1);
+//   await storage.transaction(async (txn) => {
+//     // Test overriding existing key
+//     await txn.setAlarm(2);
+//     t.is(await txn.getAlarm(), 2);
 
-    // Test deleting existing key
-    await txn.deleteAlarm();
-    t.is(await txn.getAlarm(), 1);
-  });
-});
+//     // Test deleting existing key
+//     await txn.deleteAlarm();
+//     t.is(await txn.getAlarm(), null);
+//   });
+// });
 test("transaction: gets uncommitted values", async (t) => {
   const { storage } = t.context;
   await storage.put({ key1: "value1", key2: "value2" });
