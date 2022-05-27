@@ -99,6 +99,10 @@ test("crypto: gets random values", (t) => {
   t.notDeepEqual(array, new Uint8Array(8));
 });
 
+test("crypto: generates random UUID", (t) => {
+  t.is(crypto.randomUUID().length, 36);
+});
+
 test("crypto: generates aes key", async (t) => {
   const key = await crypto.subtle.generateKey(
     { name: "aes-gcm", length: 256 },
