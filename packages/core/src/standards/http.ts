@@ -520,6 +520,11 @@ export class Response<
     return new Response(res.body, res);
   }
 
+  static json(data: any, init?: ResponseInit): Response {
+    const res = BaseResponse.json(data, init);
+    return new Response(res.body, res);
+  }
+
   // https://developers.cloudflare.com/workers/runtime-apis/response#properties
   // noinspection TypeScriptFieldCanBeMadeReadonly
   #encodeBody: "auto" | "manual";

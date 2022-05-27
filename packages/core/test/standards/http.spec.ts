@@ -614,6 +614,14 @@ test("Response.redirect: creates redirect response", (t) => {
   t.is(res.status, 302);
   t.is(res.headers.get("Location"), "http://localhost/");
 });
+test("Response.json: creates JSON response", async (t) => {
+  const res = Response.json({ a: 1 }, { headers: { "X-Key": "value" } });
+  t.is(res.status, 200);
+  t.is(res.headers.get("Content-Type"), "application/json");
+  t.is(res.headers.get("X-Key"), "value");
+  t.deepEqual(await res.json(), { a: 1 });
+});
+
 test("Response: constructing from BaseResponse doesn't create new BaseResponse unless required", async (t) => {
   const base = new BaseResponse("<p>test</p>", {
     status: 404,
