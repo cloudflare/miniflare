@@ -1,23 +1,4 @@
-import { TextDecoder as BaseTextDecoder } from "util";
 import { DOMException } from "@miniflare/core";
-
-export class TextDecoder extends BaseTextDecoder {
-  constructor(
-    encoding?: string,
-    options?: { fatal?: boolean; ignoreBOM?: boolean }
-  ) {
-    // Note this is meant to be case-sensitive
-    const validEncoding =
-      encoding === undefined ||
-      encoding === "utf-8" ||
-      encoding === "utf8" ||
-      encoding === "unicode-1-1-utf-8";
-    if (!validEncoding) {
-      throw new RangeError("TextDecoder only supports utf-8 encoding");
-    }
-    super(encoding, options);
-  }
-}
 
 // Implementations of base64 functions adapted from Node.js:
 // https://github.com/nodejs/node/blob/1086468aa3d328d2eac00bf66058906553ecd209/lib/buffer.js#L1213-L1239

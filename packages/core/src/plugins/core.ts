@@ -17,7 +17,7 @@ import {
   WritableStreamDefaultWriter,
 } from "stream/web";
 import { URL, URLSearchParams } from "url";
-import { TextEncoder } from "util";
+import { TextDecoder, TextEncoder } from "util";
 import { deserialize, serialize } from "v8";
 import {
   CompatibilityFlag,
@@ -44,7 +44,6 @@ import {
   Response,
   ScheduledEvent,
   Scheduler,
-  TextDecoder,
   WorkerGlobalScope,
   atob,
   btoa,
