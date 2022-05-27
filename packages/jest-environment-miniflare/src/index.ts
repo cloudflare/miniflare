@@ -1,5 +1,9 @@
 import vm from "vm";
-import type { JestEnvironment } from "@jest/environment";
+import type {
+  EnvironmentContext,
+  JestEnvironment,
+  JestEnvironmentConfig,
+} from "@jest/environment";
 import { LegacyFakeTimers, ModernFakeTimers } from "@jest/fake-timers";
 import type { Circus, Config, Global } from "@jest/types";
 import { CachePlugin } from "@miniflare/cache";
@@ -51,7 +55,7 @@ const log = new NoOpLog();
 
 // Adapted from jest-environment-node:
 // https://github.com/facebook/jest/blob/8f2cdad7694f4c217ac779d3f4e3a150b5a3d74d/packages/jest-environment-node/src/index.ts
-export default class MiniflareEnvironment implements JestEnvironment {
+export default class MiniflareEnvironment implements JestEnvironment<Timer> {
   private readonly config: Config.ProjectConfig;
   private context: vm.Context | null;
 
@@ -61,11 +65,21 @@ export default class MiniflareEnvironment implements JestEnvironment {
   global: Global.Global;
   moduleMocker: ModuleMocker | null;
 
+  customExportConditions = ["worker", "browser"];
+
   private readonly storageFactory = new StackedMemoryStorageFactory();
   private readonly scriptRunner: VMScriptRunner;
 
-  constructor(config: Config.ProjectConfig) {
+  constructor(
+    config:
+      | Config.ProjectConfig /* Jest 27 */
+      | JestEnvironmentConfig /* Jest 28 */,
+    _context: EnvironmentContext
+  ) {
+    // Normalise config object to `Config.ProjectConfig`
+    if ("projectConfig" in config) config = config.projectConfig;
     this.config = config;
+
     // Intentionally allowing code generation as some coverage tools require it
     this.context = vm.createContext({});
     // Make sure we define custom [Symbol.hasInstance]s for primitives so
@@ -89,6 +103,20 @@ export default class MiniflareEnvironment implements JestEnvironment {
     global.Buffer = Buffer;
 
     installCommonGlobals(global, this.config.globals);
+
+    if ("customExportConditions" in this.config.testEnvironmentOptions) {
+      const { customExportConditions } = this.config.testEnvironmentOptions;
+      if (
+        Array.isArray(customExportConditions) &&
+        customExportConditions.every((item) => typeof item === "string")
+      ) {
+        this.customExportConditions = customExportConditions;
+      } else {
+        throw new Error(
+          "Custom export conditions specified but they are not an array of strings"
+        );
+      }
+    }
 
     this.moduleMocker = new ModuleMocker(global);
 
@@ -197,6 +225,10 @@ export default class MiniflareEnvironment implements JestEnvironment {
     this.context = null;
     this.fakeTimers = null;
     this.fakeTimersModern = null;
+  }
+
+  exportConditions(): string[] {
+    return this.customExportConditions;
   }
 
   getVmContext(): vm.Context | null {

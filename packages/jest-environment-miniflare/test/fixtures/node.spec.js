@@ -5,13 +5,7 @@ import { Miniflare } from "miniflare";
 import StandardWebSocket from "ws";
 
 test("atob, btoa, AbortSignal", async () => {
-  // jest-environment-node doesn't include these in the global scope, even
-  // though they should be
-  expect(globalThis.atob).toBeUndefined();
-  expect(globalThis.btoa).toBeUndefined();
-  expect(globalThis.AbortSignal).toBeUndefined();
-
-  // Check Miniflare includes them anyways
+  // These are provided by Miniflare
   const mf = new Miniflare({
     script: "//",
   });
