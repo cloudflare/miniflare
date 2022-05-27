@@ -1049,6 +1049,21 @@ test("fetch: Response body is input gated", async (t) => {
   const body = await waitsForInputGate(t, () => res.text());
   t.is(body, "upstream");
 });
+test("fetch: Response headers are immutable", async (t) => {
+  const upstream = (
+    await useServer(t, (req, res) => {
+      res.writeHead(200, { "X-Key": "value" });
+      res.end("upstream");
+    })
+  ).http;
+  const res = await fetch(upstream);
+  t.throws(() => res.headers.set("X-Key", "new"), { instanceOf: TypeError });
+  t.is(res.headers.get("X-Key"), "value");
+
+  const mutable = new Response(res.body, res);
+  mutable.headers.set("X-Key", "new");
+  t.is(mutable.headers.get("X-Key"), "new");
+});
 
 test("createCompatFetch: throws outside request handler unless globalAsyncIO set", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;

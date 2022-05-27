@@ -849,6 +849,8 @@ export async function fetch(
       baseRes
     );
   }
+  // @ts-expect-error internal kGuard isn't included in type definitions
+  res.headers[fetchSymbols.kGuard] = "immutable";
 
   await waitForOpenInputGate();
   return withInputGating(res);
