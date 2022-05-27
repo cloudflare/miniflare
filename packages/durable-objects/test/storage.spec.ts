@@ -14,6 +14,7 @@ import {
   OutputGate,
   Storage,
   StoredValueMeta,
+  nonCircularClone,
   viewToArray,
   waitForOpenInputGate,
 } from "@miniflare/shared";
@@ -840,6 +841,13 @@ test("list: cannot set start and startAfter simultaneously", async (t) => {
     instanceOf: TypeError,
     message: "list() cannot be called with both start and startAfter values.",
   });
+});
+test("list: doesn't mutate list options when startAfter set", async (t) => {
+  const { storage } = t.context;
+  const options = { startAfter: "a" };
+  const original = nonCircularClone(options);
+  await storage.list(options);
+  t.deepEqual(options, original);
 });
 test("list: returns empty list with no keys", async (t) => {
   const { storage } = t.context;
