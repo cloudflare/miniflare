@@ -38,7 +38,7 @@
     "@miniflare/core": "2.4.0",
     "@miniflare/shared": "2.4.0",
     "@miniflare/storage-memory": "2.4.0",
-    "undici": "4.13.0"
+    "undici": "5.3.0"
   },
   "devDependencies": {
     "@miniflare/cache": "2.4.0",

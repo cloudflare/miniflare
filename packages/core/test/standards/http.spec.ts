@@ -392,7 +392,6 @@ test("Request: constructing from BaseRequest doesn't create new BaseRequest unle
   // Headers wouldn't be the same instance if cloned
   t.is(req.headers, base.headers);
   // Bodies are different, as we create a readable byte stream for each Request
-  // @ts-expect-error our bodies are typed ReadableStream
   t.not(req.body, base.body);
 
   t.is(req.cache, base.cache);
@@ -414,7 +413,6 @@ test("Request: constructing from BaseRequest doesn't create new BaseRequest unle
     method: "PATCH",
   });
   // Should be different as new instance created
-  // @ts-expect-error our bodies are typed ReadableStream
   t.not(req.body, base.body);
   t.is(req.method, "PATCH");
 });
@@ -626,7 +624,6 @@ test("Response: constructing from BaseResponse doesn't create new BaseResponse u
   // Headers wouldn't be the same if cloned
   t.is(res.headers, base.headers);
   // Bodies are different, as we create a readable byte stream for each Request
-  // @ts-expect-error our bodies are typed ReadableStream
   t.not(res.body, base.body);
 
   t.is(res.status, base.status);
@@ -638,7 +635,6 @@ test("Response: constructing from BaseResponse doesn't create new BaseResponse u
   // Check new BaseResponse created if different body passed
   res = new Response("<p>new</p>", base);
   // Should be different as new instance created
-  // @ts-expect-error our bodies are typed ReadableStream
   t.not(res.body, base.body);
   t.is(await res.text(), "<p>new</p>");
 });
@@ -681,8 +677,7 @@ test("Response: requires status 101 for WebSocket response", (t) => {
 test("Response: only allows status 101 for WebSocket response", (t) => {
   t.throws(() => new Response(null, { status: 101 }), {
     instanceOf: RangeError,
-    message:
-      "Failed to construct 'Response': The status provided (101) is outside the range [200, 599].",
+    message: 'init["status"] must be in the range of 200 to 599, inclusive.',
   });
 });
 test("Response: allows empty string for null body", (t) => {

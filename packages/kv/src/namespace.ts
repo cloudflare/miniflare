@@ -135,9 +135,10 @@ function convertStoredToGetValue(stored: Uint8Array, type: KVGetValueType) {
           controller.enqueue(stored);
           controller.close();
           // Not documented in MDN but if there's an ongoing request that's waiting,
-          // we need to tell it that there was 0 bytes delivered so that it unblocks
+          // we need to tell it that there were 0 bytes delivered so that it unblocks
           // and notices the end of stream.
-	         controller.byobRequest?.respond(0);
+          // @ts-expect-error `byobRequest` has type `undefined` in `@types/node`
+          controller.byobRequest?.respond(0);
         },
       });
   }

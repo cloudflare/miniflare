@@ -76,10 +76,11 @@ export async function convertNodeRequest(
           queueMicrotask(() => {
             controller.close();
             // Not documented in MDN but if there's an ongoing request that's waiting,
-            // we need to tell it that there was 0 bytes delivered so that it unblocks
+            // we need to tell it that there were 0 bytes delivered so that it unblocks
             // and notices the end of stream.
+            // @ts-expect-error `byobRequest` has type `undefined` in `@types/node`
             controller.byobRequest?.respond(0);
-	         });
+          });
         } else {
           const buffer = Buffer.isBuffer(value) ? value : Buffer.from(value);
           controller.enqueue(new Uint8Array(buffer));

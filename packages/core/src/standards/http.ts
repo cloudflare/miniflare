@@ -34,6 +34,7 @@ import {
   File,
   FormData,
   Headers,
+  ReferrerPolicy,
   RequestCache,
   RequestCredentials,
   RequestDestination,
@@ -41,9 +42,9 @@ import {
   RequestRedirect,
   ResponseRedirectStatus,
   ResponseType,
+  fetch as baseFetch,
   getGlobalDispatcher,
 } from "undici";
-import type { fetch as baseFetchType } from "undici";
 import { IncomingRequestCfProperties, RequestInitCfProperties } from "./cf";
 import {
   bufferSourceToArray,
@@ -52,22 +53,19 @@ import {
 } from "./helpers";
 import { kContentLength } from "./streams";
 
-// Note: I'm fully expecting these imports to break in future undici versions
-// and need to be updated, but that's why we pin our undici version and
-// have tests... :)
-
-// The fetch exported by "undici" always uses the global dispatcher, but we'd
-// like to be able to use a custom one, so we import the implementation directly
-const baseFetch: typeof baseFetchType = require("undici/lib/fetch");
-
-// We import this to check the headers passed to dispatch (in the custom
-// dispatcher) are a HeadersList instance, meaning we can use its utility
-// methods to get/remove headers.
-declare class HeadersList extends Array {
-  delete(name: string): void;
-}
-const HeadersListImpl: typeof HeadersList =
-  require("undici/lib/fetch/headers.js").HeadersList;
+// `undici` restricts which headers can be added to/gotten from a `Headers`
+// object in `Request`/`Response`s. Whilst this restriction makes sense for
+// security reasons in the browser, it doesn't server side.
+//
+// Note: this is a massive hack. I'm fully expecting it to break in future
+// `undici` versions and need to be updated, but that's why we pin our `undici`
+// version and have tests... :) Right?
+const constants: {
+  readonly forbiddenHeaderNames: string[];
+  readonly forbiddenResponseHeaderNames: string[];
+} = require("undici/lib/fetch/constants.js");
+constants.forbiddenHeaderNames.length = 0;
+constants.forbiddenResponseHeaderNames.length = 0;
 
 // We need these for making Request's Headers immutable
 const fetchSymbols: {
@@ -277,8 +275,9 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
         if (done) {
           controller.close();
           // Not documented in MDN but if there's an ongoing request that's waiting,
-          // we need to tell it that there was 0 bytes delivered so that it unblocks
+          // we need to tell it that there were 0 bytes delivered so that it unblocks
           // and notices the end of stream.
+          // @ts-expect-error `byobRequest` has type `undefined` in `@types/node`
           controller.byobRequest?.respond(0);
         }
       },
@@ -468,8 +467,8 @@ export class Request extends Body<BaseRequest> {
   get redirect(): RequestRedirect {
     return this[_kInner].redirect;
   }
-  get referrerPolicy(): string {
-    return this[_kInner].referrerPolicy;
+  get referrerPolicy(): ReferrerPolicy {
+    return this[_kInner].referrerPolicy as ReferrerPolicy;
   }
   get url(): string {
     return this[_kInner].url;
@@ -730,9 +729,17 @@ class MiniflareDispatcher extends Dispatcher {
       // Note: I'm fully expecting this to break in future undici versions
       // and need to be updated, but that's why we pin our undici version and
       // have tests
-      assert(headers instanceof HeadersListImpl);
-      // Remove any default fetch headers that the user didn't explicitly set
-      for (const header of this.removeHeaders) headers.delete(header);
+      assert(Array.isArray(headers));
+      // Remove any default fetch headers that the user didn't explicitly set,
+      // `headers` has the form `["key1", "value1", "key2", "value2", ...]`
+      let i = 0;
+      while (i < headers.length) {
+        if (this.removeHeaders.includes(headers[i].toLowerCase())) {
+          headers.splice(i, 2);
+        } else {
+          i += 2;
+        }
+      }
     }
     return this.inner.dispatch(options, handler);
   }
@@ -798,7 +805,7 @@ export async function fetch(
     getGlobalDispatcher(),
     removeHeaders
   );
-  const baseRes = await baseFetch.call(dispatcher, req);
+  const baseRes = await baseFetch(req, { dispatcher });
 
   // Increment the subrequest count by the number of redirects
   // TODO (someday): technically we should check the subrequest count before
