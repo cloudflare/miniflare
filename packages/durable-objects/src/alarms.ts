@@ -62,6 +62,7 @@ export class AlarmStore {
       this.#alarmTimeout = undefined;
       this.setupAlarms(callback);
     }, 30_000);
+    this.#alarmTimeout.unref();
   }
 
   buildBridge(objectKey: string): DurableObjectAlarmBridge {
