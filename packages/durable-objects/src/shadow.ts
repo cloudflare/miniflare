@@ -8,12 +8,14 @@ import {
   addAll,
 } from "@miniflare/shared";
 import { listFilterMatch } from "@miniflare/storage-memory";
+import { ALARM_KEY } from "./alarms";
 
 const collator = new Intl.Collator();
 
 export class ShadowStorage extends Storage {
   readonly readSet?: Set<string>;
   readonly copies = new Map<string, StoredValue | undefined>();
+  alarm?: number | null;
 
   constructor(protected readonly inner: Storage, recordReads = true) {
     super();
@@ -161,5 +163,25 @@ export class ShadowStorage extends Storage {
       );
     }
     return { keys, cursor: "" /* unsupported */ };
+  }
+
+  async getAlarm(): Promise<number | null> {
+    this.readSet?.add(ALARM_KEY);
+    if (this.alarm !== undefined) return this.alarm;
+    const { metadata } =
+      (await this.inner.get<{ scheduledTime: number }>(ALARM_KEY)) ?? {};
+    return metadata?.scheduledTime ?? null;
+  }
+
+  setAlarm(scheduledTime: number | Date): Promise<void> {
+    if (typeof scheduledTime !== "number")
+      scheduledTime = scheduledTime.getTime();
+    this.alarm = scheduledTime;
+    return Promise.resolve();
+  }
+
+  deleteAlarm(): Promise<void> {
+    this.alarm = null;
+    return Promise.resolve();
   }
 }

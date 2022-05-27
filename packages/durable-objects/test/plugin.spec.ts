@@ -76,16 +76,19 @@ test("DurableObjectsPlugin: parses options from wrangler config", (t) => {
       OBJECT2: { className: "Object2", scriptName: "other_script" },
     },
     durableObjectsPersist: "path",
+    durableObjectAlarms: undefined,
   });
 });
 test("DurableObjectsPlugin: logs options", (t) => {
   const logs = logPluginOptions(DurableObjectsPlugin, {
     durableObjects: { OBJECT1: "Object1", OBJECT2: "Object2" },
     durableObjectsPersist: true,
+    durableObjectAlarms: true,
   });
   t.deepEqual(logs, [
     "Durable Objects: OBJECT1, OBJECT2",
     "Durable Objects Persistence: true",
+    "Durable Object Alarms: true",
   ]);
 });
 
@@ -195,9 +198,11 @@ test("DurableObjectsPlugin: getNamespace: reuses single instance of object", asy
 test("DurableObjectsPlugin: setup: includes namespaces for all objects", async (t) => {
   class Object1 implements DurableObject {
     fetch = () => new Response("object1");
+    alarm = () => {};
   }
   class Object2 implements DurableObject {
     fetch = () => new Response("object2");
+    alarm = () => {};
   }
 
   const factory = new MemoryStorageFactory();
@@ -205,7 +210,7 @@ test("DurableObjectsPlugin: setup: includes namespaces for all objects", async (
     durableObjects: { OBJECT1: "Object1", OBJECT2: { className: "Object2" } },
   });
 
-  const result = plugin.setup(factory);
+  const result = await plugin.setup(factory);
   plugin.beforeReload();
   plugin.reload({}, { Object1, Object2 }, new Map());
 
@@ -286,4 +291,15 @@ test("DurableObjectsPlugin: dispose: deletes all instances", async (t) => {
 
   // Check new instance created
   t.not(await res1.text(), await res2.text());
+});
+
+test("DurableObjectsPlugin: setup alarms and dispose alarms", async (t) => {
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: "TestObject" },
+    durableObjectAlarms: false,
+  });
+  plugin.setup(factory);
+  plugin.dispose();
+  t.false(plugin.durableObjectAlarms);
 });

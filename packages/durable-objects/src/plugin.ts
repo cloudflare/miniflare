@@ -6,10 +6,12 @@ import {
   OptionType,
   Plugin,
   PluginContext,
+  RequestContext,
   SetupResult,
   StorageFactory,
   resolveStoragePersist,
 } from "@miniflare/shared";
+import { AlarmStore } from "./alarms";
 import { DurableObjectError } from "./error";
 import {
   DurableObjectConstructor,
@@ -17,10 +19,11 @@ import {
   DurableObjectId,
   DurableObjectNamespace,
   DurableObjectState,
+  kAlarm,
   kInstance,
   kObjectName,
 } from "./namespace";
-import { DurableObjectStorage } from "./storage";
+import { DurableObjectStorage, kAlarmExists } from "./storage";
 
 export type DurableObjectsObjectsOptions = Record<
   string,
@@ -30,6 +33,7 @@ export type DurableObjectsObjectsOptions = Record<
 export interface DurableObjectsOptions {
   durableObjects?: DurableObjectsObjectsOptions;
   durableObjectsPersist?: boolean | string;
+  durableObjectAlarms?: boolean;
 }
 
 interface ProcessedDurableObject {
@@ -82,6 +86,17 @@ export class DurableObjectsPlugin
     fromWrangler: ({ miniflare }) => miniflare?.durable_objects_persist,
   })
   durableObjectsPersist?: boolean | string;
+
+  @Option({
+    type: OptionType.BOOLEAN,
+    name: "do-alarms",
+    description: "Enable Durable Object alarms (enabled by default)",
+    negatable: true,
+    logName: "Durable Object Alarms",
+    fromWrangler: ({ miniflare }) => miniflare?.do_alarms,
+  })
+  durableObjectAlarms?: boolean;
+
   readonly #persist?: boolean | string;
 
   readonly #processedObjects: ProcessedDurableObject[];
@@ -94,6 +109,8 @@ export class DurableObjectsPlugin
 
   readonly #objects = new Map<string, Promise<DurableObjectState>>();
 
+  readonly #alarmStore: AlarmStore;
+
   constructor(ctx: PluginContext, options?: DurableObjectsOptions) {
     super(ctx);
     this.assignOptions(options);
@@ -101,6 +118,7 @@ export class DurableObjectsPlugin
       ctx.rootPath,
       this.durableObjectsPersist
     );
+    this.#alarmStore = new AlarmStore();
 
     this.#processedObjects = Object.entries(this.durableObjects ?? {}).map(
       ([name, options]) => {
@@ -141,7 +159,8 @@ export class DurableObjectsPlugin
     // section protected with a mutex.
     statePromise = (async () => {
       const objectStorage = new DurableObjectStorage(
-        await storage.storage(key, this.#persist)
+        await storage.storage(key, this.#persist),
+        this.#alarmStore.buildBridge(key)
       );
       const state = new DurableObjectState(id, objectStorage);
 
@@ -151,6 +170,8 @@ export class DurableObjectsPlugin
       assert(constructor);
 
       state[kInstance] = new constructor(state, this.#bindings);
+      // we need to throw an error on "setAlarm" if the "alarm" method does not exist
+      if (!state[kInstance]?.alarm) objectStorage[kAlarmExists] = false;
       return state;
     })();
     this.#objects.set(key, statePromise);
@@ -165,15 +186,36 @@ export class DurableObjectsPlugin
     return new DurableObjectNamespace(objectName, factory, this.ctx);
   }
 
-  setup(storageFactory: StorageFactory): SetupResult {
+  async setup(storageFactory: StorageFactory): Promise<SetupResult> {
     const bindings: Context = {};
     for (const { name } of this.#processedObjects) {
       bindings[name] = this.getNamespace(storageFactory, name);
     }
+    await this.#setupAlarms(storageFactory);
     return {
       bindings,
       requiresModuleExports: this.#processedObjects.length > 0,
     };
+  }
+
+  async #setupAlarms(storage: StorageFactory): Promise<void> {
+    if (this.durableObjectAlarms === false) return;
+    // if the alarm store doesn't exist yet, create
+    await this.#alarmStore.setupStore(storage, this.#persist);
+    await this.#alarmStore.setupAlarms(async (objectKey: string) => {
+      const index = objectKey.lastIndexOf(":");
+      const objectName = objectKey.substring(0, index);
+      const hexId = objectKey.substring(index + 1);
+      // grab the instance
+      const id = new DurableObjectId(objectName, hexId);
+      const state = await this.getObject(storage, id);
+      // execute the alarm
+      await new RequestContext({
+        requestDepth: 1,
+        pipelineDepth: 1,
+        durableObject: true,
+      }).runWith(() => state[kAlarm]());
+    });
   }
 
   beforeReload(): void {
@@ -225,6 +267,7 @@ export class DurableObjectsPlugin
   }
 
   dispose(): void {
+    this.#alarmStore.dispose();
     return this.beforeReload();
   }
 }

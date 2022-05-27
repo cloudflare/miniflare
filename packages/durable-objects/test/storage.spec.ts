@@ -2,6 +2,8 @@ import assert from "assert";
 import { setTimeout } from "timers/promises";
 import { serialize } from "v8";
 import {
+  ALARM_KEY,
+  AlarmStore,
   DurableObjectError,
   DurableObjectListOptions,
   DurableObjectStorage,
@@ -16,6 +18,7 @@ import {
   waitForOpenInputGate,
 } from "@miniflare/shared";
 import {
+  MemoryStorageFactory,
   RecorderStorage,
   getObjectProperties,
   triggerPromise,
@@ -28,6 +31,7 @@ import anyTest, {
   TestInterface,
   ThrowsExpectation,
 } from "ava";
+import { alarmStore, testKey } from "./object";
 
 interface Context {
   backing: Storage;
@@ -38,7 +42,12 @@ const test = anyTest as TestInterface<Context>;
 
 test.beforeEach((t) => {
   const backing = new MemoryStorage();
-  const storage = new DurableObjectStorage(backing);
+  const alarmStore = new AlarmStore();
+  alarmStore.setupStore(new MemoryStorageFactory());
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   t.context = { backing, storage };
 });
 
@@ -54,6 +63,7 @@ const testString = "value";
 const testSet = new Set(["a", "b", "c"]);
 const testDate = new Date(1000);
 const testObject = { a: 1, b: 2, c: 3 };
+const testNumber = 1000;
 
 const testStringStored = storedValue(testString);
 const testSetStored = storedValue(testSet);
@@ -271,7 +281,10 @@ test("get: validates keys", async (t) => {
 });
 test("get: getting multiple keys ignores undefined keys", async (t) => {
   const backing = new RecorderStorage(new MemoryStorage());
-  const storage = new DurableObjectStorage(backing);
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   // @ts-expect-error intentionally testing not passing correct types
   await storage.get(["a", undefined, "b"]);
   t.deepEqual(backing.events, [{ type: "getMany", keys: ["a", "b"] }]);
@@ -439,7 +452,10 @@ test("put: validates values", async (t) => {
 });
 test("put: putting multiple values ignores undefined values", async (t) => {
   const backing = new RecorderStorage(new MemoryStorage());
-  const storage = new DurableObjectStorage(backing);
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   await storage.put({ a: 1, b: undefined, c: 2 });
   t.deepEqual(backing.events, [{ type: "putMany", keys: ["a", "c"] }]);
 
@@ -449,7 +465,10 @@ test("put: putting multiple values ignores undefined values", async (t) => {
 });
 test("put: coalesces writes", async (t) => {
   const backing = new RecorderStorage(new MemoryStorage());
-  const storage = new DurableObjectStorage(backing);
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   const outputGate = new OutputGate();
   await outputGate.runWith(() => {
     storage.put("key", 1);
@@ -559,7 +578,10 @@ test("delete: validates keys", async (t) => {
 });
 test("delete: delete multiple keys ignores undefined keys", async (t) => {
   const backing = new RecorderStorage(new MemoryStorage());
-  const storage = new DurableObjectStorage(backing);
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   // @ts-expect-error intentionally testing not passing correct types
   await storage.delete(["a", undefined, "b"]);
   t.deepEqual(backing.events, [{ type: "deleteMany", keys: ["a", "b"] }]);
@@ -602,7 +624,10 @@ test("delete: reports key not deleted if already deleted in shadow copy", async 
 });
 test("delete: coalesces deletes", async (t) => {
   const backing = new RecorderStorage(new MemoryStorage());
-  const storage = new DurableObjectStorage(backing);
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   await storage.put("key6", 6);
   backing.events = [];
   const outputGate = new OutputGate();
@@ -688,7 +713,10 @@ test("deleteAll: closes output gate unless allowConfirmed", async (t) => {
 });
 test("deleteAll: coalesces with previous puts", async (t) => {
   const backing = new RecorderStorage(new MemoryStorage());
-  const storage = new DurableObjectStorage(backing);
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
   await storage.put({ a: 1, b: 2 });
 
   backing.events = [];
@@ -830,6 +858,240 @@ test("list: blocks writes until complete", async (t) => {
   );
 });
 
+test("getAlarm: storage returns inputed number", async (t) => {
+  const { storage } = t.context;
+  await storage.setAlarm(testNumber);
+  t.is(await storage.getAlarm(), testNumber);
+});
+test("getAlarm: backing returns inputed number", async (t) => {
+  const { backing } = t.context;
+  await backing.put(ALARM_KEY, storedValue(testNumber));
+  t.deepEqual(await backing.get(ALARM_KEY), storedValue(testNumber));
+});
+test("transaction: getAlarm: gets uncommitted values", async (t) => {
+  t.plan(6);
+  const { backing, storage } = t.context;
+  await backing.put(ALARM_KEY, storedValue(1));
+  await storage.transaction(async (txn) => {
+    // Test overwriting existing alarm
+    await txn.setAlarm(2);
+    t.is(await txn.getAlarm(), 2);
+    t.deepEqual(await backing.get(ALARM_KEY), storedValue(1));
+
+    // Test deleting alarm
+    await txn.deleteAlarm();
+    t.is(await txn.getAlarm(), null);
+    t.deepEqual(await backing.get(ALARM_KEY), storedValue(1));
+
+    // Test creating new alarm
+    await txn.setAlarm(3);
+    t.is(await txn.getAlarm(), 3);
+    t.deepEqual(await backing.get(ALARM_KEY), storedValue(1));
+  });
+});
+test("transaction: getAlarm: gets committed and uncommitted values in same transaction", async (t) => {
+  t.plan(3);
+  const { backing, storage } = t.context;
+  await backing.put(ALARM_KEY, storedValue(1));
+  await backing.put(ALARM_KEY, storedValue(3));
+  await storage.transaction(async (txn) => {
+    t.is(await txn.getAlarm(), null);
+    await txn.setAlarm(2);
+    t.is(await txn.getAlarm(), 2);
+    t.deepEqual(await backing.get(ALARM_KEY), storedValue(3));
+  });
+});
+test("transaction: getAlarm: respect transactional updates", async (t) => {
+  t.plan(2);
+  const { backing, storage } = t.context;
+  await backing.put(ALARM_KEY, storedValue(1));
+  await storage.setAlarm(2);
+  await storage.transaction(async (txn) => {
+    const time = Date.now() + 30_000;
+    await txn.setAlarm(time);
+    await txn.getAlarm();
+    t.is(await txn.getAlarm(), time);
+    await txn.deleteAlarm();
+    t.is(await txn.getAlarm(), null);
+  });
+});
+test("getAlarm: closes input gate unless allowConcurrency", async (t) => {
+  const { storage } = t.context;
+  await closesInputGate(t, (allowConcurrency) =>
+    storage.getAlarm({ allowConcurrency })
+  );
+  await storage.transaction(async (txn) => {
+    await closesInputGate(t, (allowConcurrency) =>
+      txn.getAlarm({ allowConcurrency })
+    );
+  });
+});
+test("getAlarm: blocks writes until complete", async (t) => {
+  const { storage } = t.context;
+  await storage.setAlarm(1);
+  const promise = storage.getAlarm();
+  await storage.setAlarm(2);
+  t.is(await promise, 1);
+});
+
+test("setAlarm: storage returns inputed number", async (t) => {
+  const { storage } = t.context;
+  await storage.setAlarm(testNumber);
+  t.is(await storage.getAlarm(), testNumber);
+});
+test("setAlarm: storage as date returns inputed number", async (t) => {
+  const { storage } = t.context;
+  await storage.setAlarm(testDate);
+  t.is(await storage.getAlarm(), testNumber);
+});
+test("setAlarm: backing returns inputed number", async (t) => {
+  const { backing } = t.context;
+  await backing.put(ALARM_KEY, storedValue(testNumber));
+  t.deepEqual(await backing.get(ALARM_KEY), storedValue(testNumber));
+});
+test("setAlarm: overide alarm", async (t) => {
+  const { storage } = t.context;
+  await storage.setAlarm(testNumber);
+  await storage.setAlarm(0);
+  t.is(await storage.getAlarm(), 0);
+});
+test("setAlarm: closes input gate unless allowConcurrency", async (t) => {
+  const { storage } = t.context;
+  await closesInputGate(t, (allowConcurrency) =>
+    storage.setAlarm(testNumber, { allowConcurrency })
+  );
+  await storage.transaction(async (txn) => {
+    await closesInputGate(t, (allowConcurrency) =>
+      txn.setAlarm(testNumber, { allowConcurrency })
+    );
+  });
+});
+test("setAlarm: closes output gate unless allowUnconfirmed", async (t) => {
+  const { storage } = t.context;
+  await closesOutputGate(t, (allowUnconfirmed) =>
+    storage.setAlarm(testNumber, { allowUnconfirmed })
+  );
+  await storage.transaction(async (txn) => {
+    await closesOutputGate(t, (allowUnconfirmed) =>
+      txn.setAlarm(testNumber, { allowUnconfirmed })
+    );
+  });
+});
+test("setAlarm: coalesces writes", async (t) => {
+  t.plan(2);
+  const backing = new RecorderStorage(new MemoryStorage());
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
+  const outputGate = new OutputGate();
+  await outputGate.runWith(() => {
+    storage.setAlarm(1);
+    storage.setAlarm(2);
+  });
+  t.deepEqual(backing.events, [{ type: "put", key: ALARM_KEY }]);
+  t.is(await storage.getAlarm(), 2);
+});
+
+test("setAlarm: marks alarm as written, retrying conflicting transactions", async (t) => {
+  const { storage } = t.context;
+  await storage.setAlarm(1);
+  const [startTrigger, startPromise] = triggerPromise<void>();
+  const [finishTrigger, finishPromise] = triggerPromise<void>();
+  // This transaction should be retried
+  let retries = 0;
+  const txnPromise = storage.transaction(async (txn) => {
+    retries++;
+    startTrigger();
+    await finishPromise;
+    return txn.getAlarm();
+  });
+  await startPromise;
+  await storage.setAlarm(2);
+  finishTrigger();
+  // the transaction should clear the alarm from shadow storage
+  t.is(await txnPromise, 2);
+  t.is(retries, 2);
+});
+
+test("deleteAlarm: deletes active alarm", async (t) => {
+  const { backing, storage } = t.context;
+  await backing.put(ALARM_KEY, storedValue(testNumber));
+  t.not(await backing.get(ALARM_KEY), null);
+  t.is(await storage.deleteAlarm(), undefined);
+  t.is(await backing.get(ALARM_KEY), undefined);
+});
+test("deleteAlarm: removing from storage works", async (t) => {
+  t.plan(2);
+  const { backing, storage } = t.context;
+  await backing.put(ALARM_KEY, storedValue(testNumber));
+  await storage.deleteAlarm();
+  t.is(await backing.get(ALARM_KEY), undefined);
+  t.is(await storage.getAlarm(), null);
+});
+test("deleteAlarm: closes input gate unless allowConcurrency", async (t) => {
+  const { storage } = t.context;
+  await closesInputGate(t, (allowConcurrency) =>
+    storage.deleteAlarm({ allowConcurrency })
+  );
+});
+test("deleteAlarm: closes output gate unless allowConfirmed", async (t) => {
+  const { storage } = t.context;
+  await closesOutputGate(t, (allowUnconfirmed) =>
+    storage.deleteAlarm({ allowUnconfirmed })
+  );
+});
+test("deleteAlarm: reports proper ordering (gates work)", async (t) => {
+  const { storage } = t.context;
+  await storage.setAlarm(1);
+  const promise = storage.deleteAlarm();
+  // noinspection ES6MissingAwait
+  void storage.setAlarm(2);
+  t.is(await storage.getAlarm(), 2);
+  await promise;
+});
+test("deleteAlarm: coalesces delete", async (t) => {
+  const backing = new RecorderStorage(new MemoryStorage());
+  const storage = new DurableObjectStorage(
+    backing,
+    alarmStore.buildBridge(testKey)
+  );
+  await storage.setAlarm(6);
+  backing.events = [];
+  const outputGate = new OutputGate();
+  let promiseSingle: Promise<void> | undefined;
+  await outputGate.runWith(async () => {
+    await storage.setAlarm(1);
+    promiseSingle = storage.deleteAlarm();
+    await storage.setAlarm(2);
+  });
+  t.deepEqual(backing.events, [
+    { key: ALARM_KEY, type: "put" },
+    { key: ALARM_KEY, type: "put" },
+  ]);
+  t.is(await storage.getAlarm(), 2);
+  await promiseSingle;
+});
+test("deleteAlarm: marks keys as written, retrying conflicting transactions", async (t) => {
+  const { storage } = t.context;
+  await storage.setAlarm(testNumber);
+  const [startTrigger, startPromise] = triggerPromise<void>();
+  const [finishTrigger, finishPromise] = triggerPromise<void>();
+  // This transaction should be retried
+  let retries = 0;
+  const txnPromise = storage.transaction(async (txn) => {
+    retries++;
+    startTrigger();
+    await finishPromise;
+    return txn.getAlarm();
+  });
+  await startPromise;
+  await storage.deleteAlarm();
+  finishTrigger();
+  t.is(await txnPromise, null);
+  t.is(retries, 2);
+});
+
 test("transaction: checks if committed and uncommitted values exist in same transaction", async (t) => {
   const { storage } = t.context;
   await storage.put({ key1: "value1", key2: "value2" });
@@ -845,6 +1107,19 @@ test("transaction: checks if committed and uncommitted values exist in same tran
     // Test adding new key
     await txn.put("key3", "value3");
     t.truthy(await txn.get("key3"));
+  });
+});
+test("transaction: alarm: checks if committed and uncommitted values exist in same transaction", async (t) => {
+  const { storage } = t.context;
+  await storage.setAlarm(1);
+  await storage.transaction(async (txn) => {
+    // Test overriding existing key
+    await txn.setAlarm(2);
+    t.is(await txn.getAlarm(), 2);
+
+    // Test deleting existing key
+    await txn.deleteAlarm();
+    t.is(await txn.getAlarm(), null);
   });
 });
 test("transaction: gets uncommitted values", async (t) => {
@@ -994,10 +1269,13 @@ test("hides implementation details", (t) => {
   const { storage } = t.context;
   t.deepEqual(getObjectProperties(storage), [
     "delete",
+    "deleteAlarm",
     "deleteAll",
     "get",
+    "getAlarm",
     "list",
     "put",
+    "setAlarm",
     "transaction",
   ]);
 });
@@ -1009,10 +1287,13 @@ test("transaction: hides implementation details", async (t) => {
   });
   t.deepEqual(properties, [
     "delete",
+    "deleteAlarm",
     "deleteAll",
     "get",
+    "getAlarm",
     "list",
     "put",
     "rollback",
+    "setAlarm",
   ]);
 });

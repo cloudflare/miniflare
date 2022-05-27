@@ -57,9 +57,11 @@ export interface DurableObjectConstructor {
 
 export interface DurableObject {
   fetch(request: Request): Awaitable<Response>;
+  alarm?(): Awaitable<void>;
 }
 
 export const kInstance = Symbol("kInstance");
+export const kAlarm = Symbol("kAlarm");
 const kFetch = Symbol("kFetch");
 
 export class DurableObjectState {
@@ -91,6 +93,26 @@ export class DurableObjectState {
           );
         }
         return instance.fetch(request);
+      })
+    );
+  }
+
+  [kAlarm](): Promise<void> {
+    // TODO: catch, reset object on error
+    const outputGate = new OutputGate();
+    return outputGate.runWith(() =>
+      this.#inputGate.runWith(() => {
+        // delete the local alarm
+        this.storage.deleteAlarm();
+        // grab the instance and call the alarm handler
+        const instance = this[kInstance];
+        if (!instance?.alarm) {
+          throw new DurableObjectError(
+            "ERR_NO_HANDLER",
+            "No alarm handler defined in Durable Object"
+          );
+        }
+        return instance.alarm();
       })
     );
   }
