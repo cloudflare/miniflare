@@ -93,7 +93,7 @@ export class DurableObjectsPlugin
     description: "Enable Durable Object alarms (enabled by default)",
     negatable: true,
     logName: "Durable Object Alarms",
-    fromWrangler: ({ miniflare }) => miniflare?.do_alarms ?? true,
+    fromWrangler: ({ miniflare }) => miniflare?.do_alarms,
   })
   durableObjectAlarms?: boolean;
 
@@ -199,7 +199,7 @@ export class DurableObjectsPlugin
   }
 
   async #setupAlarms(storage: StorageFactory): Promise<void> {
-    if (!this.durableObjectAlarms) return;
+    if (this.durableObjectAlarms === false) return;
     // if the alarm store doesn't exist yet, create
     await this.#alarmStore.setupStore(storage, this.#persist);
     await this.#alarmStore.setupAlarms(async (objectKey: string) => {

@@ -131,7 +131,7 @@ KV Options:
 Durable Objects Options:
  -o, --do                Durable Object to bind                             [array:NAME=CLASS[@MOUNT]]
      --do-persist        Persist Durable Object data (to optional path)               [boolean/string]
-     --(no-)do-alarms    Durable Objects will not monitor or trigger alarms.          [boolean]
+     --(no-)do-alarms    Enable Durable Object alarms (enabled by default)                   [boolean]
 
 Cache Options:
      --(no-)cache        Enable default/named caches (enabled by default)                    [boolean]
