@@ -1109,19 +1109,19 @@ test("transaction: checks if committed and uncommitted values exist in same tran
     t.truthy(await txn.get("key3"));
   });
 });
-// test("transaction: alarm: checks if committed and uncommitted values exist in same transaction", async (t) => {
-//   const { storage } = t.context;
-//   await storage.setAlarm(1);
-//   await storage.transaction(async (txn) => {
-//     // Test overriding existing key
-//     await txn.setAlarm(2);
-//     t.is(await txn.getAlarm(), 2);
+test("transaction: alarm: checks if committed and uncommitted values exist in same transaction", async (t) => {
+  const { storage } = t.context;
+  await storage.setAlarm(1);
+  await storage.transaction(async (txn) => {
+    // Test overriding existing key
+    await txn.setAlarm(2);
+    t.is(await txn.getAlarm(), 2);
 
-//     // Test deleting existing key
-//     await txn.deleteAlarm();
-//     t.is(await txn.getAlarm(), null);
-//   });
-// });
+    // Test deleting existing key
+    await txn.deleteAlarm();
+    t.is(await txn.getAlarm(), null);
+  });
+});
 test("transaction: gets uncommitted values", async (t) => {
   const { storage } = t.context;
   await storage.put({ key1: "value1", key2: "value2" });
