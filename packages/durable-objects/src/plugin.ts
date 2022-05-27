@@ -33,7 +33,7 @@ export type DurableObjectsObjectsOptions = Record<
 export interface DurableObjectsOptions {
   durableObjects?: DurableObjectsObjectsOptions;
   durableObjectsPersist?: boolean | string;
-  durableObjectAlarms?: boolean;
+  durableObjectsAlarms?: boolean;
 }
 
 interface ProcessedDurableObject {
@@ -93,9 +93,9 @@ export class DurableObjectsPlugin
     description: "Enable Durable Object alarms (enabled by default)",
     negatable: true,
     logName: "Durable Object Alarms",
-    fromWrangler: ({ miniflare }) => miniflare?.do_alarms,
+    fromWrangler: ({ miniflare }) => miniflare?.durable_objects_alarms,
   })
-  durableObjectAlarms?: boolean;
+  durableObjectsAlarms?: boolean;
 
   readonly #persist?: boolean | string;
 
@@ -199,7 +199,7 @@ export class DurableObjectsPlugin
   }
 
   async #setupAlarms(storage: StorageFactory): Promise<void> {
-    if (this.durableObjectAlarms === false) return;
+    if (this.durableObjectsAlarms === false) return;
     // if the alarm store doesn't exist yet, create
     await this.#alarmStore.setupStore(storage, this.#persist);
     await this.#alarmStore.setupAlarms(async (objectKey: string) => {

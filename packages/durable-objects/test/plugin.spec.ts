@@ -37,6 +37,7 @@ test("DurableObjectsPlugin: parses options from argv", (t) => {
     "OBJECT2=Object2@api",
     "--do-persist",
     "path",
+    "--no-do-alarms",
   ]);
   t.deepEqual(options, {
     durableObjects: {
@@ -44,6 +45,7 @@ test("DurableObjectsPlugin: parses options from argv", (t) => {
       OBJECT2: { className: "Object2", scriptName: "api" },
     },
     durableObjectsPersist: "path",
+    durableObjectsAlarms: false,
   });
   options = parsePluginArgv(DurableObjectsPlugin, [
     "-o",
@@ -68,7 +70,10 @@ test("DurableObjectsPlugin: parses options from wrangler config", (t) => {
         { name: "OBJECT2", class_name: "Object2", script_name: "other_script" },
       ],
     },
-    miniflare: { durable_objects_persist: "path" },
+    miniflare: {
+      durable_objects_persist: "path",
+      durable_objects_alarms: false,
+    },
   });
   t.deepEqual(options, {
     durableObjects: {
@@ -76,14 +81,14 @@ test("DurableObjectsPlugin: parses options from wrangler config", (t) => {
       OBJECT2: { className: "Object2", scriptName: "other_script" },
     },
     durableObjectsPersist: "path",
-    durableObjectAlarms: undefined,
+    durableObjectsAlarms: false,
   });
 });
 test("DurableObjectsPlugin: logs options", (t) => {
   const logs = logPluginOptions(DurableObjectsPlugin, {
     durableObjects: { OBJECT1: "Object1", OBJECT2: "Object2" },
     durableObjectsPersist: true,
-    durableObjectAlarms: true,
+    durableObjectsAlarms: true,
   });
   t.deepEqual(logs, [
     "Durable Objects: OBJECT1, OBJECT2",
@@ -297,9 +302,9 @@ test("DurableObjectsPlugin: setup alarms and dispose alarms", async (t) => {
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
-    durableObjectAlarms: false,
+    durableObjectsAlarms: false,
   });
   plugin.setup(factory);
   plugin.dispose();
-  t.false(plugin.durableObjectAlarms);
+  t.false(plugin.durableObjectsAlarms);
 });

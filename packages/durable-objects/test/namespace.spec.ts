@@ -160,13 +160,13 @@ test("DurableObjectState: kAlarm: no alarm method; setAlarm throws while getAlar
   });
 
   class TestObject implements DurableObject {
-    constructor(private readonly state: DurableObjectState) {}
+    constructor(private readonly _state: DurableObjectState) {}
 
     fetch(): Response {
       return new Response();
     }
   }
-  plugin.setup(factory);
+  await plugin.setup(factory);
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
 
@@ -246,7 +246,7 @@ test("DurableObjectStub: fetch: throws with relative urls if compatibility flag 
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
     { log, compat, rootPath },
-    { durableObjects: { TEST: "TestObject" }, durableObjectAlarms: true }
+    { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
   );
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -267,7 +267,7 @@ test("DurableObjectStub: fetch: throws with unknown protocols if compatibility f
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
     { log, compat, rootPath },
-    { durableObjects: { TEST: "TestObject" }, durableObjectAlarms: true }
+    { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
   );
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -290,7 +290,7 @@ test("DurableObjectStub: fetch: logs warning with unknown protocol if compatibil
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
     { log, compat, rootPath },
-    { durableObjects: { TEST: "TestObject" }, durableObjectAlarms: true }
+    { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
   );
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
