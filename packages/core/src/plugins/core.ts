@@ -34,6 +34,8 @@ import {
   globsToMatcher,
 } from "@miniflare/shared";
 import { File, FormData, Headers } from "undici";
+// @ts-expect-error `urlpattern-polyfill` only provides global types
+import { URLPattern } from "urlpattern-polyfill";
 import { MiniflareCoreError } from "../error";
 import {
   AbortSignal,
@@ -54,7 +56,6 @@ import {
 } from "../standards";
 import { assertsInRequest } from "../standards/helpers";
 import type { BindingsOptions } from "./bindings";
-import { URLPattern } from "urlpattern-polyfill";
 
 const DEFAULT_MODULE_RULES: ModuleRule[] = [
   { type: "ESModule", include: ["**/*.mjs"] },
@@ -444,8 +445,8 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       DOMException,
       WorkerGlobalScope,
 
-      // @ts-expect-error structuredClone was added to the global scope in
-      // Node 17.0.0. Approximate with serialize/deserialize if not there.
+      // `structuredClone` was added to the global scope in Node 17.0.0.
+      // Approximate with serialize/deserialize if not there.
       structuredClone: globalThis.structuredClone ?? structuredCloneBuffer,
 
       // The types below would be included automatically, but it's not possible

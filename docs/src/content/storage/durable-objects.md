@@ -124,6 +124,7 @@ Like the real Workers runtime, Miniflare will throw errors when:
 - Attempting to modify more than `128` keys in a transaction
 - Attempting to `put` an `undefined` value
 - Attempting to list keys with a negative `limit`
+- Attempting to list keys with both `start` and `startAfter` set
 - Attempting to perform an operation in a rolledback transaction or in a
   transaction that has already committed
 - Attempting to call `deleteAll()` in a transaction

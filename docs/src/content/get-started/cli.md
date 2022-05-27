@@ -279,8 +279,8 @@ Durable Objects Options:
  -o, --do                Durable Object to bind       [array:NAME=CLASS[@MOUNT]]
      --do-persist        Persist Durable Object data (to        [boolean/string]
                          optional path)
-    --(no-)do-alarms     Enable Durable Object alarms (enabled         [boolean]
-                         by default)
+     --(no-)do-alarms    Enable Durable Object alarms (enabled by      [boolean]
+                         default)
 
 Cache Options:
      --(no-)cache        Enable default/named caches (enabled by       [boolean]
@@ -369,6 +369,7 @@ kv_persist = true                  # --kv-persist
 cache_persist = "./cache"          # --cache-persist
 cache = false                      # --no-cache
 durable_objects_persist = true     # --do-persist
+durable_objects_alarms = false     # --no-do-alarms
 update_check = false               # --no-update-check
 cf_fetch = "./cf.json"             # --cf-fetch ./cf.json
 cf_fetch = false                   # --no-cf-fetch

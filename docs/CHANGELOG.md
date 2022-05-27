@@ -1,5 +1,89 @@
 # 🚧 Changelog
 
+## 2.5.0
+
+### Features
+
+- ⏰ Add support for
+  [**Durable Object alarms**](https://developers.cloudflare.com/workers/learning/using-durable-objects/#alarms-in-durable-objects).
+  Thanks [@CraigglesO](https://github.com/CraigglesO) for [the PR](#257).
+- Add support for `URLPattern`. Closes
+  [issue #199](https://github.com/cloudflare/miniflare/issues/199), thanks
+  [@Electroid](https://github.com/Electroid) and
+  [@tom-sherman](https://github.com/tom-sherman) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/260).
+- Add support for the
+  [`Response.json()`](https://community.cloudflare.com/t/2022-5-26-workers-runtime-release-notes/386584)
+  static method. Closes
+  [issue #272](https://github.com/cloudflare/miniflare/issues/272), thanks
+  [@Cherry](https://github.com/Cherry).
+- Add support for the
+  [`startAfter`](https://developers.cloudflare.com/workers/runtime-apis/durable-objects#methods)
+  Durable Object `list()` option. Closes
+  [issue #266](https://github.com/cloudflare/miniflare/issues/266), thanks
+  [@vlovich](https://github.com/vlovich).
+- Add support for Jest 28 and custom
+  [export conditions](https://nodejs.org/api/packages.html#conditional-exports).
+  By default, the Miniflare Jest environment will use the `worker` condition,
+  followed by `browser`. Closes issues
+  [#249](https://github.com/cloudflare/miniflare/issues/249) and
+  [#255](https://github.com/cloudflare/miniflare/issues/255), thanks
+  [@awwong1](https://github.com/awwong1) and
+  [@SupremeTechnopriest](https://github.com/SupremeTechnopriest).
+
+### Fixes
+
+- Fixed issue where `403 Forbidden` responses were returned when a site behind
+  Cloudflare was set as the upstream. Closes
+  [issue #237](https://github.com/cloudflare/miniflare/issues/237), thanks
+  [@james-maher](https://github.com/james-maher) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/238).
+- Respect `env_path` option in `wrangler.toml` when using mounts or the
+  Miniflare Jest environment. Closes
+  [issue #240](https://github.com/cloudflare/miniflare/issues/240), thanks
+  [@bkniffler](https://github.com/bkniffler).
+- Fix cases where BYOB readers didn't notice the end of the stream. Closes
+  [issue #192](https://github.com/cloudflare/miniflare/issues/192), thanks
+  [@vlovich](https://github.com/vlovich) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/194).
+- Wait for unawaited writes within a Durable Object transaction before
+  attempting to commit. Closes
+  [issue #250](https://github.com/cloudflare/miniflare/issues/250), thanks
+  [@vlovich](https://github.com/vlovich).
+- Correctly bind `this` in `crypto` and `crypto.subtle`. Closes
+  [issue #256](https://github.com/cloudflare/miniflare/issues/256), thanks
+  [@lmcarreiro](https://github.com/lmcarreiro) and
+  [@awwong1](https://github.com/awwong1) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/259/).
+- Bump `busboy` to resolve a
+  [security issue](https://github.com/advisories/GHSA-wm7h-9275-46v2). Closes
+  [issue #267](https://github.com/cloudflare/miniflare/issues/267), thanks
+  [@grempe](https://github.com/grempe) and [@Cherry](https://github.com/Cherry)
+  for [the PR](https://github.com/cloudflare/miniflare/pull/269/).
+- Set incoming `Accept-Encoding` headers to `gzip` and put actual client
+  encodings in `request.cf.clientAcceptEncoding` to match the behaviour of the
+  Workers runtime. Closes
+  [issue #180](https://github.com/cloudflare/miniflare/issues/180), thanks
+  [@evanderkoogh](https://github.com/evanderkoogh) and
+  [@leader22](https://github.com/leader22) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/213/).
+- [Remove restriction](https://community.cloudflare.com/t/2022-2-25-workers-runtime-release-notes/360450)
+  on supported `TextDecoder` encodings. Closes
+  [issue #212](https://github.com/cloudflare/miniflare/issues/212).
+- Make `headers` on returned `fetch` `Response`s immutable. Closes
+  [issue #242](https://github.com/cloudflare/miniflare/issues/242), thanks
+  [@nickreese](https://github.com/nickreese)
+- Use lexicographic ordering for KV/Durable Object `list()`s. Closes
+  [issue #235](https://github.com/cloudflare/miniflare/issues/235), thanks
+  [@vlovich](https://github.com/vlovich).
+- Re-export `Request`, `RequestInfo`, `RequestInit` and `Response` from
+  `miniflare`. Closes
+  [issue #258](https://github.com/cloudflare/miniflare/issues/258), thanks
+  [@ajwootto](https://github.com/ajwootto).
+- Add `jest-environment-miniflare`'s missing `dependencies`. Thanks
+  [@BasixKOR](https://github.com/BasixKOR) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/195).
+
 ## 2.4.0
 
 ### Features

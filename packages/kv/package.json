@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/kv",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "Workers KV module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -35,9 +35,9 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/shared": "2.4.0"
+    "@miniflare/shared": "2.5.0"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.4.0"
+    "@miniflare/shared-test": "2.5.0"
   }
 }
