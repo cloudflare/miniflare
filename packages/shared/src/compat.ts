@@ -1,3 +1,5 @@
+import { numericCompare } from "./data";
+
 export interface CompatibilityFeature {
   defaultAsOf?: string;
   enableFlag: CompatibilityEnableFlag;
@@ -42,8 +44,6 @@ const FEATURES: CompatibilityFeature[] = [
   },
 ];
 
-const collator = new Intl.Collator(undefined, { numeric: true });
-
 export class Compatibility {
   #enabled = new Set<CompatibilityEnableFlag>();
 
@@ -63,8 +63,7 @@ export class Compatibility {
 
       const enabledExplicitly = flags.has(enableFlag);
       const enabledAutomatically =
-        defaultAsOf &&
-        collator.compare(defaultAsOf, this.compatibilityDate) <= 0;
+        defaultAsOf && numericCompare(defaultAsOf, this.compatibilityDate) <= 0;
       if (enabledExplicitly || enabledAutomatically) {
         this.#enabled.add(enableFlag);
       }

@@ -749,6 +749,19 @@ test("list: ignores expired keys", async (t) => {
   }
   t.deepEqual(await ns.list(), { keys: [], list_complete: true, cursor: "" });
 });
+test("list: sorts lexicographically", async (t) => {
+  const { storage, ns } = t.context;
+  await storage.put(", ", { value: utf8Encode("value") });
+  await storage.put("!", { value: utf8Encode("value") });
+  t.deepEqual(await ns.list(), {
+    keys: [
+      { name: "!", expiration: undefined, metadata: undefined },
+      { name: ", ", expiration: undefined, metadata: undefined },
+    ],
+    list_complete: true,
+    cursor: "",
+  });
+});
 test("list: waits for input gate to open before returning", async (t) => {
   const { ns } = t.context;
   await ns.put("key", "value");

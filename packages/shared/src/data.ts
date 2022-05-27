@@ -1,6 +1,15 @@
 import path from "path";
 import ignore from "ignore";
 
+export const numericCompare = new Intl.Collator(undefined, { numeric: true })
+  .compare;
+
+export function lexicographicCompare(x: string, y: string): number {
+  if (x < y) return -1;
+  if (x === y) return 0;
+  return 1;
+}
+
 export function nonCircularClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }

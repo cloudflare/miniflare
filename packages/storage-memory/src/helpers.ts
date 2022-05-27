@@ -4,6 +4,7 @@ import {
   StoredKey,
   base64Decode,
   base64Encode,
+  lexicographicCompare,
   nonCircularClone,
 } from "@miniflare/shared";
 
@@ -11,16 +12,14 @@ export function cloneMetadata<Meta>(metadata?: unknown): Meta | undefined {
   return (metadata && nonCircularClone(metadata)) as Meta | undefined;
 }
 
-const collator = new Intl.Collator();
-
 export function listFilterMatch(
   options: StorageListOptions | undefined,
   name: string
 ): boolean {
   return !(
     (options?.prefix && !name.startsWith(options.prefix)) ||
-    (options?.start && collator.compare(name, options.start) < 0) ||
-    (options?.end && collator.compare(name, options.end) >= 0)
+    (options?.start && lexicographicCompare(name, options.start) < 0) ||
+    (options?.end && lexicographicCompare(name, options.end) >= 0)
   );
 }
 
@@ -30,7 +29,7 @@ export function listPaginate<Key extends StoredKey>(
 ): StorageListResult<Key> {
   // Apply sort
   const direction = options?.reverse ? -1 : 1;
-  keys.sort((a, b) => direction * collator.compare(a.name, b.name));
+  keys.sort((a, b) => direction * lexicographicCompare(a.name, b.name));
 
   // Apply cursor and limit
   const startAfter = options?.cursor ? base64Decode(options.cursor) : "";

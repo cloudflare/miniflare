@@ -6,6 +6,7 @@ import {
   base64Encode,
   globsToMatcher,
   kebabCase,
+  lexicographicCompare,
   nonCircularClone,
   resolveStoragePersist,
   sanitisePath,
@@ -16,6 +17,13 @@ import {
 } from "@miniflare/shared";
 import { useTmp } from "@miniflare/shared-test";
 import test from "ava";
+
+test("lexicographicCompare: compares lexicographically", (t) => {
+  t.is(lexicographicCompare("a", "b"), -1);
+  t.is(lexicographicCompare("a", "a"), 0);
+  t.is(lexicographicCompare("b", "a"), 1);
+  t.is(lexicographicCompare("!", ", "), -1);
+});
 
 test("nonCircularClone: creates copy of data", (t) => {
   const original = { a: 1, b: { c: "2" } };

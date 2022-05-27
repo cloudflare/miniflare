@@ -1,9 +1,7 @@
 import fs from "fs/promises";
-import { Log } from "@miniflare/shared";
+import { Log, numericCompare } from "@miniflare/shared";
 import semiver from "semiver";
 import { fetch } from "undici";
-
-const numericCompare = new Intl.Collator(undefined, { numeric: true }).compare;
 
 export async function updateCheck({
   pkg,

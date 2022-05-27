@@ -6,11 +6,10 @@ import {
   StoredKey,
   StoredValue,
   addAll,
+  lexicographicCompare,
 } from "@miniflare/shared";
 import { listFilterMatch } from "@miniflare/storage-memory";
 import { ALARM_KEY } from "./alarms";
-
-const collator = new Intl.Collator();
 
 export class ShadowStorage extends Storage {
   readonly readSet?: Set<string>;
@@ -152,7 +151,7 @@ export class ShadowStorage extends Storage {
 
     // Reapply sort and limit
     const direction = options?.reverse ? -1 : 1;
-    keys.sort((a, b) => direction * collator.compare(a.name, b.name));
+    keys.sort((a, b) => direction * lexicographicCompare(a.name, b.name));
     if (options?.limit) keys = keys.slice(0, options.limit);
 
     // Mark read keys as read and return

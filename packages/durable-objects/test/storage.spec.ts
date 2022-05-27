@@ -837,6 +837,13 @@ test("list: can list more than 128 keys", async (t) => {
   t.is(result.size, 384);
   for (let i = 0; i < 384; i++) t.is(result.get(`key${i}`), i);
 });
+test("list: sorts lexicographically", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/235
+  const { storage } = t.context;
+  await storage.put({ "!": {}, ", ": {} });
+  const keys = Array.from((await storage.list()).keys());
+  t.deepEqual(keys, ["!", ", "]);
+});
 test("list: closes input gate unless allowConcurrency", async (t) => {
   const { storage } = t.context;
   await closesInputGate(t, (allowConcurrency) =>
