@@ -45,7 +45,12 @@
     "@miniflare/sites": "2.4.0",
     "@miniflare/storage-memory": "2.4.0",
     "@miniflare/web-sockets": "2.4.0",
-    "miniflare": "2.4.0"
+    "miniflare": "2.4.0",
+    "@jest/environment": ">=27",
+    "@jest/fake-timers": ">=27",
+    "@jest/types": ">=27",
+    "jest-mock": ">=27",
+    "jest-util": ">=27"
   },
   "peerDependencies": {
     "jest": ">=27"
