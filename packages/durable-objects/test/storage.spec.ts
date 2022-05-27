@@ -770,6 +770,12 @@ test(
   { start: "section2key2" }
 );
 test(
+  "lists keys starting from startAfter exclusive",
+  listMacro,
+  ["section3key1", "section3key2"],
+  { startAfter: "section2key2" }
+);
+test(
   "lists keys ending at end exclusive",
   listMacro,
   ["section1key1", "section1key2"],
@@ -806,6 +812,18 @@ test(
   ["section3key2", "section3key1"],
   { start: "section2", prefix: "section", limit: 2, reverse: true }
 );
+test(
+  "lists keys with startAfter and limit (where startAfter matches key)",
+  listMacro,
+  ["section2key2", "section3key1"],
+  { startAfter: "section2key1", limit: 2 }
+);
+test(
+  "lists keys with startAfter and limit (where startAfter doesn't match key)",
+  listMacro,
+  ["section2key1", "section2key2"],
+  { startAfter: "section2", limit: 2 }
+);
 test("returns empty list with start after all", listMacro, [], {
   start: "section4",
 });
@@ -815,6 +833,13 @@ test("returns empty list with end before all", listMacro, [], {
 test("returns empty list with start after end", listMacro, [], {
   start: "section3",
   end: "section1",
+});
+test("list: cannot set start and startAfter simultaneously", async (t) => {
+  const { storage } = t.context;
+  await t.throwsAsync(storage.list({ start: "a", startAfter: "b" }), {
+    instanceOf: TypeError,
+    message: "list() cannot be called with both start and startAfter values.",
+  });
 });
 test("list: returns empty list with no keys", async (t) => {
   const { storage } = t.context;

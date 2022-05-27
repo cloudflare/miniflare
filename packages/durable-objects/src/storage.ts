@@ -46,6 +46,7 @@ export interface DurableObjectPutOptions extends DurableObjectGetOptions {
 
 export interface DurableObjectListOptions extends DurableObjectGetOptions {
   start?: string;
+  startAfter?: string;
   end?: string;
   prefix?: string;
   reverse?: boolean;
@@ -177,10 +178,35 @@ async function list<Value = unknown>(
   if (options.limit !== undefined && options.limit <= 0) {
     throw new TypeError("List limit must be positive.");
   }
+  if (options.start !== undefined && options.startAfter !== undefined) {
+    throw new TypeError(
+      "list() cannot be called with both start and startAfter values."
+    );
+  }
+  const originalLimit = options.limit;
+  if (options.startAfter !== undefined) {
+    // If *exclusive* `startAfter` is set, set it as the *inclusive* `start`.
+    // Then if `startAfter` does exist as a key, we can remove it later.
+    // To ensure we still return `limit` keys in this case, add 1 to the limit
+    // if one is set.
+    options = { ...options, start: options.startAfter };
+    if (options.limit !== undefined) options.limit++;
+  }
+
   const { keys } = await storage.list(options);
+  let keyNames = keys.map(({ name }) => name);
+
+  if (keyNames[0] === options.startAfter) {
+    // If the first key matched `startAfter`, remove it as this is exclusive.
+    keyNames.splice(0, 1);
+  } else if (originalLimit !== undefined) {
+    // Otherwise, make sure the original `limit` still holds.
+    keyNames = keyNames.slice(0, originalLimit);
+  }
+
   return get(
     storage,
-    keys.map(({ name }) => name),
+    keyNames,
     // Allow listing more than MAX_KEYS keys
     false /* checkMaxKeys */
   );
