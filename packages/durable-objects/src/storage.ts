@@ -570,7 +570,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
 
     // flush alarm should it exist
     if (typeof this.#shadow.alarm === "number") {
-      await this.#inner?.put(ALARM_KEY, {
+      await this.#inner.put(ALARM_KEY, {
         metadata: { scheduledTime: this.#shadow.alarm },
         value: new Uint8Array(),
       });
