@@ -41,5 +41,5 @@ jobs:
         with:
           node-version: 18.x
       - run: npm ci
-      - run: npm lint
-      - run: npm types:build
+      - run: npm run lint
+      - run: npm run types:build
