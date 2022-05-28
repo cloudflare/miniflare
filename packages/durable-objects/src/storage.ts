@@ -196,12 +196,14 @@ async function list<Value = unknown>(
   const { keys } = await storage.list(options);
   let keyNames = keys.map(({ name }) => name);
 
-  if (keyNames[0] === options.startAfter) {
-    // If the first key matched `startAfter`, remove it as this is exclusive.
-    keyNames.splice(0, 1);
-  } else if (originalLimit !== undefined) {
-    // Otherwise, make sure the original `limit` still holds.
-    keyNames = keyNames.slice(0, originalLimit);
+  if (options.startAfter !== undefined) {
+    if (keyNames[0] === options.startAfter) {
+      // If the first key matched `startAfter`, remove it as this is exclusive.
+      keyNames.splice(0, 1);
+    } else if (originalLimit !== undefined) {
+      // Otherwise, make sure the original `limit` still holds.
+      keyNames = keyNames.slice(0, originalLimit);
+    }
   }
 
   return get(
