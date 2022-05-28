@@ -72,7 +72,7 @@
   [issue #212](https://github.com/cloudflare/miniflare/issues/212).
 - Make `headers` on returned `fetch` `Response`s immutable. Closes
   [issue #242](https://github.com/cloudflare/miniflare/issues/242), thanks
-  [@nickreese](https://github.com/nickreese)
+  [@nickreese](https://github.com/nickreese).
 - Use lexicographic ordering for KV/Durable Object `list()`s. Closes
   [issue #235](https://github.com/cloudflare/miniflare/issues/235), thanks
   [@vlovich](https://github.com/vlovich).
