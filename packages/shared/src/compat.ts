@@ -11,11 +11,13 @@ export interface CompatibilityFeature {
 // will get a type error if they try to use an unsupported flag via the API,
 // and they won't be logged in the "Enabled Compatibility Flags" section.
 export type CompatibilityEnableFlag =
+  | "global_navigator"
   | "durable_object_fetch_requires_full_url"
   | "fetch_refuses_unknown_protocols"
   | "formdata_parser_supports_files"
   | "html_rewriter_treats_esi_include_as_void_tag";
 export type CompatibilityDisableFlag =
+  | "no_global_navigator"
   | "durable_object_fetch_allows_relative_url"
   | "fetch_treats_unknown_protocols_as_http"
   | "formdata_parser_converts_files_to_strings";
@@ -24,6 +26,11 @@ export type CompatibilityFlag =
   | CompatibilityDisableFlag;
 
 const FEATURES: CompatibilityFeature[] = [
+  {
+    defaultAsOf: "2022-03-21",
+    enableFlag: "global_navigator",
+    disableFlag: "no_global_navigator",
+  },
   {
     defaultAsOf: "2021-11-10",
     enableFlag: "durable_object_fetch_requires_full_url",

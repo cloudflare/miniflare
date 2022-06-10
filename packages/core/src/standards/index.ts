@@ -43,4 +43,5 @@ export type {
 } from "./http";
 export { FixedLengthStream } from "./streams";
 export type { ArrayBufferViewConstructor } from "./streams";
+export * from "./navigator";
 export * from "./timers";

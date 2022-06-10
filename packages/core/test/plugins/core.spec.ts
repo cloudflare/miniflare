@@ -497,6 +497,17 @@ test("CorePlugin: setup: Response parses files in FormData as File objects only 
   resFormData = await res.formData();
   t.true(resFormData.get("file") instanceof File);
 });
+test("CorePlugin: setup: includes navigator only if compatibility flag enabled", async (t) => {
+  let plugin = new CorePlugin(ctx);
+  let globals = (await plugin.setup()).globals;
+  t.is(globals?.navigator, undefined);
+
+  const compat = new Compatibility(undefined, ["global_navigator"]);
+  plugin = new CorePlugin({ log, compat, rootPath });
+  globals = (await plugin.setup()).globals;
+  t.is(globals?.navigator.userAgent, "Cloudflare-Workers");
+});
+
 test("CorePlugin: setup: structuredClone: creates deep-copy of value", async (t) => {
   const plugin = new CorePlugin(ctx);
   const { globals } = await plugin.setup();

@@ -42,6 +42,7 @@ import {
   DOMException,
   FetchEvent,
   FixedLengthStream,
+  Navigator,
   Request,
   Response,
   ScheduledEvent,
@@ -365,6 +366,12 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       CompatResponse = proxyStringFormDataFiles(CompatResponse);
     }
 
+    // Only include `navigator` if `global_navigator` compatibility flag is set
+    const compatGlobals: Context = {};
+    if (ctx.compat.isEnabled("global_navigator")) {
+      compatGlobals.navigator = new Navigator();
+    }
+
     // Try to parse upstream URL if set
     try {
       this.upstreamURL =
@@ -448,6 +455,8 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       // `structuredClone` was added to the global scope in Node 17.0.0.
       // Approximate with serialize/deserialize if not there.
       structuredClone: globalThis.structuredClone ?? structuredCloneBuffer,
+
+      ...compatGlobals,
 
       // The types below would be included automatically, but it's not possible
       // to create instances of them without using their constructors and they
