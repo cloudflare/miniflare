@@ -251,8 +251,7 @@ export class BindingsPlugin
     });
     if (this.#processedServiceBindings.length) {
       ctx.log.warn(
-        "Service bindings are experimental and primarily meant for internal " +
-          "testing at the moment. There may be breaking changes in the future."
+        "Service bindings are experimental. There may be breaking changes in the future."
       );
     }
   }
