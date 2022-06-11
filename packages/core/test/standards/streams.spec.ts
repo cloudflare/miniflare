@@ -1,13 +1,16 @@
 import assert from "assert";
+import { arrayBuffer } from "stream/consumers";
 import { ReadableStream, ReadableStreamBYOBReadResult } from "stream/web";
 import {
   ArrayBufferViewConstructor,
+  CompressionStream,
+  DecompressionStream,
   FixedLengthStream,
   Request,
   Response,
 } from "@miniflare/core";
-import { utf8Encode } from "@miniflare/shared-test";
-import test, { ThrowsExpectation } from "ava";
+import { utf8Decode, utf8Encode } from "@miniflare/shared-test";
+import test, { Macro, ThrowsExpectation } from "ava";
 
 function chunkedStream(chunks: number[][]): ReadableStream<Uint8Array> {
   return new ReadableStream({
@@ -318,4 +321,44 @@ test("FixedLengthStream: sets Content-Length header on Response", async (t) => {
   res = new Response(body);
   t.is(res.headers.get("Content-Length"), "0");
   t.is(await res.text(), "");
+});
+
+const compressionMacro: Macro<["gzip" | "deflate"]> = async (t, format) => {
+  const data = "".padStart(1024, "x");
+
+  const compressor = new CompressionStream(format);
+  let writer = compressor.writable.getWriter();
+  // noinspection ES6MissingAwait
+  void writer.write(utf8Encode(data));
+  // noinspection ES6MissingAwait
+  void writer.close();
+  // @ts-expect-error ReadableStream types are incompatible
+  const compressed = await arrayBuffer(compressor.readable);
+  // Make sure data compressed
+  t.true(compressed.byteLength < data.length);
+
+  const decompressor = new DecompressionStream(format);
+  writer = decompressor.writable.getWriter();
+  // noinspection ES6MissingAwait
+  void writer.write(new Uint8Array(compressed));
+  // noinspection ES6MissingAwait
+  void writer.close();
+  // @ts-expect-error ReadableStream types are incompatible
+  const decompressed = await arrayBuffer(decompressor.readable);
+  // Make sure original data recovered
+  t.is(utf8Decode(new Uint8Array(decompressed)), data);
+};
+compressionMacro.title = (providedTitle, format) =>
+  `(De)CompressionStream: (de)compresses ${format} data`;
+test(compressionMacro, "gzip");
+test(compressionMacro, "deflate");
+test("(De)CompressionStream: throws on invalid format", (t) => {
+  const expectations: ThrowsExpectation = {
+    instanceOf: TypeError,
+    message: "The compression format must be either 'deflate' or 'gzip'.",
+  };
+  // @ts-expect-error intentionally testing incorrect types
+  t.throws(() => new CompressionStream("invalid"), expectations);
+  // @ts-expect-error intentionally testing incorrect types
+  t.throws(() => new DecompressionStream("invalid"), expectations);
 });

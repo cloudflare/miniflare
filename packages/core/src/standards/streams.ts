@@ -1,8 +1,11 @@
+import type { Transform } from "stream";
 import {
   ReadableStreamBYOBReadResult,
   ReadableStreamBYOBReader,
   TransformStream,
+  Transformer,
 } from "stream/web";
+import zlib from "zlib";
 import {
   bufferSourceToArray,
   buildNotBufferSourceError,
@@ -126,5 +129,64 @@ export class FixedLengthStream extends TransformStream<Uint8Array, Uint8Array> {
     // When used as Request/Response body, override the Content-Length header
     // with the expectedLength
     (this.readable as any)[kContentLength] = expectedLength;
+  }
+}
+
+function createTransformerFromTransform(transform: Transform): Transformer {
+  // TODO: backpressure? see https://github.com/nodejs/node/blob/440d95a878a1a19bf72a2685fc8fc0f47100b510/lib/internal/webstreams/adapters.js#L538
+  return {
+    start(controller) {
+      transform.on("data", (chunk) => {
+        controller.enqueue(new Uint8Array(chunk));
+      });
+      transform.on("error", (error) => {
+        controller.error(error);
+      });
+    },
+    transform(chunk) {
+      transform.write(chunk);
+    },
+    flush() {
+      return new Promise((resolve) => {
+        transform.once("close", () => {
+          transform.removeAllListeners();
+          resolve();
+        });
+        transform.end();
+      });
+    },
+  };
+}
+
+// `(De)CompressionStream`s were added in Node.js 17.0.0. Our minimum supported
+// version is 16.7.0, so we implement basic versions ourselves, preferring to
+// use Node's if available.
+
+export class CompressionStream extends TransformStream<Uint8Array, Uint8Array> {
+  constructor(format: "gzip" | "deflate") {
+    if (format !== "gzip" && format !== "deflate") {
+      throw new TypeError(
+        "The compression format must be either 'deflate' or 'gzip'."
+      );
+    }
+    const transform =
+      format === "gzip" ? zlib.createGzip() : zlib.createDeflate();
+    super(createTransformerFromTransform(transform));
+  }
+}
+
+export class DecompressionStream extends TransformStream<
+  Uint8Array,
+  Uint8Array
+> {
+  constructor(format: "gzip" | "deflate") {
+    if (format !== "gzip" && format !== "deflate") {
+      throw new TypeError(
+        "The compression format must be either 'deflate' or 'gzip'."
+      );
+    }
+    const transform =
+      format === "gzip" ? zlib.createGunzip() : zlib.createInflate();
+    super(createTransformerFromTransform(transform));
   }
 }

@@ -42,7 +42,11 @@ export type {
   ResponseType,
   ResponseRedirectStatus,
 } from "./http";
-export { FixedLengthStream } from "./streams";
+export {
+  FixedLengthStream,
+  CompressionStream,
+  DecompressionStream,
+} from "./streams";
 export type { ArrayBufferViewConstructor } from "./streams";
 export * from "./navigator";
 export * from "./timers";

@@ -53,4 +53,11 @@ declare module "stream/web" {
         done: true;
         value: T | undefined;
       };
+
+  class CompressionStream extends TransformStream {
+    constructor(format: "gzip" | "deflate");
+  }
+  class DecompressionStream extends TransformStream {
+    constructor(format: "gzip" | "deflate");
+  }
 }

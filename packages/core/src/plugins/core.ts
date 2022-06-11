@@ -16,6 +16,10 @@ import {
   WritableStreamDefaultController,
   WritableStreamDefaultWriter,
 } from "stream/web";
+// Import all of `stream/web` so we don't get a syntax error when trying to
+// import `(De)CompressionStream` on Node < 17.0.0. We can't import dynamically
+// either as `CorePlugin` construction is synchronous.
+import webStreams from "stream/web";
 import { URL, URLSearchParams } from "url";
 import { TextDecoder, TextEncoder } from "util";
 import { deserialize, serialize } from "v8";
@@ -39,7 +43,9 @@ import { URLPattern } from "urlpattern-polyfill";
 import { MiniflareCoreError } from "../error";
 import {
   AbortSignal,
+  CompressionStream,
   DOMException,
+  DecompressionStream,
   FetchEvent,
   FixedLengthStream,
   Navigator,
@@ -405,6 +411,14 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     const blockGlobalTimers = !this.globalTimers;
     const crypto = createCrypto(!this.globalRandom);
 
+    // `(De)CompressionStream`s were added in Node.js 17.0.0, and added to the
+    // global scope in Node.js 18.0.0. Our minimum supported version is 16.7.0,
+    // so we implement basic versions ourselves, preferring Node's if available.
+    const CompressionStreamImpl =
+      webStreams.CompressionStream ?? CompressionStream;
+    const DecompressionStreamImpl =
+      webStreams.DecompressionStream ?? DecompressionStream;
+
     // Build globals object
     // noinspection JSDeprecatedSymbols
     this.#globals = {
@@ -458,6 +472,8 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       WritableStreamDefaultController,
       WritableStreamDefaultWriter,
       FixedLengthStream,
+      CompressionStream: CompressionStreamImpl,
+      DecompressionStream: DecompressionStreamImpl,
 
       Event,
       EventTarget,

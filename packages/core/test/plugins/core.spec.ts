@@ -1,7 +1,8 @@
 import assert from "assert";
 import fs from "fs/promises";
-
 import path from "path";
+import { text } from "stream/consumers";
+import type { CompressionStream, DecompressionStream } from "stream/web";
 import { CorePlugin, Request, Response, Scheduler } from "@miniflare/core";
 import {
   Compatibility,
@@ -16,6 +17,7 @@ import {
   parsePluginWranglerConfig,
   useServer,
   useTmp,
+  utf8Encode,
 } from "@miniflare/shared-test";
 import test, { ThrowsExpectation } from "ava";
 import { File, FormData } from "undici";
@@ -303,82 +305,84 @@ test("CorePlugin: setup: includes web standards", async (t) => {
   const { globals } = await plugin.setup();
   assert(globals);
 
-  t.true(typeof globals.console === "object");
+  t.is(typeof globals.console, "object");
 
-  t.true(typeof globals.setTimeout === "function");
-  t.true(typeof globals.setInterval === "function");
-  t.true(typeof globals.clearTimeout === "function");
-  t.true(typeof globals.clearInterval === "function");
-  t.true(typeof globals.queueMicrotask === "function");
-  t.true(typeof globals.scheduler.wait === "function");
+  t.is(typeof globals.setTimeout, "function");
+  t.is(typeof globals.setInterval, "function");
+  t.is(typeof globals.clearTimeout, "function");
+  t.is(typeof globals.clearInterval, "function");
+  t.is(typeof globals.queueMicrotask, "function");
+  t.is(typeof globals.scheduler.wait, "function");
 
-  t.true(typeof globals.atob === "function");
-  t.true(typeof globals.btoa === "function");
+  t.is(typeof globals.atob, "function");
+  t.is(typeof globals.btoa, "function");
 
-  t.true(typeof globals.crypto === "object");
-  t.true(typeof globals.CryptoKey === "function");
-  t.true(typeof globals.TextDecoder === "function");
-  t.true(typeof globals.TextEncoder === "function");
+  t.is(typeof globals.crypto, "object");
+  t.is(typeof globals.CryptoKey, "function");
+  t.is(typeof globals.TextDecoder, "function");
+  t.is(typeof globals.TextEncoder, "function");
 
-  t.true(typeof globals.fetch === "function");
-  t.true(typeof globals.Headers === "function");
-  t.true(typeof globals.Request === "function");
-  t.true(typeof globals.Response === "function");
-  t.true(typeof globals.FormData === "function");
-  t.true(typeof globals.Blob === "function");
-  t.true(typeof globals.File === "function");
-  t.true(typeof globals.URL === "function");
-  t.true(typeof globals.URLSearchParams === "function");
-  t.true(typeof globals.URLPattern === "function");
+  t.is(typeof globals.fetch, "function");
+  t.is(typeof globals.Headers, "function");
+  t.is(typeof globals.Request, "function");
+  t.is(typeof globals.Response, "function");
+  t.is(typeof globals.FormData, "function");
+  t.is(typeof globals.Blob, "function");
+  t.is(typeof globals.File, "function");
+  t.is(typeof globals.URL, "function");
+  t.is(typeof globals.URLSearchParams, "function");
+  t.is(typeof globals.URLPattern, "function");
 
-  t.true(typeof globals.ByteLengthQueuingStrategy === "function");
-  t.true(typeof globals.CountQueuingStrategy === "function");
-  t.true(typeof globals.ReadableByteStreamController === "function");
-  t.true(typeof globals.ReadableStream === "function");
-  t.true(typeof globals.ReadableStreamBYOBReader === "function");
-  t.true(typeof globals.ReadableStreamBYOBRequest === "function");
-  t.true(typeof globals.ReadableStreamDefaultController === "function");
-  t.true(typeof globals.ReadableStreamDefaultReader === "function");
-  t.true(typeof globals.TransformStream === "function");
-  t.true(typeof globals.TransformStreamDefaultController === "function");
-  t.true(typeof globals.WritableStream === "function");
-  t.true(typeof globals.WritableStreamDefaultController === "function");
-  t.true(typeof globals.WritableStreamDefaultWriter === "function");
-  t.true(typeof globals.FixedLengthStream === "function");
+  t.is(typeof globals.ByteLengthQueuingStrategy, "function");
+  t.is(typeof globals.CountQueuingStrategy, "function");
+  t.is(typeof globals.ReadableByteStreamController, "function");
+  t.is(typeof globals.ReadableStream, "function");
+  t.is(typeof globals.ReadableStreamBYOBReader, "function");
+  t.is(typeof globals.ReadableStreamBYOBRequest, "function");
+  t.is(typeof globals.ReadableStreamDefaultController, "function");
+  t.is(typeof globals.ReadableStreamDefaultReader, "function");
+  t.is(typeof globals.TransformStream, "function");
+  t.is(typeof globals.TransformStreamDefaultController, "function");
+  t.is(typeof globals.WritableStream, "function");
+  t.is(typeof globals.WritableStreamDefaultController, "function");
+  t.is(typeof globals.WritableStreamDefaultWriter, "function");
+  t.is(typeof globals.FixedLengthStream, "function");
+  t.is(typeof globals.CompressionStream, "function");
+  t.is(typeof globals.DecompressionStream, "function");
 
-  t.true(typeof globals.Event === "function");
-  t.true(typeof globals.EventTarget === "function");
-  t.true(typeof globals.AbortController === "function");
-  t.true(typeof globals.AbortSignal === "function");
-  t.true(typeof globals.FetchEvent === "function");
-  t.true(typeof globals.ScheduledEvent === "function");
+  t.is(typeof globals.Event, "function");
+  t.is(typeof globals.EventTarget, "function");
+  t.is(typeof globals.AbortController, "function");
+  t.is(typeof globals.AbortSignal, "function");
+  t.is(typeof globals.FetchEvent, "function");
+  t.is(typeof globals.ScheduledEvent, "function");
 
-  t.true(typeof globals.DOMException === "function");
-  t.true(typeof globals.WorkerGlobalScope === "function");
+  t.is(typeof globals.DOMException, "function");
+  t.is(typeof globals.WorkerGlobalScope, "function");
 
-  t.true(typeof globals.structuredClone === "function");
+  t.is(typeof globals.structuredClone, "function");
 
-  t.true(typeof globals.ArrayBuffer === "function");
-  t.true(typeof globals.Atomics === "object");
-  t.true(typeof globals.BigInt64Array === "function");
-  t.true(typeof globals.BigUint64Array === "function");
-  t.true(typeof globals.DataView === "function");
-  t.true(typeof globals.Date === "function");
-  t.true(typeof globals.Float32Array === "function");
-  t.true(typeof globals.Float64Array === "function");
-  t.true(typeof globals.Int8Array === "function");
-  t.true(typeof globals.Int16Array === "function");
-  t.true(typeof globals.Int32Array === "function");
-  t.true(typeof globals.Map === "function");
-  t.true(typeof globals.Set === "function");
-  t.true(typeof globals.SharedArrayBuffer === "function");
-  t.true(typeof globals.Uint8Array === "function");
-  t.true(typeof globals.Uint8ClampedArray === "function");
-  t.true(typeof globals.Uint16Array === "function");
-  t.true(typeof globals.Uint32Array === "function");
-  t.true(typeof globals.WeakMap === "function");
-  t.true(typeof globals.WeakSet === "function");
-  t.true(typeof globals.WebAssembly === "object");
+  t.is(typeof globals.ArrayBuffer, "function");
+  t.is(typeof globals.Atomics, "object");
+  t.is(typeof globals.BigInt64Array, "function");
+  t.is(typeof globals.BigUint64Array, "function");
+  t.is(typeof globals.DataView, "function");
+  t.is(typeof globals.Date, "function");
+  t.is(typeof globals.Float32Array, "function");
+  t.is(typeof globals.Float64Array, "function");
+  t.is(typeof globals.Int8Array, "function");
+  t.is(typeof globals.Int16Array, "function");
+  t.is(typeof globals.Int32Array, "function");
+  t.is(typeof globals.Map, "function");
+  t.is(typeof globals.Set, "function");
+  t.is(typeof globals.SharedArrayBuffer, "function");
+  t.is(typeof globals.Uint8Array, "function");
+  t.is(typeof globals.Uint8ClampedArray, "function");
+  t.is(typeof globals.Uint16Array, "function");
+  t.is(typeof globals.Uint32Array, "function");
+  t.is(typeof globals.WeakMap, "function");
+  t.is(typeof globals.WeakSet, "function");
+  t.is(typeof globals.WebAssembly, "object");
 
   t.true(globals.MINIFLARE);
 });
@@ -540,6 +544,7 @@ test("CorePlugin: setup: uses actual time if option enabled", async (t) => {
   });
 });
 
+// Test standards with basic-Miniflare and Node implementations
 test("CorePlugin: setup: structuredClone: creates deep-copy of value", async (t) => {
   const plugin = new CorePlugin(ctx);
   const { globals } = await plugin.setup();
@@ -553,6 +558,30 @@ test("CorePlugin: setup: structuredClone: creates deep-copy of value", async (t)
   const copy = globals.structuredClone(thing);
   t.not(thing, copy);
   t.deepEqual(thing, copy);
+});
+test("CorePlugin: setup: (De)CompressionStream: (de)compresses data", async (t) => {
+  const plugin = new CorePlugin(ctx);
+  const { globals } = await plugin.setup();
+  assert(globals);
+
+  const CompressionStreamImpl: typeof CompressionStream =
+    globals.CompressionStream;
+  const DecompressionStreamImpl: typeof DecompressionStream =
+    globals.DecompressionStream;
+
+  const compressor = new CompressionStreamImpl("gzip");
+  const decompressor = new DecompressionStreamImpl("gzip");
+  const data = "".padStart(1024, "x");
+  const writer = compressor.writable.getWriter();
+  // noinspection ES6MissingAwait
+  void writer.write(utf8Encode(data));
+  // noinspection ES6MissingAwait
+  void writer.close();
+  const decompressed = await text(
+    // @ts-expect-error ReadableStream types are incompatible
+    compressor.readable.pipeThrough(decompressor)
+  );
+  t.is(decompressed, data);
 });
 
 test("CorePlugin: processedModuleRules: processes rules includes default module rules", (t) => {
