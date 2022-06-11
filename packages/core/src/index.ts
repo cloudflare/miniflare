@@ -153,7 +153,8 @@ function splitWranglerConfig<Plugins extends PluginSignatures>(
   plugins: PluginEntries<Plugins>,
   overrides: PluginOptions<Plugins>,
   config: WranglerConfig,
-  configDir: string
+  configDir: string,
+  log: Log
 ): PluginOptions<Plugins> {
   // Create a new options object so we don't override overrides with undefined,
   // causing future reloads to unset config defined in Wrangler
@@ -168,7 +169,11 @@ function splitWranglerConfig<Plugins extends PluginSignatures>(
       if (key in pluginOverrides) {
         (pluginResult as any)[key] = pluginOverrides[key];
       } else {
-        (pluginResult as any)[key] = meta.fromWrangler?.(config, configDir);
+        (pluginResult as any)[key] = meta.fromWrangler?.(
+          config,
+          configDir,
+          log
+        );
       }
     }
     result[name] = pluginResult;
@@ -351,7 +356,8 @@ export class MiniflareCore<
           this.#plugins,
           this.#overrides,
           config,
-          configDir
+          configDir,
+          this.#ctx.log
         );
       } catch (e: any) {
         // Ignore ENOENT (file not found) errors for default path

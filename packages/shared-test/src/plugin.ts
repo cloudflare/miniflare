@@ -4,6 +4,7 @@ import {
   Context,
   ExtractOptions,
   Mount,
+  NoOpLog,
   Option,
   OptionType,
   Plugin,
@@ -30,7 +31,11 @@ export function parsePluginWranglerConfig<Plugin extends PluginSignature>(
 ): ExtractOptions<InstanceType<Plugin>> {
   const result = {} as ExtractOptions<InstanceType<Plugin>>;
   for (const [key, meta] of plugin.prototype.opts?.entries() ?? []) {
-    (result as any)[key] = meta.fromWrangler?.(config, configDir);
+    (result as any)[key] = meta.fromWrangler?.(
+      config,
+      configDir,
+      new NoOpLog()
+    );
   }
   return result;
 }

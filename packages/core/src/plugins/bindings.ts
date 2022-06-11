@@ -11,6 +11,7 @@ import {
   PluginContext,
   RequestContext,
   SetupResult,
+  WranglerServiceConfig,
   getRequestContext,
   viewToBuffer,
 } from "@miniflare/shared";
@@ -208,14 +209,21 @@ export class BindingsPlugin
           }
         })
       ),
-    fromWrangler: ({ experimental_services }) =>
-      experimental_services?.reduce(
-        (services, { name, service, environment }) => {
-          services[name] = { service, environment };
-          return services;
-        },
-        {} as ServiceBindingsOptions
-      ),
+    fromWrangler: ({ services, experimental_services }, configDir, log) => {
+      if (experimental_services) {
+        log.warn(
+          "Using `experimental_services` in `wrangler.toml` is deprecated. " +
+            "This key should be renamed to `services`."
+        );
+      }
+      const allServices: WranglerServiceConfig[] = [];
+      if (services) allServices.push(...services);
+      if (experimental_services) allServices.push(...experimental_services);
+      return allServices?.reduce((services, { name, service, environment }) => {
+        services[name] = { service, environment };
+        return services;
+      }, {} as ServiceBindingsOptions);
+    },
   })
   serviceBindings?: ServiceBindingsOptions;
 

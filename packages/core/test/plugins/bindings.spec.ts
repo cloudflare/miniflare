@@ -121,9 +121,12 @@ test("BindingsPlugin: parses options from wrangler config", async (t) => {
       DATA1: "data-blob-1.bin",
       DATA2: "data-blob-2.bin",
     },
-    experimental_services: [
+    services: [
       { name: "SERVICE1", service: "service1", environment: "development" },
       { name: "SERVICE2", service: "service2", environment: "production" },
+    ],
+    experimental_services: [
+      { name: "SERVICE3", service: "service3", environment: "staging" },
     ],
     miniflare: {
       globals: { KEY5: "value5", KEY6: false, KEY7: 10 },
@@ -139,6 +142,7 @@ test("BindingsPlugin: parses options from wrangler config", async (t) => {
     serviceBindings: {
       SERVICE1: { service: "service1", environment: "development" },
       SERVICE2: { service: "service2", environment: "production" },
+      SERVICE3: { service: "service3", environment: "staging" },
     },
   });
 

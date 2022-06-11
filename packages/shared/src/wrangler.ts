@@ -3,6 +3,12 @@ import { ModuleRuleType } from "./runner";
 
 // See https://developers.cloudflare.com/workers/cli-wrangler/configuration#keys
 
+export interface WranglerServiceConfig {
+  name: string;
+  service: string;
+  environment: string;
+}
+
 export interface WranglerEnvironmentConfig {
   name?: string; // inherited
   zone_id?: string; // inherited
@@ -37,11 +43,9 @@ export interface WranglerEnvironmentConfig {
   wasm_modules?: Record<string, string>; // inherited
   text_blobs?: Record<string, string>; // inherited
   data_blobs?: Record<string, string>; // inherited
-  experimental_services?: {
-    name: string;
-    service: string;
-    environment: string;
-  }[]; // (probably) NOT inherited
+  services?: WranglerServiceConfig[]; // (probably) NOT inherited
+  /** @deprecated Use `services` instead */
+  experimental_services?: WranglerServiceConfig[]; // (probably) NOT inherited
   miniflare?: {
     globals?: Record<string, any>;
     upstream?: string;

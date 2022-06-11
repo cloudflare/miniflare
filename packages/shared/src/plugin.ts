@@ -42,7 +42,8 @@ export interface OptionMetadataType<Type extends OptionType, Value> {
     : undefined;
   fromWrangler?: (
     config: WranglerConfig,
-    configDir: string
+    configDir: string,
+    log: Log
   ) => Value | undefined;
 }
 
