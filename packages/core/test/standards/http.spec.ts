@@ -1036,6 +1036,8 @@ test('fetch: returns full Response for "manual" redirect', async (t) => {
   t.is(res.statusText, "Found");
   t.is(res.headers.get("Location"), `/?n=2`);
   t.is(res.headers.get("Set-Cookie"), "n=3");
+  // https://github.com/cloudflare/miniflare/issues/177
+  t.is(res.url, url.href);
 });
 test("fetch: waits for input gate to open before returning", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
