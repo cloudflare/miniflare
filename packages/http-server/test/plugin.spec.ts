@@ -236,7 +236,7 @@ test("HTTPPlugin: setupCf: cf fetch caches cf.json at default location", async (
   });
   const cf = await fs.readFile(cfPath, "utf8");
   t.is(cf, '{"colo": "LHR"}');
-  t.is(log.logsAtLevel(LogLevel.INFO)[0], "Updated Request cf object cache!");
+  t.is(log.logsAtLevel(LogLevel.INFO)[0], "Updated `Request.cf` object cache!");
 });
 test("HTTPPlugin: setupCf: cf fetch caches cf.json at custom location", async (t) => {
   const tmp = await useTmp(t);
@@ -258,7 +258,7 @@ test("HTTPPlugin: setupCf: cf fetch caches cf.json at custom location", async (t
   t.false(existsSync(defaultCfPath));
   const cf = await fs.readFile(customCfPath, "utf8");
   t.is(cf, '{"colo": "LHR"}');
-  t.is(log.logsAtLevel(LogLevel.INFO)[0], "Updated Request cf object cache!");
+  t.is(log.logsAtLevel(LogLevel.INFO)[0], "Updated `Request.cf` object cache!");
 });
 test("HTTPPlugin: setupCf: cf fetch reuses cf.json", async (t) => {
   const tmp = await useTmp(t);
@@ -300,7 +300,7 @@ test("HTTPPlugin: setupCf: cf fetch refetches cf.json if stale", async (t) => {
   });
   const cf = await fs.readFile(cfPath, "utf8");
   t.is(cf, '{"colo": "MAN"}');
-  t.is(log.logsAtLevel(LogLevel.INFO)[0], "Updated Request cf object cache!");
+  t.is(log.logsAtLevel(LogLevel.INFO)[0], "Updated `Request.cf` object cache!");
 });
 
 test("HTTPPlugin: setupHttps: httpsOptions undefined if https disabled", async (t) => {

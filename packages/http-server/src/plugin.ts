@@ -13,6 +13,7 @@ import {
   SetupResult,
   defaultClock,
 } from "@miniflare/shared";
+import { dim } from "kleur/colors";
 import type { Attributes, Options } from "selfsigned";
 import { RequestInfo, fetch } from "undici";
 import { getAccessibleHosts } from "./helpers";
@@ -304,9 +305,13 @@ export class HTTPPlugin extends Plugin<HTTPOptions> implements HTTPOptions {
       // Write cf so we can reuse it later
       await fs.mkdir(path.dirname(cfPath), { recursive: true });
       await fs.writeFile(cfPath, cfText, "utf8");
-      this.ctx.log.info("Updated Request cf object cache!");
+      this.ctx.log.info("Updated `Request.cf` object cache!");
     } catch (e: any) {
-      this.ctx.log.error(e);
+      this.ctx.log.warn(
+        "Unable to fetch the `Request.cf` object! Falling back to a default placeholder...\n" +
+          "To always use the placeholder, set the `--no-cf-fetch`/`cfFetch: false` option.\n" +
+          dim(e.cause ? e.cause.stack : e.stack)
+      );
     }
   }
 
