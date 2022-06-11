@@ -678,7 +678,7 @@ test("createServer: includes headers from web socket upgrade response", async (t
   t.not(req.headers["sec-websocket-accept"], ":(");
   t.deepEqual(req.headers["set-cookie"], ["key=value"]);
 });
-test("createServer: expects status 101 and web socket response for upgrades", async (t) => {
+test("createServer: expects status 101 and web socket response for successful upgrades", async (t) => {
   const log = new TestLog();
   log.error = (message) => log.logWithLevel(LogLevel.ERROR, message.toString());
   const mf = useMiniflareWithHandler(
@@ -702,6 +702,30 @@ test("createServer: expects status 101 and web socket response for upgrades", as
   ]);
   t.is(closeEvent.code, 1006);
   t.is(errorEvent.message, "Unexpected server response: 500");
+});
+test("createServer: allows non-101 status codes for unsuccessful web socket upgrades", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/174
+  const log = new TestLog();
+  log.error = (message) => log.logWithLevel(LogLevel.ERROR, message.toString());
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin },
+    {},
+    (globals) => new globals.Response("unauthorized", { status: 401 }),
+    log
+  );
+  const port = await listen(t, await createServer(mf));
+
+  const ws = new StandardWebSocket(`ws://localhost:${port}`);
+  const [closeTrigger, closePromise] = triggerPromise<WebSocketCloseEvent>();
+  const [errorTrigger, errorPromise] = triggerPromise<WebSocketErrorEvent>();
+  ws.addEventListener("close", closeTrigger);
+  ws.addEventListener("error", errorTrigger);
+  const closeEvent = await closePromise;
+  const errorEvent = await errorPromise;
+
+  t.deepEqual(log.logsAtLevel(LogLevel.ERROR), []);
+  t.is(closeEvent.code, 1006);
+  t.is(errorEvent.message, "Unexpected server response: 401");
 });
 test("createServer: creates new request context for each web socket message", async (t) => {
   const mf = useMiniflare(

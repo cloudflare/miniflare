@@ -3,6 +3,7 @@
 import assert from "assert";
 import http from "http";
 import https from "https";
+import net from "net";
 import { Transform, Writable } from "stream";
 import { ReadableStream } from "stream/web";
 import { URL } from "url";
@@ -17,7 +18,7 @@ import {
   _headersFromIncomingRequest,
   logResponse,
 } from "@miniflare/core";
-import { prefixError, randomHex } from "@miniflare/shared";
+import { Log, prefixError, randomHex } from "@miniflare/shared";
 import { coupleWebSocket } from "@miniflare/web-sockets";
 import { BodyInit, Headers } from "undici";
 import { getAccessibleHosts } from "./helpers";
@@ -143,6 +144,111 @@ export type RequestListener = (
   res?: http.ServerResponse
 ) => Promise<Response | undefined>;
 
+async function writeResponse(
+  response: Response,
+  res: http.ServerResponse,
+  liveReload = false,
+  log?: Log
+) {
+  const headers: http.OutgoingHttpHeaders = {};
+  // eslint-disable-next-line prefer-const
+  for (let [key, value] of response.headers) {
+    key = key.toLowerCase();
+    if (key === "set-cookie") {
+      // Multiple Set-Cookie headers should be treated as separate headers
+      // @ts-expect-error getAll is added to the Headers prototype by
+      // importing @miniflare/core
+      headers["set-cookie"] = response.headers.getAll("set-cookie");
+    } else {
+      headers[key] = value;
+    }
+  }
+
+  // Use body's actual length instead of the Content-Length header if set,
+  // see https://github.com/cloudflare/miniflare/issues/148. We also might
+  // need to adjust this later for live reloading so hold onto it.
+  const contentLengthHeader = response.headers.get("Content-Length");
+  const contentLength =
+    _getBodyLength(response) ??
+    (contentLengthHeader === null ? null : parseInt(contentLengthHeader));
+  if (contentLength !== null) headers["content-length"] = contentLength;
+
+  // If a Content-Encoding is set, and the user hasn't encoded the body,
+  // we're responsible for doing so.
+  const encoders: Transform[] = [];
+  if (headers["content-encoding"] && response.encodeBody === "auto") {
+    // Content-Length will be wrong as it's for the decoded length
+    delete headers["content-length"];
+    // Reverse of https://github.com/nodejs/undici/blob/48d9578f431cbbd6e74f77455ba92184f57096cf/lib/fetch/index.js#L1660
+    const codings = headers["content-encoding"]
+      .toString()
+      .toLowerCase()
+      .split(",")
+      .map((x) => x.trim());
+    for (const coding of codings) {
+      if (/(x-)?gzip/.test(coding)) {
+        encoders.push(zlib.createGzip());
+      } else if (/(x-)?deflate/.test(coding)) {
+        encoders.push(zlib.createDeflate());
+      } else if (coding === "br") {
+        encoders.push(zlib.createBrotliCompress());
+      } else {
+        // Unknown encoding, don't do any encoding at all
+        log?.warn(`Unknown encoding \"${coding}\", sending plain response...`);
+        delete headers["content-encoding"];
+        encoders.length = 0;
+        break;
+      }
+    }
+  }
+
+  // Add live reload script if enabled, this isn't an already encoded
+  // response, and it's HTML
+  const liveReloadEnabled =
+    liveReload &&
+    response.encodeBody === "auto" &&
+    response.headers.get("content-type")?.toLowerCase().includes("text/html");
+
+  // If Content-Length is specified, and we're live-reloading, we'll
+  // need to adjust it to make room for the live reload script
+  if (liveReloadEnabled && contentLength !== null) {
+    if (!isNaN(contentLength)) {
+      // Append length of live reload script
+      headers["content-length"] = contentLength + liveReloadScriptLength;
+    }
+  }
+
+  res.writeHead(response.status, headers);
+
+  // `initialStream` is the stream we'll write the response to. It
+  // should end up as the first encoder, piping to the next encoder,
+  // and finally piping to the response:
+  //
+  // encoders[0] (initialStream) -> encoders[1] -> res
+  //
+  // Not using `pipeline(passThrough, ...encoders, res)` here as that
+  // gives a premature close error with server sent events. This also
+  // avoids creating an extra stream even when we're not encoding.
+  let initialStream: Writable = res;
+  for (let i = encoders.length - 1; i >= 0; i--) {
+    encoders[i].pipe(initialStream);
+    initialStream = encoders[i];
+  }
+
+  // Response body may be null if empty
+  if (response.body) {
+    for await (const chunk of response.body) {
+      if (chunk) initialStream.write(chunk);
+    }
+
+    if (liveReloadEnabled) {
+      initialStream.write(liveReloadScript);
+    }
+  }
+
+  initialStream.end();
+}
+
 export function createRequestListener<Plugins extends HTTPPluginSignatures>(
   mf: MiniflareCore<Plugins>
 ): RequestListener {
@@ -184,109 +290,8 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
         response = await mf.dispatchFetch(request);
         waitUntil = response.waitUntil();
         status = response.status;
-        const headers: http.OutgoingHttpHeaders = {};
-        // eslint-disable-next-line prefer-const
-        for (let [key, value] of response.headers) {
-          key = key.toLowerCase();
-          if (key === "set-cookie") {
-            // Multiple Set-Cookie headers should be treated as separate headers
-            // @ts-expect-error getAll is added to the Headers prototype by
-            // importing @miniflare/core
-            headers["set-cookie"] = response.headers.getAll("set-cookie");
-          } else {
-            headers[key] = value;
-          }
-        }
-
-        // Use body's actual length instead of the Content-Length header if set,
-        // see https://github.com/cloudflare/miniflare/issues/148. We also might
-        // need to adjust this later for live reloading so hold onto it.
-        const contentLengthHeader = response.headers.get("Content-Length");
-        const contentLength =
-          _getBodyLength(response) ??
-          (contentLengthHeader === null ? null : parseInt(contentLengthHeader));
-        if (contentLength !== null) headers["content-length"] = contentLength;
-
-        // If a Content-Encoding is set, and the user hasn't encoded the body,
-        // we're responsible for doing so.
-        const encoders: Transform[] = [];
-        if (headers["content-encoding"] && response.encodeBody === "auto") {
-          // Content-Length will be wrong as it's for the decoded length
-          delete headers["content-length"];
-          // Reverse of https://github.com/nodejs/undici/blob/48d9578f431cbbd6e74f77455ba92184f57096cf/lib/fetch/index.js#L1660
-          const codings = headers["content-encoding"]
-            .toString()
-            .toLowerCase()
-            .split(",")
-            .map((x) => x.trim());
-          for (const coding of codings) {
-            if (/(x-)?gzip/.test(coding)) {
-              encoders.push(zlib.createGzip());
-            } else if (/(x-)?deflate/.test(coding)) {
-              encoders.push(zlib.createDeflate());
-            } else if (coding === "br") {
-              encoders.push(zlib.createBrotliCompress());
-            } else {
-              // Unknown encoding, don't do any encoding at all
-              mf.log.warn(
-                `Unknown encoding \"${coding}\", sending plain response...`
-              );
-              delete headers["content-encoding"];
-              encoders.length = 0;
-              break;
-            }
-          }
-        }
-
-        // Add live reload script if enabled, this isn't an already encoded
-        // response, and it's HTML
-        const liveReloadEnabled =
-          HTTPPlugin.liveReload &&
-          response.encodeBody === "auto" &&
-          response.headers
-            .get("content-type")
-            ?.toLowerCase()
-            .includes("text/html");
-
-        // If Content-Length is specified, and we're live-reloading, we'll
-        // need to adjust it to make room for the live reload script
-        if (liveReloadEnabled && contentLength !== null) {
-          if (!isNaN(contentLength)) {
-            // Append length of live reload script
-            headers["content-length"] = contentLength + liveReloadScriptLength;
-          }
-        }
-
-        res?.writeHead(status, headers);
-
-        // Response body may be null if empty
         if (res) {
-          // `initialStream` is the stream we'll write the response to. It
-          // should end up as the first encoder, piping to the next encoder,
-          // and finally piping to the response:
-          //
-          // encoders[0] (initialStream) -> encoders[1] -> res
-          //
-          // Not using `pipeline(passThrough, ...encoders, res)` here as that
-          // gives a premature close error with server sent events. This also
-          // avoids creating an extra stream even when we're not encoding.
-          let initialStream: Writable = res;
-          for (let i = encoders.length - 1; i >= 0; i--) {
-            encoders[i].pipe(initialStream);
-            initialStream = encoders[i];
-          }
-
-          if (response.body) {
-            for await (const chunk of response.body) {
-              if (chunk) initialStream.write(chunk);
-            }
-
-            if (liveReloadEnabled) {
-              initialStream.write(liveReloadScript);
-            }
-          }
-
-          initialStream.end();
+          await writeResponse(response, res, HTTPPlugin.liveReload, mf.log);
         }
       } catch (e: any) {
         // MIME types aren't case sensitive
@@ -394,9 +399,27 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
 
       // Check web socket response was returned
       const webSocket = response?.webSocket;
-      if (response?.status !== 101 || !webSocket) {
-        socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
-        socket.destroy();
+      if (response?.status === 101 && webSocket) {
+        // Accept and couple the Web Socket
+        extraHeaders.set(request, response.headers);
+        webSocketServer.handleUpgrade(request, socket as any, head, (ws) => {
+          void coupleWebSocket(ws, webSocket);
+          webSocketServer.emit("connection", ws, request);
+        });
+        return;
+      }
+
+      // Otherwise, we'll be returning a regular HTTP response
+      const res = new http.ServerResponse(request);
+      // `socket` is guaranteed to be an instance of `net.Socket`:
+      // https://nodejs.org/api/http.html#event-upgrade_1
+      assert(socket instanceof net.Socket);
+      res.assignSocket(socket);
+
+      // If no response was provided, or it was an "ok" response, log an error
+      if (!response || (200 <= response.status && response.status < 300)) {
+        res.writeHead(500);
+        res.end();
         mf.log.error(
           new TypeError(
             "Web Socket request did not return status 101 Switching Protocols response with Web Socket"
@@ -405,12 +428,9 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
         return;
       }
 
-      // Accept and couple the Web Socket
-      extraHeaders.set(request, response.headers);
-      webSocketServer.handleUpgrade(request, socket as any, head, (ws) => {
-        void coupleWebSocket(ws, webSocket);
-        webSocketServer.emit("connection", ws, request);
-      });
+      // Otherwise, send the response as is (e.g. unauthorised),
+      // always disabling live-reload as this is a WebSocket upgrade
+      await writeResponse(response, res, false /* liveReload */, mf.log);
     }
   });
   const reloadListener = () => {
