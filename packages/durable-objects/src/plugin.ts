@@ -10,6 +10,7 @@ import {
   SetupResult,
   StorageFactory,
   resolveStoragePersist,
+  usageModelExternalSubrequestLimit,
 } from "@miniflare/shared";
 import { AlarmStore } from "./alarms";
 import { DurableObjectError } from "./error";
@@ -214,6 +215,9 @@ export class DurableObjectsPlugin
         requestDepth: 1,
         pipelineDepth: 1,
         durableObject: true,
+        externalSubrequestLimit: usageModelExternalSubrequestLimit(
+          this.ctx.usageModel
+        ),
       }).runWith(() => state[kAlarm]());
     });
   }

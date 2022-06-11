@@ -179,7 +179,7 @@ test("DurableObjectsPlugin: getNamespace: creates namespace for object in mounte
   });
   plugin.beforeReload();
   const mounts = new Map<string, Mount>([
-    ["test", { moduleExports: { TestObject } }],
+    ["test", { moduleExports: { TestObject }, usageModel: "bundled" }],
   ]);
   plugin.reload({}, {}, mounts);
   const ns = plugin.getNamespace(factory, "TEST");
@@ -270,7 +270,9 @@ test("DurableObjectsPlugin: reload: throws if object constructor cannot be found
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: { className: "TestObject", scriptName: "test" } },
   });
-  const mounts = new Map<string, Mount>([["test", { moduleExports: {} }]]);
+  const mounts = new Map<string, Mount>([
+    ["test", { moduleExports: {}, usageModel: "bundled" }],
+  ]);
   t.throws(() => plugin.reload({}, {}, mounts), {
     instanceOf: DurableObjectError,
     code: "ERR_CLASS_NOT_FOUND",

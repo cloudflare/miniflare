@@ -347,7 +347,7 @@ test("DurableObjectStub: fetch: creates new request context", async (t) => {
     {
       bindings: {
         assertSubrequests(expected: number) {
-          t.is(getRequestContext()?.subrequests, expected);
+          t.is(getRequestContext()?.externalSubrequests, expected);
         },
         assertDurableObject() {
           t.true(getRequestContext()?.durableObject);
@@ -393,6 +393,75 @@ export class TestObject {
     message: /^Too many subrequests/,
   });
   const res = await mf.dispatchFetch("http://localhost/?n=1");
+  t.is(await res.text(), "body");
+});
+test("DurableObjectStub: fetch: creates new request context using correct usage model", async (t) => {
+  const storageFactory = new MemoryStorageFactory();
+  const scriptRunner = new VMScriptRunner();
+  const mf = new MiniflareCore(
+    { CorePlugin, CachePlugin, DurableObjectsPlugin },
+    { log, storageFactory, scriptRunner },
+    {
+      durableObjects: { TEST_OBJECT: "TestObject" },
+      modules: true,
+      usageModel: "unbound",
+      script: `
+export default {
+  async fetch(request, env, ctx) {   
+    const stub = env.TEST_OBJECT.get(env.TEST_OBJECT.newUniqueId());
+    return await stub.fetch(request);
+  }
+}
+export class TestObject {
+  async fetch(request) {
+    await Promise.all(Array.from(Array(1000)).map(() => caches.default.match("http://localhost/")));
+    return new Response("body");
+  }
+}
+`,
+    }
+  );
+  const res = await mf.dispatchFetch("http://localhost");
+  t.is(await res.text(), "body");
+});
+test("DurableObjectStub: fetch: increments internal subrequest count", async (t) => {
+  const storageFactory = new MemoryStorageFactory();
+  const scriptRunner = new VMScriptRunner();
+  const mf = new MiniflareCore(
+    { CorePlugin, BindingsPlugin, CachePlugin, DurableObjectsPlugin },
+    { log, storageFactory, scriptRunner },
+    {
+      bindings: {
+        assertInternalSubrequests(expected: number) {
+          t.is(getRequestContext()?.internalSubrequests, expected);
+        },
+      },
+      durableObjects: { TEST_OBJECT: "TestObject" },
+      modules: true,
+      script: `
+export default {
+  async fetch(request, env, ctx) {
+    env.assertInternalSubrequests(0);
+    const stub = env.TEST_OBJECT.get(env.TEST_OBJECT.newUniqueId());
+    const n = parseInt(new URL(request.url).searchParams.get("n"));
+    await Promise.all(Array.from(Array(n)).map(() => stub.fetch(request)));
+    env.assertInternalSubrequests(n);
+    return new Response("body");
+  }
+}
+export class TestObject {
+  async fetch(request) {
+    return new Response();
+  }
+}
+`,
+    }
+  );
+  await t.throwsAsync(mf.dispatchFetch("http://localhost/?n=1001"), {
+    instanceOf: Error,
+    message: /^Too many API requests by single worker invocation/,
+  });
+  const res = await mf.dispatchFetch("http://localhost/?n=1000");
   t.is(await res.text(), "body");
 });
 test("DurableObjectStub: fetch: increases request depth", async (t) => {

@@ -41,6 +41,7 @@ Core Options:
                              from
      --compat-flag           Control specific backwards-incompatible     [array]
                              changes
+     --usage-model           Usage model (bundled by default)           [string]
  -u, --upstream              URL of upstream origin                     [string]
  -w, --watch                 Watch files for changes                   [boolean]
  -d, --debug                 Enable debug logging                      [boolean]

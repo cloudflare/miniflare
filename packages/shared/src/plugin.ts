@@ -4,7 +4,7 @@ import { Log } from "./log";
 import { ScriptBlueprint } from "./runner";
 import { StorageFactory } from "./storage";
 import { Awaitable } from "./sync";
-import { WranglerConfig } from "./wrangler";
+import { UsageModel, WranglerConfig } from "./wrangler";
 
 export type Context = { [key: string | symbol]: any };
 
@@ -85,12 +85,14 @@ export interface SetupResult extends BeforeSetupResult {
 export interface Mount<Request = any, Response = any> {
   moduleExports?: Context;
   dispatchFetch?: (request: Request) => Promise<Response>;
+  usageModel?: UsageModel;
 }
 
 export interface PluginContext {
   log: Log;
   compat: Compatibility;
   rootPath: string;
+  usageModel?: UsageModel;
   globalAsyncIO?: boolean;
 }
 

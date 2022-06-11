@@ -165,7 +165,7 @@ export class Cache implements CacheInterface {
     res: BaseResponse | Response
   ): Promise<undefined> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
-    getRequestContext()?.incrementSubrequests();
+    getRequestContext()?.incrementExternalSubrequests();
     req = normaliseRequest(req);
 
     if (res instanceof Response && res.webSocket) {
@@ -208,7 +208,7 @@ export class Cache implements CacheInterface {
     options?: CacheMatchOptions
   ): Promise<Response | undefined> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
-    getRequestContext()?.incrementSubrequests();
+    getRequestContext()?.incrementExternalSubrequests();
     req = normaliseRequest(req);
     // Cloudflare only caches GET requests
     if (req.method !== "GET" && !options?.ignoreMethod) return;
@@ -250,7 +250,7 @@ export class Cache implements CacheInterface {
     options?: CacheMatchOptions
   ): Promise<boolean> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
-    getRequestContext()?.incrementSubrequests();
+    getRequestContext()?.incrementExternalSubrequests();
     req = normaliseRequest(req);
     // Cloudflare only caches GET requests
     if (req.method !== "GET" && !options?.ignoreMethod) return false;

@@ -21,6 +21,7 @@ import {
 } from "@miniflare/core";
 import {
   Compatibility,
+  EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
   InputGate,
   LogLevel,
   NoOpLog,
@@ -921,16 +922,20 @@ test("fetch: gives a null body for upstream null body status codes", async (t) =
 });
 test("fetch: increments subrequest count", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
-  const ctx = new RequestContext();
+  const ctx = new RequestContext({
+    externalSubrequestLimit: EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
+  });
   await ctx.runWith(() => fetch(upstream));
-  t.is(ctx.subrequests, 1);
+  t.is(ctx.externalSubrequests, 1);
 });
 test("fetch: increments subrequest count for each redirect", async (t) => {
   const upstream = (await useServer(t, redirectingServerListener)).http;
   const url = new URL("/?n=3", upstream);
-  const ctx = new RequestContext();
+  const ctx = new RequestContext({
+    externalSubrequestLimit: EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
+  });
   await ctx.runWith(() => fetch(url));
-  t.is(ctx.subrequests, 4);
+  t.is(ctx.externalSubrequests, 4);
 });
 test("fetch: waits for output gate to open before fetching", async (t) => {
   let fetched = false;
@@ -1071,7 +1076,9 @@ test("createCompatFetch: throws outside request handler unless globalAsyncIO set
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   const log = new NoOpLog();
   const compat = new Compatibility();
-  const ctx = new RequestContext();
+  const ctx = new RequestContext({
+    externalSubrequestLimit: EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
+  });
 
   let fetch = createCompatFetch({ log, compat });
   await t.throwsAsync(fetch(upstream), {

@@ -9,6 +9,7 @@ import { BindingsPlugin, createCompatFetch } from "@miniflare/core";
 import { DurableObjectsPlugin } from "@miniflare/durable-objects";
 import {
   Compatibility,
+  EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
   LogLevel,
   RequestContext,
   getRequestContext,
@@ -205,15 +206,17 @@ test("upgradingFetch: increments subrequest count", async (t) => {
     (req, res) => res.end(),
     (ws) => ws.close()
   );
-  const ctx = new RequestContext();
+  const ctx = new RequestContext({
+    externalSubrequestLimit: EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
+  });
   let res = await ctx.runWith(() =>
     upgradingFetch(server.http, { headers: { upgrade: "websocket" } })
   );
   t.not(res.webSocket, undefined);
-  t.is(ctx.subrequests, 1);
+  t.is(ctx.externalSubrequests, 1);
   res = await ctx.runWith(() => upgradingFetch(server.http));
   t.is(res.webSocket, undefined);
-  t.is(ctx.subrequests, 2);
+  t.is(ctx.externalSubrequests, 2);
 });
 test("upgradingFetch: creates new request context for each web socket message", async (t) => {
   const [trigger, promise] = triggerPromise<StandardWebSocket>();
@@ -228,7 +231,7 @@ test("upgradingFetch: creates new request context for each web socket message", 
       globals: {
         WS_URL: server.ws,
         assertSubrequests(expected: number) {
-          t.is(getRequestContext()?.subrequests, expected);
+          t.is(getRequestContext()?.externalSubrequests, expected);
         },
       },
       durableObjects: { TEST_OBJECT: "TestObject" },

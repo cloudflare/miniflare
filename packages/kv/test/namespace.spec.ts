@@ -8,7 +8,9 @@ import {
   KVPutValueType,
 } from "@miniflare/kv";
 import {
+  EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
   RequestContext,
+  RequestContextOptions,
   Storage,
   StoredKeyMeta,
   StoredValueMeta,
@@ -27,6 +29,10 @@ import {
 } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
 import anyTest, { Macro, TestInterface, ThrowsExpectation } from "ava";
+
+const requestCtxOptions: RequestContextOptions = {
+  externalSubrequestLimit: EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
+};
 
 interface Context {
   storage: Storage;
@@ -166,6 +172,12 @@ test("get: ignores cache ttl", async (t) => {
     field: "value",
   });
 });
+test("get: increments subrequest count", async (t) => {
+  const { ns } = t.context;
+  const ctx = new RequestContext(requestCtxOptions);
+  await ctx.runWith(() => ns.get("key"));
+  t.is(ctx.internalSubrequests, 1);
+});
 test("get: waits for input gate to open before returning", async (t) => {
   const { ns } = t.context;
   await ns.put("key", "value");
@@ -282,6 +294,12 @@ test("getWithMetadata: ignores cache ttl", async (t) => {
       metadata: { testing: true },
     }
   );
+});
+test("getWithMetadata: increments subrequest count", async (t) => {
+  const { ns } = t.context;
+  const ctx = new RequestContext(requestCtxOptions);
+  await ctx.runWith(() => ns.getWithMetadata("key"));
+  t.is(ctx.internalSubrequests, 1);
 });
 test("getWithMetadata: waits for input gate to open before returning", async (t) => {
   const { ns } = t.context;
@@ -402,6 +420,12 @@ test("put: overrides existing keys", async (t) => {
     metadata: { testing: true },
   });
 });
+test("put: increments subrequest count", async (t) => {
+  const { ns } = t.context;
+  const ctx = new RequestContext(requestCtxOptions);
+  await ctx.runWith(() => ns.put("key", "value"));
+  t.is(ctx.internalSubrequests, 1);
+});
 test("put: waits for output gate to open before storing", async (t) => {
   const { ns } = t.context;
   await waitsForOutputGate(
@@ -500,6 +524,12 @@ test("delete: does nothing for non-existent keys", async (t) => {
   const { ns } = t.context;
   await ns.delete("key");
   await t.pass();
+});
+test("delete: increments subrequest count", async (t) => {
+  const { ns } = t.context;
+  const ctx = new RequestContext(requestCtxOptions);
+  await ctx.runWith(() => ns.delete("key"));
+  t.is(ctx.internalSubrequests, 1);
 });
 test("delete: waits for output gate to open before deleting", async (t) => {
   const { ns } = t.context;
@@ -762,6 +792,12 @@ test("list: sorts lexicographically", async (t) => {
     cursor: "",
   });
 });
+test("list: increments subrequest count", async (t) => {
+  const { ns } = t.context;
+  const ctx = new RequestContext(requestCtxOptions);
+  await ctx.runWith(() => ns.list());
+  t.is(ctx.internalSubrequests, 1);
+});
 test("list: waits for input gate to open before returning", async (t) => {
   const { ns } = t.context;
   await ns.put("key", "value");
@@ -798,7 +834,9 @@ test("hides implementation details", (t) => {
 });
 test("operations throw outside request handler", async (t) => {
   const ns = new KVNamespace(new MemoryStorage(), { blockGlobalAsyncIO: true });
-  const ctx = new RequestContext();
+  const ctx = new RequestContext({
+    externalSubrequestLimit: EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
+  });
 
   const expectations: ThrowsExpectation = {
     instanceOf: Error,

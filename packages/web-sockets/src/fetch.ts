@@ -25,7 +25,7 @@ export async function upgradingFetch(
     request.headers.get("upgrade") === "websocket"
   ) {
     // All fetches count as subrequests
-    getRequestContext()?.incrementSubrequests();
+    getRequestContext()?.incrementExternalSubrequests();
 
     // Check request protocol. Note, upgradingFetch will be wrapped with
     // createCompatFetch, which will rewrite the protocol to "http:" (e.g. when

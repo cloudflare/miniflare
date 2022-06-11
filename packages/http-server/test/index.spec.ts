@@ -715,7 +715,7 @@ test("createServer: creates new request context for each web socket message", as
     {
       globals: {
         assertSubrequests(expected: number) {
-          t.is(getRequestContext()?.subrequests, expected);
+          t.is(getRequestContext()?.externalSubrequests, expected);
         },
       },
       durableObjects: { TEST_OBJECT: "TestObject" },

@@ -769,7 +769,7 @@ export async function fetch(
   //  https://developers.cloudflare.com/workers/examples/cache-using-fetch
 
   const ctx = getRequestContext();
-  ctx?.incrementSubrequests();
+  ctx?.incrementExternalSubrequests();
 
   await waitForOpenOutputGate();
 
@@ -819,7 +819,7 @@ export async function fetch(
   if (baseRes.redirected && ctx) {
     const urlList = _getURLList(baseRes);
     // Last url is final destination, so subtract 1 for redirect count
-    if (urlList) ctx.incrementSubrequests(urlList.length - 1);
+    if (urlList) ctx.incrementExternalSubrequests(urlList.length - 1);
   }
 
   // Convert the response to our hybrid Response

@@ -90,6 +90,7 @@ export interface CoreOptions {
   modulesRules?: ModuleRule[];
   compatibilityDate?: string;
   compatibilityFlags?: CompatibilityFlag[];
+  usageModel?: "bundled" | "unbound";
   upstream?: string;
   watch?: boolean;
   // CLI only options, not actually used by MiniflareCore
@@ -230,6 +231,14 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     fromWrangler: ({ compatibility_flags }) => compatibility_flags,
   })
   compatibilityFlags?: CompatibilityFlag[];
+
+  @Option({
+    type: OptionType.STRING,
+    name: "usage-model",
+    description: "Usage model (bundled by default)",
+    fromWrangler: ({ usage_model }) => usage_model,
+  })
+  usageModel?: "bundled" | "unbound";
 
   @Option({
     type: OptionType.STRING,

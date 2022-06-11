@@ -453,6 +453,94 @@ test("BindingsPlugin: dispatches fetch to custom service", async (t) => {
   res = await bindings!.SERVICE.fetch("http://localhost/test");
   t.is(await res.text(), "GET http://localhost/test");
 });
+test("BindingsPlugin: uses mounted service's usage model when dispatching fetch to mounted service", async (t) => {
+  const mf = useMiniflare(
+    { BindingsPlugin, CachePlugin },
+    {
+      name: "a",
+      modules: true,
+      usageModel: "bundled",
+      script: `export default {
+        fetch(request, env) {
+          return env.SERVICE_B.fetch("http://localhost/");
+        }
+      }`,
+      serviceBindings: { SERVICE_B: "b" },
+      mounts: {
+        b: {
+          name: "b",
+          modules: true,
+          usageModel: "unbound",
+          script: `export default {
+            async fetch(request, env) {
+              await Promise.all(Array.from(Array(1000)).map(() => caches.default.match("http://localhost/")));
+              return new Response("body");
+            }
+          }`,
+        },
+      },
+    }
+  );
+  const res = await mf.dispatchFetch("http://localhost/");
+  t.is(await res.text(), "body");
+});
+test("BindingsPlugin: uses parent's usage model when dispatching fetch from mounted service", async (t) => {
+  const mf = useMiniflare(
+    { BindingsPlugin, CachePlugin },
+    {
+      name: "a",
+      modules: true,
+      usageModel: "unbound",
+      script: `export default {
+        async fetch(request, env) {
+          const { pathname } = new URL(request.url);
+          if (pathname === "/ping") {
+            await Promise.all(Array.from(Array(1000)).map(() => caches.default.match("http://localhost/")));
+            return new Response("pong");
+          }
+          return env.SERVICE_B.fetch("http://localhost/");
+        }
+      }`,
+      serviceBindings: { SERVICE_B: "b" },
+      mounts: {
+        b: {
+          name: "b",
+          modules: true,
+          usageModel: "bundled",
+          script: `export default {
+            fetch(request, env) {
+              return env.SERVICE_A.fetch("http://localhost/ping");
+            }
+          }`,
+          serviceBindings: { SERVICE_A: "a" },
+        },
+      },
+    }
+  );
+  const res = await mf.dispatchFetch("http://localhost/");
+  t.is(await res.text(), "pong");
+});
+test("BindingsPlugin: uses plugin context's usage model when dispatching to custom service", async (t) => {
+  async function SERVICE() {
+    getRequestContext()?.incrementExternalSubrequests(1000);
+    return new Response("body");
+  }
+
+  let plugin = new BindingsPlugin(
+    { ...ctx, usageModel: "bundled" },
+    { serviceBindings: { SERVICE } }
+  );
+  let bindings = (await plugin.setup()).bindings;
+  await t.throwsAsync(bindings!.SERVICE.fetch("http://localhost/"));
+
+  plugin = new BindingsPlugin(
+    { ...ctx, usageModel: "unbound" },
+    { serviceBindings: { SERVICE } }
+  );
+  bindings = (await plugin.setup()).bindings;
+  const res = await bindings!.SERVICE.fetch("http://localhost/");
+  t.is(await res.text(), "body");
+});
 test("BindingsPlugin: waits for services before dispatching", async (t) => {
   const plugin = new BindingsPlugin(ctx, {
     // Implicitly testing service binding without environment
@@ -465,6 +553,7 @@ test("BindingsPlugin: waits for services before dispatching", async (t) => {
   await setImmediate();
   const mount: _CoreMount = {
     dispatchFetch: async () => new Response("a service"),
+    usageModel: "bundled",
   };
   plugin.reload({}, {}, new Map([["a", mount]]));
   t.is(await (await res).text(), "a service");
@@ -605,7 +694,7 @@ test("BindingsPlugin: service fetch creates new request context", async (t) => {
   // noinspection JSUnusedGlobalSymbols
   const bindings = {
     assertSubrequests(expected: number) {
-      t.is(getRequestContext()?.subrequests, expected);
+      t.is(getRequestContext()?.externalSubrequests, expected);
     },
   };
 

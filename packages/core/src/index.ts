@@ -21,10 +21,12 @@ import {
   SetupResult,
   StorageFactory,
   TypedEventTarget,
+  UsageModel,
   WranglerConfig,
   addAll,
   logOptions,
   resolveStoragePersist,
+  usageModelExternalSubrequestLimit,
 } from "@miniflare/shared";
 import type { Watcher } from "@miniflare/watcher";
 import { dequal } from "dequal/lite";
@@ -251,6 +253,7 @@ export class MiniflareCore<
 
   #compat?: Compatibility;
   #previousRootPath?: string;
+  #previousUsageModel?: UsageModel;
   #previousGlobalAsyncIO?: boolean;
   #instances?: PluginInstances<Plugins>;
   #mounts?: Map<string, MiniflareCore<Plugins>>;
@@ -373,10 +376,11 @@ export class MiniflareCore<
 
     // Build compatibility manager, rebuild all plugins if reloadAll is set,
     // compatibility data, root path or any limits have changed
-    const { compatibilityDate, compatibilityFlags, globalAsyncIO } =
+    const { compatibilityDate, compatibilityFlags, usageModel, globalAsyncIO } =
       options.CorePlugin;
     let ctxUpdate =
       (this.#previousRootPath && this.#previousRootPath !== rootPath) ||
+      this.#previousUsageModel !== usageModel ||
       this.#previousGlobalAsyncIO !== globalAsyncIO ||
       reloadAll;
     this.#previousRootPath = rootPath;
@@ -392,6 +396,7 @@ export class MiniflareCore<
       log: this.#ctx.log,
       compat: this.#compat,
       rootPath,
+      usageModel,
       globalAsyncIO,
     };
 
@@ -791,6 +796,7 @@ export class MiniflareCore<
           // `Mount`'s `dispatchFetch` requires a function with signature
           // `(Request) => Awaitable<Response>` too
           dispatchFetch: (request) => this[kDispatchFetch](request, true),
+          usageModel: this.#instances!.CorePlugin.usageModel,
         } as _CoreMount);
       }
       // Add all other mounts
@@ -798,6 +804,7 @@ export class MiniflareCore<
         mounts.set(name, {
           moduleExports: await mount.getModuleExports(),
           dispatchFetch: (request) => mount[kDispatchFetch](request, true),
+          usageModel: mount.#instances!.CorePlugin.usageModel,
         } as _CoreMount);
       }
       await this.#runAllReloads(mounts);
@@ -1026,7 +1033,7 @@ export class MiniflareCore<
 
     // If upstream set, and the request URL doesn't begin with it, rewrite it
     // so fetching the incoming request gets a response from the upstream
-    const { upstreamURL } = this.#instances!.CorePlugin;
+    const { upstreamURL, usageModel } = this.#instances!.CorePlugin;
     if (upstreamURL && !url.toString().startsWith(upstreamURL.toString())) {
       let path = url.pathname + url.search;
       // Remove leading slash so we resolve relative to upstream's path
@@ -1046,6 +1053,7 @@ export class MiniflareCore<
     return new RequestContext({
       requestDepth,
       pipelineDepth: 1,
+      externalSubrequestLimit: usageModelExternalSubrequestLimit(usageModel),
     }).runWith(() =>
       this[kDispatchFetch](
         request,
@@ -1088,10 +1096,13 @@ export class MiniflareCore<
       if (mount) return mount.dispatchScheduled(scheduledTime, cron);
     }
 
+    const { usageModel } = this.#instances!.CorePlugin;
     const globalScope = this.#globalScope;
     // Each fetch gets its own context (e.g. 50 subrequests).
     // Start a new pipeline too.
-    return new RequestContext().runWith(() =>
+    return new RequestContext({
+      externalSubrequestLimit: usageModelExternalSubrequestLimit(usageModel),
+    }).runWith(() =>
       globalScope![kDispatchScheduled]<WaitUntil>(scheduledTime, cron)
     );
   }

@@ -1,5 +1,6 @@
 import assert from "assert";
 import {
+  EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
   InputGatedEventTarget,
   RequestContext,
   getRequestContext,
@@ -84,6 +85,9 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
         const ctx = new RequestContext({
           requestDepth: addListenerCtx?.requestDepth,
           pipelineDepth: addListenerCtx?.pipelineDepth,
+          externalSubrequestLimit:
+            addListenerCtx?.externalSubrequestLimit ??
+            EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
         });
         ctx.runWith(() => wrappedListener(event));
       } else {

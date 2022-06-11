@@ -1161,7 +1161,7 @@ test("MiniflareCore: dispatchFetch: creates new request context", async (t) => {
     {
       globals: {
         assertSubrequests(expected: number) {
-          t.is(getRequestContext()?.subrequests, expected);
+          t.is(getRequestContext()?.externalSubrequests, expected);
         },
       },
     },
@@ -1266,7 +1266,7 @@ test("MiniflareCore: dispatchScheduled: creates new request context", async (t) 
     {
       globals: {
         assertSubrequests(expected: number) {
-          t.is(getRequestContext()?.subrequests, expected);
+          t.is(getRequestContext()?.externalSubrequests, expected);
         },
       },
       modules: true,

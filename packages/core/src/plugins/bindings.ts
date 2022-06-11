@@ -11,8 +11,10 @@ import {
   PluginContext,
   RequestContext,
   SetupResult,
+  UsageModel,
   WranglerServiceConfig,
   getRequestContext,
+  usageModelExternalSubrequestLimit,
   viewToBuffer,
 } from "@miniflare/shared";
 import dotenv from "dotenv";
@@ -27,6 +29,14 @@ export type _CoreMount = Mount<Request, Response>; // yuck :(
 // Instead of binding to a service, use this function to handle `fetch`es
 // some other custom way (e.g. Cloudflare Pages' `env.PAGES` asset handler)
 export type FetcherFetch = (request: Request) => Awaitable<Response>;
+
+export interface FetcherFetchWithUsageModel {
+  fetch: FetcherFetch;
+  // Usage model required as mount might have different usage model,
+  // and therefore different subrequest limits.
+  // We need to know these when creating the request context.
+  usageModel?: UsageModel;
+}
 
 export type ServiceBindingsOptions = Record<
   string,
@@ -54,34 +64,48 @@ export interface BindingsOptions {
 
 export class Fetcher {
   readonly #service: string | FetcherFetch;
-  readonly #getServiceFetch: (name: string) => Promise<FetcherFetch>;
+  readonly #getServiceFetch: (
+    name: string
+  ) => Promise<FetcherFetchWithUsageModel>;
+  readonly #defaultUsageModel?: UsageModel;
 
   constructor(
     service: string | FetcherFetch,
-    getServiceFetch: (name: string) => Promise<FetcherFetch>
+    getServiceFetch: (name: string) => Promise<FetcherFetchWithUsageModel>,
+    defaultUsageModel?: UsageModel
   ) {
     this.#service = service;
     this.#getServiceFetch = getServiceFetch;
+    this.#defaultUsageModel = defaultUsageModel;
   }
 
   async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
+    // Always create new Request instance, so clean object passed to services
+    const req = new Request(input, init);
+
+    // If we're using a custom fetch handler, call that or wait for the service
+    // fetch handler to be available
+    let fetch: FetcherFetch;
+    let usageModel = this.#defaultUsageModel;
+    if (typeof this.#service === "function") {
+      fetch = this.#service;
+    } else {
+      const serviceFetch = await this.#getServiceFetch(this.#service);
+      fetch = serviceFetch.fetch;
+      usageModel = serviceFetch.usageModel;
+    }
+
     // Check we're not too deep, should throw in the caller and NOT return a
     // 500 Internal Server Error Response from this function
     const parentCtx = getRequestContext();
     const requestDepth = parentCtx?.requestDepth ?? 1;
     const pipelineDepth = (parentCtx?.pipelineDepth ?? 0) + 1;
     // NOTE: `new RequestContext` throws if too deep
-    const ctx = new RequestContext({ requestDepth, pipelineDepth });
-
-    // Always create new Request instance, so clean object passed to services
-    const req = new Request(input, init);
-
-    // If we're using a custom fetch handler, call that or wait for the service
-    // fetch handler to be available
-    const fetch =
-      typeof this.#service === "function"
-        ? this.#service
-        : await this.#getServiceFetch(this.#service);
+    const ctx = new RequestContext({
+      requestDepth,
+      pipelineDepth,
+      externalSubrequestLimit: usageModelExternalSubrequestLimit(usageModel),
+    });
 
     // Cloudflare Workers currently don't propagate errors thrown by the service
     // when handling the request. Instead a 500 Internal Server Error Response
@@ -256,7 +280,9 @@ export class BindingsPlugin
     }
   }
 
-  #getServiceFetch = async (service: string): Promise<FetcherFetch> => {
+  #getServiceFetch = async (
+    service: string
+  ): Promise<FetcherFetchWithUsageModel> => {
     // Wait for mounts
     assert(
       this.#contextPromise,
@@ -266,9 +292,9 @@ export class BindingsPlugin
 
     // Should've thrown error earlier in reload if service not found and
     // dispatchFetch should always be set, it's optional to make testing easier.
-    const fetch = this.#mounts?.get(service)?.dispatchFetch;
-    assert(fetch);
-    return fetch;
+    const mount = this.#mounts?.get(service);
+    assert(mount?.dispatchFetch);
+    return { fetch: mount.dispatchFetch, usageModel: mount.usageModel };
   };
 
   async setup(): Promise<SetupResult> {
@@ -336,7 +362,11 @@ export class BindingsPlugin
 
     // 6) Load service bindings
     for (const { name, service } of this.#processedServiceBindings) {
-      bindings[name] = new Fetcher(service, this.#getServiceFetch);
+      bindings[name] = new Fetcher(
+        service,
+        this.#getServiceFetch,
+        this.ctx.usageModel
+      );
     }
 
     // 7) Copy user's arbitrary bindings

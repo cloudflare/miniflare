@@ -2,7 +2,12 @@ import assert from "assert";
 import { URL } from "url";
 import { Cache, CacheError, CachedMeta } from "@miniflare/cache";
 import { Request, RequestInitCfProperties, Response } from "@miniflare/core";
-import { RequestContext, Storage } from "@miniflare/shared";
+import {
+  EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
+  RequestContext,
+  RequestContextOptions,
+  Storage,
+} from "@miniflare/shared";
 import {
   getObjectProperties,
   utf8Decode,
@@ -20,6 +25,10 @@ import {
   RequestInfo,
 } from "undici";
 import { testResponse } from "./helpers";
+
+const requestCtxOptions: RequestContextOptions = {
+  externalSubrequestLimit: EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
+};
 
 interface Context {
   storage: Storage;
@@ -193,9 +202,9 @@ test("Cache: put respects cf cacheTtlByStatus", async (t) => {
 
 test("Cache: put increments subrequest count", async (t) => {
   const { cache } = t.context;
-  const ctx = new RequestContext();
+  const ctx = new RequestContext(requestCtxOptions);
   await ctx.runWith(() => cache.put("http://localhost:8787/", testResponse()));
-  t.is(ctx.subrequests, 1);
+  t.is(ctx.externalSubrequests, 1);
 });
 test("Cache: put waits for output gate to open before storing", (t) => {
   const { cache } = t.context;
@@ -251,9 +260,9 @@ test("Cache: only matches non-GET requests when ignoring method", async (t) => {
 
 test("Cache: match increments subrequest count", async (t) => {
   const { cache } = t.context;
-  const ctx = new RequestContext();
+  const ctx = new RequestContext(requestCtxOptions);
   await ctx.runWith(() => cache.match("http://localhost:8787/"));
-  t.is(ctx.subrequests, 1);
+  t.is(ctx.externalSubrequests, 1);
 });
 test("Cache: match MISS waits for input gate to open before returning", async (t) => {
   const { cache } = t.context;
@@ -311,9 +320,9 @@ test("Cache: only deletes non-GET requests when ignoring method", async (t) => {
 
 test("Cache: delete increments subrequest count", async (t) => {
   const { cache } = t.context;
-  const ctx = new RequestContext();
+  const ctx = new RequestContext(requestCtxOptions);
   await ctx.runWith(() => cache.delete("http://localhost:8787/"));
-  t.is(ctx.subrequests, 1);
+  t.is(ctx.externalSubrequests, 1);
 });
 test("Cache: delete waits for output gate to open before deleting", async (t) => {
   const { cache } = t.context;
@@ -413,7 +422,7 @@ test("Cache: hides implementation details", (t) => {
 });
 test("Cache: operations throw outside request handler", async (t) => {
   const cache = new Cache(new MemoryStorage(), { blockGlobalAsyncIO: true });
-  const ctx = new RequestContext();
+  const ctx = new RequestContext(requestCtxOptions);
 
   const expectations: ThrowsExpectation = {
     instanceOf: Error,

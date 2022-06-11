@@ -256,15 +256,20 @@ function testWebSocketPairTypes() {
 
 // Test request context subrequest limits
 function useSubrequest() {
-  getRequestContext()?.incrementSubrequests();
+  getRequestContext()?.incrementExternalSubrequests();
 }
-const ctxOpts: RequestContextOptions = { requestDepth: 5, pipelineDepth: 10 };
+const ctxOpts: RequestContextOptions = {
+  requestDepth: 5,
+  pipelineDepth: 10,
+  externalSubrequestLimit: 500,
+};
 function assertSubrequests(t: ExecutionContext, expected: number) {
   const ctx = getRequestContext();
-  t.is(ctx?.subrequests, expected);
+  t.is(ctx?.externalSubrequests, expected);
   // Also check depths copied across
   t.is(ctx?.requestDepth, ctxOpts.requestDepth);
   t.is(ctx?.pipelineDepth, ctxOpts.pipelineDepth);
+  t.is(ctx?.externalSubrequestLimit, ctxOpts.externalSubrequestLimit);
 }
 test("WebSocket: shares subrequest limit for WebSockets in regular worker handler", async (t) => {
   // Check WebSocket with both ends terminated in same worker handler
@@ -365,7 +370,7 @@ test("WebSocket: resets subrequest limit for WebSockets outside worker", async (
   webSocket2.accept();
   webSocket2.addEventListener("message", () => {
     const ctx = getRequestContext();
-    t.is(ctx?.subrequests, 0);
+    t.is(ctx?.externalSubrequests, 0);
     // Depths should have default values in this case
     t.is(ctx?.requestDepth, 1);
     t.is(ctx?.pipelineDepth, 1);

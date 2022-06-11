@@ -18,6 +18,7 @@ import {
   PluginContext,
   RequestContext,
   getRequestContext,
+  usageModelExternalSubrequestLimit,
 } from "@miniflare/shared";
 import { Response as BaseResponse } from "undici";
 import { DurableObjectError } from "./error";
@@ -169,11 +170,16 @@ export class DurableObjectStub {
     // A Durable Object fetch starts a new pipeline, so increment the request
     // depth and reset the pipeline depth.
     const parentContext = getRequestContext();
+    parentContext?.incrementInternalSubrequests();
     const requestDepth = (parentContext?.requestDepth ?? 0) + 1;
     const res = await new RequestContext({
       requestDepth,
       pipelineDepth: 1,
       durableObject: true,
+      // TODO: should this always be EXTERNAL_SUBREQUEST_LIMIT_UNBOUND?
+      externalSubrequestLimit: usageModelExternalSubrequestLimit(
+        this.#ctx?.usageModel
+      ),
     }).runWith(() => state[kFetch](withInputGating(withImmutableHeaders(req))));
 
     // noinspection SuspiciousTypeOfGuard

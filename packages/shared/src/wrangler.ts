@@ -3,6 +3,8 @@ import { ModuleRuleType } from "./runner";
 
 // See https://developers.cloudflare.com/workers/cli-wrangler/configuration#keys
 
+export type UsageModel = "bundled" | "unbound";
+
 export interface WranglerServiceConfig {
   name: string;
   service: string;
@@ -39,7 +41,7 @@ export interface WranglerEnvironmentConfig {
   triggers?: {
     crons?: string[];
   }; // inherited
-  usage_model?: "bundled" | "unbound"; // inherited
+  usage_model?: UsageModel; // inherited
   wasm_modules?: Record<string, string>; // inherited
   text_blobs?: Record<string, string>; // inherited
   data_blobs?: Record<string, string>; // inherited

@@ -7,6 +7,7 @@ import {
   StoredKeyMeta,
   assertInRequest,
   defaultClock,
+  getRequestContext,
   millisToSeconds,
   viewToArray,
   viewToBuffer,
@@ -187,6 +188,7 @@ export class KVNamespace {
     options?: KVGetValueType | Partial<KVGetOptions>
   ): KVValue<KVPutValueType | Value> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
+    getRequestContext()?.incrementInternalSubrequests();
     // noinspection SuspiciousTypeOfGuard
     if (typeof key !== "string") {
       throw new TypeError("Failed to execute 'get'" + keyTypeError);
@@ -226,6 +228,7 @@ export class KVNamespace {
     options?: KVGetValueType | Partial<KVGetOptions>
   ): KVValueMeta<KVPutValueType | Value, Metadata> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
+    getRequestContext()?.incrementInternalSubrequests();
     // noinspection SuspiciousTypeOfGuard
     if (typeof key !== "string") {
       throw new TypeError("Failed to execute 'getWithMetadata'" + keyTypeError);
@@ -251,6 +254,7 @@ export class KVNamespace {
     options: KVPutOptions<Meta> = {}
   ): Promise<void> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
+    getRequestContext()?.incrementInternalSubrequests();
     // noinspection SuspiciousTypeOfGuard
     if (typeof key !== "string") {
       throw new TypeError("Failed to execute 'put'" + keyTypeError);
@@ -343,6 +347,7 @@ export class KVNamespace {
 
   async delete(key: string): Promise<void> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
+    getRequestContext()?.incrementInternalSubrequests();
     // noinspection SuspiciousTypeOfGuard
     if (typeof key !== "string") {
       throw new TypeError("Failed to execute 'delete'" + keyTypeError);
@@ -360,6 +365,7 @@ export class KVNamespace {
     cursor,
   }: KVListOptions = {}): Promise<KVListResult<Meta>> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
+    getRequestContext()?.incrementInternalSubrequests();
     // Validate options
     if (isNaN(limit) || limit < 1) {
       throwKVError(
