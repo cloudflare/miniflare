@@ -1,4 +1,4 @@
-import { URL } from "url";
+import { URL, domainToUnicode } from "url";
 import { MiniflareError } from "@miniflare/shared";
 
 export type RouterErrorCode = "ERR_QUERY_STRING" | "ERR_INFIX_WILDCARD";
@@ -35,10 +35,19 @@ export class Router {
 
         const protocol = hasProtocol ? url.protocol : undefined;
 
-        const allowHostnamePrefix = url.hostname.startsWith("*");
+        const internationalisedAllowHostnamePrefix =
+          url.hostname.startsWith("xn--*");
+        const allowHostnamePrefix =
+          url.hostname.startsWith("*") || internationalisedAllowHostnamePrefix;
         const anyHostname = url.hostname === "*";
         if (allowHostnamePrefix && !anyHostname) {
-          url.hostname = url.hostname.substring(1);
+          let hostname = url.hostname;
+          // If hostname is internationalised (e.g. `xn--gld-tna.se`), decode it
+          if (internationalisedAllowHostnamePrefix) {
+            hostname = domainToUnicode(hostname);
+          }
+          // Remove leading "*"
+          url.hostname = hostname.substring(1);
         }
 
         const allowPathSuffix = url.pathname.endsWith("*");

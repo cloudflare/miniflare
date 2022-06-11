@@ -58,6 +58,17 @@ test("Router: route hostnames may begin with *", (t) => {
   t.is(router.match(new URL("https://example.com/")), null);
   t.is(router.match(new URL("https://www.example.com/")), "a");
 });
+test("Router: correctly handles internationalised domain names beginning with *", (t) => {
+  // https://github.com/cloudflare/miniflare/issues/186
+  const router = new Router();
+  router.update(new Map([["a", ["*glöd.se/*"]]]));
+  t.is(router.match(new URL("https://glöd.se/*")), "a");
+  t.is(router.match(new URL("https://www.glöd.se/*")), "a");
+
+  router.update(new Map([["a", ["*.glöd.se/*"]]]));
+  t.is(router.match(new URL("https://glöd.se/*")), null);
+  t.is(router.match(new URL("https://www.glöd.se/*")), "a");
+});
 test("Router: route paths may end with *", (t) => {
   const router = new Router();
   router.update(new Map([["a", ["https://example.com/path*"]]]));
