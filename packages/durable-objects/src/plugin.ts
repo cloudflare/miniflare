@@ -163,7 +163,10 @@ export class DurableObjectsPlugin
         await storage.storage(key, this.#persist),
         this.#alarmStore.buildBridge(key)
       );
-      const state = new DurableObjectState(id, objectStorage);
+      // `name` should not be passed to the constructed `state`:
+      // https://github.com/cloudflare/miniflare/issues/219
+      const unnamedId = new DurableObjectId(objectName, id.toString());
+      const state = new DurableObjectState(unnamedId, objectStorage);
 
       // Create and store new instance if none found
       const constructor = this.#constructors.get(objectName);

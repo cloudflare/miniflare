@@ -5,6 +5,7 @@ import {
   DurableObject,
   DurableObjectError,
   DurableObjectNamespace,
+  DurableObjectState,
   DurableObjectsPlugin,
 } from "@miniflare/durable-objects";
 import {
@@ -225,6 +226,30 @@ test("DurableObjectsPlugin: setup: includes namespaces for all objects", async (
   const res2 = await ns2.get(ns2.newUniqueId()).fetch("/");
   t.is(await res1.text(), "object1");
   t.is(await res2.text(), "object2");
+});
+test("DurableObjectsPlugin: setup: name removed from id passed to object constructors", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/219
+  class TestObject implements DurableObject {
+    constructor(readonly state: DurableObjectState) {}
+    fetch = () => new Response(String(this.state.id.name));
+  }
+
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST_OBJECT: "TestObject" },
+  });
+
+  const result = await plugin.setup(factory);
+  plugin.beforeReload();
+  plugin.reload({}, { TestObject }, new Map());
+
+  const ns: DurableObjectNamespace = result.bindings?.TEST_OBJECT;
+  const id = ns.idFromName("name");
+  t.is(id.name, "name");
+  const stub = ns.get(id);
+  t.is(stub.id.name, "name");
+  const res = await stub.fetch("/");
+  t.is(await res.text(), "undefined");
 });
 
 test("DurableObjectsPlugin: beforeReload: deletes all instances", async (t) => {
