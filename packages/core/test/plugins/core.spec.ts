@@ -1,11 +1,13 @@
 import assert from "assert";
 import fs from "fs/promises";
+
 import path from "path";
 import { CorePlugin, Request, Response, Scheduler } from "@miniflare/core";
 import {
   Compatibility,
   NoOpLog,
   PluginContext,
+  RequestContext,
   STRING_SCRIPT_PATH,
 } from "@miniflare/shared";
 import {
@@ -43,6 +45,8 @@ test("CorePlugin: parses options from argv", (t) => {
     "fetch_refuses_unknown_protocols",
     "--compat-flag",
     "durable_object_fetch_allows_relative_url",
+    "--usage-model",
+    "unbound",
     "--upstream",
     "https://github.com/mrbbot",
     "--watch",
@@ -63,6 +67,7 @@ test("CorePlugin: parses options from argv", (t) => {
     "--global-async-io",
     "--global-timers",
     "--global-random",
+    "--actual-time",
   ]);
   t.deepEqual(options, {
     scriptPath: "script.js",
@@ -79,6 +84,7 @@ test("CorePlugin: parses options from argv", (t) => {
       "fetch_refuses_unknown_protocols",
       "durable_object_fetch_allows_relative_url",
     ],
+    usageModel: "unbound",
     upstream: "https://github.com/mrbbot",
     watch: true,
     debug: true,
@@ -105,6 +111,7 @@ test("CorePlugin: parses options from argv", (t) => {
     globalAsyncIO: true,
     globalTimers: true,
     globalRandom: true,
+    actualTime: true,
   });
   options = parsePluginArgv(CorePlugin, [
     "-c",
@@ -158,6 +165,7 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
         global_async_io: true,
         global_timers: true,
         global_random: true,
+        actual_time: true,
       },
     },
     configDir
@@ -212,6 +220,7 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
     globalAsyncIO: true,
     globalTimers: true,
     globalRandom: true,
+    actualTime: true,
   });
   // Check build upload dir defaults to dist
   options = parsePluginWranglerConfig(
@@ -246,6 +255,7 @@ test("CorePlugin: logs options", (t) => {
     globalAsyncIO: true,
     globalTimers: true,
     globalRandom: true,
+    actualTime: true,
   });
   t.deepEqual(logs, [
     // script is OptionType.NONE so omitted
@@ -267,6 +277,7 @@ test("CorePlugin: logs options", (t) => {
     "Allow Global Async I/O: true",
     "Allow Global Timers: true",
     "Allow Global Secure Random: true",
+    "Actual Time: true",
   ]);
   // Check logs default wrangler config/package paths
   logs = logPluginOptions(CorePlugin, {
@@ -510,6 +521,23 @@ test("CorePlugin: setup: includes navigator only if compatibility flag enabled",
   plugin = new CorePlugin({ log, compat, rootPath });
   globals = (await plugin.setup()).globals;
   t.is(globals?.navigator.userAgent, "Cloudflare-Workers");
+});
+test("CorePlugin: setup: uses actual time if option enabled", async (t) => {
+  let plugin = new CorePlugin(ctx);
+  let DateImpl: typeof Date = (await plugin.setup()).globals?.Date;
+  await new RequestContext().runWith(async () => {
+    const previous = DateImpl.now();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    t.is(DateImpl.now(), previous);
+  });
+
+  plugin = new CorePlugin(ctx, { actualTime: true });
+  DateImpl = (await plugin.setup()).globals?.Date;
+  await new RequestContext().runWith(async () => {
+    const previous = DateImpl.now();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    t.not(DateImpl.now(), previous);
+  });
 });
 
 test("CorePlugin: setup: structuredClone: creates deep-copy of value", async (t) => {

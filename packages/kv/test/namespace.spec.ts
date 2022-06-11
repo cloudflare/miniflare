@@ -20,6 +20,7 @@ import {
   TIME_EXPIRED,
   TIME_EXPIRING,
   TIME_NOW,
+  advancesTime,
   getObjectProperties,
   testClock,
   utf8Decode,
@@ -853,4 +854,12 @@ test("operations throw outside request handler", async (t) => {
   await ctx.runWith(() => ns.put("key", "value"));
   await ctx.runWith(() => ns.delete("key"));
   await ctx.runWith(() => ns.list());
+});
+test("operations advance current time", async (t) => {
+  const { ns } = t.context;
+  await advancesTime(t, () => ns.get("key"));
+  await advancesTime(t, () => ns.getWithMetadata("key"));
+  await advancesTime(t, () => ns.put("key", "value"));
+  await advancesTime(t, () => ns.delete("key"));
+  await advancesTime(t, () => ns.list());
 });

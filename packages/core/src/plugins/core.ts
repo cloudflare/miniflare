@@ -52,6 +52,7 @@ import {
   btoa,
   createCompatFetch,
   createCrypto,
+  createDate,
   createTimer,
   withStringFormDataFiles,
 } from "../standards";
@@ -105,6 +106,7 @@ export interface CoreOptions {
   globalAsyncIO?: boolean;
   globalTimers?: boolean;
   globalRandom?: boolean;
+  actualTime?: boolean;
 }
 
 function mapMountEntries(
@@ -350,6 +352,13 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
   })
   globalRandom?: boolean;
 
+  @Option({
+    type: OptionType.BOOLEAN,
+    description: "Always return correct time from Date methods",
+    fromWrangler: ({ miniflare }) => miniflare?.actual_time,
+  })
+  actualTime?: boolean;
+
   readonly processedModuleRules: ProcessedModuleRule[] = [];
 
   readonly upstreamURL?: URL;
@@ -465,6 +474,8 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       // Approximate with serialize/deserialize if not there.
       structuredClone: globalThis.structuredClone ?? structuredCloneBuffer,
 
+      Date: createDate(this.actualTime),
+
       ...compatGlobals,
 
       // The types below would be included automatically, but it's not possible
@@ -477,7 +488,6 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       BigInt64Array,
       BigUint64Array,
       DataView,
-      Date,
       Float32Array,
       Float64Array,
       Int8Array,

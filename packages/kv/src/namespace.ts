@@ -188,7 +188,8 @@ export class KVNamespace {
     options?: KVGetValueType | Partial<KVGetOptions>
   ): KVValue<KVPutValueType | Value> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
-    getRequestContext()?.incrementInternalSubrequests();
+    const ctx = getRequestContext();
+    ctx?.incrementInternalSubrequests();
     // noinspection SuspiciousTypeOfGuard
     if (typeof key !== "string") {
       throw new TypeError("Failed to execute 'get'" + keyTypeError);
@@ -201,6 +202,7 @@ export class KVNamespace {
     // Get value without metadata, returning null if not found
     const stored = await this.#storage.get(key, true);
     await waitForOpenInputGate();
+    ctx?.advanceCurrentTime();
     if (stored === undefined) return null;
 
     // Return correctly typed value
@@ -228,7 +230,8 @@ export class KVNamespace {
     options?: KVGetValueType | Partial<KVGetOptions>
   ): KVValueMeta<KVPutValueType | Value, Metadata> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
-    getRequestContext()?.incrementInternalSubrequests();
+    const ctx = getRequestContext();
+    ctx?.incrementInternalSubrequests();
     // noinspection SuspiciousTypeOfGuard
     if (typeof key !== "string") {
       throw new TypeError("Failed to execute 'getWithMetadata'" + keyTypeError);
@@ -241,6 +244,7 @@ export class KVNamespace {
     // Get value with metadata, returning nulls if not found
     const storedValue = await this.#storage.get<Metadata>(key);
     await waitForOpenInputGate();
+    ctx?.advanceCurrentTime();
     if (storedValue === undefined) return { value: null, metadata: null };
     const { value, metadata = null } = storedValue;
 
@@ -254,7 +258,8 @@ export class KVNamespace {
     options: KVPutOptions<Meta> = {}
   ): Promise<void> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
-    getRequestContext()?.incrementInternalSubrequests();
+    const ctx = getRequestContext();
+    ctx?.incrementInternalSubrequests();
     // noinspection SuspiciousTypeOfGuard
     if (typeof key !== "string") {
       throw new TypeError("Failed to execute 'put'" + keyTypeError);
@@ -343,11 +348,13 @@ export class KVNamespace {
       metadata: options.metadata,
     });
     await waitForOpenInputGate();
+    ctx?.advanceCurrentTime();
   }
 
   async delete(key: string): Promise<void> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
-    getRequestContext()?.incrementInternalSubrequests();
+    const ctx = getRequestContext();
+    ctx?.incrementInternalSubrequests();
     // noinspection SuspiciousTypeOfGuard
     if (typeof key !== "string") {
       throw new TypeError("Failed to execute 'delete'" + keyTypeError);
@@ -357,6 +364,7 @@ export class KVNamespace {
     await waitForOpenOutputGate();
     await this.#storage.delete(key);
     await waitForOpenInputGate();
+    ctx?.advanceCurrentTime();
   }
 
   async list<Meta = unknown>({
@@ -365,7 +373,8 @@ export class KVNamespace {
     cursor,
   }: KVListOptions = {}): Promise<KVListResult<Meta>> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
-    getRequestContext()?.incrementInternalSubrequests();
+    const ctx = getRequestContext();
+    ctx?.incrementInternalSubrequests();
     // Validate options
     if (isNaN(limit) || limit < 1) {
       throwKVError(
@@ -383,6 +392,7 @@ export class KVNamespace {
     }
     const res = await this.#storage.list<Meta>({ prefix, limit, cursor });
     await waitForOpenInputGate();
+    ctx?.advanceCurrentTime();
     return {
       keys: res.keys,
       cursor: res.cursor,

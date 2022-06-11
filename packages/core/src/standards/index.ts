@@ -1,5 +1,6 @@
 export * from "./cf";
 export * from "./crypto";
+export * from "./date";
 export * from "./domexception";
 export * from "./encoding";
 export * from "./event";

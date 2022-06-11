@@ -165,7 +165,8 @@ export class Cache implements CacheInterface {
     res: BaseResponse | Response
   ): Promise<undefined> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
-    getRequestContext()?.incrementExternalSubrequests();
+    const ctx = getRequestContext();
+    ctx?.incrementExternalSubrequests();
     req = normaliseRequest(req);
 
     if (res instanceof Response && res.webSocket) {
@@ -201,6 +202,7 @@ export class Cache implements CacheInterface {
       metadata,
     });
     await waitForOpenInputGate();
+    ctx?.advanceCurrentTime();
   }
 
   async match(
@@ -208,7 +210,8 @@ export class Cache implements CacheInterface {
     options?: CacheMatchOptions
   ): Promise<Response | undefined> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
-    getRequestContext()?.incrementExternalSubrequests();
+    const ctx = getRequestContext();
+    ctx?.incrementExternalSubrequests();
     req = normaliseRequest(req);
     // Cloudflare only caches GET requests
     if (req.method !== "GET" && !options?.ignoreMethod) return;
@@ -218,6 +221,7 @@ export class Cache implements CacheInterface {
     const storage = await this.#storage;
     const cached = await storage.get<CachedMeta>(key);
     await waitForOpenInputGate();
+    ctx?.advanceCurrentTime();
     if (!cached) return;
 
     // Check we're not trying to load cached data created in Miniflare 1.
@@ -250,7 +254,8 @@ export class Cache implements CacheInterface {
     options?: CacheMatchOptions
   ): Promise<boolean> {
     if (this.#blockGlobalAsyncIO) assertInRequest();
-    getRequestContext()?.incrementExternalSubrequests();
+    const ctx = getRequestContext();
+    ctx?.incrementExternalSubrequests();
     req = normaliseRequest(req);
     // Cloudflare only caches GET requests
     if (req.method !== "GET" && !options?.ignoreMethod) return false;
@@ -261,6 +266,7 @@ export class Cache implements CacheInterface {
     await waitForOpenOutputGate();
     const result = storage.delete(key);
     await waitForOpenInputGate();
+    ctx?.advanceCurrentTime();
     return result;
   }
 }

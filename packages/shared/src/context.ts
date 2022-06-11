@@ -89,9 +89,10 @@ export class RequestContext {
 
   readonly externalSubrequestLimit: number | false;
   readonly internalSubrequestLimit: number | false;
-
   #internalSubrequests = 0;
   #externalSubrequests = 0;
+
+  #currentTime: number;
 
   constructor({
     requestDepth = 1,
@@ -125,6 +126,8 @@ export class RequestContext {
       INTERNAL_SUBREQUEST_LIMIT_OVERRIDE !== undefined
         ? INTERNAL_SUBREQUEST_LIMIT_OVERRIDE
         : internalSubrequestLimit;
+
+    this.#currentTime = Date.now();
   }
 
   runWith<T>(closure: () => T): T {
@@ -134,11 +137,9 @@ export class RequestContext {
   get externalSubrequests(): number {
     return this.#externalSubrequests;
   }
-
   get internalSubrequests(): number {
     return this.#internalSubrequests;
   }
-
   incrementExternalSubrequests(count = 1): void {
     this.#externalSubrequests += count;
     if (
@@ -151,7 +152,6 @@ A subrequest is a call to fetch(), a redirect, or a call to any Cache API method
       );
     }
   }
-
   incrementInternalSubrequests(count = 1): void {
     this.#internalSubrequests += count;
     if (
@@ -162,5 +162,12 @@ A subrequest is a call to fetch(), a redirect, or a call to any Cache API method
         `Too many API requests by single worker invocation. Workers can make up to ${this.internalSubrequestLimit} KV and Durable Object requests per invocation.`
       );
     }
+  }
+
+  get currentTime() {
+    return this.#currentTime;
+  }
+  advanceCurrentTime() {
+    this.#currentTime = Date.now();
   }
 }

@@ -1,4 +1,6 @@
 import assert from "assert";
+import { setTimeout } from "timers/promises";
+import { RequestContext } from "@miniflare/shared";
 import { ExecutionContext } from "ava";
 
 export function noop(): void {}
@@ -50,4 +52,16 @@ export function getObjectProperties<T>(obj: T): string[] {
   ]
     .filter((property) => property !== "constructor")
     .sort();
+}
+
+export async function advancesTime(
+  t: ExecutionContext,
+  closure: () => Promise<any>
+) {
+  const ctx = new RequestContext();
+  const previous = ctx.currentTime;
+  await setTimeout(50);
+  t.is(ctx.currentTime, previous);
+  await ctx.runWith(closure);
+  t.not(ctx.currentTime, previous);
 }

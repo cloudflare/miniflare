@@ -29,6 +29,7 @@ import {
 } from "@miniflare/shared";
 import {
   TestLog,
+  advancesTime,
   triggerPromise,
   useServer,
   utf8Decode,
@@ -936,6 +937,10 @@ test("fetch: increments subrequest count for each redirect", async (t) => {
   });
   await ctx.runWith(() => fetch(url));
   t.is(ctx.externalSubrequests, 4);
+});
+test("fetch: advances current time", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  await advancesTime(t, () => fetch(upstream));
 });
 test("fetch: waits for output gate to open before fetching", async (t) => {
   let fetched = false;

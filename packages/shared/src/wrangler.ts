@@ -81,6 +81,7 @@ export interface WranglerEnvironmentConfig {
     global_async_io?: boolean;
     global_timers?: boolean;
     global_random?: boolean;
+    actual_time?: boolean;
   }; // inherited
 }
 

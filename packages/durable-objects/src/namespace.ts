@@ -181,6 +181,7 @@ export class DurableObjectStub {
         this.#ctx?.usageModel
       ),
     }).runWith(() => state[kFetch](withInputGating(withImmutableHeaders(req))));
+    parentContext?.advanceCurrentTime();
 
     // noinspection SuspiciousTypeOfGuard
     const validRes =

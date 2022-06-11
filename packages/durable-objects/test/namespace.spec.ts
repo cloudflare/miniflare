@@ -33,6 +33,7 @@ import {
   MemoryStorageFactory,
   RecorderStorage,
   TestLog,
+  advancesTime,
   getObjectProperties,
   triggerPromise,
   useMiniflare,
@@ -463,6 +464,23 @@ export class TestObject {
   });
   const res = await mf.dispatchFetch("http://localhost/?n=1000");
   t.is(await res.text(), "body");
+});
+test("DurableObjectStub: fetch: advances current time", async (t) => {
+  class TestObject implements DurableObject {
+    fetch = () => new Response();
+  }
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST_OBJECT: "TestObject" },
+  });
+  const result = await plugin.setup(factory);
+  plugin.beforeReload();
+  plugin.reload({}, { TestObject }, new Map());
+
+  const ns: DurableObjectNamespace = result.bindings?.TEST_OBJECT;
+  const stub = ns.get(ns.newUniqueId());
+
+  await advancesTime(t, () => stub.fetch("http://localhost"));
 });
 test("DurableObjectStub: fetch: increases request depth", async (t) => {
   const depths: [request: number, pipeline: number][] = [];

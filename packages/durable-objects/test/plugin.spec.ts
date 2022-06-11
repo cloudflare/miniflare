@@ -331,7 +331,7 @@ test("DurableObjectsPlugin: setup alarms and dispose alarms", async (t) => {
     durableObjects: { TEST: "TestObject" },
     durableObjectsAlarms: false,
   });
-  plugin.setup(factory);
+  await plugin.setup(factory);
   plugin.dispose();
   t.false(plugin.durableObjectsAlarms);
 });

@@ -57,6 +57,8 @@ Core Options:
      --global-timers         Allow setting timers outside handlers     [boolean]
      --global-random         Allow secure random generation outside    [boolean]
                              handlers
+     --actual-time           Always return correct time from Date      [boolean]
+                             methods
 
 Test Options:
  -b, --boolean-option        Boolean option                            [boolean]

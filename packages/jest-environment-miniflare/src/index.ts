@@ -196,6 +196,10 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
         globalAsyncIO: true,
         globalTimers: true,
         globalRandom: true,
+        // - Use the actual `Date` class. We'll be operating outside a request
+        //   context, so we'd be returning the actual time anyway, and this
+        //   might mess with Jest's own mocking.
+        actualTime: true,
       }
     );
 

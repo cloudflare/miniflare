@@ -832,6 +832,7 @@ export async function fetch(
   res.headers[fetchSymbols.kGuard] = "immutable";
 
   await waitForOpenInputGate();
+  ctx?.advanceCurrentTime();
   return withInputGating(res);
 }
 

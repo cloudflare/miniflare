@@ -9,6 +9,7 @@ import {
   Storage,
 } from "@miniflare/shared";
 import {
+  advancesTime,
   getObjectProperties,
   utf8Decode,
   utf8Encode,
@@ -438,4 +439,12 @@ test("Cache: operations throw outside request handler", async (t) => {
   await ctx.runWith(() => cache.put("http://localhost:8787/", testResponse()));
   await ctx.runWith(() => cache.match("http://localhost:8787/"));
   await ctx.runWith(() => cache.delete("http://localhost:8787/"));
+});
+test("Cache: operations advance current time", async (t) => {
+  const { cache } = t.context;
+  await advancesTime(t, () =>
+    cache.put("http://localhost:8787/", testResponse())
+  );
+  await advancesTime(t, () => cache.match("http://localhost:8787/"));
+  await advancesTime(t, () => cache.delete("http://localhost:8787/"));
 });

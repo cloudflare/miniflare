@@ -1,3 +1,4 @@
+import { setTimeout } from "timers/promises";
 import {
   EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
   RequestContext,
@@ -103,4 +104,17 @@ test("RequestContext: incrementInternalSubrequests: throws if subrequest count e
 
   // Check continues to throw
   t.throws(() => ctx.incrementInternalSubrequests(), expectations);
+});
+
+test("RequestContext: currentTime: returns fixed time unless advanced", async (t) => {
+  const ctx = new RequestContext();
+  let previous = ctx.currentTime;
+  await setTimeout(100);
+  t.is(ctx.currentTime, previous);
+
+  ctx.advanceCurrentTime();
+  t.not(ctx.currentTime, previous);
+  previous = ctx.currentTime;
+  await setTimeout(100);
+  t.is(ctx.currentTime, previous);
 });
