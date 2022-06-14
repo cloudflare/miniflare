@@ -78,7 +78,7 @@ export abstract class Storage {
     skipMetadata: true
   ): Awaitable<StorageListResult<StoredKey>>;
 
-  // storage-file specific methods
+  // storage-file specific method
   async getRange?<Meta = unknown>(
     key: string,
     start: number,
