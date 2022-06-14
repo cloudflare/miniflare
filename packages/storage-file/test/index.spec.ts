@@ -109,11 +109,9 @@ test("FileStorage: getRange: ignores files outside root", async (t) => {
   );
   t.is(await storage.getRange?.("../secrets.txt", 0, 6), undefined);
 });
-test('FileStorage: getRange: non-existant file throws "ENOENT"', async (t) => {
+test("FileStorage: getRange: non-existant file returns undefined", async (t) => {
   const storage = await unsanitisedStorageFactory(t);
-  await t.throwsAsync(async () => storage.getRange?.("doesntexist", 0, 6), {
-    code: "ENOENT",
-  });
+  t.is(await storage.getRange?.("doesntexist", 0, 6), undefined);
 });
 test("FileStorage: getRange: dir that does not exist will return undefined", async (t) => {
   const storage = await unsanitisedStorageFactory(t);

@@ -80,7 +80,7 @@ export class FileStorage extends LocalStorage {
       // We'll get this error if we try to get a namespaced key, where the
       // namespace itself is also a key (e.g. trying to get "key/sub-key" where
       // "key" is also a key). In this case, "key/sub-key" doesn't exist.
-      if (e.code === "ENOTDIR" || e.errno == -4058) return;
+      if (e.code === "ENOTDIR") return;
       throw e;
     }
   }
@@ -106,7 +106,7 @@ export class FileStorage extends LocalStorage {
       // We'll get this error if we try to get a namespaced key, where the
       // namespace itself is also a key (e.g. trying to get "key/sub-key" where
       // "key" is also a key). In this case, "key/sub-key" doesn't exist.
-      if (e.code === "ENOTDIR") return;
+      if (e.code === "ENOTDIR" || e.code === "ENOENT") return;
       throw e;
     }
   }
