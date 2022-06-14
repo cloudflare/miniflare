@@ -79,7 +79,7 @@ export abstract class Storage {
   ): Awaitable<StorageListResult<StoredKey>>;
 
   // storage-file specific methods
-  abstract getRange?<Meta = unknown>(
+  async getRange?<Meta = unknown>(
     key: string,
     start: number,
     length: number
