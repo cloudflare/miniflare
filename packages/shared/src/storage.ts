@@ -78,6 +78,13 @@ export abstract class Storage {
     skipMetadata: true
   ): Awaitable<StorageListResult<StoredKey>>;
 
+  // Implementations (e.g. storage-file) may override this for efficient range requests
+  async getRangeMaybeExpired?<Meta = unknown>(
+    key: string,
+    start: number,
+    length: number
+  ): Promise<StoredValueMeta<Meta> | undefined>;
+
   // Batch functions, default implementations may be overridden to optimise
 
   async hasMany(keys: string[]): Promise<number> {
