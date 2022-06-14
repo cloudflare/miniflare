@@ -67,18 +67,32 @@ test("FileStorage: list: returns original keys if sanitised", async (t) => {
     cursor: "",
   });
 });
-test("FileStorage: getRange: returns partial values", async (t) => {
+test("FileStorage: getRangeMaybeExpired: returns partial values", async (t) => {
   const storage = await storageFactory.factory(t, {});
   await storage.put("key", { value: utf8Encode("123456789") });
 
-  const getFront = await storage.getRange?.("key", 0, 3);
+  const getFront = await storage.getRangeMaybeExpired?.("key", 0, 3);
   t.is(utf8Decode(getFront?.value), "123");
-
-  const getBack = await storage.getRange?.("key", 6, 3);
+  const getBack = await storage.getRangeMaybeExpired?.("key", 6, 3);
   t.is(utf8Decode(getBack?.value), "789");
-
-  const getMiddle = await storage.getRange?.("key", 3, 3);
+  const getMiddle = await storage.getRangeMaybeExpired?.("key", 3, 3);
   t.is(utf8Decode(getMiddle?.value), "456");
+
+  // below 0 start defaults to 0
+  const outside = await storage.getRangeMaybeExpired?.("key", -2, 3);
+  t.is(utf8Decode(outside?.value), "123");
+  // past end adds 0 for each missing byte
+  const outside2 = await storage.getRangeMaybeExpired?.("key", 12, 7);
+  t.is(
+    utf8Decode(outside2?.value),
+    utf8Decode(new Uint8Array([0, 0, 0, 0, 0, 0, 0]))
+  );
+  // length past end just pads with 0s for each missing byte
+  const outside3 = await storage.getRangeMaybeExpired?.("key", 6, 6);
+  t.is(
+    utf8Decode(outside3?.value),
+    "789" + utf8Decode(new Uint8Array([0, 0, 0]))
+  );
 });
 
 async function unsanitisedStorageFactory(
@@ -101,21 +115,23 @@ test("FileStorage: get: ignores files outside root", async (t) => {
   t.is(utf8Decode((await storage.get("dir/../key"))?.value), "value");
   t.is(await storage.get("../secrets.txt"), undefined);
 });
-test("FileStorage: getRange: ignores files outside root", async (t) => {
+test("FileStorage: getRangeMaybeExpired: ignores files outside root", async (t) => {
   const storage = await unsanitisedStorageFactory(t);
   t.is(
-    utf8Decode((await storage.getRange?.("dir/../key", 0, 5))?.value),
+    utf8Decode(
+      (await storage.getRangeMaybeExpired?.("dir/../key", 0, 5))?.value
+    ),
     "value"
   );
-  t.is(await storage.getRange?.("../secrets.txt", 0, 6), undefined);
+  t.is(await storage.getRangeMaybeExpired?.("../secrets.txt", 0, 6), undefined);
 });
-test("FileStorage: getRange: non-existant file returns undefined", async (t) => {
+test("FileStorage: getRangeMaybeExpired: non-existant file returns undefined", async (t) => {
   const storage = await unsanitisedStorageFactory(t);
-  t.is(await storage.getRange?.("doesntexist", 0, 6), undefined);
+  t.is(await storage.getRangeMaybeExpired?.("doesntexist", 0, 6), undefined);
 });
-test("FileStorage: getRange: dir that does not exist will return undefined", async (t) => {
+test("FileStorage: getRangeMaybeExpired: dir that does not exist will return undefined", async (t) => {
   const storage = await unsanitisedStorageFactory(t);
-  const empty = await storage.getRange?.("key/sub-key", 0, 6);
+  const empty = await storage.getRangeMaybeExpired?.("key/sub-key", 0, 6);
   t.is(empty, undefined);
 });
 test("FileStorage: put: throws on files outside root", async (t) => {
