@@ -10,7 +10,7 @@ import {
   viewToArray,
 } from "@miniflare/shared";
 import { LocalStorage } from "@miniflare/storage-memory";
-import { deleteFile, readFile, walk, writeFile } from "./helpers";
+import { deleteFile, read, readFile, walk, writeFile } from "./helpers";
 
 const metaSuffix = ".meta.json";
 
@@ -74,6 +74,32 @@ export class FileStorage extends LocalStorage {
       return {
         value: viewToArray(value),
         expiration: meta.expiration,
+        metadata: meta.metadata,
+      };
+    } catch (e: any) {
+      // We'll get this error if we try to get a namespaced key, where the
+      // namespace itself is also a key (e.g. trying to get "key/sub-key" where
+      // "key" is also a key). In this case, "key/sub-key" doesn't exist.
+      if (e.code === "ENOTDIR") return;
+      throw e;
+    }
+  }
+
+  async getRange<Meta = unknown>(
+    key: string,
+    start: number,
+    length: number
+  ): Promise<StoredValueMeta<Meta> | undefined> {
+    const [filePath] = this.keyPath(key);
+    if (!filePath) return;
+
+    try {
+      const value = await read(filePath, start, length);
+
+      if (value === undefined) return;
+      const meta = await this.meta<Meta>(filePath);
+      return {
+        value: viewToArray(value),
         metadata: meta.metadata,
       };
     } catch (e: any) {

@@ -20,6 +20,25 @@ export function readFile(
   return onNotFound(fs.readFile(filePath, decode && "utf8"), undefined);
 }
 
+export async function read(
+  filePath: string,
+  start: number,
+  length: number
+): Promise<Buffer | undefined> {
+  let fd = null;
+  let res: Buffer;
+  try {
+    fd = await fs.open(filePath, "r");
+    res = Buffer.alloc(length);
+    await fd.read(res, 0, length, start);
+  } catch (e) {
+    throw e;
+  } finally {
+    await fd?.close();
+  }
+  return res;
+}
+
 export async function writeFile(
   filePath: string,
   data: Uint8Array | string

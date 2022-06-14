@@ -78,6 +78,13 @@ export abstract class Storage {
     skipMetadata: true
   ): Awaitable<StorageListResult<StoredKey>>;
 
+  // storage-file specific methods
+  abstract getRange?<Meta = unknown>(
+    key: string,
+    start: number,
+    length: number
+  ): Promise<StoredValueMeta<Meta> | undefined>;
+
   // Batch functions, default implementations may be overridden to optimise
 
   async hasMany(keys: string[]): Promise<number> {

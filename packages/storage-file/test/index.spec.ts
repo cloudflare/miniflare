@@ -67,6 +67,19 @@ test("FileStorage: list: returns original keys if sanitised", async (t) => {
     cursor: "",
   });
 });
+test("FileStorage: getRange: returns partial values", async (t) => {
+  const storage = await storageFactory.factory(t, {});
+  await storage.put("key", { value: utf8Encode("123456789") });
+
+  const getFront = await storage.getRange?.("key", 0, 3);
+  t.is(utf8Decode(getFront?.value), "123");
+
+  const getBack = await storage.getRange?.("key", 6, 3);
+  t.is(utf8Decode(getBack?.value), "789");
+
+  const getMiddle = await storage.getRange?.("key", 3, 3);
+  t.is(utf8Decode(getMiddle?.value), "456");
+});
 
 async function unsanitisedStorageFactory(
   t: ExecutionContext
@@ -87,6 +100,25 @@ test("FileStorage: get: ignores files outside root", async (t) => {
   const storage = await unsanitisedStorageFactory(t);
   t.is(utf8Decode((await storage.get("dir/../key"))?.value), "value");
   t.is(await storage.get("../secrets.txt"), undefined);
+});
+test("FileStorage: getRange: ignores files outside root", async (t) => {
+  const storage = await unsanitisedStorageFactory(t);
+  t.is(
+    utf8Decode((await storage.getRange?.("dir/../key", 0, 5))?.value),
+    "value"
+  );
+  t.is(await storage.getRange?.("../secrets.txt", 0, 6), undefined);
+});
+test('FileStorage: getRange: non-existant file throws "ENOENT"', async (t) => {
+  const storage = await unsanitisedStorageFactory(t);
+  await t.throwsAsync(async () => storage.getRange?.("doesntexist", 0, 6), {
+    code: "ENOENT",
+  });
+});
+test("FileStorage: getRange: dir that does not exist will return undefined", async (t) => {
+  const storage = await unsanitisedStorageFactory(t);
+  const empty = await storage.getRange?.("key/sub-key", 0, 6);
+  t.is(empty, undefined);
 });
 test("FileStorage: put: throws on files outside root", async (t) => {
   const storage = await unsanitisedStorageFactory(t);
