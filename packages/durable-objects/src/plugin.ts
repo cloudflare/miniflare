@@ -249,7 +249,8 @@ export class DurableObjectsPlugin
         if (!scriptExports) {
           throw new DurableObjectError(
             "ERR_SCRIPT_NOT_FOUND",
-            `Script "${scriptName}" for Durable Object "${name}" not found`
+            `Script "${scriptName}" for Durable Object "${name}" not found.
+Make sure "${scriptName}" is mounted so Miniflare knows where to find it.`
           );
         }
         constructor = scriptExports[className];
