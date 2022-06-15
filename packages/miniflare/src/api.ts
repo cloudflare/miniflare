@@ -64,6 +64,7 @@ export type MiniflareOptions = Omit<
 > & {
   log?: Log;
   sourceMap?: boolean;
+  scriptRequired?: boolean;
 };
 
 export class Miniflare extends MiniflareCore<Plugins> {
@@ -84,7 +85,7 @@ export class Miniflare extends MiniflareCore<Plugins> {
         log: options?.log ?? new NoOpLog(),
         storageFactory,
         scriptRunner: new VMScriptRunner(),
-        scriptRequired: true,
+        scriptRequired: options?.scriptRequired ?? true,
       },
       options
     );

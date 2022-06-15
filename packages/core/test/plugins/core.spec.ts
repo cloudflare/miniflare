@@ -54,6 +54,8 @@ test("CorePlugin: parses options from argv", (t) => {
     "--watch",
     "--debug",
     "--verbose",
+    "--no-update-check",
+    "--repl",
     "--root",
     "root",
     "--mount",
@@ -91,6 +93,8 @@ test("CorePlugin: parses options from argv", (t) => {
     watch: true,
     debug: true,
     verbose: true,
+    updateCheck: false,
+    repl: true,
     rootPath: "root",
     mounts: {
       api: {
@@ -194,6 +198,7 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
     debug: undefined,
     verbose: undefined,
     updateCheck: false,
+    repl: undefined,
     rootPath: undefined,
     mounts: {
       api: {

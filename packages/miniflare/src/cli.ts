@@ -5,6 +5,7 @@ import type { Options } from "@miniflare/shared";
 import { red } from "kleur/colors";
 import type { MiniflareOptions } from "miniflare";
 import open from "open";
+import { startREPL } from "./repl";
 import { updateCheck } from "./updater";
 
 function suppressWarnings() {
@@ -89,12 +90,27 @@ async function main() {
   mfOptions.sourceMap = true;
   // Catch and log unhandled rejections as opposed to crashing
   mfOptions.logUnhandledRejections = true;
+  if (mfOptions.repl) {
+    // Allow REPL to be started without a script
+    mfOptions.scriptRequired = false;
+    // Disable file watching in REPL
+    mfOptions.watch = false;
+    // Allow async I/O in REPL without request context
+    mfOptions.globalAsyncIO = true;
+    mfOptions.globalTimers = true;
+    mfOptions.globalRandom = true;
+  }
 
   const mf = new Miniflare(mfOptions);
   try {
-    // Start Miniflare development server
-    await mf.startServer();
-    await mf.startScheduler();
+    if (mfOptions.repl) {
+      // Start Miniflare REPL
+      await startREPL(mf);
+    } else {
+      // Start Miniflare development server
+      await mf.startServer();
+      await mf.startScheduler();
+    }
   } catch (e: any) {
     mf.log.error(e);
     process.exitCode = 1;

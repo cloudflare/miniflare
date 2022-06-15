@@ -104,6 +104,7 @@ export interface CoreOptions {
   debug?: boolean;
   verbose?: boolean;
   updateCheck?: boolean;
+  repl?: boolean;
   // Replaced in MiniflareCoreOptions with something plugins-specific
   mounts?: Record<string, string | CoreOptions | BindingsOptions>;
   name?: string;
@@ -285,6 +286,12 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     fromWrangler: ({ miniflare }) => miniflare?.update_check,
   })
   updateCheck?: boolean;
+
+  @Option({
+    type: OptionType.BOOLEAN,
+    description: "Enable interactive REPL",
+  })
+  repl?: boolean;
 
   @Option({
     type: OptionType.STRING,

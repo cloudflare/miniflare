@@ -418,7 +418,6 @@ test("MiniflareCore: dispose: disposes of mounts too", async (t) => {
     [LogLevel.INFO, "Worker reloaded! (2B)"],
     [LogLevel.DEBUG, "Mount Routes: <none>"],
     [LogLevel.DEBUG, "Reloading worker..."],
-    [LogLevel.INFO, "Worker reloaded!"],
   ]);
 
   log.logs = [];
