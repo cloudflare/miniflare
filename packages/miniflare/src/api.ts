@@ -32,6 +32,7 @@ import { Log, NoOpLog } from "@miniflare/shared";
 import { SitesPlugin } from "@miniflare/sites";
 import { WebSocketPlugin } from "@miniflare/web-sockets";
 import sourceMap from "source-map-support";
+import { startREPL } from "./repl";
 import { VariedStorageFactory } from "./storage";
 
 // MiniflareCore will ensure CorePlugin is first and BindingsPlugin is last,
@@ -139,6 +140,10 @@ export class Miniflare extends MiniflareCore<Plugins> {
 
   startScheduler(): Promise<CronScheduler<Plugins>> {
     return startScheduler(this);
+  }
+
+  startREPL(): Promise<void> {
+    return startREPL(this);
   }
 
   async getOpenURL(): Promise<string | undefined> {

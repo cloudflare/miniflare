@@ -5,7 +5,6 @@ import type { Options } from "@miniflare/shared";
 import { red } from "kleur/colors";
 import type { MiniflareOptions } from "miniflare";
 import open from "open";
-import { startREPL } from "./repl";
 import { updateCheck } from "./updater";
 
 function suppressWarnings() {
@@ -105,7 +104,7 @@ async function main() {
   try {
     if (mfOptions.repl) {
       // Start Miniflare REPL
-      await startREPL(mf);
+      await mf.startREPL();
     } else {
       // Start Miniflare development server
       await mf.startServer();
