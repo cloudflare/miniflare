@@ -53,20 +53,6 @@ import {
 } from "./helpers";
 import { kContentLength } from "./streams";
 
-// `undici` restricts which headers can be added to/gotten from a `Headers`
-// object in `Request`/`Response`s. Whilst this restriction makes sense for
-// security reasons in the browser, it doesn't server side.
-//
-// Note: this is a massive hack. I'm fully expecting it to break in future
-// `undici` versions and need to be updated, but that's why we pin our `undici`
-// version and have tests... :) Right?
-const constants: {
-  readonly forbiddenHeaderNames: string[];
-  readonly forbiddenResponseHeaderNames: string[];
-} = require("undici/lib/fetch/constants.js");
-constants.forbiddenHeaderNames.length = 0;
-constants.forbiddenResponseHeaderNames.length = 0;
-
 // We need these for making Request's Headers immutable
 const fetchSymbols: {
   readonly kState: unique symbol;
