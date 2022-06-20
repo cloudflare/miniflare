@@ -45,7 +45,7 @@
     "dotenv": "^10.0.0",
     "kleur": "^4.1.4",
     "set-cookie-parser": "^2.4.8",
-    "undici": "5.3.0",
+    "undici": "5.5.1",
     "urlpattern-polyfill": "^4.0.3"
   },
   "devDependencies": {
