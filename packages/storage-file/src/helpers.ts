@@ -25,11 +25,39 @@ export function readFile(
 export async function readFileRange(
   filePath: string,
   start: number,
-  length: number
+  length?: number
 ): Promise<Buffer | undefined> {
   let fd: fs.FileHandle | null = null;
   let res: Buffer;
   try {
+    if (length === undefined) {
+      // get length of file
+      const stat = await fs.lstat(filePath);
+      length = stat.size - start;
+    }
+    fd = await fs.open(filePath, "r");
+    res = Buffer.alloc(length);
+    await fd.read(res, 0, length, start);
+  } catch (e: any) {
+    if (e.code === "ENOENT") return undefined;
+    throw e;
+  } finally {
+    await fd?.close();
+  }
+  return res;
+}
+
+export async function readFileSuffix(
+  filePath: string,
+  suffix: number
+): Promise<Buffer | undefined> {
+  let fd: fs.FileHandle | null = null;
+  let res: Buffer;
+  try {
+    // get length of file
+    const { size } = await fs.lstat(filePath);
+    const start = size - suffix;
+    const length = size - start;
     fd = await fs.open(filePath, "r");
     res = Buffer.alloc(length);
     await fd.read(res, 0, length, start);

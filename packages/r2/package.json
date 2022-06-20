@@ -1,0 +1,44 @@
+{
+  "name": "@miniflare/r2",
+  "version": "2.5.0",
+  "description": "Workers r2 module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "worker",
+    "local",
+    "cloudworker"
+  ],
+  "author": "MrBBot <me@mrbbot.dev>",
+  "license": "MIT",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "files": [
+    "dist/src"
+  ],
+  "engines": {
+    "node": ">=16.7"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cloudflare/miniflare.git",
+    "directory": "packages/r2"
+  },
+  "bugs": {
+    "url": "https://github.com/cloudflare/miniflare/issues"
+  },
+  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/r2#readme",
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "dependencies": {
+    "@miniflare/shared": "2.5.0",
+    "undici": "5.3.0"
+  },
+  "devDependencies": {
+    "@miniflare/shared-test": "2.5.0"
+  }
+}

@@ -275,6 +275,10 @@ KV Options:
  -k, --kv                KV namespace to bind                            [array]
      --kv-persist        Persist KV data (to optional path)     [boolean/string]
 
+R2 Options:
+ -r, --r2                R2 bucket to bind                               [array]
+     --r2-persist        Persist R2 data (to optional path)     [boolean/string]
+
 Durable Objects Options:
  -o, --do                Durable Object to bind       [array:NAME=CLASS[@MOUNT]]
      --do-persist        Persist Durable Object data (to        [boolean/string]
@@ -323,6 +327,10 @@ kv_namespaces = [                  # --kv
   { binding = "TEST_NAMESPACE", id = "", preview_id = "" }
 ]
 
+r2_buckets = [                     # --r2
+  { binding = "TEST_BUCKET", bucket_name = "" }
+]
+
 [durable_objects]
 bindings = [                       # --do
   { name = "OBJECT", class_name = "Object" }
@@ -366,6 +374,7 @@ watch = true                       # --watch
 live_reload = true                 # --live-reload
 env_path = ".env.test"             # --env
 kv_persist = true                  # --kv-persist
+r2_persist = true                  # --r2-persist
 cache_persist = "./cache"          # --cache-persist
 cache = false                      # --no-cache
 durable_objects_persist = true     # --do-persist

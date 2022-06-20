@@ -447,6 +447,9 @@ const mf = new Miniflare({
   kvNamespaces: ["TEST_NAMESPACE"], // KV namespace to bind
   kvPersist: "./kv-data", // Persist KV data (to optional path)
 
+  r2Buckets: ["TEST_BUCKET"], // R2 bucket to bind
+  r2Persist: "./r2-data", // Persist R2 data (to optional path)
+
   durableObjects: {
     // Durable Object to bind
     TEST_OBJECT: "TestObject", // className

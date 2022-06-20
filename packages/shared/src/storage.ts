@@ -79,10 +79,15 @@ export abstract class Storage {
   ): Awaitable<StorageListResult<StoredKey>>;
 
   // Implementations (e.g. storage-file) may override this for efficient range requests
+  async meta?<Meta>(keyFilePath: string): Promise<StoredMeta<Meta>>;
   async getRangeMaybeExpired?<Meta = unknown>(
     key: string,
     start: number,
-    length: number
+    length?: number
+  ): Promise<StoredValueMeta<Meta> | undefined>;
+  async getSuffixMaybeExpired?<Meta = unknown>(
+    key: string,
+    suffix: number
   ): Promise<StoredValueMeta<Meta> | undefined>;
 
   // Batch functions, default implementations may be overridden to optimise

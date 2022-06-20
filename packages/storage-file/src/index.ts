@@ -14,6 +14,7 @@ import {
   deleteFile,
   readFile,
   readFileRange,
+  readFileSuffix,
   walk,
   writeFile,
 } from "./helpers";
@@ -54,7 +55,7 @@ export class FileStorage extends LocalStorage {
   }
 
   // noinspection JSMethodCanBeStatic
-  private async meta<Meta>(keyFilePath: string): Promise<FileMeta<Meta>> {
+  async meta<Meta>(keyFilePath: string): Promise<FileMeta<Meta>> {
     const metaString = await readFile(keyFilePath + metaSuffix, true);
     return metaString ? JSON.parse(metaString) : {};
   }
@@ -94,13 +95,40 @@ export class FileStorage extends LocalStorage {
   async getRangeMaybeExpired<Meta = unknown>(
     key: string,
     start: number,
-    length: number
+    length?: number
   ): Promise<StoredValueMeta<Meta> | undefined> {
     const [filePath] = this.keyPath(key);
     if (!filePath) return;
 
     try {
       const value = await readFileRange(filePath, start, length);
+
+      if (value === undefined) return;
+      const meta = await this.meta<Meta>(filePath);
+      return {
+        value: viewToArray(value),
+        expiration: meta.expiration,
+        metadata: meta.metadata,
+      };
+    } catch (e: any) {
+      // We'll get this error if we try to get a namespaced key, where the
+      // namespace itself is also a key (e.g. trying to get "key/sub-key" where
+      // "key" is also a key). In this case, "key/sub-key" doesn't exist.
+      if (e.code === "ENOTDIR") return;
+      throw e;
+    }
+  }
+
+  async getSuffixMaybeExpired?<Meta = unknown>(
+    key: string,
+    suffix: number
+  ): Promise<StoredValueMeta<Meta> | undefined> {
+    const [filePath] = this.keyPath(key);
+    if (!filePath) return;
+    if (suffix < 0) return;
+
+    try {
+      const value = await readFileSuffix(filePath, suffix);
 
       if (value === undefined) return;
       const meta = await this.meta<Meta>(filePath);
