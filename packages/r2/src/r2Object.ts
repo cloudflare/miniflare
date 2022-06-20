@@ -65,14 +65,14 @@ function camelToDash(str: string): string {
 }
 
 export function createVersion(): string {
-  const size = 64;
+  const size = 32;
   return crypto.randomBytes(size).toString("base64").slice(0, size);
 }
 
 // when pulling from storage, we need to convert date strings to Date objects
 export function parseR2ObjectMetadata(meta: R2ObjectMetadata): void {
-  if (meta.uploaded) meta.uploaded = new Date(meta.uploaded);
-  if (meta.httpMetadata?.cacheExpiry) {
+  meta.uploaded = new Date(meta.uploaded);
+  if (meta.httpMetadata.cacheExpiry) {
     meta.httpMetadata.cacheExpiry = new Date(meta.httpMetadata.cacheExpiry);
   }
 }

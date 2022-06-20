@@ -68,9 +68,11 @@ export class FileStorage extends LocalStorage {
     return { expiration: meta.expiration, metadata: meta.metadata };
   }
 
-  async headMaybeExpired<Meta>(key: string): Promise<FileMeta<Meta>> {
+  async headMaybeExpired<Meta>(
+    key: string
+  ): Promise<FileMeta<Meta> | undefined> {
     const [filePath] = this.keyPath(key);
-    if (!filePath) return {};
+    if (!filePath) return;
     return await this.meta<Meta>(filePath);
   }
 

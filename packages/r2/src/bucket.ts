@@ -71,6 +71,11 @@ export interface R2PutOptions {
 
 type R2ListOptionsInclude = ("httpMetadata" | "customMetadata")[];
 
+interface ListResponse {
+  objects: R2Object[];
+  cursor: string;
+}
+
 export interface R2ListOptions {
   // The number of results to return. Defaults to 1000, with a maximum of 1000.
   limit?: number;
@@ -491,7 +496,7 @@ export class R2Bucket {
     delimitedPrefixes: Set<string>,
     delimiter?: string,
     cursor?: string
-  ): Promise<{ objects: R2Object[]; cursor?: string }> {
+  ): Promise<ListResponse> {
     const res = await this.#storage.list<R2ObjectMetadata>({
       prefix,
       limit,
@@ -532,7 +537,7 @@ export class R2Bucket {
   async list({
     prefix = "",
     limit = MAX_LIST_KEYS,
-    cursor,
+    cursor = "",
     include = [],
     delimiter,
   }: R2ListOptions = {}): Promise<R2Objects> {
@@ -552,21 +557,24 @@ export class R2Bucket {
     // if include contains inputs, we reduce the limit to max 100
     if (include.length > 0) limit = Math.min(limit, 100);
 
-    while (objects.length + delimitedPrefixes.size < limit) {
-      const { objects: newObjects, cursor: newCursor } = await this.#list(
+    do {
+      const { objects: _objects, cursor: _cursor } = (await this.#list(
         prefix,
         limit - objects.length, // adjust limit to have the correct cursor returned
         include,
         delimitedPrefixes,
         delimiter,
         cursor
-      );
-      cursor = newCursor;
-      if (newObjects.length === 0) break;
-      objects.push(...newObjects);
-    }
+      )) as ListResponse;
+      cursor = _cursor;
+      if (_objects.length === 0) break;
+      objects.push(..._objects);
+    } while (
+      cursor.length > 0 &&
+      objects.length + delimitedPrefixes.size < limit
+    );
 
-    if (cursor !== undefined) truncated = true;
+    if (cursor.length > 0) truncated = true;
     await waitForOpenInputGate();
     ctx?.advanceCurrentTime();
 

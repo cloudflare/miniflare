@@ -82,7 +82,7 @@ export abstract class Storage {
   // Implementations (e.g. storage-file) may override this for efficient range requests
   async headMaybeExpired?<Meta>(
     keyFilePath: string
-  ): Promise<StoredMeta<Meta> | FileMeta<Meta>>;
+  ): Promise<StoredMeta<Meta> | FileMeta<Meta> | undefined>;
   async getRangeMaybeExpired?<Meta = unknown>(
     key: string,
     start: number,

@@ -16,6 +16,7 @@ import {
   parseHttpMetadata,
   parseOnlyIf,
   testR2Conditional,
+  parseR2ObjectMetadata,
 } from "../src/r2Object";
 
 interface TestObject {
@@ -80,26 +81,14 @@ const testValueMacro = async (value: R2PutValueType) => {
 };
 
 test("R2Object: R2Object: null throws error", (t) => {
-  t.throws(
-    () => {
-      new R2Object(null as any);
-    },
-    {
-      instanceOf: Error,
-      message: "Cannot read properties of null (reading 'key')",
-    }
-  );
+  t.throws(() => {
+    new R2Object(null as any);
+  });
 });
 test("R2Object: R2ObjectBody: null throws error", (t) => {
-  t.throws(
-    () => {
-      new R2Object(null as any);
-    },
-    {
-      instanceOf: Error,
-      message: "Cannot read properties of null (reading 'key')",
-    }
-  );
+  t.throws(() => {
+    new R2Object(null as any);
+  });
 });
 
 test("R2Object: R2Object: check values are stored correctly", (t) => {
@@ -262,7 +251,7 @@ test("R2Object: createMD5", (t) => {
 
 test("R2Object: createVersion", (t) => {
   const version = createVersion();
-  t.is(version.length, 64);
+  t.is(version.length, 32);
 });
 
 test("R2Object: parseHttpMetadata: undefined, and empty object return empty objects", (t) => {
@@ -458,4 +447,15 @@ test("R2Object: parseOnlyIf: Parsing instanceof Headers", (t) => {
   t.deepEqual(parsed.etagDoesNotMatch, ["123", "456"]);
   t.deepEqual(parsed.uploadedBefore, new Date(0));
   t.deepEqual(parsed.uploadedAfter, new Date(0));
+});
+
+test("R2Object: parseR2ObjectMetadata", (t) => {
+  const metaClone = JSON.parse(JSON.stringify(metadata));
+  // check that the metadata was modified from Date to string
+  t.is(typeof metaClone.uploaded, "string");
+  t.is(typeof metaClone.httpMetadata.cacheExpiry, "string");
+  // parse the clone
+  parseR2ObjectMetadata(metaClone);
+  // now metaClone "uploaded" and "cacheExpiry" should be Date objects
+  t.deepEqual(metaClone, metadata);
 });
