@@ -48,7 +48,7 @@ import {
   waitForReload,
 } from "@miniflare/shared-test";
 import test, { Macro } from "ava";
-import { Request as BaseRequest, File, FormData } from "undici";
+import { Request as BaseRequest, File, FormData, MockAgent } from "undici";
 
 const log = new NoOpLog();
 // Only use this shared storage factory when the test doesn't care about storage
@@ -1240,6 +1240,39 @@ test("MiniflareCore: dispatchFetch: increases request depth", async (t) => {
     /^GET \/\?n=0: Error: Subrequest depth limit exceeded\./
   );
 });
+test.serial(
+  "MiniflareCore: dispatchFetch: fetching incoming request with mocked upstream",
+  async (t) => {
+    const mf = useMiniflare(
+      {},
+      {
+        modules: true,
+        script: `export default {
+        async fetch(request) {          
+          return await fetch(\`https://miniflare.dev\`);
+        }
+      }`,
+      }
+    );
+
+    // Create a Mock Agent and prevent internet access - https://github.com/nodejs/undici/blob/main/docs/api/MockAgent.md
+    const agent = new MockAgent();
+    agent.disableNetConnect();
+
+    const client = agent.get("https://miniflare.dev");
+    client.intercept({ path: "/", method: "GET" }).reply(200, "Hello World!");
+
+    const dispatcher = mf.getGlobalDispatcher();
+    mf.setGlobalDispatcher(agent);
+
+    const res = await mf.dispatchFetch("http://localhost/");
+    // Check we get the mocked response and not the actual miniflare.dev
+    t.is(await res.text(), "Hello World!");
+
+    // Reset the Dispatcher for Other Tests - it would be nice if there was a slightly cleaner way of handling this
+    mf.setGlobalDispatcher(dispatcher);
+  }
+);
 
 test("MiniflareCore: dispatchScheduled: dispatches scheduled event", async (t) => {
   const mf = useMiniflare(

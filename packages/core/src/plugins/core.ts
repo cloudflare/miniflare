@@ -37,7 +37,14 @@ import {
   SetupResult,
   globsToMatcher,
 } from "@miniflare/shared";
-import { Dispatcher, File, FormData, Headers, setGlobalDispatcher } from "undici";
+import {
+  Dispatcher,
+  File,
+  FormData,
+  getGlobalDispatcher,
+  Headers,
+  setGlobalDispatcher,
+} from "undici";
 // @ts-expect-error `urlpattern-polyfill` only provides global types
 import { URLPattern } from "urlpattern-polyfill";
 import { MiniflareCoreError } from "../error";
@@ -555,8 +562,14 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     }
   }
 
-  setGlobalDispatcher<DispatcherImplementation extends Dispatcher>(dispatcher: DispatcherImplementation) {
-    return setGlobalDispatcher(dispatcher)
+  getGlobalDispatcher() {
+    return getGlobalDispatcher();
+  }
+
+  setGlobalDispatcher<DispatcherImplementation extends Dispatcher>(
+    dispatcher: DispatcherImplementation
+  ) {
+    return setGlobalDispatcher(dispatcher);
   }
 
   async setup(): Promise<SetupResult> {

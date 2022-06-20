@@ -1007,8 +1007,14 @@ export class MiniflareCore<
     return this.#mounts!.get(name)!;
   }
 
-  setGlobalDispatcher<DispatcherImplementation extends Dispatcher>(dispatcher: DispatcherImplementation) {
-    return this.#instances!.CorePlugin.setGlobalDispatcher(dispatcher)
+  getGlobalDispatcher(): Dispatcher {
+    return this.#instances!.CorePlugin.getGlobalDispatcher();
+  }
+
+  setGlobalDispatcher<DispatcherImplementation extends Dispatcher>(
+    dispatcher: DispatcherImplementation
+  ) {
+    return this.#instances!.CorePlugin.setGlobalDispatcher(dispatcher);
   }
 
   #matchMount(url: URL): MiniflareCore<Plugins> | undefined {
