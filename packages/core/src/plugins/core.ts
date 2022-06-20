@@ -562,9 +562,9 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       if (!rule.fallthrough) finalisedTypes.add(rule.type);
     }
   }
-  
+
   createMockAgent(options?: MockAgent.Options) {
-    return new MockAgent(options)
+    return new MockAgent(options);
   }
 
   getGlobalDispatcher() {
