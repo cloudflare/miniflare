@@ -20,6 +20,7 @@ import {
   createVersion,
   parseHttpMetadata,
   parseOnlyIf,
+  parseR2ObjectMetadata,
   testR2Conditional,
 } from "./r2Object";
 import { R2HTTPMetadata, R2ObjectMetadata } from "./r2Object";
@@ -268,7 +269,7 @@ export class R2Bucket {
     const ctx = getRequestContext();
     ctx?.incrementInternalSubrequests();
     // noinspection SuspiciousTypeOfGuard
-    if (key !== undefined && typeof key !== "string") {
+    if (method !== "LIST" && typeof key !== "string") {
       throw new TypeError(
         `Failed to execute '${method.toLowerCase()}'` +
           " on 'R2Bucket': parameter 1 is not of type 'string'."
@@ -278,18 +279,22 @@ export class R2Bucket {
     return ctx;
   }
 
-  async head(key: string): Promise<R2Object | null> {
-    const ctx = this.#prepareCtx("HEAD", key);
+  async head(key: string, ctx?: RequestContext): Promise<R2Object | null> {
+    if (ctx === undefined) ctx = this.#prepareCtx("HEAD", key);
 
     // Validate key
     validateKey("HEAD", key);
 
     // Get value, returning null if not found
-    const stored = await this.#storage.meta?.<R2ObjectMetadata>(key);
+    const stored = await this.#storage.headMaybeExpired?.<R2ObjectMetadata>(
+      key
+    );
+    // fix dates
     await waitForOpenInputGate();
     ctx?.advanceCurrentTime();
     if (stored?.metadata === undefined) return null;
     const { metadata } = stored;
+    parseR2ObjectMetadata(metadata);
 
     return new R2Object(metadata);
   }
@@ -318,15 +323,13 @@ export class R2Bucket {
     // In the event that an onlyIf precondition fails, we return
     // the R2Object without the body. Otherwise return with body.
     const onlyIf = parseOnlyIf(options.onlyIf);
-    const meta = await this.#storage.meta?.<R2ObjectMetadata>(key);
-    if (
-      (meta?.metadata && testR2Conditional(onlyIf, meta.metadata)) ||
-      meta?.metadata?.size === 0
-    ) {
-      return new R2Object(meta.metadata);
-    }
+    const meta = await this.head(key, ctx);
     // if bad metadata, return null
-    if (meta?.metadata === undefined) return null;
+    if (meta === null) return null;
+    // test conditional should it exist
+    if ((meta && !testR2Conditional(onlyIf, meta)) || meta?.size === 0) {
+      return new R2Object(meta);
+    }
 
     let stored: StoredValueMeta<R2ObjectMetadata> | undefined;
 
@@ -365,6 +368,8 @@ export class R2Bucket {
     // if bad metadata, return null
     if (stored?.metadata === undefined) return null;
     const { value, metadata } = stored;
+    // fix dates
+    parseR2ObjectMetadata(metadata);
 
     return new R2ObjectBody(metadata, value);
   }
@@ -393,8 +398,8 @@ export class R2Bucket {
     httpMetadata = parseHttpMetadata(httpMetadata);
 
     // Get meta, and if exists, run onlyIf condtional test
-    const meta = await this.#storage.meta?.<R2ObjectMetadata>(key);
-    if (meta?.metadata && testR2Conditional(onlyIf, meta.metadata)) {
+    const meta = await this.head(key, ctx);
+    if (meta && !testR2Conditional(onlyIf, meta)) {
       return null;
     }
 
@@ -515,6 +520,8 @@ export class R2Bucket {
       .map((metadata) => {
         if (!include.includes("httpMetadata")) metadata.httpMetadata = {};
         if (!include.includes("customMetadata")) metadata.customMetadata = {};
+        // fix dates
+        parseR2ObjectMetadata(metadata);
 
         return new R2Object(metadata);
       });

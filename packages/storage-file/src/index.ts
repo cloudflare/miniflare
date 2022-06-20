@@ -27,7 +27,7 @@ export type FileStorageErrorCode =
 
 export class FileStorageError extends MiniflareError<FileStorageErrorCode> {}
 
-interface FileMeta<Meta = unknown> extends StoredMeta<Meta> {
+export interface FileMeta<Meta = unknown> extends StoredMeta<Meta> {
   key?: string;
 }
 
@@ -55,7 +55,7 @@ export class FileStorage extends LocalStorage {
   }
 
   // noinspection JSMethodCanBeStatic
-  async meta<Meta>(keyFilePath: string): Promise<FileMeta<Meta>> {
+  private async meta<Meta>(keyFilePath: string): Promise<FileMeta<Meta>> {
     const metaString = await readFile(keyFilePath + metaSuffix, true);
     return metaString ? JSON.parse(metaString) : {};
   }
@@ -66,6 +66,12 @@ export class FileStorage extends LocalStorage {
     if (!existsSync(filePath)) return;
     const meta = await this.meta(filePath);
     return { expiration: meta.expiration, metadata: meta.metadata };
+  }
+
+  async headMaybeExpired<Meta>(key: string): Promise<FileMeta<Meta>> {
+    const [filePath] = this.keyPath(key);
+    if (!filePath) return {};
+    return await this.meta<Meta>(filePath);
   }
 
   async getMaybeExpired<Meta>(

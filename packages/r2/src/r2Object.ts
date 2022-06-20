@@ -69,6 +69,14 @@ export function createVersion(): string {
   return crypto.randomBytes(size).toString("base64").slice(0, size);
 }
 
+// when pulling from storage, we need to convert date strings to Date objects
+export function parseR2ObjectMetadata(meta: R2ObjectMetadata): void {
+  if (meta.uploaded) meta.uploaded = new Date(meta.uploaded);
+  if (meta.httpMetadata?.cacheExpiry) {
+    meta.httpMetadata.cacheExpiry = new Date(meta.httpMetadata.cacheExpiry);
+  }
+}
+
 export function parseHttpMetadata(
   httpMetadata?: R2HTTPMetadata | Headers
 ): R2HTTPMetadata {

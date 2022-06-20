@@ -1,3 +1,4 @@
+import { FileMeta } from "@miniflare/storage-file";
 import { Awaitable } from "./sync";
 
 export interface StoredMeta<Meta = unknown> {
@@ -79,7 +80,9 @@ export abstract class Storage {
   ): Awaitable<StorageListResult<StoredKey>>;
 
   // Implementations (e.g. storage-file) may override this for efficient range requests
-  async meta?<Meta>(keyFilePath: string): Promise<StoredMeta<Meta>>;
+  async headMaybeExpired?<Meta>(
+    keyFilePath: string
+  ): Promise<StoredMeta<Meta> | FileMeta<Meta>>;
   async getRangeMaybeExpired?<Meta = unknown>(
     key: string,
     start: number,
