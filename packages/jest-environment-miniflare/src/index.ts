@@ -21,6 +21,7 @@ import { SitesPlugin } from "@miniflare/sites";
 import { WebSocketPlugin } from "@miniflare/web-sockets";
 import { ModuleMocker } from "jest-mock";
 import { installCommonGlobals } from "jest-util";
+import { Dispatcher, MockAgent } from "undici";
 import { StackedMemoryStorageFactory } from "./storage";
 
 declare global {
@@ -28,6 +29,11 @@ declare global {
   function getMiniflareDurableObjectStorage(
     id: DurableObjectId
   ): Promise<DurableObjectStorage>;
+  function createMockAgent(options?: MockAgent.Options): Promise<MockAgent>;
+  function getGlobalDispatcher(): Promise<Dispatcher>;
+  function setGlobalDispatcher<DispatcherImplementation extends Dispatcher>(
+    dispatcher: DispatcherImplementation
+  ): Promise<void>;
 }
 
 // MiniflareCore will ensure CorePlugin is first and BindingsPlugin is last,
@@ -221,6 +227,15 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
       const state = await plugin.getObject(storage, id);
       return state.storage;
     };
+    global.createMockAgent = async (options?: MockAgent.Options) =>
+      await mf.createMockAgent(options);
+    const dispatcher = await mf.getGlobalDispatcher;
+    global.getGlobalDispatcher = () => dispatcher;
+    global.setGlobalDispatcher = async <
+      DispatcherImplementation extends Dispatcher
+    >(
+      dispatcher: DispatcherImplementation
+    ) => await mf.setGlobalDispatcher(dispatcher);
   }
 
   async teardown(): Promise<void> {

@@ -56,7 +56,7 @@ import {
   withStringFormDataFiles,
 } from "./standards";
 import { PluginStorageFactory } from "./storage";
-import { Dispatcher } from "undici";
+import { Dispatcher, MockAgent } from "undici";
 
 export * from "./plugins";
 export * from "./standards";
@@ -1007,13 +1007,20 @@ export class MiniflareCore<
     return this.#mounts!.get(name)!;
   }
 
-  getGlobalDispatcher(): Dispatcher {
+  async createMockAgent(options?: MockAgent.Options): Promise<MockAgent> {
+    await this.#initPromise;
+    return this.#instances!.CorePlugin.createMockAgent(options);
+  }
+
+  async getGlobalDispatcher(): Promise<Dispatcher> {
+    await this.#initPromise;
     return this.#instances!.CorePlugin.getGlobalDispatcher();
   }
 
-  setGlobalDispatcher<DispatcherImplementation extends Dispatcher>(
+  async setGlobalDispatcher<DispatcherImplementation extends Dispatcher>(
     dispatcher: DispatcherImplementation
   ) {
+    await this.#initPromise;
     return this.#instances!.CorePlugin.setGlobalDispatcher(dispatcher);
   }
 

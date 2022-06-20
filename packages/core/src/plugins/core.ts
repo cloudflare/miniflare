@@ -43,6 +43,7 @@ import {
   FormData,
   getGlobalDispatcher,
   Headers,
+  MockAgent,
   setGlobalDispatcher,
 } from "undici";
 // @ts-expect-error `urlpattern-polyfill` only provides global types
@@ -560,6 +561,10 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       });
       if (!rule.fallthrough) finalisedTypes.add(rule.type);
     }
+  }
+  
+  createMockAgent(options?: MockAgent.Options) {
+    return new MockAgent(options)
   }
 
   getGlobalDispatcher() {

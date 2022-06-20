@@ -1256,14 +1256,14 @@ test.serial(
     );
 
     // Create a Mock Agent and prevent internet access - https://github.com/nodejs/undici/blob/main/docs/api/MockAgent.md
-    const agent = new MockAgent();
+    const agent = await mf.createMockAgent();
     agent.disableNetConnect();
 
     const client = agent.get("https://miniflare.dev");
     client.intercept({ path: "/", method: "GET" }).reply(200, "Hello World!");
 
-    const dispatcher = mf.getGlobalDispatcher();
-    mf.setGlobalDispatcher(agent);
+    const dispatcher = await mf.getGlobalDispatcher();
+    await mf.setGlobalDispatcher(agent);
 
     const res = await mf.dispatchFetch("http://localhost/");
     // Check we get the mocked response and not the actual miniflare.dev

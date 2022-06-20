@@ -2,6 +2,10 @@ export function handleRequest(request) {
   return new Response(`body:${request.url}`);
 }
 
+export async function handleRequestWithFetch(request) {
+  return await fetch(request.url);
+}
+
 export function handleWebSocketRequest() {
   const [client, worker] = Object.values(new WebSocketPair());
 
