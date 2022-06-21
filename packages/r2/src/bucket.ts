@@ -547,6 +547,7 @@ export class R2Bucket {
     const delimitedPrefixes = new Set<string>();
 
     // Validate options
+    // TODO: validate ALL list options
     if (typeof limit !== "number" || limit < 1 || limit > MAX_LIST_KEYS) {
       throwR2Error(
         "LIST",

@@ -479,7 +479,7 @@ test("list: validates limit", async (t) => {
     message:
       "R2 LIST failed: 400 MaxKeys params must be positive integer <= 1000.",
   });
-  await t.throwsAsync(r2.list({ limit: 1001 }), {
+  await t.throwsAsync(r2.list({ limit: 1_001 }), {
     instanceOf: Error,
     message:
       "R2 LIST failed: 400 MaxKeys params must be positive integer <= 1000.",
