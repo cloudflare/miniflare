@@ -78,3 +78,19 @@ test("Alarms: setupAlarms and call setAlarm through the bridge", async (t) => {
     bridge.setAlarm(1);
   });
 });
+
+test("Alarms: setupAlarms and call setAlarm twice. The second one should trigger", async (t) => {
+  t.plan(1);
+  const { alarmStore } = t.context;
+  const now = Date.now();
+  await new Promise<null>((resolve) => {
+    alarmStore.setupAlarms(async (objectKey) => {
+      t.true(Date.now() - now > 2_000);
+      resolve(null);
+    });
+    // set first alarm 1 second from now
+    alarmStore.setAlarm("test", Date.now() + 1_000);
+    // set the second 5 seconds from now
+    alarmStore.setAlarm("test", Date.now() + 3_000);
+  });
+});
