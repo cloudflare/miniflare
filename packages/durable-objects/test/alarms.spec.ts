@@ -58,11 +58,26 @@ test("Alarms: wait a second before updating value", async (t) => {
   t.is(value, 4);
 });
 
-test("Alarms: delete alarm before use", async (t) => {
+test("Alarms: setAlarm returns undefined; deleteAlarm", async (t) => {
   const { alarmStore } = t.context;
   const alarm = await alarmStore.setAlarm("toDelete", Date.now() + 50_000);
   t.is(alarm, undefined);
-  await alarmStore.deleteAlarm("toDelete");
+  const deleted = await alarmStore.deleteAlarm("toDelete");
+  t.is(deleted, undefined);
+  t.pass();
+});
+test("Alarms: check delete worked via a wait period", async (t) => {
+  t.plan(1);
+  const { alarmStore } = t.context;
+  alarmStore.setupAlarms(async () => {
+    t.fail();
+  });
+  // set first alarm 1 second from now
+  await alarmStore.setAlarm("test", Date.now() + 1_000);
+  // delete said alarm
+  await alarmStore.deleteAlarm("test");
+  // wait an appropriate amount of time
+  await new Promise((resolve) => setTimeout(resolve, 2_000));
   t.pass();
 });
 
@@ -84,7 +99,7 @@ test("Alarms: setupAlarms and call setAlarm twice. The second one should trigger
   const { alarmStore } = t.context;
   const now = Date.now();
   await new Promise<null>((resolve) => {
-    alarmStore.setupAlarms(async (objectKey) => {
+    alarmStore.setupAlarms(async () => {
       t.true(Date.now() - now > 2_000);
       resolve(null);
     });

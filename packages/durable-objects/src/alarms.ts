@@ -65,7 +65,7 @@ export class AlarmStore {
     // setup a timeout and run the callback and then delete the alarm
     for (const [objectKey, doAlarm] of this.#alarms) {
       const { scheduledTime } = doAlarm;
-      // if the alarm has already been set or not within 30 seconds, skip
+      // if the alarm is not within the next 30 seconds, skip
       if (scheduledTime < now + 30_000) {
         this.#setAlarmTimeout(now, objectKey, doAlarm);
       }
