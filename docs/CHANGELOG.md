@@ -1,5 +1,18 @@
 # 🚧 Changelog
 
+## 2.5.1
+
+### ⚠️ Security Update
+
+- Upgrade `undici` to `5.5.1`, addressing
+  [GHSA-pgw7-wx7w-2w33](https://github.com/advisories/GHSA-pgw7-wx7w-2w33)
+- Upgrade `node-forge` to `1.3.1`, addressing
+  [GHSA-2r2c-g63r-vccr](https://github.com/advisories/GHSA-2r2c-g63r-vccr),
+  [GHSA-x4jg-mjrx-434g](https://github.com/advisories/GHSA-x4jg-mjrx-434g) and
+  [GHSA-cfm4-qjh2-4765](https://github.com/advisories/GHSA-cfm4-qjh2-4765)
+- Upgrade `minimist` to `1.2.6`, addressing
+  [GHSA-xvch-5gv4-984h](https://github.com/advisories/GHSA-xvch-5gv4-984h)
+
 ## 2.5.0
 
 ### Features

@@ -288,7 +288,9 @@ test("DurableObjectPlugin: reload: throws if script cannot be found in mounts", 
   t.throws(() => plugin.reload({}, {}, new Map()), {
     instanceOf: DurableObjectError,
     code: "ERR_SCRIPT_NOT_FOUND",
-    message: 'Script "test" for Durable Object "TEST" not found',
+    message:
+      'Script "test" for Durable Object "TEST" not found.\n' +
+      'Make sure "test" is mounted so Miniflare knows where to find it.',
   });
 });
 test("DurableObjectsPlugin: reload: throws if object constructor cannot be found in mount exports", (t) => {

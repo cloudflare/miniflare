@@ -828,19 +828,21 @@ export class MiniflareCore<
 
     // Log bundle size and warning if too big
     // noinspection JSObjectNullOrUndefined
-    this.#ctx.log.info(
-      `Worker reloaded!${
-        res?.bundleSize !== undefined ? ` (${formatSize(res.bundleSize)})` : ""
-      }`
-    );
-    // TODO (someday): compress asynchronously
-    // noinspection JSObjectNullOrUndefined
-    if (res?.bundleSize !== undefined && res.bundleSize > 1_048_576) {
-      this.#ctx.log.warn(
-        "Worker's uncompressed size exceeds the 1MiB limit! " +
-          "Note that your worker will be compressed during upload " +
-          "so you may still be able to deploy it."
+    if (res) {
+      this.#ctx.log.info(
+        `Worker reloaded!${
+          res.bundleSize !== undefined ? ` (${formatSize(res.bundleSize)})` : ""
+        }`
       );
+      // TODO (someday): compress asynchronously
+      // noinspection JSObjectNullOrUndefined
+      if (res.bundleSize !== undefined && res.bundleSize > 1_048_576) {
+        this.#ctx.log.warn(
+          "Worker's uncompressed size exceeds the 1MiB limit! " +
+            "Note that your worker will be compressed during upload " +
+            "so you may still be able to deploy it."
+        );
+      }
     }
 
     // Update watched paths if watching

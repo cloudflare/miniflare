@@ -44,7 +44,13 @@ export async function coupleWebSocket(
     ws.send(e.data);
   });
   pair.addEventListener("close", (e) => {
-    if (ws.readyState < StandardWebSocket.CLOSING) ws.close(e.code, e.reason);
+    if (ws.readyState < StandardWebSocket.CLOSING) {
+      if (e.code === 1005 /* No Status Received */) {
+        ws.close();
+      } else {
+        ws.close(e.code, e.reason);
+      }
+    }
   });
 
   if (ws.readyState === StandardWebSocket.CONNECTING) {

@@ -808,7 +808,6 @@ test("MiniflareCore: #watcherCallback: re-runs setup for plugins' changed paths"
     [LogLevel.DEBUG, "Reloading worker..."],
     [LogLevel.INFO, "beforeReload"],
     [LogLevel.INFO, "reload"],
-    [LogLevel.INFO, "Worker reloaded!"],
   ]);
 
   // Update test2 contents, expecting TestPlugin setup to run
@@ -822,7 +821,6 @@ test("MiniflareCore: #watcherCallback: re-runs setup for plugins' changed paths"
     [LogLevel.DEBUG, "Reloading worker..."],
     [LogLevel.INFO, "beforeReload"],
     [LogLevel.INFO, "reload"],
-    [LogLevel.INFO, "Worker reloaded!"],
   ]);
 });
 test("MiniflareCore: #watcherCallback: re-runs setup for script-providing plugins if any beforeSetup ran", async (t) => {
@@ -959,7 +957,6 @@ test("MiniflareCore: setOptions: updates options and reloads worker", async (t) 
     [LogLevel.INFO, "beforeReload"],
     [LogLevel.VERBOSE, "- reload(TestPlugin)"],
     [LogLevel.INFO, "reload"],
-    [LogLevel.INFO, "Worker reloaded!"],
   ];
   t.deepEqual(log.logs, expectedLogs);
 });

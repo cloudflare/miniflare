@@ -192,6 +192,23 @@ test("coupleWebSocket: closes client socket on worker close", async (t) => {
   t.is(event.code, 1000);
   t.is(event.reason, "Test Closure");
 });
+test("coupleWebSocket: closes client socket on worker close with no close code", async (t) => {
+  const [eventTrigger, eventPromise] = triggerPromise<{
+    code: number;
+    reason: string;
+  }>();
+  const server = await useServer(t, noop, (ws) => {
+    ws.addEventListener("close", eventTrigger);
+  });
+  const ws = new StandardWebSocket(server.ws);
+  const [client, worker] = Object.values(new WebSocketPair());
+  worker.accept();
+  await coupleWebSocket(ws, client);
+  worker.close();
+
+  const event = await eventPromise;
+  t.is(event.code, 1005);
+});
 
 test("coupleWebSocket: accepts worker socket immediately if already open", async (t) => {
   const [eventTrigger, eventPromise] = triggerPromise<{ data: any }>();

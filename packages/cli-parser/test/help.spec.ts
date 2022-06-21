@@ -48,6 +48,7 @@ Core Options:
  -V, --verbose               Enable verbose logging                    [boolean]
      --(no-)update-check     Enable update checker (enabled by         [boolean]
                              default)
+     --repl                  Enable interactive REPL                   [boolean]
      --root                  Path to resolve files relative to          [string]
      --mount                 Mount additional named      [array:NAME=PATH[@ENV]]
                              workers
