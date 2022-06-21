@@ -60,10 +60,6 @@ export function createMD5(input: Uint8Array): string {
   return crypto.createHash("md5").update(input).digest("hex");
 }
 
-function camelToDash(str: string): string {
-  return str.replace(/([A-Z])/g, "-$1").toLowerCase();
-}
-
 export function createVersion(): string {
   const size = 32;
   return crypto.randomBytes(size).toString("base64").slice(0, size);
@@ -114,8 +110,9 @@ export function parseHttpMetadata(
 // false -> the condition testing "failed"
 export function testR2Conditional(
   conditional: R2Conditional,
-  metadata: R2ObjectMetadata
+  metadata?: R2ObjectMetadata
 ): boolean {
+  if (metadata === undefined) return true;
   const { etag, uploaded } = metadata;
   const { etagMatches, etagDoesNotMatch, uploadedBefore, uploadedAfter } =
     conditional;
@@ -213,7 +210,8 @@ export class R2Object {
   // HTTP headers to the Headers input object. Refer to HTTP Metadata.
   writeHttpMetadata(headers: Headers): void {
     for (const [key, value] of Object.entries(this.httpMetadata)) {
-      headers.set(camelToDash(key), value);
+      const camelToDash = key.replace(/([A-Z])/g, "-$1").toLowerCase();
+      headers.set(camelToDash, value);
     }
   }
 }
@@ -226,7 +224,7 @@ export class R2ObjectBody extends R2Object {
   constructor(metadata: R2ObjectMetadata, value: Uint8Array) {
     super(metadata);
 
-    // To maintain the allusion of readonly, we set a function to update upon consumption.
+    // To maintain readonly, we build this clever work around to update upon consumption.
     const setBodyUsed = (): void => {
       (this.bodyUsed as R2ObjectBody["bodyUsed"]) = true;
     };

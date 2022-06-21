@@ -140,64 +140,68 @@ function validateKey(method: Method, key: string): void {
   }
 }
 
-function validateOnlyIf(onlyIf: R2Conditional | Headers): void {
-  if (!(onlyIf instanceof Headers) && typeof onlyIf !== "object") {
+function validateOnlyIf(
+  onlyIf: R2Conditional | Headers,
+  method: "GET" | "PUT"
+): void {
+  if (onlyIf instanceof Headers) return;
+  if (typeof onlyIf !== "object") {
     throwR2Error(
-      "GET",
+      method,
       400,
       "onlyIf must be an object, a Headers instance, or undefined."
     );
   }
 
-  if (!(onlyIf instanceof Headers)) {
-    // Check onlyIf variables
-    const { etagMatches, etagDoesNotMatch, uploadedBefore, uploadedAfter } =
-      onlyIf;
-
-    if (
-      etagMatches &&
-      !(typeof etagMatches === "string" || Array.isArray(etagMatches))
-    ) {
-      throwR2Error("GET", 400, "etagMatches must be a string.");
-    }
-    if (
-      etagDoesNotMatch &&
-      !(typeof etagDoesNotMatch === "string" || Array.isArray(etagDoesNotMatch))
-    ) {
-      throwR2Error("GET", 400, "etagDoesNotMatch must be a string.");
-    }
-    if (uploadedBefore && !(uploadedBefore instanceof Date)) {
-      throwR2Error("GET", 400, "uploadedBefore must be a Date.");
-    }
-    if (uploadedAfter && !(uploadedAfter instanceof Date)) {
-      throwR2Error("GET", 400, "uploadedAfter must be a Date.");
-    }
+  // Check onlyIf variables
+  const { etagMatches, etagDoesNotMatch, uploadedBefore, uploadedAfter } =
+    onlyIf;
+  if (
+    etagMatches !== undefined &&
+    !(typeof etagMatches === "string" || Array.isArray(etagMatches))
+  ) {
+    throwR2Error(method, 400, "etagMatches must be a string.");
+  }
+  if (
+    etagDoesNotMatch !== undefined &&
+    !(typeof etagDoesNotMatch === "string" || Array.isArray(etagDoesNotMatch))
+  ) {
+    throwR2Error(method, 400, "etagDoesNotMatch must be a string.");
+  }
+  if (uploadedBefore !== undefined && !(uploadedBefore instanceof Date)) {
+    throwR2Error(method, 400, "uploadedBefore must be a Date.");
+  }
+  if (uploadedAfter !== undefined && !(uploadedAfter instanceof Date)) {
+    throwR2Error(method, 400, "uploadedAfter must be a Date.");
   }
 }
 
-function validateR2GetOptions(options: R2GetOptions): void {
+function validateGetOptions(options: R2GetOptions): void {
   const { onlyIf = {}, range = {} } = options;
 
-  validateOnlyIf(onlyIf);
+  validateOnlyIf(onlyIf, "GET");
 
   if (typeof range !== "object") {
-    throwR2Error("GET", 400, "range must be an object or undefined.");
+    throwR2Error("GET", 400, "range must either be an object or undefined.");
   }
   const { offset, length, suffix } = range;
 
-  if (offset !== undefined && !isNaN(offset)) {
-    throwR2Error("GET", 400, "offset must be a number.");
+  if (offset !== undefined && typeof offset !== "number") {
+    throwR2Error("GET", 400, "offset must either be a number or undefined.");
   }
-  if (length !== undefined && !isNaN(length)) {
-    throwR2Error("GET", 400, "length must be a number.");
+  if (length !== undefined && typeof length !== "number") {
+    throwR2Error("GET", 400, "length must either be a number or undefined.");
   }
-  if (suffix !== undefined && !isNaN(suffix)) {
-    throwR2Error("GET", 400, "suffix must be a number.");
+  if (suffix !== undefined && typeof suffix !== "number") {
+    throwR2Error("GET", 400, "suffix must either be a number or undefined.");
   }
 }
 
 function validateHttpMetadata(httpMetadata?: R2HTTPMetadata | Headers): void {
   if (httpMetadata === undefined || httpMetadata instanceof Headers) return;
+  if (typeof httpMetadata !== "object") {
+    throwR2Error("PUT", 400, "httpMetadata must be an object or undefined.");
+  }
   for (const [key, value] of Object.entries(httpMetadata)) {
     if (key === "cacheExpiry") {
       if (!(value instanceof Date) && value !== undefined) {
@@ -219,10 +223,10 @@ function validateHttpMetadata(httpMetadata?: R2HTTPMetadata | Headers): void {
   }
 }
 
-function validateR2PutOptions(options: R2PutOptions): void {
+function validatePutOptions(options: R2PutOptions): void {
   const { onlyIf = {}, httpMetadata, customMetadata, md5 } = options;
 
-  validateOnlyIf(onlyIf);
+  validateOnlyIf(onlyIf, "PUT");
   validateHttpMetadata(httpMetadata);
 
   if (customMetadata !== undefined) {
@@ -250,6 +254,47 @@ function validateR2PutOptions(options: R2PutOptions): void {
       400,
       "md5 must be a string, ArrayBuffer, or undefined."
     );
+  }
+}
+
+function validateListOptions(options: R2ListOptions): void {
+  const { limit, prefix, cursor, delimiter, include } = options;
+
+  if (limit !== undefined) {
+    if (typeof limit !== "number") {
+      throwR2Error("LIST", 400, "limit must be a number or undefined.");
+    }
+    if (limit < 1 || limit > MAX_LIST_KEYS) {
+      throwR2Error(
+        "LIST",
+        400,
+        `MaxKeys params must be positive integer <= 1000.`
+      );
+    }
+  }
+  if (prefix !== undefined && typeof prefix !== "string") {
+    throwR2Error("LIST", 400, "prefix must be a string or undefined.");
+  }
+  if (cursor !== undefined && typeof cursor !== "string") {
+    throwR2Error("LIST", 400, "cursor must be a string or undefined.");
+  }
+  if (delimiter !== undefined && typeof delimiter !== "string") {
+    throwR2Error("LIST", 400, "delimiter must be a string or undefined.");
+  }
+  if (include !== undefined) {
+    if (!Array.isArray(include)) {
+      throwR2Error("LIST", 400, "include must be an array or undefined.");
+    }
+    const includeTypes = new Set(["httpMetadata", "customMetadata"]);
+    for (const value of include) {
+      if (!includeTypes.has(value)) {
+        throwR2Error(
+          "LIST",
+          400,
+          "include values must be httpMetadata and/or customMetadata strings."
+        );
+      }
+    }
   }
 }
 
@@ -323,7 +368,7 @@ export class R2Bucket {
     // Validate key
     validateKey("GET", key);
     // Validate options
-    validateR2GetOptions(options);
+    validateGetOptions(options);
 
     // In the event that an onlyIf precondition fails, we return
     // the R2Object without the body. Otherwise return with body.
@@ -388,7 +433,7 @@ export class R2Bucket {
     // Validate key
     validateKey("PUT", key);
     // Validate options
-    validateR2PutOptions(options);
+    validatePutOptions(options);
     // validate md5
     let { md5 } = options;
     if (md5 !== undefined) {
@@ -489,6 +534,8 @@ export class R2Bucket {
   }
 
   // due to the delimiter, we may need to run multiple queries
+  // the goal is to keep returning results until either we have no more
+  // or objects + delmitedPrefixes are equal to maxResults
   async #list(
     prefix: string,
     limit: number,
@@ -512,14 +559,15 @@ export class R2Bucket {
       )
       // filter out objects that exist within the delimiter
       .filter((metadata) => {
-        if (delimiter === undefined) return true;
         const objectKey = metadata.key.slice(prefix.length);
-        if (objectKey.includes(delimiter)) {
+        if (delimiter !== undefined && objectKey.includes(delimiter)) {
           const delimitedPrefix =
             prefix + objectKey.split(delimiter)[0] + delimiter;
           delimitedPrefixes.add(delimitedPrefix);
           return false;
         }
+        // otherwise, return true
+        return true;
       })
       // filter "httpMetadata" and/or "customMetadata", return R2Object
       .map((metadata) => {
@@ -534,30 +582,20 @@ export class R2Bucket {
     return { objects, cursor: res.cursor };
   }
 
-  async list({
-    prefix = "",
-    limit = MAX_LIST_KEYS,
-    cursor = "",
-    include = [],
-    delimiter,
-  }: R2ListOptions = {}): Promise<R2Objects> {
+  async list(listOptions: R2ListOptions = {}): Promise<R2Objects> {
     const ctx = this.#prepareCtx("LIST");
     let truncated = false;
     const objects: R2Object[] = [];
     const delimitedPrefixes = new Set<string>();
 
-    // Validate options
-    // TODO: validate ALL list options
-    if (typeof limit !== "number" || limit < 1 || limit > MAX_LIST_KEYS) {
-      throwR2Error(
-        "LIST",
-        400,
-        `MaxKeys params must be positive integer <= 1000.`
-      );
-    }
+    validateListOptions(listOptions);
+    const { prefix = "", include = [], delimiter } = listOptions;
+    let { limit = MAX_LIST_KEYS, cursor = "" } = listOptions;
+
     // if include contains inputs, we reduce the limit to max 100
     if (include.length > 0) limit = Math.min(limit, 100);
 
+    // iterate until we find no more objects or we have reached the limit
     do {
       const { objects: _objects, cursor: _cursor } = (await this.#list(
         prefix,
@@ -567,8 +605,11 @@ export class R2Bucket {
         delimiter,
         cursor
       )) as ListResponse;
+      // update cursor
       cursor = _cursor;
+      // if no objects found, we are done
       if (_objects.length === 0) break;
+      // add objects to list
       objects.push(..._objects);
     } while (
       cursor.length > 0 &&
@@ -582,7 +623,7 @@ export class R2Bucket {
     return {
       objects,
       truncated,
-      cursor,
+      cursor: cursor.length > 0 ? cursor : undefined,
       delimitedPrefixes: [...delimitedPrefixes],
     };
   }

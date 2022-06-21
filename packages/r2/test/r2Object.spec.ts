@@ -15,8 +15,8 @@ import {
   createVersion,
   parseHttpMetadata,
   parseOnlyIf,
-  testR2Conditional,
   parseR2ObjectMetadata,
+  testR2Conditional,
 } from "../src/r2Object";
 
 interface TestObject {
@@ -333,6 +333,9 @@ test("R2Object: testR2Conditional: Test etagMatches", (t) => {
     etagMatches: "*tag",
   };
 
+  // test metadata is undefined first
+  t.true(testR2Conditional(r2conditional));
+  // match from above
   t.true(testR2Conditional(r2conditional, metadata));
   t.false(testR2Conditional(r2conditional2, metadata));
   t.false(testR2Conditional(r2conditional3, metadata));
