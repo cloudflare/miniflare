@@ -65,7 +65,7 @@ export class AlarmStore {
     // setup a timeout and run the callback and then delete the alarm
     for (const [objectKey, doAlarm] of this.#alarms) {
       const { scheduledTime } = doAlarm;
-      // if the alarm is not within the next 30 seconds, skip
+      // if the alarm is within the next 30 seconds, set a timeout
       if (scheduledTime < now + 30_000) {
         this.#setAlarmTimeout(now, objectKey, doAlarm);
       }
@@ -95,11 +95,15 @@ export class AlarmStore {
       scheduledTime = scheduledTime.getTime();
     // TODO: Check if scheduledTime of 0 is a throw or a warning/skipped
     if (scheduledTime === 0) throw TypeError("You cannot set an alarm at 0.");
+    // pull in the alarm or create a new one if it does not exist
     const doAlarm: DurableObjectAlarm = this.#alarms.get(objectKey) ?? {
       scheduledTime,
     };
+    // update scheduledTime incase old alarm existed
     doAlarm.scheduledTime = scheduledTime;
-    if (scheduledTime < now + 30_000) {
+    // if the alarm is within the next 31 seconds, set a timeout immedately
+    // add a second to ensure healthy overlap between alarm checks
+    if (scheduledTime < now + 31_000) {
       this.#setAlarmTimeout(now, objectKey, doAlarm);
     }
     // set the alarm in the store
