@@ -44,8 +44,6 @@ export class AlarmStore {
     objectKey: string,
     doAlarm: DurableObjectAlarm
   ) {
-    // if no callback, give up
-    if (this.#callback === undefined) return;
     // if timeout was already created, delete alarm incase scheduledTime changed
     if (doAlarm.timeout) clearTimeout(doAlarm.timeout);
     // set alarm
@@ -57,7 +55,7 @@ export class AlarmStore {
 
   // any alarms 30 seconds in the future or sooner are returned
   async setupAlarms(callback?: (objectKey: string) => Promise<void>) {
-    if (callback) this.#callback = callback;
+    if (typeof callback === "function") this.#callback = callback;
     if (this.#alarmTimeout) return;
     const now = Date.now();
 
@@ -93,8 +91,9 @@ export class AlarmStore {
     const now = Date.now();
     if (typeof scheduledTime !== "number")
       scheduledTime = scheduledTime.getTime();
-    // TODO: Check if scheduledTime of 0 is a throw or a warning/skipped
-    if (scheduledTime === 0) throw TypeError("You cannot set an alarm at 0.");
+    if (scheduledTime === 0) {
+      throw TypeError("setAlarm() cannot be called with an alarm time <= 0");
+    }
     // pull in the alarm or create a new one if it does not exist
     const doAlarm: DurableObjectAlarm = this.#alarms.get(objectKey) ?? {
       scheduledTime,

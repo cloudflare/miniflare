@@ -109,3 +109,10 @@ test("Alarms: setupAlarms and call setAlarm twice. The second one should trigger
     alarmStore.setAlarm("test", Date.now() + 3_000);
   });
 });
+
+test("Alarms: setTimeout of 0 throws", async (t) => {
+  const { alarmStore } = t.context;
+  await t.throwsAsync(async () => {
+    await alarmStore.setAlarm("test", 0);
+  });
+});
