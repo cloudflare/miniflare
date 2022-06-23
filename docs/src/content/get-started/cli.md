@@ -328,7 +328,7 @@ kv_namespaces = [                  # --kv
 ]
 
 r2_buckets = [                     # --r2
-  { binding = "TEST_BUCKET", bucket_name = "" }
+  { binding = "TEST_BUCKET", bucket_name = "", preview_bucket_name = "" }
 ]
 
 [durable_objects]

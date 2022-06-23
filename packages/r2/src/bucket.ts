@@ -112,7 +112,7 @@ export interface R2Objects {
 }
 
 const MAX_LIST_KEYS = 1_000;
-const MAX_KEY_SIZE = 512; /* 512B */
+const MAX_KEY_SIZE = 1024;
 // https://developers.cloudflare.com/r2/platform/limits/ (5GB - 5MB)
 const MAX_VALUE_SIZE = 5 * 1_000 * 1_000 * 1_000 - 5 * 1_000 * 1_000;
 
@@ -121,17 +121,18 @@ const encoder = new TextEncoder();
 type Method = "HEAD" | "GET" | "PUT" | "LIST" | "DELETE";
 
 function throwR2Error(method: Method, status: number, message: string): void {
-  throw new Error(`R2 ${method} failed: ${status} ${message}`);
+  throw new Error(`R2 ${method} failed: (${status}) ${message}`);
 }
 
 function validateKey(method: Method, key: string): void {
-  // Check key name is allowed
-  if (key === "") throw new TypeError("Key name cannot be empty.");
-  if (key === ".") throw new TypeError('"." is not allowed as a key name.');
-  if (key === "..") throw new TypeError('".." is not allowed as a key name.');
-  // Check key isn't too long
+  const unpairedSurrogatePairRegex =
+    /^(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])$/;
+  // Check key isn't too long and exists outside regex
   const keyLength = encoder.encode(key).byteLength;
-  if (keyLength > MAX_KEY_SIZE) {
+  if (unpairedSurrogatePairRegex.test(key)) {
+    throwR2Error(method, 400, "Key contains an illegal unicode value(s).");
+  }
+  if (keyLength >= MAX_KEY_SIZE) {
     throwR2Error(
       method,
       414,
@@ -377,7 +378,7 @@ export class R2Bucket {
     // if bad metadata, return null
     if (meta === null) return null;
     // test conditional should it exist
-    if ((meta && !testR2Conditional(onlyIf, meta)) || meta?.size === 0) {
+    if (!testR2Conditional(onlyIf, meta) || meta?.size === 0) {
       return new R2Object(meta);
     }
 
@@ -448,8 +449,8 @@ export class R2Bucket {
     httpMetadata = parseHttpMetadata(httpMetadata);
 
     // Get meta, and if exists, run onlyIf condtional test
-    const meta = await this.head(key, ctx);
-    if (meta && !testR2Conditional(onlyIf, meta)) {
+    const meta = (await this.head(key, ctx)) ?? undefined;
+    if (!testR2Conditional(onlyIf, meta)) {
       return null;
     }
 

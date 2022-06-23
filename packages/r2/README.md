@@ -2,7 +2,7 @@
 
 Workers R2 module for [Miniflare](https://github.com/cloudflare/miniflare): a
 fun, full-featured, fully-local simulator for Cloudflare Workers. See
-[📦 R2](https://miniflare.dev/storage/r2) for more details.
+[🪣 R2](https://miniflare.dev/storage/r2) for more details.
 
 ## Example
 

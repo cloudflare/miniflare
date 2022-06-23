@@ -499,6 +499,7 @@ const resWaitUntil = await res.waitUntil(); // Get `waitUntil`ed promises
 const waitUntil = await mf.dispatchScheduled(Date.now(), "30 * * * *");
 
 const TEST_NAMESPACE = await mf.getKVNamespace("TEST_NAMESPACE");
+const TEST_BUCKET = await mf.getR2Bucket("TEST_BUCKET");
 
 const caches = await mf.getCaches(); // Get global `CacheStorage` instance
 const defaultCache = caches.default;

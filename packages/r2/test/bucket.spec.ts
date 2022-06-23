@@ -115,21 +115,20 @@ const validatesKeyMacro: Macro<
     instanceOf: TypeError,
     message: `Failed to execute '${method}' on 'R2Bucket': parameter 1 is not of type 'string'.`,
   });
-  await t.throwsAsync(func(r2, ""), {
-    instanceOf: TypeError,
-    message: "Key name cannot be empty.",
+  await t.throwsAsync(func(r2, String.fromCharCode(parseInt("D801", 16))), {
+    message: `R2 ${method.toUpperCase()} failed: (400) Key contains an illegal unicode value(s).`,
   });
-  await t.throwsAsync(func(r2, "."), {
-    instanceOf: TypeError,
-    message: '"." is not allowed as a key name.',
-  });
-  await t.throwsAsync(func(r2, ".."), {
-    instanceOf: TypeError,
-    message: '".." is not allowed as a key name.',
-  });
-  await t.throwsAsync(func(r2, "".padStart(513, "x")), {
+  // await t.throwsAsync(func(r2, "."), {
+  //   instanceOf: TypeError,
+  //   message: '"." is not allowed as a key name.',
+  // });
+  // await t.throwsAsync(func(r2, ".."), {
+  //   instanceOf: TypeError,
+  //   message: '".." is not allowed as a key name.',
+  // });
+  await t.throwsAsync(func(r2, "".padStart(1025, "x")), {
     instanceOf: Error,
-    message: `R2 ${httpMethod} failed: 414 UTF-8 encoded length of 513 exceeds key length limit of 512.`,
+    message: `R2 ${httpMethod} failed: (414) UTF-8 encoded length of 1025 exceeds key length limit of 1024.`,
   });
 };
 validatesKeyMacro.title = (providedTitle, method) => `${method}: validates key`;
@@ -234,7 +233,7 @@ test("get: offset is NaN", async (t) => {
     async () => await r2.get("key", { range: { offset: "nan" } as any }),
     {
       message:
-        "R2 GET failed: 400 offset must either be a number or undefined.",
+        "R2 GET failed: (400) offset must either be a number or undefined.",
     }
   );
 });
@@ -244,7 +243,7 @@ test("get: length is NaN", async (t) => {
     async () => await r2.get("key", { range: { length: "nan" } as any }),
     {
       message:
-        "R2 GET failed: 400 length must either be a number or undefined.",
+        "R2 GET failed: (400) length must either be a number or undefined.",
     }
   );
 });
@@ -254,7 +253,7 @@ test("get: suffix is NaN", async (t) => {
     async () => await r2.get("key", { range: { suffix: "nan" } as any }),
     {
       message:
-        "R2 GET failed: 400 suffix must either be a number or undefined.",
+        "R2 GET failed: (400) suffix must either be a number or undefined.",
     }
   );
 });
@@ -279,40 +278,6 @@ test("get: onlyIf: etagMatches as a Header passes", async (t) => {
   assert(r2ObjectBody instanceof R2ObjectBody);
   t.is(await r2ObjectBody.text(), "value");
 });
-test("get: onlyIf: etagMatches as a wildcard string passes", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value");
-  const r2ObjectBody = await r2.get("key", { onlyIf: { etagMatches: "*" } });
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value");
-});
-test("get: onlyIf: etagMatches as wildcard headers passes", async (t) => {
-  const { r2 } = t.context;
-  const headers = new Headers();
-  headers.append("if-match", "*");
-  await r2.put("key", "value");
-  const r2ObjectBody = await r2.get("key", {
-    onlyIf: headers,
-  });
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value");
-});
-test("get: onlyIf: etagMatches as a wildcard string fails", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value");
-  const r2Object = await r2.get("key", { onlyIf: { etagMatches: "*nomatch" } });
-  assert(r2Object instanceof R2Object);
-  t.is(r2Object.key, "key");
-});
-test("get: onlyIf: etagMatches as wildcard headers fails", async (t) => {
-  const { r2 } = t.context;
-  const headers = new Headers();
-  headers.append("if-match", "*nomatch");
-  await r2.put("key", "value");
-  const r2Object = await r2.get("key", { onlyIf: headers });
-  assert(r2Object instanceof R2Object);
-  t.is(r2Object.key, "key");
-});
 test("get: onlyIf: etagMatches as a string array passes", async (t) => {
   const { r2 } = t.context;
   await r2.put("key", "value");
@@ -335,48 +300,6 @@ test("get: onlyIf: etagMatches as a headers array passes", async (t) => {
   assert(r2ObjectBody instanceof R2ObjectBody);
   t.is(await r2ObjectBody.text(), "value");
 });
-test("get: onlyIf: etagMatches as a wildcard string array passes", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value");
-  const etag = createMD5(utf8Encode("value"));
-  const r2ObjectBody = await r2.get("key", {
-    onlyIf: { etagMatches: ["*", "another", etag] },
-  });
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value");
-});
-test("get: onlyIf: etagMatches as a wildcard headers array passes", async (t) => {
-  const { r2 } = t.context;
-  const headers = new Headers();
-  const etag = createMD5(utf8Encode("value"));
-  headers.append("if-match", `*, another, ${etag}`);
-  await r2.put("key", "value");
-  const r2ObjectBody = await r2.get("key", {
-    onlyIf: headers,
-  });
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value");
-});
-test("get: onlyIf: etagMatches as a wildcard string array fails", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value");
-  const r2Object = await r2.get("key", {
-    onlyIf: { etagMatches: ["no match", "no match 2"] },
-  });
-  assert(r2Object instanceof R2Object);
-  t.is(r2Object.key, "key");
-});
-test("get: onlyIf: etagMatches as a wildcard headers array fails", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value");
-  const headers = new Headers();
-  headers.append("if-match", "no match, no match 2");
-  const r2Object = await r2.get("key", {
-    onlyIf: headers,
-  });
-  assert(r2Object instanceof R2Object);
-  t.is(r2Object.key, "key");
-});
 
 test("get: onlyIf: etagDoesNotMatch as a string passes", async (t) => {
   const { r2 } = t.context;
@@ -398,46 +321,6 @@ test("get: onlyIf: etagDoesNotMatch as a Header string passes", async (t) => {
   assert(r2ObjectBody instanceof R2ObjectBody);
   t.is(await r2ObjectBody.text(), "value");
 });
-test("get: onlyIf: etagDoesNotMatch as a wildcard string passes", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value");
-  const r2ObjectBody = await r2.get("key", {
-    onlyIf: { etagDoesNotMatch: "*no match" },
-  });
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value");
-});
-test("get: onlyIf: etagDoesNotMatch as a wildcard headers string passes", async (t) => {
-  const { r2 } = t.context;
-  const headers = new Headers();
-  headers.append("if-none-match", "*no match");
-  await r2.put("key", "value");
-  const r2ObjectBody = await r2.get("key", {
-    onlyIf: headers,
-  });
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value");
-});
-test("get: onlyIf: etagDoesNotMatch as a wildcard string fails", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value");
-  const r2Object = await r2.get("key", {
-    onlyIf: { etagDoesNotMatch: "*" },
-  });
-  assert(r2Object instanceof R2Object);
-  t.is(r2Object.key, "key");
-});
-test("get: onlyIf: etagDoesNotMatch as a wildcard headers string fails", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value");
-  const headers = new Headers();
-  headers.append("if-none-match", "*");
-  const r2Object = await r2.get("key", {
-    onlyIf: headers,
-  });
-  assert(r2Object instanceof R2Object);
-  t.is(r2Object.key, "key");
-});
 test("get: onlyIf: etagDoesNotMatch as a string array passes", async (t) => {
   const { r2 } = t.context;
   await r2.put("key", "value");
@@ -457,46 +340,6 @@ test("get: onlyIf: etagDoesNotMatch as a headers array passes", async (t) => {
   });
   assert(r2ObjectBody instanceof R2ObjectBody);
   t.is(await r2ObjectBody.text(), "value");
-});
-test("get: onlyIf: etagDoesNotMatch as a wildcard string array passes", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value");
-  const r2ObjectBody = await r2.get("key", {
-    onlyIf: { etagDoesNotMatch: ["*fail", "fail2"] },
-  });
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value");
-});
-test("get: onlyIf: etagDoesNotMatch as a wildcard headers array passes", async (t) => {
-  const { r2 } = t.context;
-  const headers = new Headers();
-  headers.append("if-none-match", "*fail1, fail2");
-  await r2.put("key", "value");
-  const r2ObjectBody = await r2.get("key", {
-    onlyIf: headers,
-  });
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value");
-});
-test("get: onlyIf: etagDoesNotMatch as a wildcard string array fails", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value");
-  const r2Object = await r2.get("key", {
-    onlyIf: { etagDoesNotMatch: ["*", "nomatch"] },
-  });
-  assert(r2Object instanceof R2Object);
-  t.is(r2Object.key, "key");
-});
-test("get: onlyIf: etagDoesNotMatch as a wildcard headers array fails", async (t) => {
-  const { r2 } = t.context;
-  const headers = new Headers();
-  headers.append("if-none-match", "*, nomatch");
-  await r2.put("key", "value");
-  const r2Object = await r2.get("key", {
-    onlyIf: headers,
-  });
-  assert(r2Object instanceof R2Object);
-  t.is(r2Object.key, "key");
 });
 
 test("get: onlyIf: uploadedBefore as a date passes", async (t) => {
@@ -545,6 +388,32 @@ test("get: onlyIf: uploadedBefore as a headers date fails", async (t) => {
   t.false(r2Object instanceof R2ObjectBody);
   t.is(r2Object.key, "key");
 });
+test("get: onlyIf: uploadedBefore as a date is ignored if etagMatches matches metadata etag", async (t) => {
+  const { r2 } = t.context;
+  const date = new Date(Date.now() - 50_000);
+  await r2.put("key", "value");
+  const r2ObjectBody = await r2.get("key", {
+    onlyIf: {
+      uploadedBefore: date,
+      etagMatches: createMD5(utf8Encode("value")),
+    },
+  });
+  assert(r2ObjectBody instanceof R2ObjectBody);
+  t.is(await r2ObjectBody.text(), "value");
+});
+test("get: onlyIf: uploadedBefore as a headers date is ignored if etagMatches matches metadata etag", async (t) => {
+  const { r2 } = t.context;
+  const date = new Date(Date.now() - 50_000);
+  const headers = new Headers();
+  headers.append("if-unmodified-since", date.toUTCString());
+  headers.append("if-match", createMD5(utf8Encode("value")));
+  await r2.put("key", "value");
+  const r2ObjectBody = await r2.get("key", {
+    onlyIf: headers,
+  });
+  assert(r2ObjectBody instanceof R2ObjectBody);
+  t.is(await r2ObjectBody.text(), "value");
+});
 
 test("get: onlyIf: uploadedAfter as a date passes", async (t) => {
   const { r2 } = t.context;
@@ -592,6 +461,32 @@ test("get: onlyIf: uploadedAfter as a headers date fails", async (t) => {
   t.false(r2Object instanceof R2ObjectBody);
   t.is(r2Object.key, "key");
 });
+test("get: onlyIf: uploadedAfter as a date is ignored if etagDoesNotMatch passes", async (t) => {
+  const { r2 } = t.context;
+  const date = new Date(Date.now() + 50_000);
+  await r2.put("key", "value");
+  const r2ObjectBody = await r2.get("key", {
+    onlyIf: {
+      uploadedAfter: date,
+      etagDoesNotMatch: "fail",
+    },
+  });
+  assert(r2ObjectBody instanceof R2ObjectBody);
+  t.is(await r2ObjectBody.text(), "value");
+});
+test("get: onlyIf: uploadedAfter as a headers date is ignored if etagDoesNotMatch passes", async (t) => {
+  const { r2 } = t.context;
+  const date = new Date(Date.now() + 50_000);
+  const headers = new Headers();
+  headers.append("if-modified-since", date.toString());
+  headers.append("if-none-match", "fail");
+  await r2.put("key", "value");
+  const r2ObjectBody = await r2.get("key", {
+    onlyIf: headers,
+  });
+  assert(r2ObjectBody instanceof R2ObjectBody);
+  t.is(await r2ObjectBody.text(), "value");
+});
 
 test("get: onlyIf: fails if not Headers, object, or undefined", async (t) => {
   const { r2 } = t.context;
@@ -599,7 +494,7 @@ test("get: onlyIf: fails if not Headers, object, or undefined", async (t) => {
     async () => await r2.get("key", { onlyIf: "string" as any }),
     {
       message:
-        "R2 GET failed: 400 onlyIf must be an object, a Headers instance, or undefined.",
+        "R2 GET failed: (400) onlyIf must be an object, a Headers instance, or undefined.",
     }
   );
 });
@@ -608,7 +503,7 @@ test("get: onlyIf: etagMatches: fails if bad type", async (t) => {
   await t.throwsAsync(
     async () => await r2.get("key", { onlyIf: { etagMatches: 1 } as any }),
     {
-      message: "R2 GET failed: 400 etagMatches must be a string.",
+      message: "R2 GET failed: (400) etagMatches must be a string.",
     }
   );
 });
@@ -617,7 +512,7 @@ test("get: onlyIf: etagDoesNotMatch: fails if bad type", async (t) => {
   await t.throwsAsync(
     async () => await r2.get("key", { onlyIf: { etagDoesNotMatch: 1 } as any }),
     {
-      message: "R2 GET failed: 400 etagDoesNotMatch must be a string.",
+      message: "R2 GET failed: (400) etagDoesNotMatch must be a string.",
     }
   );
 });
@@ -626,7 +521,7 @@ test("get: onlyIf: uploadedBefore: fails if bad type", async (t) => {
   await t.throwsAsync(
     async () => await r2.get("key", { onlyIf: { uploadedBefore: 1 } as any }),
     {
-      message: "R2 GET failed: 400 uploadedBefore must be a Date.",
+      message: "R2 GET failed: (400) uploadedBefore must be a Date.",
     }
   );
 });
@@ -635,7 +530,7 @@ test("get: onlyIf: uploadedAfter: fails if bad type", async (t) => {
   await t.throwsAsync(
     async () => await r2.get("key", { onlyIf: { uploadedAfter: 1 } as any }),
     {
-      message: "R2 GET failed: 400 uploadedAfter must be a Date.",
+      message: "R2 GET failed: (400) uploadedAfter must be a Date.",
     }
   );
 });
@@ -799,7 +694,7 @@ test("put: md5 not a string or arrayBuffer", async (t) => {
     async () => await r2.put("key", "value", { md5: 5 as unknown as any }),
     {
       message:
-        "R2 PUT failed: 400 md5 must be a string, ArrayBuffer, or undefined.",
+        "R2 PUT failed: (400) md5 must be a string, ArrayBuffer, or undefined.",
     }
   );
 });
@@ -809,7 +704,7 @@ test("put: bad md5 string fails", async (t) => {
     async () => await r2.put("key", "value", { md5: "bad" }),
     {
       message:
-        "R2 PUT failed: 400 The Content-MD5 you specified did not match what we received.",
+        "R2 PUT failed: (400) The Content-MD5 you specified did not match what we received.",
     }
   );
 });
@@ -819,30 +714,27 @@ test("put: bad md5 arrayBuffer fails", async (t) => {
     async () => await r2.put("key", "value", { md5: new ArrayBuffer(0) }),
     {
       message:
-        "R2 PUT failed: 400 The Content-MD5 you specified did not match what we received.",
+        "R2 PUT failed: (400) The Content-MD5 you specified did not match what we received.",
     }
   );
 });
-// TODO: Either test httpMetadata failure OR test that bad metadata is filtered.
-// test("put: httpMetadata uses key not in R2HttpMetadata", async (t) => {
-//   const { r2 } = t.context;
-//   await t.throwsAsync(
-//     async () =>
-//       await r2.put("key", "value", {
-//         httpMetadata: { foo: "bar" } as any,
-//       }),
-//     {
-//       message: "R2 PUT failed: 400 The following keys are not allowed: foo",
-//     }
-//   );
-// });
+test("put: httpMetadata that uses a key not in R2HttpMetadata is filtered", async (t) => {
+  const { r2 } = t.context;
+  const putRes = await r2.put("key", "value", {
+    httpMetadata: { contentType: "json", foo: "bar" } as any,
+  });
+  assert(putRes);
+  t.is(putRes.key, "key");
+  t.not((putRes.httpMetadata as any).foo, "bar");
+  t.is(putRes.httpMetadata.contentType, "json");
+});
 test("put: bad customMetadata fails", async (t) => {
   const { r2 } = t.context;
   await t.throwsAsync(
     async () =>
       await r2.put("key", "value", { customMetadata: { foo: 1 } as any }),
     {
-      message: "R2 PUT failed: 400 customMetadata values must be strings.",
+      message: "R2 PUT failed: (400) customMetadata values must be strings.",
     }
   );
 });
@@ -908,54 +800,6 @@ test("put: onlyIf: etagMatches as a Header passes", async (t) => {
   assert(r2ObjectBody instanceof R2ObjectBody);
   t.is(await r2ObjectBody.text(), "value2");
 });
-test("put: onlyIf: etagMatches as a wildcard string passes", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value1");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: { etagMatches: "*" },
-  });
-  assert(putRes instanceof R2Object);
-  t.is(putRes.key, "key");
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value2");
-});
-test("put: onlyIf: etagMatches as wildcard headers passes", async (t) => {
-  const { r2 } = t.context;
-  const headers = new Headers();
-  headers.append("if-match", "*");
-  await r2.put("key", "value1");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: headers,
-  });
-  assert(putRes instanceof R2Object);
-  t.is(putRes.key, "key");
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value2");
-});
-test("put: onlyIf: etagMatches as a wildcard string fails", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value1");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: { etagMatches: "*nomatch" },
-  });
-  t.is(putRes, null);
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value1");
-});
-test("put: onlyIf: etagMatches as wildcard headers fails", async (t) => {
-  const { r2 } = t.context;
-  const headers = new Headers();
-  headers.append("if-match", "*nomatch");
-  await r2.put("key", "value1");
-  const putRes = await r2.put("key", "value2", { onlyIf: headers });
-  t.is(putRes, null);
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value1");
-});
 test("put: onlyIf: etagMatches as a string array passes", async (t) => {
   const { r2 } = t.context;
   const etag = createMD5(utf8Encode("value1"));
@@ -976,34 +820,6 @@ test("put: onlyIf: etagMatches as a headers array passes", async (t) => {
   headers.append("if-match", `${etag}, etag2`);
   await r2.put("key", "value1");
   const putRes = await r2.put("key", "value2", {
-    onlyIf: { etagMatches: [etag, "etag2"] },
-  });
-  assert(putRes instanceof R2Object);
-  t.is(putRes.key, "key");
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value2");
-});
-test("put: onlyIf: etagMatches as a wildcard string array passes", async (t) => {
-  const { r2 } = t.context;
-  const etag = createMD5(utf8Encode("value1"));
-  await r2.put("key", "value1");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: { etagMatches: ["*", "another", etag] },
-  });
-  assert(putRes instanceof R2Object);
-  t.is(putRes.key, "key");
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value2");
-});
-test("put: onlyIf: etagMatches as a wildcard headers array passes", async (t) => {
-  const { r2 } = t.context;
-  const etag = createMD5(utf8Encode("value1"));
-  const headers = new Headers();
-  headers.append("if-match", `*, another, ${etag}`);
-  await r2.put("key", "value1");
-  const putRes = await r2.put("key", "value2", {
     onlyIf: headers,
   });
   assert(putRes instanceof R2Object);
@@ -1011,30 +827,6 @@ test("put: onlyIf: etagMatches as a wildcard headers array passes", async (t) =>
   const r2ObjectBody = await r2.get("key");
   assert(r2ObjectBody instanceof R2ObjectBody);
   t.is(await r2ObjectBody.text(), "value2");
-});
-test("put: onlyIf: etagMatches as a wildcard string array fails", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value1");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: { etagMatches: ["no match", "no match 2"] },
-  });
-  t.is(putRes, null);
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value1");
-});
-test("put: onlyIf: etagMatches as a wildcard headers array fails", async (t) => {
-  const { r2 } = t.context;
-  const headers = new Headers();
-  headers.append("if-match", "no match, no match 2");
-  await r2.put("key", "value1");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: headers,
-  });
-  t.is(putRes, null);
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value1");
 });
 
 test("put: onlyIf: etagDoesNotMatch as a string passes", async (t) => {
@@ -1063,56 +855,6 @@ test("put: onlyIf: etagDoesNotMatch as a Header string passes", async (t) => {
   assert(r2ObjectBody instanceof R2ObjectBody);
   t.is(await r2ObjectBody.text(), "value2");
 });
-test("put: onlyIf: etagDoesNotMatch as a wildcard string passes", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value1");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: { etagDoesNotMatch: "*no match" },
-  });
-  assert(putRes instanceof R2Object);
-  t.is(putRes.key, "key");
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value2");
-});
-test("put: onlyIf: etagDoesNotMatch as a wildcard headers string passes", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value1");
-  const headers = new Headers();
-  headers.append("if-none-match", "*no match");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: headers,
-  });
-  assert(putRes instanceof R2Object);
-  t.is(putRes.key, "key");
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value2");
-});
-test("put: onlyIf: etagDoesNotMatch as a wildcard string fails", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value1");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: { etagDoesNotMatch: "*" },
-  });
-  t.is(putRes, null);
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value1");
-});
-test("put: onlyIf: etagDoesNotMatch as a wildcard headers string fails", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value1");
-  const headers = new Headers();
-  headers.append("if-none-match", "*");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: headers,
-  });
-  t.is(putRes, null);
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value1");
-});
 test("put: onlyIf: etagDoesNotMatch as a string array passes", async (t) => {
   const { r2 } = t.context;
   await r2.put("key", "value1");
@@ -1138,56 +880,6 @@ test("put: onlyIf: etagDoesNotMatch as a headers array passes", async (t) => {
   const r2ObjectBody = await r2.get("key");
   assert(r2ObjectBody instanceof R2ObjectBody);
   t.is(await r2ObjectBody.text(), "value2");
-});
-test("put: onlyIf: etagDoesNotMatch as a wildcard string array passes", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value1");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: { etagDoesNotMatch: ["*fail", "fail2"] },
-  });
-  assert(putRes instanceof R2Object);
-  t.is(putRes.key, "key");
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value2");
-});
-test("put: onlyIf: etagDoesNotMatch as a wildcard headers array passes", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value1");
-  const headers = new Headers();
-  headers.append("if-none-match", "*fail1, fail2");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: headers,
-  });
-  assert(putRes instanceof R2Object);
-  t.is(putRes.key, "key");
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value2");
-});
-test("put: onlyIf: etagDoesNotMatch as a wildcard string array fails", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value1");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: { etagDoesNotMatch: ["*", "nomatch"] },
-  });
-  t.is(putRes, null);
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value1");
-});
-test("put: onlyIf: etagDoesNotMatch as a wildcard headers array fails", async (t) => {
-  const { r2 } = t.context;
-  await r2.put("key", "value1");
-  const headers = new Headers();
-  headers.append("if-none-match", "*, nomatch");
-  const putRes = await r2.put("key", "value2", {
-    onlyIf: headers,
-  });
-  t.is(putRes, null);
-  const r2ObjectBody = await r2.get("key");
-  assert(r2ObjectBody instanceof R2ObjectBody);
-  t.is(await r2ObjectBody.text(), "value1");
 });
 
 test("put: onlyIf: uploadedBefore as a date passes", async (t) => {
@@ -1238,6 +930,34 @@ test("put: onlyIf: uploadedBefore as a headers date fails", async (t) => {
   assert(r2ObjectBody instanceof R2ObjectBody);
   t.is(await r2ObjectBody.text(), "value1");
 });
+test("put: onlyIf: uploadedBefore as a date is ignored if etagMatches matches metadata etag", async (t) => {
+  const { r2 } = t.context;
+  const date = new Date(Date.now() - 50_000);
+  await r2.put("key", "value1");
+  await r2.put("key", "value2", {
+    onlyIf: {
+      uploadedBefore: date,
+      etagMatches: createMD5(utf8Encode("value1")),
+    },
+  });
+  const r2ObjectBody = await r2.get("key");
+  assert(r2ObjectBody instanceof R2ObjectBody);
+  t.is(await r2ObjectBody.text(), "value2");
+});
+test("put: onlyIf: uploadedBefore as a headers date if etagMatches matches metadata etag", async (t) => {
+  const { r2 } = t.context;
+  const date = new Date(Date.now() - 50_000);
+  const headers = new Headers();
+  headers.append("if-unmodified-since", date.toUTCString());
+  headers.append("if-match", createMD5(utf8Encode("value1")));
+  await r2.put("key", "value1");
+  await r2.put("key", "value2", {
+    onlyIf: headers,
+  });
+  const r2ObjectBody = await r2.get("key");
+  assert(r2ObjectBody instanceof R2ObjectBody);
+  t.is(await r2ObjectBody.text(), "value2");
+});
 
 test("put: onlyIf: uploadedAfter as a date passes", async (t) => {
   const { r2 } = t.context;
@@ -1281,11 +1001,39 @@ test("put: onlyIf: uploadedAfter as a headers date fails", async (t) => {
   headers.append("if-modified-since", date.toUTCString());
   await r2.put("key", "value1");
   await r2.put("key", "value2", {
-    onlyIf: { uploadedAfter: date },
+    onlyIf: headers,
   });
   const r2ObjectBody = await r2.get("key");
   assert(r2ObjectBody instanceof R2ObjectBody);
   t.is(await r2ObjectBody.text(), "value1");
+});
+test("put: onlyIf: uploadedAfter as a date is ignored if etagDoesNotMatch does not match metadata etag", async (t) => {
+  const { r2 } = t.context;
+  const date = new Date(Date.now() + 50_000);
+  await r2.put("key", "value1");
+  await r2.put("key", "value2", {
+    onlyIf: {
+      uploadedAfter: date,
+      etagDoesNotMatch: createMD5(utf8Encode("nomatch")),
+    },
+  });
+  const r2ObjectBody = await r2.get("key");
+  assert(r2ObjectBody instanceof R2ObjectBody);
+  t.is(await r2ObjectBody.text(), "value2");
+});
+test("put: onlyIf: uploadedAfter as a headers date is ignored if etagDoesNotMatch does not match metadata etag", async (t) => {
+  const { r2 } = t.context;
+  const date = new Date(Date.now() + 50_000);
+  const headers = new Headers();
+  headers.append("if-modified-since", date.toUTCString());
+  headers.append("if-none-match", createMD5(utf8Encode("nomatch")));
+  await r2.put("key", "value1");
+  await r2.put("key", "value2", {
+    onlyIf: headers,
+  });
+  const r2ObjectBody = await r2.get("key");
+  assert(r2ObjectBody instanceof R2ObjectBody);
+  t.is(await r2ObjectBody.text(), "value2");
 });
 
 test("put: onlyIf: fails if not Headers, object, or undefined", async (t) => {
@@ -1294,7 +1042,7 @@ test("put: onlyIf: fails if not Headers, object, or undefined", async (t) => {
     async () => await r2.put("key", "value", { onlyIf: "string" as any }),
     {
       message:
-        "R2 PUT failed: 400 onlyIf must be an object, a Headers instance, or undefined.",
+        "R2 PUT failed: (400) onlyIf must be an object, a Headers instance, or undefined.",
     }
   );
 });
@@ -1304,7 +1052,7 @@ test("put: onlyIf: etagMatches: fails if bad type", async (t) => {
     async () =>
       await r2.put("key", "value", { onlyIf: { etagMatches: 1 } as any }),
     {
-      message: "R2 PUT failed: 400 etagMatches must be a string.",
+      message: "R2 PUT failed: (400) etagMatches must be a string.",
     }
   );
 });
@@ -1314,7 +1062,7 @@ test("put: onlyIf: etagDoesNotMatch: fails if bad type", async (t) => {
     async () =>
       await r2.put("key", "value", { onlyIf: { etagDoesNotMatch: 1 } as any }),
     {
-      message: "R2 PUT failed: 400 etagDoesNotMatch must be a string.",
+      message: "R2 PUT failed: (400) etagDoesNotMatch must be a string.",
     }
   );
 });
@@ -1324,7 +1072,7 @@ test("put: onlyIf: uploadedBefore: fails if bad type", async (t) => {
     async () =>
       await r2.put("key", "value", { onlyIf: { uploadedBefore: 1 } as any }),
     {
-      message: "R2 PUT failed: 400 uploadedBefore must be a Date.",
+      message: "R2 PUT failed: (400) uploadedBefore must be a Date.",
     }
   );
 });
@@ -1334,7 +1082,7 @@ test("put: onlyIf: uploadedAfter: fails if bad type", async (t) => {
     async () =>
       await r2.put("key", "value", { onlyIf: { uploadedAfter: 1 } as any }),
     {
-      message: "R2 PUT failed: 400 uploadedAfter must be a Date.",
+      message: "R2 PUT failed: (400) uploadedAfter must be a Date.",
     }
   );
 });
@@ -1348,7 +1096,7 @@ test("put: httpMetadata: must be an object or undefined", async (t) => {
       }),
     {
       message:
-        "R2 PUT failed: 400 httpMetadata must be an object or undefined.",
+        "R2 PUT failed: (400) httpMetadata must be an object or undefined.",
     }
   );
 });
@@ -1361,7 +1109,7 @@ test("put: httpMetadata: cacheExpirey must be a Date or undefined", async (t) =>
       }),
     {
       message:
-        "R2 PUT failed: 400 cacheExpirey's value must be a string or undefined.",
+        "R2 PUT failed: (400) cacheExpirey's value must be a string or undefined.",
     }
   );
 });
@@ -1374,7 +1122,7 @@ test("put: customMetadata: must be an object or undefined", async (t) => {
       }),
     {
       message:
-        "R2 PUT failed: 400 customMetadata must be an object or undefined.",
+        "R2 PUT failed: (400) customMetadata must be an object or undefined.",
     }
   );
 });
@@ -1627,17 +1375,17 @@ test("list: validates limit", async (t) => {
   const { r2 } = t.context;
   await t.throwsAsync(r2.list({ limit: "nan" as any }), {
     instanceOf: Error,
-    message: "R2 LIST failed: 400 limit must be a number or undefined.",
+    message: "R2 LIST failed: (400) limit must be a number or undefined.",
   });
   await t.throwsAsync(r2.list({ limit: 0 }), {
     instanceOf: Error,
     message:
-      "R2 LIST failed: 400 MaxKeys params must be positive integer <= 1000.",
+      "R2 LIST failed: (400) MaxKeys params must be positive integer <= 1000.",
   });
   await t.throwsAsync(r2.list({ limit: 1_001 }), {
     instanceOf: Error,
     message:
-      "R2 LIST failed: 400 MaxKeys params must be positive integer <= 1000.",
+      "R2 LIST failed: (400) MaxKeys params must be positive integer <= 1000.",
   });
 });
 
@@ -1743,14 +1491,14 @@ test("list: include: input not customMetadata or httpMetadata fails", async (t) 
   await t.throwsAsync(r2.list({ include: ["foo"] as any }), {
     instanceOf: Error,
     message:
-      "R2 LIST failed: 400 include values must be httpMetadata and/or customMetadata strings.",
+      "R2 LIST failed: (400) include values must be httpMetadata and/or customMetadata strings.",
   });
 });
 test("list: include: not an array fails", async (t) => {
   const { r2 } = t.context;
   await t.throwsAsync(r2.list({ include: "fail" as any }), {
     instanceOf: Error,
-    message: "R2 LIST failed: 400 include must be an array or undefined.",
+    message: "R2 LIST failed: (400) include must be an array or undefined.",
   });
 });
 
@@ -1758,21 +1506,21 @@ test("list: prefix: must be a string", async (t) => {
   const { r2 } = t.context;
   await t.throwsAsync(r2.list({ prefix: 0 as any }), {
     instanceOf: Error,
-    message: "R2 LIST failed: 400 prefix must be a string or undefined.",
+    message: "R2 LIST failed: (400) prefix must be a string or undefined.",
   });
 });
 test("list: cursor: must be a string", async (t) => {
   const { r2 } = t.context;
   await t.throwsAsync(r2.list({ cursor: 0 as any }), {
     instanceOf: Error,
-    message: "R2 LIST failed: 400 cursor must be a string or undefined.",
+    message: "R2 LIST failed: (400) cursor must be a string or undefined.",
   });
 });
 test("list: delimiter: must be a string", async (t) => {
   const { r2 } = t.context;
   await t.throwsAsync(r2.list({ delimiter: 0 as any }), {
     instanceOf: Error,
-    message: "R2 LIST failed: 400 delimiter must be a string or undefined.",
+    message: "R2 LIST failed: (400) delimiter must be a string or undefined.",
   });
 });
 

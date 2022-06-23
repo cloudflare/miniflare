@@ -303,10 +303,23 @@ test("R2Object: parseHttpMetadata: Parsing instanceof Headers", (t) => {
   t.is(parsedMetadata.contentLanguage, "en");
 });
 
+test("R2Object: testR2Conditional: No metadata", (t) => {
+  // test metadata is undefined with no data
+  t.true(testR2Conditional({}));
+  // etagMatches exists with no metadata fails
+  t.false(testR2Conditional({ etagMatches: "any" }));
+  // uploadedAfter exists with no metadata fails
+  t.false(testR2Conditional({ uploadedAfter: new Date() }));
+  // etagDoesNotMatch exists with no metadata passes
+  t.true(testR2Conditional({ etagDoesNotMatch: "any" }));
+  // uploadedBefore exists with no metadata passes
+  t.true(testR2Conditional({ uploadedBefore: new Date() }));
+});
+
 test("R2Object: testR2Conditional: Test etagMatches", (t) => {
-  // wildcard match
+  // match
   const r2conditional: R2Conditional = {
-    etagMatches: "*",
+    etagMatches: "etag",
   };
   // no match
   const r2conditional2: R2Conditional = {
@@ -320,68 +333,36 @@ test("R2Object: testR2Conditional: Test etagMatches", (t) => {
   const r2conditional4: R2Conditional = {
     etagMatches: ["abc", "etag"],
   };
-  // one of many matches
-  const r2conditional5: R2Conditional = {
-    etagMatches: ["abc", "*"],
-  };
-  // exact match
-  const r2conditional6: R2Conditional = {
-    etagMatches: "etag",
-  };
-  // partial match
-  const r2conditional7: R2Conditional = {
-    etagMatches: "*tag",
-  };
 
-  // test metadata is undefined first
-  t.true(testR2Conditional(r2conditional));
   // match from above
   t.true(testR2Conditional(r2conditional, metadata));
   t.false(testR2Conditional(r2conditional2, metadata));
   t.false(testR2Conditional(r2conditional3, metadata));
   t.true(testR2Conditional(r2conditional4, metadata));
-  t.true(testR2Conditional(r2conditional5, metadata));
-  t.true(testR2Conditional(r2conditional6, metadata));
-  t.true(testR2Conditional(r2conditional7, metadata));
 });
 
 test("R2Object: testR2Conditional: Test etagDoesNotMatch", (t) => {
-  // wildcard match
-  const r2conditional: R2Conditional = {
-    etagDoesNotMatch: "*",
-  };
   // no match
-  const r2conditional2: R2Conditional = {
+  const r2conditional: R2Conditional = {
     etagDoesNotMatch: "abc",
   };
   // none of many match
-  const r2conditional3: R2Conditional = {
+  const r2conditional2: R2Conditional = {
     etagDoesNotMatch: ["abc", "def"],
   };
   // one of many exact match
-  const r2conditional4: R2Conditional = {
+  const r2conditional3: R2Conditional = {
     etagDoesNotMatch: ["abc", "etag"],
   };
-  // one of many matches
-  const r2conditional5: R2Conditional = {
-    etagDoesNotMatch: ["abc", "*"],
-  };
   // exact match
-  const r2conditional6: R2Conditional = {
+  const r2conditional4: R2Conditional = {
     etagDoesNotMatch: "etag",
   };
-  // partial match
-  const r2conditional7: R2Conditional = {
-    etagDoesNotMatch: "*tag",
-  };
 
-  t.false(testR2Conditional(r2conditional, metadata));
+  t.true(testR2Conditional(r2conditional, metadata));
   t.true(testR2Conditional(r2conditional2, metadata));
-  t.true(testR2Conditional(r2conditional3, metadata));
+  t.false(testR2Conditional(r2conditional3, metadata));
   t.false(testR2Conditional(r2conditional4, metadata));
-  t.false(testR2Conditional(r2conditional5, metadata));
-  t.false(testR2Conditional(r2conditional6, metadata));
-  t.false(testR2Conditional(r2conditional7, metadata));
 });
 
 test("R2Object: testR2Conditional: Test uploadedBefore", (t) => {
@@ -398,6 +379,23 @@ test("R2Object: testR2Conditional: Test uploadedBefore", (t) => {
   t.false(testR2Conditional(r2conditional2, testMeta));
 });
 
+test("R2Object: testR2Conditional: uploadedBefore is ignored if etagMatches matches metadata etag", (t) => {
+  const r2conditional: R2Conditional = {
+    uploadedBefore: new Date(40),
+  };
+  const r2conditional2: R2Conditional = {
+    uploadedBefore: new Date(40),
+    etagMatches: "etag",
+  };
+  const testMeta = JSON.parse(JSON.stringify(metadata)) as R2ObjectMetadata;
+  testMeta.uploaded = new Date(80);
+
+  // fails without
+  t.false(testR2Conditional(r2conditional, testMeta));
+  // passes with
+  t.true(testR2Conditional(r2conditional2, testMeta));
+});
+
 test("R2Object: testR2Conditional: Test uploadedAfter", (t) => {
   const r2conditional: R2Conditional = {
     uploadedAfter: new Date(100),
@@ -409,6 +407,23 @@ test("R2Object: testR2Conditional: Test uploadedAfter", (t) => {
   testMeta.uploaded = new Date(80);
 
   t.false(testR2Conditional(r2conditional, testMeta));
+  t.true(testR2Conditional(r2conditional2, testMeta));
+});
+
+test("R2Object: testR2Conditional: uploadedAfter is ignored if etagDoesNotMatch does not match metadata etag", (t) => {
+  const r2conditional: R2Conditional = {
+    uploadedAfter: new Date(100),
+  };
+  const r2conditional2: R2Conditional = {
+    uploadedAfter: new Date(100),
+    etagDoesNotMatch: "nomatch",
+  };
+  const testMeta = JSON.parse(JSON.stringify(metadata)) as R2ObjectMetadata;
+  testMeta.uploaded = new Date(80);
+
+  // fails without
+  t.false(testR2Conditional(r2conditional, testMeta));
+  // passes with
   t.true(testR2Conditional(r2conditional2, testMeta));
 });
 

@@ -112,21 +112,55 @@ export function testR2Conditional(
   conditional: R2Conditional,
   metadata?: R2ObjectMetadata
 ): boolean {
-  if (metadata === undefined) return true;
-  const { etag, uploaded } = metadata;
   const { etagMatches, etagDoesNotMatch, uploadedBefore, uploadedAfter } =
     conditional;
+  // If the object doesn't exist
+  if (metadata === undefined) {
+    // the etagDoesNotMatch and uploadedBefore automatically pass
+    // etagMatches and uploadedAfter automatically fail if they exist
+    if (etagMatches !== undefined || uploadedAfter !== undefined) {
+      return false;
+    } else {
+      return true;
+    }
+  }
 
-  if (etagMatches !== undefined && !matchStrings(etagMatches, etag)) {
+  const { etag, uploaded } = metadata;
+
+  // ifMatch check
+  const ifMatch = etagMatches ? matchStrings(etagMatches, etag) : null;
+  if (ifMatch === false) return false;
+
+  // ifNoMatch check
+  const ifNoneMatch = etagDoesNotMatch
+    ? !matchStrings(etagDoesNotMatch, etag)
+    : null;
+  if (ifNoneMatch === false) return false;
+
+  // ifUnmodifiedSince check
+  if (
+    ifMatch !== true && // if "ifMatch" is true, we ignore date checking
+    uploadedBefore !== undefined &&
+    uploaded > uploadedBefore
+  ) {
     return false;
   }
-  if (etagDoesNotMatch !== undefined && matchStrings(etagDoesNotMatch, etag)) {
+
+  // ifModifiedSince check
+  if (
+    ifNoneMatch !== true && // if "ifNoneMatch" is true, we ignore date checking
+    uploadedAfter !== undefined &&
+    uploaded < uploadedAfter
+  ) {
     return false;
   }
-  if (uploadedBefore instanceof Date && uploaded > uploadedBefore) return false;
-  if (uploadedAfter instanceof Date && uploaded < uploadedAfter) return false;
 
   return true;
+}
+
+function matchStrings(a: string | string[], b: string): boolean {
+  if (typeof a === "string") return a === b;
+  else return a.includes(b);
 }
 
 function parseHeaderArray(
@@ -282,39 +316,4 @@ export class R2ObjectBody extends R2Object {
   async blob(): Promise<Blob> {
     return new Blob([await this.#getBody()]);
   }
-}
-
-function matchStrings(a: string | string[], b: string): boolean {
-  if (typeof a === "string") return match(a, b);
-  for (const s of a) if (match(s, b)) return true;
-  return false;
-}
-
-// check if two strings are equal, including wildcards
-function match(first: string, second: string): boolean {
-  // If we reach at the end of both strings, we are done
-  if (first.length === 0 && second.length === 0) return true;
-  // Make sure that the characters after '*'
-  // are present in second string.
-  // This function assumes that the first
-  // string will not contain two consecutive '*'
-  if (first.length > 1 && first[0] === "*" && second.length === 0) return false;
-  // If the first string contains '?',
-  // or current characters of both strings match
-  if (
-    (first.length > 1 && first[0] === "?") ||
-    (first.length !== 0 && second.length !== 0 && first[0] === second[0])
-  ) {
-    return match(first.substring(1), second.substring(1));
-  }
-  // If there is *, then there are two possibilities
-  // a) We consider current character of second string
-  // b) We ignore current character of second string.
-  if (first.length > 0 && first[0] === "*") {
-    return (
-      match(first.substring(1), second) || match(first, second.substring(1))
-    );
-  }
-
-  return false;
 }

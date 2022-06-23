@@ -28,6 +28,7 @@ export interface WranglerEnvironmentConfig {
   r2_buckets?: {
     binding: string;
     bucket_name?: string;
+    preview_bucket_name?: string;
   }[]; // NOT inherited
   site?: {
     bucket: string;
