@@ -163,10 +163,9 @@ function matchStrings(a: string | string[], b: string): boolean {
   else return a.includes(b);
 }
 
-function parseHeaderArray(
-  input?: null | string
-): undefined | string | string[] {
-  if (input === undefined || input === null) return;
+// headers can be a list: e.g. ["if-match", "a, b, c"] -> "if-match: [a, b, c]"
+function parseHeaderArray(input?: string): undefined | string | string[] {
+  if (input === undefined) return;
   if (typeof input !== "string") return;
   const list = input.split(",");
   if (list.length === 1) return list[0];

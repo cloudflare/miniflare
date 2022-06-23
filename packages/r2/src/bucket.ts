@@ -71,7 +71,7 @@ export interface R2PutOptions {
 
 type R2ListOptionsInclude = ("httpMetadata" | "customMetadata")[];
 
-interface ListResponse {
+interface PartialListResponse {
   objects: R2Object[];
   cursor: string;
 }
@@ -435,40 +435,31 @@ export class R2Bucket {
     validateKey("PUT", key);
     // Validate options
     validatePutOptions(options);
-    // validate md5
-    let { md5 } = options;
-    if (md5 !== undefined) {
-      if (typeof md5 !== "string" && !(md5 instanceof ArrayBuffer)) {
-        throwR2Error("PUT", 400, "The Content-MD5 you specified is not valid.");
-      }
-    }
 
     const { customMetadata = {} } = options;
-    let { onlyIf, httpMetadata } = options;
+    let { md5, onlyIf, httpMetadata } = options;
     onlyIf = parseOnlyIf(onlyIf);
     httpMetadata = parseHttpMetadata(httpMetadata);
 
     // Get meta, and if exists, run onlyIf condtional test
     const meta = (await this.head(key, ctx)) ?? undefined;
-    if (!testR2Conditional(onlyIf, meta)) {
-      return null;
-    }
+    if (!testR2Conditional(onlyIf, meta)) return null;
 
     // Convert value to Uint8Array
-    let stored: Uint8Array;
+    let toStore: Uint8Array;
     if (typeof value === "string") {
-      stored = encoder.encode(value);
+      toStore = encoder.encode(value);
     } else if (value instanceof ReadableStream) {
       // @ts-expect-error @types/node stream/consumers doesn't accept ReadableStream
-      stored = new Uint8Array(await arrayBuffer(value));
+      toStore = new Uint8Array(await arrayBuffer(value));
     } else if (value instanceof ArrayBuffer) {
-      stored = new Uint8Array(value);
+      toStore = new Uint8Array(value);
     } else if (ArrayBuffer.isView(value)) {
-      stored = viewToArray(value);
+      toStore = viewToArray(value);
     } else if (value === null) {
-      stored = new Uint8Array();
+      toStore = new Uint8Array();
     } else if (value instanceof Blob) {
-      stored = new Uint8Array(await value.arrayBuffer());
+      toStore = new Uint8Array(await value.arrayBuffer());
     } else {
       throw new TypeError(
         "R2 put() accepts only nulls, strings, Blobs, ArrayBuffers, ArrayBufferViews, and ReadableStreams as values."
@@ -476,16 +467,16 @@ export class R2Bucket {
     }
 
     // Validate value and metadata size
-    if (stored.byteLength > MAX_VALUE_SIZE) {
+    if (toStore.byteLength > MAX_VALUE_SIZE) {
       throwR2Error(
         "PUT",
         400,
-        `Value length of ${stored.byteLength} exceeds limit of ${MAX_VALUE_SIZE}.`
+        `Value length of ${toStore.byteLength} exceeds limit of ${MAX_VALUE_SIZE}.`
       );
     }
 
     // if md5 is provided, check objects integrity
-    const md5Hash = createMD5(stored);
+    const md5Hash = createMD5(toStore);
     if (md5 !== undefined) {
       // convert to string
       if (md5 instanceof ArrayBuffer) {
@@ -503,7 +494,7 @@ export class R2Bucket {
     // build metadata
     const metadata: R2ObjectMetadata = {
       key,
-      size: stored.byteLength,
+      size: toStore.byteLength,
       etag: md5Hash,
       version: createVersion(),
       httpEtag: `"${md5Hash}"`,
@@ -515,7 +506,7 @@ export class R2Bucket {
     // Store value with expiration and metadata
     await waitForOpenOutputGate();
     await this.#storage.put<R2ObjectMetadata>(key, {
-      value: stored,
+      value: toStore,
       metadata,
     });
     await waitForOpenInputGate();
@@ -544,7 +535,7 @@ export class R2Bucket {
     delimitedPrefixes: Set<string>,
     delimiter?: string,
     cursor?: string
-  ): Promise<ListResponse> {
+  ): Promise<PartialListResponse> {
     const res = await this.#storage.list<R2ObjectMetadata>({
       prefix,
       limit,
@@ -570,7 +561,7 @@ export class R2Bucket {
         // otherwise, return true
         return true;
       })
-      // filter "httpMetadata" and/or "customMetadata", return R2Object
+      // filter "httpMetadata" and/or "customMetadata" if found in "include"
       .map((metadata) => {
         if (!include.includes("httpMetadata")) metadata.httpMetadata = {};
         if (!include.includes("customMetadata")) metadata.customMetadata = {};
@@ -605,7 +596,7 @@ export class R2Bucket {
         delimitedPrefixes,
         delimiter,
         cursor
-      )) as ListResponse;
+      )) as PartialListResponse;
       // update cursor
       cursor = _cursor;
       // if no objects found, we are done
