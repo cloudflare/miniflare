@@ -118,14 +118,9 @@ const validatesKeyMacro: Macro<
   await t.throwsAsync(func(r2, String.fromCharCode(parseInt("D801", 16))), {
     message: `R2 ${method.toUpperCase()} failed: (400) Key contains an illegal unicode value(s).`,
   });
-  // await t.throwsAsync(func(r2, "."), {
-  //   instanceOf: TypeError,
-  //   message: '"." is not allowed as a key name.',
-  // });
-  // await t.throwsAsync(func(r2, ".."), {
-  //   instanceOf: TypeError,
-  //   message: '".." is not allowed as a key name.',
-  // });
+  await t.throwsAsync(func(r2, String.fromCharCode(parseInt("DC01", 16))), {
+    message: `R2 ${method.toUpperCase()} failed: (400) Key contains an illegal unicode value(s).`,
+  });
   await t.throwsAsync(func(r2, "".padStart(1025, "x")), {
     instanceOf: Error,
     message: `R2 ${httpMethod} failed: (414) UTF-8 encoded length of 1025 exceeds key length limit of 1024.`,
