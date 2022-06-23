@@ -108,6 +108,7 @@ test("FileStorage: getSuffixMaybeExpired: returns partial values", async (t) => 
   const getNone = await storage.getSuffixMaybeExpired?.("key", 0);
   t.is(utf8Decode(getNone?.value), "");
   // larget than size adds 0s to the end
+  // TODO: Leaving this here, but windows can't handle it, so it's commented out
   // const getMore = await storage.getSuffixMaybeExpired?.("key", 12);
   // t.is(
   //   utf8Decode(getMore?.value),
