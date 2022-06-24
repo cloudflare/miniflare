@@ -38,7 +38,6 @@ test("DurableObjectsPlugin: parses options from argv", (t) => {
     "OBJECT2=Object2@api",
     "--do-persist",
     "path",
-    "--no-do-alarms",
   ]);
   t.deepEqual(options, {
     durableObjects: {
@@ -46,7 +45,6 @@ test("DurableObjectsPlugin: parses options from argv", (t) => {
       OBJECT2: { className: "Object2", scriptName: "api" },
     },
     durableObjectsPersist: "path",
-    durableObjectsAlarms: false,
   });
   options = parsePluginArgv(DurableObjectsPlugin, [
     "-o",
@@ -73,7 +71,6 @@ test("DurableObjectsPlugin: parses options from wrangler config", (t) => {
     },
     miniflare: {
       durable_objects_persist: "path",
-      durable_objects_alarms: false,
     },
   });
   t.deepEqual(options, {
@@ -82,19 +79,16 @@ test("DurableObjectsPlugin: parses options from wrangler config", (t) => {
       OBJECT2: { className: "Object2", scriptName: "other_script" },
     },
     durableObjectsPersist: "path",
-    durableObjectsAlarms: false,
   });
 });
 test("DurableObjectsPlugin: logs options", (t) => {
   const logs = logPluginOptions(DurableObjectsPlugin, {
     durableObjects: { OBJECT1: "Object1", OBJECT2: "Object2" },
     durableObjectsPersist: true,
-    durableObjectsAlarms: true,
   });
   t.deepEqual(logs, [
     "Durable Objects: OBJECT1, OBJECT2",
     "Durable Objects Persistence: true",
-    "Durable Object Alarms: true",
   ]);
 });
 
@@ -325,15 +319,4 @@ test("DurableObjectsPlugin: dispose: deletes all instances", async (t) => {
 
   // Check new instance created
   t.not(await res1.text(), await res2.text());
-});
-
-test("DurableObjectsPlugin: setup alarms and dispose alarms", async (t) => {
-  const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
-    durableObjects: { TEST: "TestObject" },
-    durableObjectsAlarms: false,
-  });
-  await plugin.setup(factory);
-  plugin.dispose();
-  t.false(plugin.durableObjectsAlarms);
 });

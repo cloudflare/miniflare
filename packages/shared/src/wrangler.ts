@@ -57,7 +57,6 @@ export interface WranglerEnvironmentConfig {
     cache?: boolean;
     cache_persist?: boolean | string;
     durable_objects_persist?: boolean | string;
-    durable_objects_alarms?: boolean;
     env_path?: string;
     host?: string;
     port?: number;

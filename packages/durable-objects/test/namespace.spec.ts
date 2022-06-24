@@ -247,7 +247,7 @@ test("DurableObjectStub: fetch: throws with relative urls if compatibility flag 
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
     { log, compat, rootPath },
-    { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
+    { durableObjects: { TEST: "TestObject" } }
   );
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -268,7 +268,7 @@ test("DurableObjectStub: fetch: throws with unknown protocols if compatibility f
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
     { log, compat, rootPath },
-    { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
+    { durableObjects: { TEST: "TestObject" } }
   );
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
@@ -291,7 +291,7 @@ test("DurableObjectStub: fetch: logs warning with unknown protocol if compatibil
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
     { log, compat, rootPath },
-    { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
+    { durableObjects: { TEST: "TestObject" } }
   );
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
