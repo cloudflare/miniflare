@@ -207,10 +207,8 @@ async function list<Value = unknown>(
       keyNames.splice(0, 1);
     }
   }
-  if (originalLimit !== undefined) {
-    // Otherwise, make sure the original `limit` still holds.
-    keyNames = keyNames.slice(0, originalLimit);
-  }
+  // Make sure the original `limit` still holds.
+  if (originalLimit !== undefined) keyNames = keyNames.slice(0, originalLimit);
 
   return get(
     storage,
