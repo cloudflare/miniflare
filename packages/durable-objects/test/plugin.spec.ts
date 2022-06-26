@@ -344,8 +344,8 @@ test("DurableObjectsPlugin: set alarm and run list filteres out alarm", async (t
 
     fetch = async () => {
       await this.state.storage.setAlarm(Date.now() + 60 * 1000);
-      await this.state.storage.list();
-      return new Response("object1");
+      const list = await this.state.storage.list();
+      return new Response(JSON.stringify(list));
     };
     alarm = () => {};
   }
@@ -361,5 +361,5 @@ test("DurableObjectsPlugin: set alarm and run list filteres out alarm", async (t
 
   const ns1: DurableObjectNamespace = result.bindings?.OBJECT1;
   const res1 = await ns1.get(ns1.newUniqueId()).fetch("/");
-  t.is(await res1.text(), "object1");
+  t.is(await res1.text(), "{}");
 });
