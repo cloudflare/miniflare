@@ -1,4 +1,5 @@
 import { existsSync } from "fs";
+import fs from "fs";
 import path from "path";
 import {
   MiniflareError,
@@ -8,10 +9,12 @@ import {
   StoredMeta,
   StoredValueMeta,
   defaultClock,
+  getSQLiteNativeBindingLocation,
   sanitisePath,
   viewToArray,
 } from "@miniflare/shared";
 import { LocalStorage } from "@miniflare/storage-memory";
+import Database from "better-sqlite3";
 import {
   deleteFile,
   readFile,
@@ -102,6 +105,13 @@ export class FileStorage extends LocalStorage {
       if (e.code === "ENOTDIR") return;
       throw e;
     }
+  }
+
+  getSqliteDatabase(): Database.Database {
+    fs.mkdirSync(path.dirname(this.root), { recursive: true });
+    return new Database(this.root + ".sqlite3", {
+      nativeBinding: getSQLiteNativeBindingLocation(),
+    });
   }
 
   async getRangeMaybeExpired<Meta = unknown>(

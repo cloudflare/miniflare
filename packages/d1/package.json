@@ -1,15 +1,16 @@
 {
-  "name": "@miniflare/shared",
+  "name": "@miniflare/d1",
   "version": "2.6.0",
-  "description": "Shared utility module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
+  "description": "Workers D1 module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
     "workers",
     "worker",
     "local",
-    "cloudworker"
+    "d1",
+    "sqlite"
   ],
-  "author": "MrBBot <me@mrbbot.dev>",
+  "author": "Glen Maddern <glen@glenmaddern.com>",
   "license": "MIT",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
@@ -25,22 +26,19 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cloudflare/miniflare.git",
-    "directory": "packages/shared"
+    "directory": "packages/d1"
   },
   "bugs": {
     "url": "https://github.com/cloudflare/miniflare/issues"
   },
-  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/shared#readme",
+  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/d1#readme",
   "volta": {
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@types/better-sqlite3": "^7.5.0",
-    "better-sqlite3": "^7.5.3",
-    "ignore": "^5.1.8",
-    "kleur": "^4.1.4"
+    "@miniflare/shared": "2.5.0"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.6.0"
+    "@miniflare/shared-test": "2.5.0"
   }
 }

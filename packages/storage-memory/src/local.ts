@@ -9,8 +9,10 @@ import {
   StoredMeta,
   StoredValueMeta,
   defaultClock,
+  getSQLiteNativeBindingLocation,
   millisToSeconds,
 } from "@miniflare/shared";
+import Database from "better-sqlite3";
 import { listFilterMatch, listPaginate } from "./helpers";
 
 export abstract class LocalStorage extends Storage {
@@ -115,5 +117,12 @@ export abstract class LocalStorage extends Storage {
     const res = listPaginate(options, keys);
     await Promise.all(deletePromises);
     return res;
+  }
+
+  getSqliteDatabase(): Database.Database {
+    const location = getSQLiteNativeBindingLocation();
+    return new Database(":memory:", {
+      nativeBinding: location,
+    });
   }
 }

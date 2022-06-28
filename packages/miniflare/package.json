@@ -53,6 +53,7 @@
     "@miniflare/html-rewriter": "2.6.0",
     "@miniflare/http-server": "2.6.0",
     "@miniflare/kv": "2.6.0",
+    "@miniflare/d1": "2.6.0",
     "@miniflare/r2": "2.6.0",
     "@miniflare/runner-vm": "2.6.0",
     "@miniflare/scheduler": "2.6.0",
