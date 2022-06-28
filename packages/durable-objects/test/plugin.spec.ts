@@ -338,7 +338,7 @@ test("DurableObjectsPlugin: setup alarms and dispose alarms", async (t) => {
   t.false(plugin.durableObjectsAlarms);
 });
 
-test("DurableObjectsPlugin: set alarm and run list filteres out alarm", async (t) => {
+test("DurableObjectsPlugin: set alarm and run list filters out alarm", async (t) => {
   class Object1 implements DurableObject {
     constructor(private readonly state: DurableObjectState) {}
 
