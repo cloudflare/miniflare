@@ -183,28 +183,31 @@ async function list<Value = unknown>(
       "list() cannot be called with both start and startAfter values."
     );
   }
+  options = { ...options };
   const originalLimit = options.limit;
+  // Since alarms now exist in storage, add 1 to the limit to account for
+  // the alarm key.
+  if (options.limit !== undefined) options.limit++;
   if (options.startAfter !== undefined) {
     // If *exclusive* `startAfter` is set, set it as the *inclusive* `start`.
     // Then if `startAfter` does exist as a key, we can remove it later.
     // To ensure we still return `limit` keys in this case, add 1 to the limit
     // if one is set.
-    options = { ...options, start: options.startAfter };
+    options.start = options.startAfter;
     if (options.limit !== undefined) options.limit++;
   }
 
   const { keys } = await storage.list(options);
-  let keyNames = keys.map(({ name }) => name);
+  let keyNames = keys
+    .map(({ name }) => name)
+    .filter((name) => name !== ALARM_KEY);
 
-  if (options.startAfter !== undefined) {
-    if (keyNames[0] === options.startAfter) {
-      // If the first key matched `startAfter`, remove it as this is exclusive.
-      keyNames.splice(0, 1);
-    } else if (originalLimit !== undefined) {
-      // Otherwise, make sure the original `limit` still holds.
-      keyNames = keyNames.slice(0, originalLimit);
-    }
+  if (options.startAfter !== undefined && keyNames[0] === options.startAfter) {
+    // If the first key matched `startAfter`, remove it as this is exclusive.
+    keyNames.splice(0, 1);
   }
+  // Make sure the original `limit` still holds.
+  if (originalLimit !== undefined) keyNames = keyNames.slice(0, originalLimit);
 
   return get(
     storage,

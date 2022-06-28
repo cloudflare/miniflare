@@ -337,3 +337,29 @@ test("DurableObjectsPlugin: setup alarms and dispose alarms", async (t) => {
   plugin.dispose();
   t.false(plugin.durableObjectsAlarms);
 });
+
+test("DurableObjectsPlugin: set alarm and run list filters out alarm", async (t) => {
+  class Object1 implements DurableObject {
+    constructor(private readonly state: DurableObjectState) {}
+
+    fetch = async () => {
+      await this.state.storage.setAlarm(Date.now() + 60 * 1000);
+      const list = await this.state.storage.list();
+      return new Response(JSON.stringify(list));
+    };
+    alarm = () => {};
+  }
+
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { OBJECT1: "Object1" },
+  });
+
+  const result = await plugin.setup(factory);
+  plugin.beforeReload();
+  plugin.reload({}, { Object1 }, new Map());
+
+  const ns1: DurableObjectNamespace = result.bindings?.OBJECT1;
+  const res1 = await ns1.get(ns1.newUniqueId()).fetch("/");
+  t.is(await res1.text(), "{}");
+});
