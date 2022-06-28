@@ -91,7 +91,7 @@ export class AlarmStore {
     const now = Date.now();
     if (typeof scheduledTime !== "number")
       scheduledTime = scheduledTime.getTime();
-    if (scheduledTime === 0) {
+    if (scheduledTime <= 0) {
       throw TypeError("setAlarm() cannot be called with an alarm time <= 0");
     }
     // pull in the alarm or create a new one if it does not exist
