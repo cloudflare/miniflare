@@ -992,8 +992,8 @@ test("setAlarm: backing returns inputed number", async (t) => {
 test("setAlarm: overide alarm", async (t) => {
   const { storage } = t.context;
   await storage.setAlarm(testNumber);
-  await storage.setAlarm(0);
-  t.is(await storage.getAlarm(), 0);
+  await storage.setAlarm(5);
+  t.is(await storage.getAlarm(), 5);
 });
 test("setAlarm: closes input gate unless allowConcurrency", async (t) => {
   const { storage } = t.context;
