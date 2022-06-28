@@ -4,7 +4,7 @@ import { ReadableStream } from "stream/web";
 import { TextDecoder } from "util";
 import { waitForOpenInputGate } from "@miniflare/shared";
 import { Headers } from "undici";
-import { R2Conditional } from "./bucket";
+import { R2Conditional, R2Range } from "./bucket";
 
 interface R2ConditionalUnparsed {
   etagMatches?: string | string[];
@@ -50,13 +50,15 @@ export interface R2ObjectMetadata {
   httpMetadata: R2HTTPMetadata;
   // A map of custom, user-defined metadata associated with the object.
   customMetadata: Record<string, string>;
+  // If a GET request was made with a range option, this will be added
+  range?: R2Range;
 }
 
 const decoder = new TextDecoder();
 
 // NOTE: Incase multipart is ever added to the worker
 // refer to https://stackoverflow.com/questions/12186993/what-is-the-algorithm-to-compute-the-amazon-s3-etag-for-a-file-larger-than-5gb/19896823#19896823
-export function createMD5(input: Uint8Array): string {
+export function createHash(input: Uint8Array): string {
   return crypto.createHash("md5").update(input).digest("hex");
 }
 
@@ -228,6 +230,8 @@ export class R2Object {
   readonly httpMetadata: R2HTTPMetadata;
   // A map of custom, user-defined metadata associated with the object.
   readonly customMetadata: Record<string, string>;
+  // If a GET request was made with a range option, this will be added
+  readonly range?: R2Range;
   constructor(metadata: R2ObjectMetadata) {
     this.key = metadata.key;
     this.version = metadata.version;
@@ -237,6 +241,7 @@ export class R2Object {
     this.uploaded = metadata.uploaded;
     this.httpMetadata = metadata.httpMetadata;
     this.customMetadata = metadata.customMetadata;
+    this.range = metadata.range;
   }
 
   // Retrieves the httpMetadata from the R2Object and applies their corresponding

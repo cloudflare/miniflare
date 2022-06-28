@@ -13,7 +13,7 @@ import {
   R2Objects,
   R2PutOptions,
   R2PutValueType,
-  createMD5,
+  createHash,
   parseR2ObjectMetadata,
 } from "@miniflare/r2";
 import {
@@ -151,7 +151,7 @@ test("head: waits for input gate to open before returning value", async (t) => {
   const { r2 } = t.context;
   await r2.put("key", "value");
   const r2Object = await waitsForInputGate(t, () => r2.head("key"));
-  const etag = createMD5(utf8Encode("value"));
+  const etag = createHash(utf8Encode("value"));
   assert(r2Object);
   t.is(r2Object.key, "key");
   t.is(r2Object.size, "value".length);
@@ -255,7 +255,7 @@ test("get: suffix is NaN", async (t) => {
 
 test("get: onlyIf: etagMatches as a string passes", async (t) => {
   const { r2 } = t.context;
-  const etag = createMD5(utf8Encode("value"));
+  const etag = createHash(utf8Encode("value"));
   await r2.put("key", "value");
   const r2ObjectBody = await r2.get("key", { onlyIf: { etagMatches: etag } });
   assert(r2ObjectBody instanceof R2ObjectBody);
@@ -264,7 +264,7 @@ test("get: onlyIf: etagMatches as a string passes", async (t) => {
 test("get: onlyIf: etagMatches as a Header passes", async (t) => {
   const { r2 } = t.context;
   const headers = new Headers();
-  const etag = createMD5(utf8Encode("value"));
+  const etag = createHash(utf8Encode("value"));
   headers.append("if-match", etag);
   await r2.put("key", "value");
   const r2ObjectBody = await r2.get("key", {
@@ -276,7 +276,7 @@ test("get: onlyIf: etagMatches as a Header passes", async (t) => {
 test("get: onlyIf: etagMatches as a string array passes", async (t) => {
   const { r2 } = t.context;
   await r2.put("key", "value");
-  const etag = createMD5(utf8Encode("value"));
+  const etag = createHash(utf8Encode("value"));
   const r2ObjectBody = await r2.get("key", {
     onlyIf: { etagMatches: [etag, "etag2"] },
   });
@@ -286,7 +286,7 @@ test("get: onlyIf: etagMatches as a string array passes", async (t) => {
 test("get: onlyIf: etagMatches as a headers array passes", async (t) => {
   const { r2 } = t.context;
   const headers = new Headers();
-  const etag = createMD5(utf8Encode("value"));
+  const etag = createHash(utf8Encode("value"));
   headers.append("if-match", `${etag}, etag2`);
   await r2.put("key", "value");
   const r2ObjectBody = await r2.get("key", {
@@ -390,7 +390,7 @@ test("get: onlyIf: uploadedBefore as a date is ignored if etagMatches matches me
   const r2ObjectBody = await r2.get("key", {
     onlyIf: {
       uploadedBefore: date,
-      etagMatches: createMD5(utf8Encode("value")),
+      etagMatches: createHash(utf8Encode("value")),
     },
   });
   assert(r2ObjectBody instanceof R2ObjectBody);
@@ -401,7 +401,7 @@ test("get: onlyIf: uploadedBefore as a headers date is ignored if etagMatches ma
   const date = new Date(Date.now() - 50_000);
   const headers = new Headers();
   headers.append("if-unmodified-since", date.toUTCString());
-  headers.append("if-match", createMD5(utf8Encode("value")));
+  headers.append("if-match", createHash(utf8Encode("value")));
   await r2.put("key", "value");
   const r2ObjectBody = await r2.get("key", {
     onlyIf: headers,
@@ -552,7 +552,7 @@ const putMacro: Macro<
   assert(metadata);
   parseR2ObjectMetadata(metadata);
 
-  const etag = createMD5(get.value);
+  const etag = createHash(get.value);
 
   t.is(key, metadata.key);
   t.is(typeof metadata.version, "string");
@@ -663,7 +663,7 @@ test("with md5 as correct string", putMacro, {
   value: "value",
   expected: { value: utf8Encode("value") },
   options: {
-    md5: createMD5(utf8Encode("value")),
+    md5: createHash(utf8Encode("value")),
   },
 });
 const md5ToBuffer = (input: string): ArrayBuffer => {
@@ -680,7 +680,7 @@ test("with md5 as correct arrayBuffer", putMacro, {
   value: "value",
   expected: { value: utf8Encode("value") },
   options: {
-    md5: md5ToBuffer(createMD5(utf8Encode("value"))),
+    md5: md5ToBuffer(createHash(utf8Encode("value"))),
   },
 });
 test("put: md5 not a string or arrayBuffer", async (t) => {
@@ -765,8 +765,8 @@ test("put: validates value type", async (t) => {
 
 test("put: onlyIf: etagMatches as a string passes", async (t) => {
   const { r2 } = t.context;
-  const etag = createMD5(utf8Encode("value1"));
-  const etag2 = createMD5(utf8Encode("value2"));
+  const etag = createHash(utf8Encode("value1"));
+  const etag2 = createHash(utf8Encode("value2"));
   await r2.put("key", "value1");
   const putRes = await r2.put("key", "value2", {
     onlyIf: { etagMatches: etag },
@@ -781,8 +781,8 @@ test("put: onlyIf: etagMatches as a string passes", async (t) => {
 test("put: onlyIf: etagMatches as a Header passes", async (t) => {
   const { r2 } = t.context;
   const headers = new Headers();
-  const etag = createMD5(utf8Encode("value1"));
-  const etag2 = createMD5(utf8Encode("value2"));
+  const etag = createHash(utf8Encode("value1"));
+  const etag2 = createHash(utf8Encode("value2"));
   headers.append("if-match", etag);
   await r2.put("key", "value1");
   const putRes = await r2.put("key", "value2", {
@@ -797,7 +797,7 @@ test("put: onlyIf: etagMatches as a Header passes", async (t) => {
 });
 test("put: onlyIf: etagMatches as a string array passes", async (t) => {
   const { r2 } = t.context;
-  const etag = createMD5(utf8Encode("value1"));
+  const etag = createHash(utf8Encode("value1"));
   await r2.put("key", "value1");
   const putRes = await r2.put("key", "value2", {
     onlyIf: { etagMatches: [etag, "etag2"] },
@@ -810,7 +810,7 @@ test("put: onlyIf: etagMatches as a string array passes", async (t) => {
 });
 test("put: onlyIf: etagMatches as a headers array passes", async (t) => {
   const { r2 } = t.context;
-  const etag = createMD5(utf8Encode("value1"));
+  const etag = createHash(utf8Encode("value1"));
   const headers = new Headers();
   headers.append("if-match", `${etag}, etag2`);
   await r2.put("key", "value1");
@@ -932,7 +932,7 @@ test("put: onlyIf: uploadedBefore as a date is ignored if etagMatches matches me
   await r2.put("key", "value2", {
     onlyIf: {
       uploadedBefore: date,
-      etagMatches: createMD5(utf8Encode("value1")),
+      etagMatches: createHash(utf8Encode("value1")),
     },
   });
   const r2ObjectBody = await r2.get("key");
@@ -944,7 +944,7 @@ test("put: onlyIf: uploadedBefore as a headers date if etagMatches matches metad
   const date = new Date(Date.now() - 50_000);
   const headers = new Headers();
   headers.append("if-unmodified-since", date.toUTCString());
-  headers.append("if-match", createMD5(utf8Encode("value1")));
+  headers.append("if-match", createHash(utf8Encode("value1")));
   await r2.put("key", "value1");
   await r2.put("key", "value2", {
     onlyIf: headers,
@@ -1009,7 +1009,7 @@ test("put: onlyIf: uploadedAfter as a date is ignored if etagDoesNotMatch does n
   await r2.put("key", "value2", {
     onlyIf: {
       uploadedAfter: date,
-      etagDoesNotMatch: createMD5(utf8Encode("nomatch")),
+      etagDoesNotMatch: createHash(utf8Encode("nomatch")),
     },
   });
   const r2ObjectBody = await r2.get("key");
@@ -1021,7 +1021,7 @@ test("put: onlyIf: uploadedAfter as a headers date is ignored if etagDoesNotMatc
   const date = new Date(Date.now() + 50_000);
   const headers = new Headers();
   headers.append("if-modified-since", date.toUTCString());
-  headers.append("if-none-match", createMD5(utf8Encode("nomatch")));
+  headers.append("if-none-match", createHash(utf8Encode("nomatch")));
   await r2.put("key", "value1");
   await r2.put("key", "value2", {
     onlyIf: headers,

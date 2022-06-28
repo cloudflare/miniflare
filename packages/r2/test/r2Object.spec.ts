@@ -1,8 +1,8 @@
 import { Blob } from "buffer";
-import { ReadableStream } from "stream/web";
+import { ReadableStream, TextDecoderStream, TransformStream } from "stream/web";
 import { TextEncoder } from "util";
 import { viewToArray } from "@miniflare/shared";
-import { getObjectProperties } from "@miniflare/shared-test";
+import { getObjectProperties, utf8Encode } from "@miniflare/shared-test";
 import test from "ava";
 import { Headers } from "undici";
 import { R2Conditional, R2PutValueType } from "../src/bucket";
@@ -11,7 +11,7 @@ import {
   R2Object,
   R2ObjectBody,
   R2ObjectMetadata,
-  createMD5,
+  createHash,
   createVersion,
   parseHttpMetadata,
   parseOnlyIf,
@@ -216,6 +216,7 @@ test("R2Object: R2Object: Correct object properties", (t) => {
     "httpEtag",
     "httpMetadata",
     "key",
+    "range",
     "size",
     "uploaded",
     "version",
@@ -235,6 +236,7 @@ test("R2Object: R2ObjectBody: Hides implementation details", (t) => {
     "httpMetadata",
     "json",
     "key",
+    "range",
     "size",
     "text",
     "uploaded",
@@ -243,8 +245,8 @@ test("R2Object: R2ObjectBody: Hides implementation details", (t) => {
   ]);
 });
 
-test("R2Object: createMD5", (t) => {
-  const md5 = createMD5(encoder.encode("hello world"));
+test("R2Object: createHash", (t) => {
+  const md5 = createHash(encoder.encode("hello world"));
   // pulled from https://www.md5hashgenerator.com/
   t.is(md5, "5eb63bbbe01eeed093cb22bb8f5acdc3");
 });
@@ -476,4 +478,20 @@ test("R2Object: parseR2ObjectMetadata", (t) => {
   parseR2ObjectMetadata(metaClone);
   // now metaClone "uploaded" and "cacheExpiry" should be Date objects
   t.deepEqual(metaClone, metadata);
+});
+
+test("R2Object: R2ObjectBody: push 'body' ReadableStream to TransformStream", async (t) => {
+  const r2ObjectBody = new R2ObjectBody(metadata, utf8Encode("test"));
+  const { readable, writable } = new TransformStream();
+
+  r2ObjectBody.body.pipeTo(writable);
+  // convert readable to string
+  const textStream = readable.pipeThrough(new TextDecoderStream());
+  const reader = textStream.getReader();
+  const { done, value } = await reader.read();
+  t.false(done);
+  t.is(value, "test");
+  const { done: done2, value: value2 } = await reader.read();
+  t.true(done2);
+  t.is(value2, undefined);
 });

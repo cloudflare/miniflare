@@ -73,6 +73,7 @@ export class FileStorage extends LocalStorage {
   ): Promise<FileMeta<Meta> | undefined> {
     const [filePath] = this.keyPath(key);
     if (!filePath) return;
+    if (!existsSync(filePath)) return;
     return await this.meta<Meta>(filePath);
   }
 

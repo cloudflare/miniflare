@@ -16,7 +16,7 @@ import { Headers } from "undici";
 import {
   R2Object,
   R2ObjectBody,
-  createMD5,
+  createHash,
   createVersion,
   parseHttpMetadata,
   parseOnlyIf,
@@ -84,6 +84,8 @@ export interface R2ListOptions {
   // An opaque token that indicates where to continue listing objects from.
   // A cursor can be retrieved from a previous list operation.
   cursor?: string;
+  // Key after which the list results should start, exclusive.
+  startAfter?: string;
   // The character to use when grouping keys.
   delimiter?: string;
   // Can include httpMetadata and/or customMetadata. If included, items returned by
@@ -476,7 +478,7 @@ export class R2Bucket {
     }
 
     // if md5 is provided, check objects integrity
-    const md5Hash = createMD5(toStore);
+    const md5Hash = createHash(toStore);
     if (md5 !== undefined) {
       // convert to string
       if (md5 instanceof ArrayBuffer) {
@@ -534,12 +536,19 @@ export class R2Bucket {
     include: R2ListOptionsInclude,
     delimitedPrefixes: Set<string>,
     delimiter?: string,
+    startAfter?: string,
     cursor?: string
   ): Promise<PartialListResponse> {
+    // the storage list implementation is *inclusive* of start
+    // r2 implementation is *exclusive*
+    // to avoid issues with limit count being wrong, we need to add 1
+    if (startAfter !== undefined) limit++;
+
     const res = await this.#storage.list<R2ObjectMetadata>({
       prefix,
       limit,
       cursor,
+      start: startAfter,
     });
 
     const objects = res.keys
@@ -571,6 +580,16 @@ export class R2Bucket {
         return new R2Object(metadata);
       });
 
+    // if startAfter is provided, ensure the first object is the one after startAfter
+    // if for some reason the first object is not startAfter itself, reduce size by 1
+    if (startAfter !== undefined) {
+      if (objects[0].key === startAfter) {
+        objects.splice(0, 1);
+      } else if (objects.length > limit - 1) {
+        objects.splice(0, limit - 1);
+      }
+    }
+
     return { objects, cursor: res.cursor };
   }
 
@@ -582,7 +601,7 @@ export class R2Bucket {
 
     validateListOptions(listOptions);
     const { prefix = "", include = [], delimiter } = listOptions;
-    let { limit = MAX_LIST_KEYS, cursor = "" } = listOptions;
+    let { startAfter, limit = MAX_LIST_KEYS, cursor = "" } = listOptions;
 
     // if include contains inputs, we reduce the limit to max 100
     if (include.length > 0) limit = Math.min(limit, 100);
@@ -595,8 +614,11 @@ export class R2Bucket {
         include,
         delimitedPrefixes,
         delimiter,
+        startAfter,
         cursor
       )) as PartialListResponse;
+      // kill startAfter after the first iteration
+      startAfter = undefined;
       // update cursor
       cursor = _cursor;
       // if no objects found, we are done
