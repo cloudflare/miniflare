@@ -100,7 +100,7 @@ export class AlarmStore {
     };
     // update scheduledTime incase old alarm existed
     doAlarm.scheduledTime = scheduledTime;
-    // if the alarm is within the next 31 seconds, set a timeout immedately
+    // if the alarm is within the next 31 seconds, set a timeout immediately
     // add a second to ensure healthy overlap between alarm checks
     if (scheduledTime < now + 31_000) {
       this.#setAlarmTimeout(now, objectKey, doAlarm);
