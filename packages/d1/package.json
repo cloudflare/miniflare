@@ -36,6 +36,7 @@
     "extends": "../../package.json"
   },
   "dependencies": {
+    "@miniflare/core": "^2.5.0",
     "@miniflare/shared": "2.5.0"
   },
   "devDependencies": {

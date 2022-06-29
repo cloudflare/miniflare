@@ -64,7 +64,7 @@ const buildOptions = {
     // Mark sites manifest as external, it's added by SitesPlugin
     "__STATIC_CONTENT_MANIFEST",
     // SQLite requires a better_sqlite3.node file, so don't bundle it
-    "better-sqlite3"
+    "better-sqlite3",
   ],
   logLevel: watch ? "info" : "warning",
   watch,

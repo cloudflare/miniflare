@@ -9,7 +9,7 @@ fun, full-featured, fully-local simulator for Cloudflare Workers. See
 ```js
 import { BetaDatabase } from "@miniflare/d1";
 import { MemoryStorage } from "@miniflare/storage-memory";
-var db = new BetaDatabase(new MemoryStorage());
+const db = new BetaDatabase(new MemoryStorage());
 
 // BetaDatabase only supports .fetch(), once D1 is out of beta the full API will be available here:
 await db.fetch("/execute", {

@@ -2,9 +2,8 @@ import { RequestInit, Response } from "@miniflare/core";
 import { Storage } from "@miniflare/shared";
 import Database from "better-sqlite3";
 
-const _404 = (body: any = {}) =>
-  new Response(JSON.stringify(body), { status: 404 });
-const _200 = (body: any = {}) => new Response(JSON.stringify(body));
+const _404 = (body: any = {}) => Response.json(body, { status: 404 });
+const _200 = (body: any = {}) => Response.json(body);
 
 type Statement = {
   sql: string | string[];
