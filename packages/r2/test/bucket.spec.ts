@@ -1657,23 +1657,104 @@ test("list: delimiter: with prefix and a limit of 1", async (t) => {
   t.deepEqual(delimitedPrefixes1, ["prefix/folder/"]);
 
   // step 2
-  // const {
-  //   objects: objects2,
-  //   truncated: truncated2,
-  //   cursor: cursor2,
-  //   delimitedPrefixes: delimitedPrefixes2,
-  // } = await r2.list({
-  //   prefix: "prefix/",
-  //   delimiter: "/",
-  //   limit: 1,
-  // });
-  // t.deepEqual(
-  //   objects2.map((o) => o.key),
-  //   []
-  // );
-  // t.true(truncated2);
-  // t.not(cursor2, undefined);
-  // t.deepEqual(delimitedPrefixes2, []);
+  const {
+    objects: objects2,
+    truncated: truncated2,
+    cursor: cursor2,
+    delimitedPrefixes: delimitedPrefixes2,
+  } = await r2.list({
+    prefix: "prefix/",
+    delimiter: "/",
+    limit: 1,
+    cursor: cursor1,
+  });
+  t.deepEqual(
+    objects2.map((o) => o.key),
+    []
+  );
+  t.true(truncated2);
+  t.not(cursor2, undefined);
+  t.deepEqual(delimitedPrefixes2, ["prefix/folder/"]);
+
+  // step 3
+  const {
+    objects: objects3,
+    truncated: truncated3,
+    cursor: cursor3,
+    delimitedPrefixes: delimitedPrefixes3,
+  } = await r2.list({
+    prefix: "prefix/",
+    delimiter: "/",
+    limit: 1,
+    cursor: cursor2,
+  });
+  t.deepEqual(
+    objects3.map((o) => o.key),
+    ["prefix/folder0"]
+  );
+  t.true(truncated3);
+  t.not(cursor3, undefined);
+  t.deepEqual(delimitedPrefixes3, []);
+
+  // step 4
+  const {
+    objects: objects4,
+    truncated: truncated4,
+    cursor: cursor4,
+    delimitedPrefixes: delimitedPrefixes4,
+  } = await r2.list({
+    prefix: "prefix/",
+    delimiter: "/",
+    limit: 1,
+    cursor: cursor3,
+  });
+  t.deepEqual(
+    objects4.map((o) => o.key),
+    ["prefix/folder0+abc"]
+  );
+  t.true(truncated4);
+  t.not(cursor4, undefined);
+  t.deepEqual(delimitedPrefixes4, []);
+
+  // step 5
+  const {
+    objects: objects5,
+    truncated: truncated5,
+    cursor: cursor5,
+    delimitedPrefixes: delimitedPrefixes5,
+  } = await r2.list({
+    prefix: "prefix/",
+    delimiter: "/",
+    limit: 1,
+    cursor: cursor4,
+  });
+  t.deepEqual(
+    objects5.map((o) => o.key),
+    []
+  );
+  t.true(truncated5);
+  t.not(cursor5, undefined);
+  t.deepEqual(delimitedPrefixes5, ["prefix/folder2/"]);
+
+  // step 6
+  const {
+    objects: objects6,
+    truncated: truncated6,
+    cursor: cursor6,
+    delimitedPrefixes: delimitedPrefixes6,
+  } = await r2.list({
+    prefix: "prefix/",
+    delimiter: "/",
+    limit: 1,
+    cursor: cursor5,
+  });
+  t.deepEqual(
+    objects6.map((o) => o.key),
+    []
+  );
+  t.false(truncated6);
+  t.is(cursor6, undefined);
+  t.deepEqual(delimitedPrefixes6, ["prefix/folder2/"]);
 });
 
 test("list: startAfter: must be a string", async (t) => {
