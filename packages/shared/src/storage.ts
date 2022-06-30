@@ -1,4 +1,4 @@
-import { FileMeta } from "@miniflare/storage-file";
+import { FileMeta, RangeStoredValueMeta } from "@miniflare/storage-file";
 import { Awaitable } from "./sync";
 
 export interface StoredMeta<Meta = unknown> {
@@ -85,13 +85,13 @@ export abstract class Storage {
   ): Promise<StoredMeta<Meta> | FileMeta<Meta> | undefined>;
   async getRangeMaybeExpired?<Meta = unknown>(
     key: string,
-    start: number,
+    offset: number,
     length?: number
-  ): Promise<StoredValueMeta<Meta> | undefined>;
+  ): Promise<RangeStoredValueMeta<Meta> | undefined>;
   async getSuffixMaybeExpired?<Meta = unknown>(
     key: string,
     suffix: number
-  ): Promise<StoredValueMeta<Meta> | undefined>;
+  ): Promise<RangeStoredValueMeta<Meta> | undefined>;
 
   // Batch functions, default implementations may be overridden to optimise
 

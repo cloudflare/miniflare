@@ -1,6 +1,12 @@
 import fs from "fs/promises";
 import path from "path";
 
+export interface FileRange {
+  value: Buffer;
+  offset: number;
+  length: number;
+}
+
 async function onNotFound<T, V>(promise: Promise<T>, value: V): Promise<T | V> {
   try {
     return await promise;
@@ -24,50 +30,51 @@ export function readFile(
 
 export async function readFileRange(
   filePath: string,
-  start: number,
+  offset: number,
   length?: number
-): Promise<Buffer | undefined> {
+): Promise<FileRange | undefined> {
   let fd: fs.FileHandle | null = null;
   let res: Buffer;
   try {
     if (length === undefined) {
       // get length of file
       const stat = await fs.lstat(filePath);
-      length = stat.size - start;
+      length = stat.size - offset;
     }
     fd = await fs.open(filePath, "r");
     res = Buffer.alloc(length);
-    await fd.read(res, 0, length, start);
+    await fd.read(res, 0, length, offset);
   } catch (e: any) {
     if (e.code === "ENOENT") return undefined;
     throw e;
   } finally {
     await fd?.close();
   }
-  return res;
+  return { value: res, offset, length };
 }
 
 export async function readFileSuffix(
   filePath: string,
   suffix: number
-): Promise<Buffer | undefined> {
+): Promise<FileRange | undefined> {
   let fd: fs.FileHandle | null = null;
   let res: Buffer;
+  let offset: number, length: number;
   try {
     // get length of file
     const { size } = await fs.lstat(filePath);
-    const start = size - suffix;
-    const length = size - start;
+    offset = size - suffix;
+    length = size - offset;
     fd = await fs.open(filePath, "r");
     res = Buffer.alloc(length);
-    await fd.read(res, 0, length, start);
+    await fd.read(res, 0, length, offset);
   } catch (e: any) {
     if (e.code === "ENOENT") return undefined;
     throw e;
   } finally {
     await fd?.close();
   }
-  return res;
+  return { value: res, offset, length };
 }
 
 export async function writeFile(

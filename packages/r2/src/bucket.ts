@@ -12,6 +12,7 @@ import {
   waitForOpenInputGate,
   waitForOpenOutputGate,
 } from "@miniflare/shared";
+import { RangeStoredValueMeta } from "@miniflare/storage-file";
 import { Headers } from "undici";
 import {
   R2Object,
@@ -24,6 +25,10 @@ import {
   testR2Conditional,
 } from "./r2Object";
 import { R2HTTPMetadata, R2ObjectMetadata } from "./r2Object";
+
+interface R2StoredValueMeta<Meta = unknown> extends StoredValueMeta<Meta> {
+  range?: undefined;
+}
 
 // For more information, refer to https://datatracker.ietf.org/doc/html/rfc7232
 export interface R2Conditional {
@@ -261,7 +266,7 @@ function validatePutOptions(options: R2PutOptions): void {
 }
 
 function validateListOptions(options: R2ListOptions): void {
-  const { limit, prefix, cursor, delimiter, include } = options;
+  const { limit, prefix, cursor, delimiter, startAfter, include } = options;
 
   if (limit !== undefined) {
     if (typeof limit !== "number") {
@@ -283,6 +288,9 @@ function validateListOptions(options: R2ListOptions): void {
   }
   if (delimiter !== undefined && typeof delimiter !== "string") {
     throwR2Error("LIST", 400, "delimiter must be a string or undefined.");
+  }
+  if (startAfter !== undefined && typeof startAfter !== "string") {
+    throwR2Error("LIST", 400, "startAfter must be a string or undefined.");
   }
   if (include !== undefined) {
     if (!Array.isArray(include)) {
@@ -384,7 +392,10 @@ export class R2Bucket {
       return new R2Object(meta);
     }
 
-    let stored: StoredValueMeta<R2ObjectMetadata> | undefined;
+    let stored:
+      | R2StoredValueMeta<R2ObjectMetadata>
+      | RangeStoredValueMeta<R2ObjectMetadata>
+      | undefined;
 
     // get data dependent upon whether suffix or range exists
     if (typeof range.suffix === "number") {
@@ -423,6 +434,8 @@ export class R2Bucket {
     const { value, metadata } = stored;
     // fix dates
     parseR2ObjectMetadata(metadata);
+    // add range should it exist
+    if (stored.range !== undefined) metadata.range = stored.range;
 
     return new R2ObjectBody(metadata, value);
   }
@@ -600,8 +613,14 @@ export class R2Bucket {
     const delimitedPrefixes = new Set<string>();
 
     validateListOptions(listOptions);
-    const { prefix = "", include = [], delimiter } = listOptions;
-    let { startAfter, limit = MAX_LIST_KEYS, cursor = "" } = listOptions;
+    const { prefix = "", include = [] } = listOptions;
+    let {
+      delimiter,
+      startAfter,
+      limit = MAX_LIST_KEYS,
+      cursor = "",
+    } = listOptions;
+    if (delimiter === "") delimiter = undefined;
 
     // if include contains inputs, we reduce the limit to max 100
     if (include.length > 0) limit = Math.min(limit, 100);

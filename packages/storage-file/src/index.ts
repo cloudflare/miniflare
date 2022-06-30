@@ -31,6 +31,14 @@ export interface FileMeta<Meta = unknown> extends StoredMeta<Meta> {
   key?: string;
 }
 
+export interface RangeStoredValueMeta<Meta = unknown>
+  extends StoredValueMeta<Meta> {
+  range: {
+    offset: number;
+    length: number;
+  };
+}
+
 export class FileStorage extends LocalStorage {
   protected readonly root: string;
 
@@ -103,21 +111,23 @@ export class FileStorage extends LocalStorage {
 
   async getRangeMaybeExpired<Meta = unknown>(
     key: string,
-    start: number,
-    length?: number
-  ): Promise<StoredValueMeta<Meta> | undefined> {
+    inputOffset: number,
+    inputRange?: number
+  ): Promise<RangeStoredValueMeta<Meta> | undefined> {
     const [filePath] = this.keyPath(key);
     if (!filePath) return;
 
     try {
-      const value = await readFileRange(filePath, start, length);
+      const res = await readFileRange(filePath, inputOffset, inputRange);
+      if (res === undefined) return;
 
-      if (value === undefined) return;
+      const { value, offset, length } = res;
       const meta = await this.meta<Meta>(filePath);
       return {
         value: viewToArray(value),
         expiration: meta.expiration,
         metadata: meta.metadata,
+        range: { offset, length },
       };
     } catch (e: any) {
       // We'll get this error if we try to get a namespaced key, where the
@@ -131,20 +141,22 @@ export class FileStorage extends LocalStorage {
   async getSuffixMaybeExpired?<Meta = unknown>(
     key: string,
     suffix: number
-  ): Promise<StoredValueMeta<Meta> | undefined> {
+  ): Promise<RangeStoredValueMeta<Meta> | undefined> {
     const [filePath] = this.keyPath(key);
     if (!filePath) return;
     if (suffix < 0) return;
 
     try {
-      const value = await readFileSuffix(filePath, suffix);
+      const res = await readFileSuffix(filePath, suffix);
+      if (res === undefined) return;
 
-      if (value === undefined) return;
+      const { value, offset, length } = res;
       const meta = await this.meta<Meta>(filePath);
       return {
         value: viewToArray(value),
         expiration: meta.expiration,
         metadata: meta.metadata,
+        range: { offset, length },
       };
     } catch (e: any) {
       // We'll get this error if we try to get a namespaced key, where the

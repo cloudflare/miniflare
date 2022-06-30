@@ -5,6 +5,7 @@ import { viewToArray } from "@miniflare/shared";
 import { getObjectProperties, utf8Encode } from "@miniflare/shared-test";
 import test from "ava";
 import { Headers } from "undici";
+import { Response } from "undici";
 import { R2Conditional, R2PutValueType } from "../src/bucket";
 import {
   R2HTTPMetadata,
@@ -494,4 +495,14 @@ test("R2Object: R2ObjectBody: push 'body' ReadableStream to TransformStream", as
   const { done: done2, value: value2 } = await reader.read();
   t.true(done2);
   t.is(value2, undefined);
+});
+
+test("R2Object: R2ObjectBody: push 'body' ReadableStream to Response", async (t) => {
+  const r2ObjectBody = new R2ObjectBody(metadata, utf8Encode("test"));
+  const { readable, writable } = new TransformStream();
+
+  r2ObjectBody.body.pipeTo(writable);
+  // convert readable to string
+  const testResponse = new Response(readable);
+  t.true(testResponse.body instanceof ReadableStream);
 });

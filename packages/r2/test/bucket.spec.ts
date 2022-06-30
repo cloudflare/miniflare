@@ -199,6 +199,9 @@ test("get: range using offset", async (t) => {
   await r2.put("key", "value");
   const r2ObjectBody = await r2.get("key", { range: { offset: 3 } });
   assert(r2ObjectBody instanceof R2ObjectBody);
+  assert(r2ObjectBody.range);
+  t.is(r2ObjectBody.range.offset, 3);
+  t.is(r2ObjectBody.range.length, "value".length - 3);
   t.is(await r2ObjectBody.text(), "ue");
 });
 test("get: range using length", async (t) => {
@@ -206,6 +209,9 @@ test("get: range using length", async (t) => {
   await r2.put("key", "value");
   const r2ObjectBody = await r2.get("key", { range: { length: 3 } });
   assert(r2ObjectBody instanceof R2ObjectBody);
+  assert(r2ObjectBody.range);
+  t.is(r2ObjectBody.range.offset, 0);
+  t.is(r2ObjectBody.range.length, 3);
   t.is(await r2ObjectBody.text(), "val");
 });
 test("get: range using offset and length", async (t) => {
@@ -213,6 +219,9 @@ test("get: range using offset and length", async (t) => {
   await r2.put("key", "value");
   const r2ObjectBody = await r2.get("key", { range: { offset: 1, length: 3 } });
   assert(r2ObjectBody instanceof R2ObjectBody);
+  assert(r2ObjectBody.range);
+  t.is(r2ObjectBody.range.offset, 1);
+  t.is(r2ObjectBody.range.length, 3);
   t.is(await r2ObjectBody.text(), "alu");
 });
 test("get: range using suffix", async (t) => {
@@ -220,6 +229,9 @@ test("get: range using suffix", async (t) => {
   await r2.put("key", "value");
   const r2ObjectBody = await r2.get("key", { range: { suffix: 3 } });
   assert(r2ObjectBody instanceof R2ObjectBody);
+  assert(r2ObjectBody.range);
+  t.is(r2ObjectBody.range.offset, 2);
+  t.is(r2ObjectBody.range.length, 3);
   t.is(await r2ObjectBody.text(), "lue");
 });
 test("get: offset is NaN", async (t) => {
@@ -1533,7 +1545,7 @@ test("list: delimiter: no delimiter returns an empty array", async (t) => {
   t.is(cursor, undefined);
   t.deepEqual(delimitedPrefixes, []);
 });
-test("list: delimiter: delimiter as empty string returns the commonality.", async (t) => {
+test("list: delimiter: delimiter as empty string becomes undefined.", async (t) => {
   const { r2 } = t.context;
   await r2.put("key1", "value1");
   await r2.put("key2", "value2");
@@ -1541,10 +1553,13 @@ test("list: delimiter: delimiter as empty string returns the commonality.", asyn
   const { objects, truncated, cursor, delimitedPrefixes } = await r2.list({
     delimiter: "",
   });
-  t.deepEqual(objects, []);
+  t.deepEqual(
+    objects.map((o) => o.key),
+    ["key1", "key2", "key3"]
+  );
   t.false(truncated);
   t.is(cursor, undefined);
-  t.deepEqual(delimitedPrefixes, ["k"]);
+  t.deepEqual(delimitedPrefixes, []);
 });
 test("list: delimiter: delimiter only pulls match", async (t) => {
   const { r2 } = t.context;
@@ -1611,6 +1626,81 @@ test("list: delimiter: just backslash with foo/ as prefix, foo/bar is returned",
   t.false(truncated);
   t.is(cursor, undefined);
   t.deepEqual(delimitedPrefixes, ["foo/bar/"]);
+});
+// TODO: Rebuild delimiter algo to handle this case.
+test("list: delimiter: with prefix and a limit of 1", async (t) => {
+  const { r2 } = t.context;
+  await r2.put("prefix/folder/abc", "value1");
+  await r2.put("prefix/folder/def", "value2");
+  await r2.put("prefix/folder0", "value3");
+  await r2.put("prefix/folder0+abc", "value4");
+  await r2.put("prefix/folder2/abc", "value5");
+  await r2.put("prefix/folder2/def", "value6");
+
+  // step 1
+  const {
+    objects: objects1,
+    truncated: truncated1,
+    cursor: cursor1,
+    delimitedPrefixes: delimitedPrefixes1,
+  } = await r2.list({
+    prefix: "prefix/",
+    delimiter: "/",
+    limit: 1,
+  });
+  t.deepEqual(
+    objects1.map((o) => o.key),
+    []
+  );
+  t.true(truncated1);
+  t.not(cursor1, undefined);
+  t.deepEqual(delimitedPrefixes1, ["prefix/folder/"]);
+
+  // step 2
+  // const {
+  //   objects: objects2,
+  //   truncated: truncated2,
+  //   cursor: cursor2,
+  //   delimitedPrefixes: delimitedPrefixes2,
+  // } = await r2.list({
+  //   prefix: "prefix/",
+  //   delimiter: "/",
+  //   limit: 1,
+  // });
+  // t.deepEqual(
+  //   objects2.map((o) => o.key),
+  //   []
+  // );
+  // t.true(truncated2);
+  // t.not(cursor2, undefined);
+  // t.deepEqual(delimitedPrefixes2, []);
+});
+
+test("list: startAfter: must be a string", async (t) => {
+  const { r2 } = t.context;
+  await t.throwsAsync(r2.list({ startAfter: 0 as any }), {
+    instanceOf: Error,
+    message: "R2 LIST failed: (400) startAfter must be a string or undefined.",
+  });
+});
+test("list: startAfter: ensure limit and starting position are correct", async (t) => {
+  const { r2 } = t.context;
+  await r2.put("a", "value1");
+  await r2.put("b", "value2");
+  await r2.put("c", "value3");
+  await r2.put("d", "value4");
+  await r2.put("e", "value4");
+  const { objects, truncated, cursor, delimitedPrefixes } = await r2.list({
+    startAfter: "b",
+    limit: 2,
+  });
+  t.deepEqual(
+    objects.map((o) => o.key),
+    ["c", "d"]
+  );
+  t.true(truncated);
+  t.not(cursor, undefined);
+  t.deepEqual(delimitedPrefixes, []);
 });
 
 test("hides implementation details", (t) => {
