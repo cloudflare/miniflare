@@ -197,11 +197,27 @@ function validateGetOptions(options: R2GetOptions): void {
   if (offset !== undefined && typeof offset !== "number") {
     throwR2Error("GET", 400, "offset must either be a number or undefined.");
   }
-  if (length !== undefined && typeof length !== "number") {
-    throwR2Error("GET", 400, "length must either be a number or undefined.");
+  if (length !== undefined) {
+    if (typeof length !== "number") {
+      throwR2Error("GET", 400, "length must either be a number or undefined.");
+    } else if (typeof length === "number" && length <= 0) {
+      throwR2Error(
+        "GET",
+        400,
+        "length must be a positive number greater than 0."
+      );
+    }
   }
-  if (suffix !== undefined && typeof suffix !== "number") {
-    throwR2Error("GET", 400, "suffix must either be a number or undefined.");
+  if (suffix !== undefined) {
+    if (typeof suffix !== "number") {
+      throwR2Error("GET", 400, "suffix must either be a number or undefined.");
+    } else if (typeof suffix === "number" && suffix <= 0) {
+      throwR2Error(
+        "GET",
+        400,
+        "suffix must be a positive number greater than 0."
+      );
+    }
   }
 }
 

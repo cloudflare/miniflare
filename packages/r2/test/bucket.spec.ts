@@ -254,6 +254,16 @@ test("get: length is NaN", async (t) => {
     }
   );
 });
+test("get: length is less than or equal to 0", async (t) => {
+  const { r2 } = t.context;
+  await t.throwsAsync(
+    async () => await r2.get("key", { range: { length: 0 } }),
+    {
+      message:
+        "R2 GET failed: (400) length must be a positive number greater than 0.",
+    }
+  );
+});
 test("get: suffix is NaN", async (t) => {
   const { r2 } = t.context;
   await t.throwsAsync(
@@ -261,6 +271,16 @@ test("get: suffix is NaN", async (t) => {
     {
       message:
         "R2 GET failed: (400) suffix must either be a number or undefined.",
+    }
+  );
+});
+test("get: suffix is less than or equal to 0", async (t) => {
+  const { r2 } = t.context;
+  await t.throwsAsync(
+    async () => await r2.get("key", { range: { suffix: 0 } }),
+    {
+      message:
+        "R2 GET failed: (400) suffix must be a positive number greater than 0.",
     }
   );
 });
