@@ -1,7 +1,7 @@
 {
   "name": "@miniflare/r2",
   "version": "2.5.0",
-  "description": "Workers r2 module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
+  "description": "Workers R2 module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
     "workers",
@@ -9,7 +9,7 @@
     "local",
     "cloudworker"
   ],
-  "author": "MrBBot <me@mrbbot.dev>",
+  "author": "CraigglesO <craiggles@s2maps.io>",
   "license": "MIT",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",

@@ -140,7 +140,7 @@ test("R2Object: R2ObjectBody: writeHttpMetadata works as intended", (t) => {
   );
 });
 
-test("R2Object: R2ObjectBody: Test bodyUsed", async (t) => {
+test("R2Object: R2ObjectBody: test bodyUsed", async (t) => {
   const body = await testValueMacro("hello world");
   await body.arrayBuffer();
 
@@ -151,7 +151,7 @@ test("R2Object: R2ObjectBody: Test bodyUsed", async (t) => {
   });
 });
 
-test("R2Object: R2ObjectBody: Test text", async (t) => {
+test("R2Object: R2ObjectBody: test text", async (t) => {
   const text = "hello world";
   const body = await testValueMacro(text);
   const valueText = await body.text();
@@ -159,7 +159,7 @@ test("R2Object: R2ObjectBody: Test text", async (t) => {
   t.is(valueText, text);
 });
 
-test("R2Object: R2ObjectBody: Test array buffer", async (t) => {
+test("R2Object: R2ObjectBody: test array buffer", async (t) => {
   const text = "hello world";
   const uint8array = encoder.encode(text);
   const body = await testValueMacro(text);
@@ -168,7 +168,7 @@ test("R2Object: R2ObjectBody: Test array buffer", async (t) => {
   t.deepEqual(new Uint8Array(valueArrayBuffer), uint8array);
 });
 
-test("R2Object: R2ObjectBody: Test blob", async (t) => {
+test("R2Object: R2ObjectBody: test blob", async (t) => {
   const text = "hello world";
   const uint8array = encoder.encode(text);
   const blob = new Blob([uint8array]);
@@ -178,7 +178,7 @@ test("R2Object: R2ObjectBody: Test blob", async (t) => {
   t.deepEqual(valueBlob, blob);
 });
 
-test("R2Object: R2ObjectBody: Test JSON", async (t) => {
+test("R2Object: R2ObjectBody: test JSON", async (t) => {
   const json: TestObject = {
     a: "a",
     b: 10,
@@ -201,7 +201,7 @@ test("R2Object: R2ObjectBody: input is null", async (t) => {
   t.is(valueString, "");
 });
 
-test("R2Object: R2ObjectBody: Very large input is consumed as one piece.", async (t) => {
+test("R2Object: R2ObjectBody: very large input is consumed as one piece.", async (t) => {
   const input = new Uint8Array(1_000_000);
   const body = await testValueMacro(input);
   const valueArrayBuffer = await body.arrayBuffer();
@@ -210,7 +210,7 @@ test("R2Object: R2ObjectBody: Very large input is consumed as one piece.", async
   t.deepEqual(uint8array, new Uint8Array(1_000_000));
 });
 
-test("R2Object: R2Object: Correct object properties", (t) => {
+test("R2Object: R2Object: correct object properties", (t) => {
   t.deepEqual(getObjectProperties(r2Object), [
     "customMetadata",
     "etag",
@@ -225,7 +225,7 @@ test("R2Object: R2Object: Correct object properties", (t) => {
   ]);
 });
 
-test("R2Object: R2ObjectBody: Hides implementation details", (t) => {
+test("R2Object: R2ObjectBody: hides implementation details", (t) => {
   t.deepEqual(getObjectProperties(r2ObjectBody), [
     "arrayBuffer",
     "blob",
@@ -264,7 +264,7 @@ test("R2Object: parseHttpMetadata: undefined, and empty object return empty obje
   t.deepEqual(emptyMetadata, {});
 });
 
-test("R2Object: parseHttpMetadata: Each parameter is parsed correctly from R2HTTPMetadata object", (t) => {
+test("R2Object: parseHttpMetadata: each parameter is parsed correctly from R2HTTPMetadata object", (t) => {
   const cacheExpiry = new Date(0);
   const r2httpMetadata: R2HTTPMetadata = {
     contentType: "text/plain",
@@ -283,7 +283,7 @@ test("R2Object: parseHttpMetadata: Each parameter is parsed correctly from R2HTT
   t.is(parsedMetadata.cacheExpiry, cacheExpiry);
 });
 
-test("R2Object: parseHttpMetadata: Params outside R2HTTPMetadata are ignored", (t) => {
+test("R2Object: parseHttpMetadata: params outside R2HTTPMetadata are ignored", (t) => {
   const r2httpMetadata = {
     contentType: "text/plain",
     contentLanguage: "en",
@@ -295,7 +295,7 @@ test("R2Object: parseHttpMetadata: Params outside R2HTTPMetadata are ignored", (
   t.is((parsedMetadata as unknown as any).foo, undefined);
 });
 
-test("R2Object: parseHttpMetadata: Parsing instanceof Headers", (t) => {
+test("R2Object: parseHttpMetadata: parsing instanceof Headers", (t) => {
   const r2httpHeaders = new Headers();
   // test capitalization
   r2httpHeaders.append("Content-Type", "text/plain");
@@ -306,7 +306,7 @@ test("R2Object: parseHttpMetadata: Parsing instanceof Headers", (t) => {
   t.is(parsedMetadata.contentLanguage, "en");
 });
 
-test("R2Object: testR2Conditional: No metadata", (t) => {
+test("R2Object: testR2Conditional: no metadata", (t) => {
   // test metadata is undefined with no data
   t.true(testR2Conditional({}));
   // etagMatches exists with no metadata fails
@@ -319,7 +319,7 @@ test("R2Object: testR2Conditional: No metadata", (t) => {
   t.true(testR2Conditional({ uploadedBefore: new Date() }));
 });
 
-test("R2Object: testR2Conditional: Test etagMatches", (t) => {
+test("R2Object: testR2Conditional: test etagMatches", (t) => {
   // match
   const r2conditional: R2Conditional = {
     etagMatches: "etag",
@@ -344,7 +344,7 @@ test("R2Object: testR2Conditional: Test etagMatches", (t) => {
   t.true(testR2Conditional(r2conditional4, metadata));
 });
 
-test("R2Object: testR2Conditional: Test etagDoesNotMatch", (t) => {
+test("R2Object: testR2Conditional: test etagDoesNotMatch", (t) => {
   // no match
   const r2conditional: R2Conditional = {
     etagDoesNotMatch: "abc",
@@ -368,7 +368,7 @@ test("R2Object: testR2Conditional: Test etagDoesNotMatch", (t) => {
   t.false(testR2Conditional(r2conditional4, metadata));
 });
 
-test("R2Object: testR2Conditional: Test uploadedBefore", (t) => {
+test("R2Object: testR2Conditional: test uploadedBefore", (t) => {
   const r2conditional: R2Conditional = {
     uploadedBefore: new Date(100),
   };
@@ -399,7 +399,7 @@ test("R2Object: testR2Conditional: uploadedBefore is ignored if etagMatches matc
   t.true(testR2Conditional(r2conditional2, testMeta));
 });
 
-test("R2Object: testR2Conditional: Test uploadedAfter", (t) => {
+test("R2Object: testR2Conditional: test uploadedAfter", (t) => {
   const r2conditional: R2Conditional = {
     uploadedAfter: new Date(100),
   };
@@ -437,7 +437,7 @@ test("R2Object: parseOnlyIf: undefined, and empty object return empty objects", 
   t.deepEqual(emptyMetadata, {});
 });
 
-test("R2Object: parseOnlyIf: Each parameter is parsed correctly as an R2Conditional object", (t) => {
+test("R2Object: parseOnlyIf: each parameter is parsed correctly as an R2Conditional object", (t) => {
   const r2conditional = {
     etagMatches: "*",
     etagDoesNotMatch: ["123", "456"],
@@ -451,7 +451,7 @@ test("R2Object: parseOnlyIf: Each parameter is parsed correctly as an R2Conditio
   t.deepEqual(parsed.uploadedAfter, new Date(0));
 });
 
-test("R2Object: parseOnlyIf: Parsing instanceof Headers", (t) => {
+test("R2Object: parseOnlyIf: parsing instanceof Headers", (t) => {
   const r2ConditionalHeaders = new Headers();
   // test capitalization
   r2ConditionalHeaders.append("If-Match", "*");

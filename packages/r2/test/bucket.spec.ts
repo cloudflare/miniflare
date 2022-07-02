@@ -1,7 +1,5 @@
 import assert from "assert";
 import { Blob } from "buffer";
-import fs from "fs/promises";
-import path from "path";
 import { ReadableStream } from "stream/web";
 import {
   R2Bucket,
@@ -23,13 +21,11 @@ import {
   Storage,
   StoredValueMeta,
   base64Encode,
-  sanitisePath,
+  viewToBuffer,
 } from "@miniflare/shared";
 import {
-  TestStorageFactory,
   advancesTime,
   getObjectProperties,
-  storageMacros,
   testClock,
   useTmp,
   utf8Encode,
@@ -62,38 +58,11 @@ interface TestR2ObjectMetadata {
   customMetadata?: Record<string, string>;
 }
 
-class FileStorageFactory extends TestStorageFactory {
-  name = "FileStorage";
-
-  async factory(
-    t: ExecutionContext,
-    seed: Record<string, StoredValueMeta>
-  ): Promise<Storage> {
-    const tmp = await useTmp(t);
-    for (const [key, { value, expiration, metadata }] of Object.entries(seed)) {
-      await fs.mkdir(path.dirname(path.join(tmp, key)), { recursive: true });
-      await fs.writeFile(path.join(tmp, key), value);
-      if (expiration || metadata || key !== sanitisePath(key)) {
-        await fs.writeFile(
-          path.join(tmp, key + ".meta.json"),
-          JSON.stringify({ expiration, metadata, key }),
-          "utf8"
-        );
-      }
-    }
-    return new FileStorage(tmp, true, testClock);
-  }
-}
-
 const test = anyTest as TestInterface<Context>;
 
-const storageFactory = new FileStorageFactory();
-for (const macro of storageMacros) {
-  test(macro, storageFactory);
-}
-
 test.beforeEach(async (t) => {
-  const storage = await storageFactory.factory(t, {});
+  const tmp = await useTmp(t);
+  const storage = new FileStorage(tmp, true, testClock);
   const r2 = new R2Bucket(storage);
   t.context = { storage, r2 };
 });
@@ -698,21 +667,13 @@ test("with md5 as correct string", putMacro, {
     md5: createHash(utf8Encode("value")),
   },
 });
-const md5ToBuffer = (input: string): ArrayBuffer => {
-  const buffer = new ArrayBuffer(input.length / 2);
-  const view = new Uint8Array(buffer);
-  for (let i = 0; i < input.length; i += 2) {
-    view[i / 2] = parseInt(input.slice(i, i + 2), 16);
-  }
-  return buffer;
-};
 
 test("with md5 as correct arrayBuffer", putMacro, {
   key: "text",
   value: "value",
   expected: { value: utf8Encode("value") },
   options: {
-    md5: md5ToBuffer(createHash(utf8Encode("value"))),
+    md5: viewToBuffer(Buffer.from(createHash(utf8Encode("value")), "hex")),
   },
 });
 test("put: md5 not a string or arrayBuffer", async (t) => {
@@ -1313,7 +1274,7 @@ test("paginates keys matching prefix", listMacro, {
   ],
 });
 
-const testEqualityMacro = async (
+const assertEquality = async (
   t: ExecutionContext<Context>,
   objects: R2Object[],
   expectedObjects: TestR2ObjectMetadata[]
@@ -1343,13 +1304,13 @@ test("list: paginates with variable limit", async (t) => {
 
   // Get first page
   let page = await r2.list({ limit: 1 });
-  testEqualityMacro(t, page.objects, [{ key: "key1" }]);
+  assertEquality(t, page.objects, [{ key: "key1" }]);
   t.true(page.truncated);
   t.not(page.cursor, "");
 
   // Get second page with different limit
   page = await r2.list({ limit: 2, cursor: page.cursor });
-  testEqualityMacro(t, page.objects, [{ key: "key2" }, { key: "key3" }]);
+  assertEquality(t, page.objects, [{ key: "key2" }, { key: "key3" }]);
   t.false(page.truncated);
   t.is(page.cursor, undefined);
 });
@@ -1361,7 +1322,7 @@ test("list: returns keys inserted whilst paginating", async (t) => {
 
   // Get first page
   let page = await r2.list({ limit: 2 });
-  testEqualityMacro(t, page.objects, [{ key: "key1" }, { key: "key3" }]);
+  assertEquality(t, page.objects, [{ key: "key1" }, { key: "key3" }]);
   t.true(page.truncated);
   t.not(page.cursor, "");
 
@@ -1371,7 +1332,7 @@ test("list: returns keys inserted whilst paginating", async (t) => {
 
   // Get second page, expecting to see key4 but not key2
   page = await r2.list({ limit: 2, cursor: page.cursor });
-  testEqualityMacro(t, page.objects, [{ key: "key4" }, { key: "key5" }]);
+  assertEquality(t, page.objects, [{ key: "key4" }, { key: "key5" }]);
   t.false(page.truncated);
   t.is(page.cursor, undefined);
 });
@@ -1815,7 +1776,8 @@ test("hides implementation details", (t) => {
   ]);
 });
 test("operations throw outside request handler", async (t) => {
-  const storage = await storageFactory.factory(t, {});
+  const tmp = await useTmp(t);
+  const storage = new FileStorage(tmp, true, testClock);
   const r2 = new R2Bucket(storage, { blockGlobalAsyncIO: true });
   const ctx = new RequestContext({
     externalSubrequestLimit: EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,

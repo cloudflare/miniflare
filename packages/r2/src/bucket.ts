@@ -42,9 +42,13 @@ export interface R2Conditional {
   uploadedAfter?: Date;
 }
 
-export type R2Range = { offset?: number; length?: number; suffix?: number };
+export interface R2Range {
+  offset?: number;
+  length?: number;
+  suffix?: number;
+}
 
-export type R2GetOptions = {
+export interface R2GetOptions {
   // Specifies that the object should only be returned given satisfaction of
   // certain conditions in the R2Conditional. Refer to R2Conditional above.
   onlyIf?: R2Conditional | Headers;
@@ -52,7 +56,7 @@ export type R2GetOptions = {
   // of bytes from the object should be returned. Refer to
   // https://developers.cloudflare.com/r2/runtime-apis/#ranged-reads.
   range?: R2Range;
-};
+}
 
 export type R2PutValueType =
   | ReadableStream
@@ -74,12 +78,7 @@ export interface R2PutOptions {
   md5?: ArrayBuffer | string;
 }
 
-type R2ListOptionsInclude = ("httpMetadata" | "customMetadata")[];
-
-interface PartialListResponse {
-  objects: R2Object[];
-  cursor: string;
-}
+export type R2ListOptionsInclude = ("httpMetadata" | "customMetadata")[];
 
 export interface R2ListOptions {
   // The number of results to return. Defaults to 1000, with a maximum of 1000.
@@ -118,10 +117,17 @@ export interface R2Objects {
   delimitedPrefixes: string[];
 }
 
+interface PartialListResponse {
+  objects: R2Object[];
+  cursor: string;
+}
+
 const MAX_LIST_KEYS = 1_000;
 const MAX_KEY_SIZE = 1024;
 // https://developers.cloudflare.com/r2/platform/limits/ (5GB - 5MB)
 const MAX_VALUE_SIZE = 5 * 1_000 * 1_000 * 1_000 - 5 * 1_000 * 1_000;
+const UNPAIRED_SURROGATE_PAIR_REGEX =
+  /^(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])$/;
 
 const encoder = new TextEncoder();
 
@@ -132,11 +138,9 @@ function throwR2Error(method: Method, status: number, message: string): void {
 }
 
 function validateKey(method: Method, key: string): void {
-  const unpairedSurrogatePairRegex =
-    /^(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])$/;
   // Check key isn't too long and exists outside regex
   const keyLength = encoder.encode(key).byteLength;
-  if (unpairedSurrogatePairRegex.test(key)) {
+  if (UNPAIRED_SURROGATE_PAIR_REGEX.test(key)) {
     throwR2Error(method, 400, "Key contains an illegal unicode value(s).");
   }
   if (keyLength >= MAX_KEY_SIZE) {
@@ -356,7 +360,7 @@ export class R2Bucket {
     return ctx;
   }
 
-  async head(key: string, ctx?: RequestContext): Promise<R2Object | null> {
+  async #head(key: string, ctx?: RequestContext): Promise<R2Object | null> {
     if (ctx === undefined) ctx = this.#prepareCtx("HEAD", key);
 
     // Validate key
@@ -374,6 +378,10 @@ export class R2Bucket {
     parseR2ObjectMetadata(metadata);
 
     return new R2Object(metadata);
+  }
+
+  async head(key: string): Promise<R2Object | null> {
+    return this.#head(key);
   }
 
   /**
@@ -400,7 +408,7 @@ export class R2Bucket {
     // In the event that an onlyIf precondition fails, we return
     // the R2Object without the body. Otherwise return with body.
     const onlyIf = parseOnlyIf(options.onlyIf);
-    const meta = await this.head(key, ctx);
+    const meta = await this.#head(key, ctx);
     // if bad metadata, return null
     if (meta === null) return null;
     // test conditional should it exist
@@ -420,7 +428,7 @@ export class R2Bucket {
           key,
           range.suffix
         );
-      } catch (_) {
+      } catch {
         throwR2Error("GET", 400, "The requested range is not satisfiable.");
       }
     } else if (
@@ -436,7 +444,7 @@ export class R2Bucket {
           range.offset ?? 0,
           range.length
         );
-      } catch (_) {
+      } catch {
         throwR2Error("GET", 400, "The requested range is not satisfiable.");
       }
     } else {
@@ -473,7 +481,7 @@ export class R2Bucket {
     httpMetadata = parseHttpMetadata(httpMetadata);
 
     // Get meta, and if exists, run onlyIf condtional test
-    const meta = (await this.head(key, ctx)) ?? undefined;
+    const meta = (await this.#head(key, ctx)) ?? undefined;
     if (!testR2Conditional(onlyIf, meta)) return null;
 
     // Convert value to Uint8Array
@@ -583,12 +591,9 @@ export class R2Bucket {
     const objects = res.keys
       // grab metadata
       .map((k) => k.metadata)
-      // filter out undefined metadata
-      .filter(
-        (metadata): metadata is R2ObjectMetadata => metadata !== undefined
-      )
       // filter out objects that exist within the delimiter
-      .filter((metadata) => {
+      .filter((metadata): metadata is R2ObjectMetadata => {
+        if (metadata === undefined) return false;
         const objectKey = metadata.key.slice(prefix.length);
         if (delimiter !== undefined && objectKey.includes(delimiter)) {
           const delimitedPrefix =
@@ -643,7 +648,7 @@ export class R2Bucket {
 
     // iterate until we find no more objects or we have reached the limit
     do {
-      const { objects: _objects, cursor: _cursor } = (await this.#list(
+      const { objects: _objects, cursor: _cursor } = await this.#list(
         prefix,
         limit - objects.length, // adjust limit to have the correct cursor returned
         include,
@@ -651,7 +656,7 @@ export class R2Bucket {
         delimiter,
         startAfter,
         cursor
-      )) as PartialListResponse;
+      );
       // kill startAfter after the first iteration
       startAfter = undefined;
       // update cursor

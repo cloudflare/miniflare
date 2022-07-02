@@ -120,11 +120,7 @@ export function testR2Conditional(
   if (metadata === undefined) {
     // the etagDoesNotMatch and uploadedBefore automatically pass
     // etagMatches and uploadedAfter automatically fail if they exist
-    if (etagMatches !== undefined || uploadedAfter !== undefined) {
-      return false;
-    } else {
-      return true;
-    }
+    return etagMatches === undefined && uploadedAfter === undefined;
   }
 
   const { etag, uploaded } = metadata;
@@ -167,11 +163,9 @@ function matchStrings(a: string | string[], b: string): boolean {
 
 // headers can be a list: e.g. ["if-match", "a, b, c"] -> "if-match: [a, b, c]"
 function parseHeaderArray(input?: string): undefined | string | string[] {
-  if (input === undefined) return;
   if (typeof input !== "string") return;
-  const list = input.split(",");
-  if (list.length === 1) return list[0];
-  else return list.map((x) => x.trim());
+  if (!input.includes(",")) return input;
+  return input.split(",").map((x) => x.trim());
 }
 
 export function parseOnlyIf(
@@ -286,29 +280,23 @@ export class R2ObjectBody extends R2Object {
     });
   }
 
-  async #getBody(): Promise<Uint8Array> {
-    if (this.bodyUsed) throw new TypeError("Body already used.");
-
-    for await (const chunk of this.body) return chunk;
-    return new Uint8Array(0);
-  }
-
-  async #getArrayBuffer(): Promise<ArrayBuffer> {
-    const body = await this.#getBody();
-    return body.buffer.slice(
-      body.byteOffset,
-      body.byteLength + body.byteOffset
-    );
-  }
-
   // Returns a Promise that resolves to an ArrayBuffer containing the object’s value.
   async arrayBuffer(): Promise<ArrayBuffer> {
-    return this.#getArrayBuffer();
+    if (this.bodyUsed) throw new TypeError("Body already used.");
+
+    let chunk: undefined | Uint8Array;
+    for await (const chunk of this.body) return chunk;
+    if (chunk === undefined) chunk = new Uint8Array(0);
+
+    return chunk.buffer.slice(
+      chunk.byteOffset,
+      chunk.byteLength + chunk.byteOffset
+    );
   }
 
   // Returns a Promise that resolves to an string containing the object’s value.
   async text(): Promise<string> {
-    return decoder.decode(await this.#getArrayBuffer());
+    return decoder.decode(await this.arrayBuffer());
   }
 
   // Returns a Promise that resolves to the given object containing the object’s value.
@@ -318,6 +306,7 @@ export class R2ObjectBody extends R2Object {
 
   // Returns a Promise that resolves to a binary Blob containing the object’s value.
   async blob(): Promise<Blob> {
-    return new Blob([await this.#getBody()]);
+    const ab = await this.arrayBuffer();
+    return new Blob([new Uint8Array(ab)]);
   }
 }
