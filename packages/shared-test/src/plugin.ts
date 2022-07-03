@@ -3,6 +3,7 @@ import {
   BeforeSetupResult,
   Context,
   ExtractOptions,
+  Log,
   Mount,
   NoOpLog,
   Option,
@@ -27,15 +28,12 @@ export function parsePluginArgv<Plugin extends PluginSignature>(
 export function parsePluginWranglerConfig<Plugin extends PluginSignature>(
   plugin: Plugin,
   config: WranglerConfig,
-  configDir = ""
+  configDir = "",
+  log: Log = new NoOpLog()
 ): ExtractOptions<InstanceType<Plugin>> {
   const result = {} as ExtractOptions<InstanceType<Plugin>>;
   for (const [key, meta] of plugin.prototype.opts?.entries() ?? []) {
-    (result as any)[key] = meta.fromWrangler?.(
-      config,
-      configDir,
-      new NoOpLog()
-    );
+    (result as any)[key] = meta.fromWrangler?.(config, configDir, log);
   }
   return result;
 }
