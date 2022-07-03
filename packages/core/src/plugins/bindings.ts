@@ -243,10 +243,42 @@ export class BindingsPlugin
       const allServices: WranglerServiceConfig[] = [];
       if (services) allServices.push(...services);
       if (experimental_services) allServices.push(...experimental_services);
-      return allServices?.reduce((services, { name, service, environment }) => {
-        services[name] = { service, environment };
-        return services;
-      }, {} as ServiceBindingsOptions);
+      const getBindingName = (
+        service: string,
+        { name, binding }: Partial<WranglerServiceConfig>
+      ): string => {
+        if (name && binding && name !== binding) {
+          throw new MiniflareCoreError(
+            "ERR_SERVICE_NAME_MISMATCH",
+            `Service "${service}" declared with name=${name} and binding=${binding}.
+            \`binding\` key should be used to define binding names.`
+          );
+        } else if (binding === undefined) {
+          if (name) {
+            log.warn(
+              `Service "${service}" is declared using deprecated syntax. Key \`name\` should be renamed to \`binding\`.`
+            );
+            return name;
+          }
+          throw new MiniflareCoreError(
+            "ERR_SERVICE_NO_NAME",
+            `Service "${service}" declared with neither \`bindding\` nor \`name\`.
+            \`binding\` key should be used to define binding names.`
+          );
+        }
+
+        return binding;
+      };
+      return allServices?.reduce(
+        (services, { name, binding, service, environment }) => {
+          services[getBindingName(service, { name, binding })] = {
+            service,
+            environment,
+          };
+          return services;
+        },
+        {} as ServiceBindingsOptions
+      );
     },
   })
   serviceBindings?: ServiceBindingsOptions;
