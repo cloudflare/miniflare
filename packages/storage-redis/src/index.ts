@@ -195,6 +195,8 @@ export class RedisStorage extends Storage {
     }
     if (offset === undefined) offset = 0;
     if (length === undefined) length = size;
+    // TODO: If offset is negative or offset + length goes past the end of the uint8array
+    // create 0 padding and adjust
 
     if (skipMetadata) {
       // If we don't need metadata, just get the value, Redis handles expiry

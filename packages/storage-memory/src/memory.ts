@@ -52,16 +52,20 @@ export class MemoryStorage extends LocalStorage {
   ): RangeStoredValueMeta<Meta> | undefined {
     // corner case: suffix below 0 returns undefined
     if (suffix !== undefined && suffix < 0) return;
+
     const stored = this.map.get(key);
     if (stored === undefined) return undefined;
     const { value } = stored;
     const size = value.length;
+    // build proper offset and length
     if (suffix !== undefined) {
       offset = size - suffix;
       length = size - offset;
     }
     if (offset === undefined) offset = 0;
     if (length === undefined) length = size;
+
+    // TODO: If offset is negative or offset + length goes past the end of the uint8array, create 0 padding
     return {
       value: value.slice(offset, offset + length),
       expiration: stored.expiration,
