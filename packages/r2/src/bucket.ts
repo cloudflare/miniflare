@@ -3,16 +3,15 @@ import { arrayBuffer } from "stream/consumers";
 import { ReadableStream } from "stream/web";
 import { TextEncoder } from "util";
 import {
+  RangeStoredValueMeta,
   RequestContext,
   Storage,
-  StoredValueMeta,
   assertInRequest,
   getRequestContext,
   viewToArray,
   waitForOpenInputGate,
   waitForOpenOutputGate,
 } from "@miniflare/shared";
-import { RangeStoredValueMeta } from "@miniflare/storage-file";
 import { Headers } from "undici";
 import {
   R2Object,
@@ -25,10 +24,6 @@ import {
   testR2Conditional,
 } from "./r2Object";
 import { R2HTTPMetadata, R2ObjectMetadata } from "./r2Object";
-
-interface R2StoredValueMeta<Meta = unknown> extends StoredValueMeta<Meta> {
-  range?: undefined;
-}
 
 // For more information, refer to https://datatracker.ietf.org/doc/html/rfc7232
 export interface R2Conditional {
@@ -316,9 +311,8 @@ function validateListOptions(options: R2ListOptions): void {
     if (!Array.isArray(include)) {
       throwR2Error("LIST", 400, "include must be an array or undefined.");
     }
-    const includeTypes = new Set(["httpMetadata", "customMetadata"]);
     for (const value of include) {
-      if (!includeTypes.has(value)) {
+      if (value !== "httpMetadata" && value !== "customMetadata") {
         throwR2Error(
           "LIST",
           400,
@@ -367,9 +361,7 @@ export class R2Bucket {
     validateKey("HEAD", key);
 
     // Get value, returning null if not found
-    const stored = await this.#storage.headMaybeExpired?.<R2ObjectMetadata>(
-      key
-    );
+    const stored = await this.#storage.head<R2ObjectMetadata>(key);
     // fix dates
     await waitForOpenInputGate();
     ctx?.advanceCurrentTime();
@@ -416,39 +408,18 @@ export class R2Bucket {
       return new R2Object(meta);
     }
 
-    let stored:
-      | R2StoredValueMeta<R2ObjectMetadata>
-      | RangeStoredValueMeta<R2ObjectMetadata>
-      | undefined;
+    let stored: RangeStoredValueMeta<R2ObjectMetadata> | undefined;
 
     // get data dependent upon whether suffix or range exists
-    if (typeof range.suffix === "number") {
-      try {
-        stored = await this.#storage.getSuffixMaybeExpired?.<R2ObjectMetadata>(
-          key,
-          range.suffix
-        );
-      } catch {
-        throwR2Error("GET", 400, "The requested range is not satisfiable.");
-      }
-    } else if (
-      typeof range.offset === "number" ||
-      typeof range.length === "number"
-    ) {
-      if (typeof range.length === "number" && range.length === 0) {
-        throwR2Error("GET", 400, "The requested range is not satisfiable.");
-      }
-      try {
-        stored = await this.#storage.getRangeMaybeExpired?.<R2ObjectMetadata>(
-          key,
-          range.offset ?? 0,
-          range.length
-        );
-      } catch {
-        throwR2Error("GET", 400, "The requested range is not satisfiable.");
-      }
-    } else {
-      stored = await this.#storage.get<R2ObjectMetadata>(key);
+    try {
+      stored = await this.#storage.getRange<R2ObjectMetadata>(
+        key,
+        range.offset,
+        range.length,
+        range.suffix
+      );
+    } catch {
+      throwR2Error("GET", 400, "The requested range is not satisfiable.");
     }
 
     await waitForOpenInputGate();
@@ -459,7 +430,9 @@ export class R2Bucket {
     // fix dates
     parseR2ObjectMetadata(metadata);
     // add range should it exist
-    if (stored.range !== undefined) metadata.range = stored.range;
+    if ("range" in stored && stored.range !== undefined) {
+      metadata.range = stored.range;
+    }
 
     return new R2ObjectBody(metadata, value);
   }

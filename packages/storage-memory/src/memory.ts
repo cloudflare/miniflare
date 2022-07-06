@@ -1,4 +1,4 @@
-import { defaultClock } from "@miniflare/shared";
+import { RangeStoredValueMeta, defaultClock } from "@miniflare/shared";
 import { StoredKeyMeta, StoredMeta, StoredValueMeta } from "@miniflare/shared";
 import { cloneMetadata } from "./helpers";
 import { LocalStorage } from "./local";
@@ -22,6 +22,16 @@ export class MemoryStorage extends LocalStorage {
     );
   }
 
+  headMaybeExpired<Meta>(key: string): StoredMeta<Meta> | undefined {
+    const stored = this.map.get(key);
+    return (
+      stored && {
+        expiration: stored.expiration,
+        metadata: cloneMetadata(stored.metadata),
+      }
+    );
+  }
+
   getMaybeExpired<Meta>(key: string): StoredValueMeta<Meta> | undefined {
     const stored = this.map.get(key);
     // Return fresh copy so caller can mutate without affecting stored
@@ -32,6 +42,35 @@ export class MemoryStorage extends LocalStorage {
         metadata: cloneMetadata(stored.metadata),
       }
     );
+  }
+
+  getRangeMaybeExpired<Meta>(
+    key: string,
+    offset?: number,
+    length?: number,
+    suffix?: number
+  ): RangeStoredValueMeta<Meta> | undefined {
+    // corner case: suffix below 0 returns undefined
+    if (suffix !== undefined && suffix < 0) return;
+    const stored = this.map.get(key);
+    if (stored === undefined) return undefined;
+    const { value } = stored;
+    const size = value.length;
+    if (suffix !== undefined) {
+      offset = size - suffix;
+      length = size - offset;
+    }
+    if (offset === undefined) offset = 0;
+    if (length === undefined) length = size;
+    return {
+      value: value.slice(offset, offset + length),
+      expiration: stored.expiration,
+      metadata: cloneMetadata(stored.metadata),
+      range: {
+        offset,
+        length,
+      },
+    };
   }
 
   put<Meta = unknown>(key: string, value: StoredValueMeta<Meta>): void {

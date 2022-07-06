@@ -1,10 +1,13 @@
 import assert from "assert";
 import {
+  RangeStoredValue,
+  RangeStoredValueMeta,
   Storage,
   StorageListOptions,
   StorageListResult,
   StoredKey,
   StoredKeyMeta,
+  StoredMeta,
   StoredValue,
   StoredValueMeta,
   millisToSeconds,
@@ -43,6 +46,11 @@ export class RedisStorage extends Storage {
   async hasMany(keys: string[]): Promise<number> {
     if (keys.length === 0) return 0;
     return await this.#redis.exists(...keys.map(this.#key));
+  }
+
+  async head<Meta>(key: string): Promise<StoredMeta<Meta> | undefined> {
+    const meta = await this.#redis.get(this.#metaKey(key));
+    return meta === null ? undefined : JSON.parse(meta);
   }
 
   get<Meta = unknown>(
@@ -155,6 +163,80 @@ export class RedisStorage extends Storage {
       }
     }
     return res;
+  }
+
+  getRange<Meta = unknown>(
+    key: string,
+    offset?: number,
+    length?: number,
+    suffix?: number,
+    skipMetadata?: false
+  ): Promise<RangeStoredValueMeta<Meta> | undefined>;
+  getRange(
+    key: string,
+    offset?: number,
+    length?: number,
+    suffix?: number,
+    skipMetadata?: true
+  ): Promise<RangeStoredValue | undefined>;
+  async getRange<Meta>(
+    key: string,
+    offset?: number,
+    length?: number,
+    suffix?: number,
+    skipMetadata?: boolean
+  ): Promise<RangeStoredValueMeta<Meta> | undefined> {
+    if (suffix !== undefined && suffix < 0) return;
+    // ensure offset and length are prepared
+    const size = await this.#redis.memory("USAGE", this.#key(key));
+    if (suffix !== undefined) {
+      offset = size - suffix;
+      length = size - offset;
+    }
+    if (offset === undefined) offset = 0;
+    if (length === undefined) length = size;
+
+    if (skipMetadata) {
+      // If we don't need metadata, just get the value, Redis handles expiry
+      const value = await this.#redis.getrangeBuffer(
+        this.#key(key),
+        offset,
+        offset + length
+      );
+      return value === null
+        ? undefined
+        : {
+            value: viewToArray(value),
+            range: { offset, length },
+          };
+    }
+
+    // If we do, pipeline get the value, metadata and expiration TTL. Ideally,
+    // we'd use EXPIRETIME here but it was only added in Redis 7 so support
+    // wouldn't be great: https://redis.io/commands/expiretime
+    const pipelineRes = await this.#redis
+      .pipeline()
+      .getrangeBuffer(this.#key(key), offset, offset + length)
+      .get(this.#metaKey(key))
+      .pttl(this.#key(key))
+      .exec();
+    // Assert pipeline returned expected number of results successfully
+    assert.strictEqual(pipelineRes.length, 3);
+    this.throwPipelineErrors(pipelineRes);
+    // Extract pipeline results
+    const value: Buffer | null = pipelineRes[0][1];
+    const meta: string | null = pipelineRes[1][1];
+    const ttl: number = pipelineRes[2][1];
+    // Return result
+    if (value === null) return undefined;
+    return {
+      value: viewToArray(value),
+      metadata: meta ? JSON.parse(meta) : undefined,
+      // Used PTTL so ttl is in milliseconds, negative TTL means key didn't
+      // exist or no expiration
+      expiration: ttl >= 0 ? millisToSeconds(Date.now() + ttl) : undefined,
+      range: { offset, length },
+    };
   }
 
   async put<Meta = unknown>(

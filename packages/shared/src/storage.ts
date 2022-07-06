@@ -1,4 +1,3 @@
-import { FileMeta, RangeStoredValueMeta } from "@miniflare/storage-file";
 import { Awaitable } from "./sync";
 
 export interface StoredMeta<Meta = unknown> {
@@ -7,15 +6,29 @@ export interface StoredMeta<Meta = unknown> {
   /** Arbitrary JSON-serializable object */
   metadata?: Meta;
 }
+export interface RangeStoredMeta<Meta = unknown> extends StoredMeta<Meta> {
+  range: {
+    offset: number;
+    length: number;
+  };
+}
 
 export interface StoredValue {
   value: Uint8Array;
+}
+export interface RangeStoredValue extends StoredValue {
+  range: {
+    offset: number;
+    length: number;
+  };
 }
 export interface StoredKey {
   name: string;
 }
 
 export type StoredValueMeta<Meta = unknown> = StoredValue & StoredMeta<Meta>;
+export type RangeStoredValueMeta<Meta = unknown> = RangeStoredValue &
+  RangeStoredMeta<Meta>;
 export type StoredKeyMeta<Meta = unknown> = StoredKey & StoredMeta<Meta>;
 
 export interface StorageListOptions {
@@ -57,6 +70,9 @@ export interface StorageListResult<Key extends StoredKey = StoredKeyMeta> {
  */
 export abstract class Storage {
   abstract has(key: string): Awaitable<boolean>;
+  abstract head<Meta = unknown>(
+    key: string
+  ): Promise<StoredMeta<Meta> | undefined>;
   abstract get<Meta = unknown>(
     key: string,
     skipMetadata?: false
@@ -65,6 +81,20 @@ export abstract class Storage {
     key: string,
     skipMetadata: true
   ): Awaitable<StoredValue | undefined>;
+  abstract getRange<Meta = unknown>(
+    key: string,
+    offset?: number,
+    length?: number,
+    suffix?: number,
+    skipMetadata?: false
+  ): Awaitable<RangeStoredValueMeta<Meta> | undefined>;
+  abstract getRange(
+    key: string,
+    offset?: number,
+    length?: number,
+    suffix?: number,
+    skipMetadata?: true
+  ): Awaitable<RangeStoredValue | undefined>;
   abstract put<Meta = unknown>(
     key: string,
     value: StoredValueMeta<Meta>
@@ -78,20 +108,6 @@ export abstract class Storage {
     options: StorageListOptions,
     skipMetadata: true
   ): Awaitable<StorageListResult<StoredKey>>;
-
-  // Implementations (e.g. storage-file) may override this for efficient range requests
-  async headMaybeExpired?<Meta>(
-    keyFilePath: string
-  ): Promise<StoredMeta<Meta> | FileMeta<Meta> | undefined>;
-  async getRangeMaybeExpired?<Meta = unknown>(
-    key: string,
-    offset: number,
-    length?: number
-  ): Promise<RangeStoredValueMeta<Meta> | undefined>;
-  async getSuffixMaybeExpired?<Meta = unknown>(
-    key: string,
-    suffix: number
-  ): Promise<RangeStoredValueMeta<Meta> | undefined>;
 
   // Batch functions, default implementations may be overridden to optimise
 

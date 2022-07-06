@@ -90,6 +90,7 @@ export function parseHttpMetadata(
       cacheExpiry: cExpiry ? new Date(cExpiry) : undefined,
     };
   } else {
+    httpMetadata = { ...httpMetadata };
     // remove variables that are not part of the HTTP metadata
     const httpMetadataList = [
       "contentType",

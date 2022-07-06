@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { Storage, StoredValueMeta, sanitisePath } from "@miniflare/shared";
+import { StoredValueMeta, sanitisePath } from "@miniflare/shared";
 import {
   TestStorageFactory,
   storageMacros,
@@ -18,7 +18,7 @@ class FileStorageFactory extends TestStorageFactory {
   async factory(
     t: ExecutionContext,
     seed: Record<string, StoredValueMeta>
-  ): Promise<Storage> {
+  ): Promise<FileStorage> {
     const tmp = await useTmp(t);
     for (const [key, { value, expiration, metadata }] of Object.entries(seed)) {
       await fs.mkdir(path.dirname(path.join(tmp, key)), { recursive: true });
@@ -71,68 +71,88 @@ test("FileStorage: getRangeMaybeExpired: returns partial values", async (t) => {
   const storage = await storageFactory.factory(t, {});
   await storage.put("key", { value: utf8Encode("123456789") });
 
-  const getFront = await storage.getRangeMaybeExpired?.("key", 0, 3);
+  const getFront = await storage.getRangeMaybeExpired("key", 0, 3);
   t.is(utf8Decode(getFront?.value), "123");
   t.deepEqual(getFront?.range, { offset: 0, length: 3 });
-  const getBack = await storage.getRangeMaybeExpired?.("key", 6, 3);
+  const getBack = await storage.getRangeMaybeExpired("key", 6, 3);
   t.is(utf8Decode(getBack?.value), "789");
   t.deepEqual(getBack?.range, { offset: 6, length: 3 });
-  const getMiddle = await storage.getRangeMaybeExpired?.("key", 3, 3);
+  const getMiddle = await storage.getRangeMaybeExpired("key", 3, 3);
   t.is(utf8Decode(getMiddle?.value), "456");
   t.deepEqual(getMiddle?.range, { offset: 3, length: 3 });
 
   // below 0 start defaults to 0
-  const outside = await storage.getRangeMaybeExpired?.("key", -2, 3);
+  const outside = await storage.getRangeMaybeExpired("key", -2, 3);
   t.is(utf8Decode(outside?.value), "123");
   t.deepEqual(outside?.range, { offset: -2, length: 3 });
   // past end adds 0 for each missing byte
-  const outside2 = await storage.getRangeMaybeExpired?.("key", 12, 7);
+  const outside2 = await storage.getRangeMaybeExpired("key", 12, 7);
   t.is(
     utf8Decode(outside2?.value),
     utf8Decode(new Uint8Array([0, 0, 0, 0, 0, 0, 0]))
   );
   t.deepEqual(outside2?.range, { offset: 12, length: 7 });
   // length past end just pads with 0s for each missing byte
-  const outside3 = await storage.getRangeMaybeExpired?.("key", 6, 6);
+  const outside3 = await storage.getRangeMaybeExpired("key", 6, 6);
   t.is(
     utf8Decode(outside3?.value),
     "789" + utf8Decode(new Uint8Array([0, 0, 0]))
   );
   t.deepEqual(outside3?.range, { offset: 6, length: 6 });
   // no length provided, returns entire value from start
-  const outside4 = await storage.getRangeMaybeExpired?.("key", 3);
+  const outside4 = await storage.getRangeMaybeExpired("key", 3);
   t.is(utf8Decode(outside4?.value), "456789");
   t.deepEqual(outside4?.range, { offset: 3, length: 6 });
 });
-test("FileStorage: getSuffixMaybeExpired: returns partial values", async (t) => {
+test("FileStorage: getRangeMaybeExpired: suffix: returns partial values", async (t) => {
   const storage = await storageFactory.factory(t, {});
   await storage.put("key", { value: utf8Encode("123456789") });
 
-  const getThree = await storage.getSuffixMaybeExpired?.("key", 3);
+  const getThree = await storage.getRangeMaybeExpired(
+    "key",
+    undefined,
+    undefined,
+    3
+  );
   t.is(utf8Decode(getThree?.value), "789");
   t.deepEqual(getThree?.range, { offset: 6, length: 3 });
-  const getAll = await storage.getSuffixMaybeExpired?.("key", 9);
+  const getAll = await storage.getRangeMaybeExpired(
+    "key",
+    undefined,
+    undefined,
+    9
+  );
   t.is(utf8Decode(getAll?.value), "123456789");
   t.deepEqual(getAll?.range, { offset: 0, length: 9 });
-  const getNone = await storage.getSuffixMaybeExpired?.("key", 0);
+  const getNone = await storage.getRangeMaybeExpired(
+    "key",
+    undefined,
+    undefined,
+    0
+  );
   t.is(utf8Decode(getNone?.value), "");
   t.deepEqual(getNone?.range, { offset: 9, length: 0 });
   // larget than size adds 0s to the end
   // TODO: Leaving this here, but windows can't handle it, so it's commented out
-  // const getMore = await storage.getSuffixMaybeExpired?.("key", 12);
+  // const getMore = await storage.getRangeMaybeExpired("key", undefined, undefined, 12);
   // t.is(
   //   utf8Decode(getMore?.value),
   //   "123456789" + utf8Decode(new Uint8Array([0, 0, 0]))
   // );
   // below 0 returns undefined
-  const getUndefined = await storage.getSuffixMaybeExpired?.("key", -1);
+  const getUndefined = await storage.getRangeMaybeExpired(
+    "key",
+    undefined,
+    undefined,
+    -1
+  );
   t.is(getUndefined?.value, undefined);
   t.is(getUndefined?.range, undefined);
 });
 
 async function unsanitisedStorageFactory(
   t: ExecutionContext
-): Promise<Storage> {
+): Promise<FileStorage> {
   const tmp = await useTmp(t);
   await fs.writeFile(path.join(tmp, "secrets.txt"), "strong password", "utf8");
   const rootPath = path.join(tmp, "root");
@@ -153,37 +173,52 @@ test("FileStorage: get: ignores files outside root", async (t) => {
 test("FileStorage: getRangeMaybeExpired: ignores files outside root", async (t) => {
   const storage = await unsanitisedStorageFactory(t);
   t.is(
+    utf8Decode((await storage.getRangeMaybeExpired("dir/../key", 0, 5))?.value),
+    "value"
+  );
+  t.is(await storage.getRangeMaybeExpired("../secrets.txt", 0, 6), undefined);
+});
+test("FileStorage: getRangeMaybeExpired: suffix: ignores files outside root", async (t) => {
+  const storage = await unsanitisedStorageFactory(t);
+  t.is(
     utf8Decode(
-      (await storage.getRangeMaybeExpired?.("dir/../key", 0, 5))?.value
+      (
+        await storage.getRangeMaybeExpired(
+          "dir/../key",
+          undefined,
+          undefined,
+          5
+        )
+      )?.value
     ),
     "value"
   );
-  t.is(await storage.getRangeMaybeExpired?.("../secrets.txt", 0, 6), undefined);
-});
-test("FileStorage: getSuffixMaybeExpired: ignores files outside root", async (t) => {
-  const storage = await unsanitisedStorageFactory(t);
-  t.is(
-    utf8Decode((await storage.getSuffixMaybeExpired?.("dir/../key", 5))?.value),
-    "value"
-  );
-  t.is(await storage.getSuffixMaybeExpired?.("../secrets.txt", 0), undefined);
+  t.is(await storage.getRangeMaybeExpired("../secrets.txt", 0), undefined);
 });
 test("FileStorage: getRangeMaybeExpired: non-existant file returns undefined", async (t) => {
   const storage = await unsanitisedStorageFactory(t);
-  t.is(await storage.getRangeMaybeExpired?.("doesntexist", 0, 6), undefined);
+  t.is(await storage.getRangeMaybeExpired("doesntexist", 0, 6), undefined);
 });
-test("FileStorage: getSuffixMaybeExpired: non-existant file returns undefined", async (t) => {
+test("FileStorage: getRangeMaybeExpired: suffix: non-existant file returns undefined", async (t) => {
   const storage = await unsanitisedStorageFactory(t);
-  t.is(await storage.getSuffixMaybeExpired?.("doesntexist", 0), undefined);
+  t.is(
+    await storage.getRangeMaybeExpired("doesntexist", undefined, undefined, 0),
+    undefined
+  );
 });
 test("FileStorage: getRangeMaybeExpired: dir that does not exist will return undefined", async (t) => {
   const storage = await unsanitisedStorageFactory(t);
-  const empty = await storage.getRangeMaybeExpired?.("key/sub-key", 0, 6);
+  const empty = await storage.getRangeMaybeExpired("key/sub-key", 0, 6);
   t.is(empty, undefined);
 });
-test("FileStorage: getSuffixMaybeExpired: dir that does not exist will return undefined", async (t) => {
+test("FileStorage: getRangeMaybeExpired: suffix: dir that does not exist will return undefined", async (t) => {
   const storage = await unsanitisedStorageFactory(t);
-  const empty = await storage.getSuffixMaybeExpired?.("key/sub-key", 0);
+  const empty = await storage.getRangeMaybeExpired(
+    "key/sub-key",
+    undefined,
+    undefined,
+    0
+  );
   t.is(empty, undefined);
 });
 test("FileStorage: put: throws on files outside root", async (t) => {

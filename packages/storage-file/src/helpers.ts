@@ -30,12 +30,20 @@ export function readFile(
 
 export async function readFileRange(
   filePath: string,
-  offset: number,
-  length?: number
+  offset?: number,
+  length?: number,
+  suffix?: number
 ): Promise<FileRange | undefined> {
   let fd: fs.FileHandle | null = null;
   let res: Buffer;
   try {
+    // if suffix is provided, build offset and length
+    if (suffix !== undefined) {
+      const { size } = await fs.lstat(filePath);
+      offset = size - suffix;
+      length = size - offset;
+    }
+    if (offset === undefined) offset = 0;
     if (length === undefined) {
       // get length of file
       const stat = await fs.lstat(filePath);

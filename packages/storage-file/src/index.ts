@@ -2,6 +2,7 @@ import { existsSync } from "fs";
 import path from "path";
 import {
   MiniflareError,
+  RangeStoredValueMeta,
   StoredKeyMeta,
   StoredMeta,
   StoredValueMeta,
@@ -14,7 +15,6 @@ import {
   deleteFile,
   readFile,
   readFileRange,
-  readFileSuffix,
   walk,
   writeFile,
 } from "./helpers";
@@ -27,16 +27,8 @@ export type FileStorageErrorCode =
 
 export class FileStorageError extends MiniflareError<FileStorageErrorCode> {}
 
-export interface FileMeta<Meta = unknown> extends StoredMeta<Meta> {
+interface FileMeta<Meta = unknown> extends StoredMeta<Meta> {
   key?: string;
-}
-
-export interface RangeStoredValueMeta<Meta = unknown>
-  extends StoredValueMeta<Meta> {
-  range: {
-    offset: number;
-    length: number;
-  };
 }
 
 export class FileStorage extends LocalStorage {
@@ -111,43 +103,22 @@ export class FileStorage extends LocalStorage {
 
   async getRangeMaybeExpired<Meta = unknown>(
     key: string,
-    inputOffset: number,
-    inputRange?: number
+    inputOffset?: number,
+    inputRange?: number,
+    inputSuffix?: number
   ): Promise<RangeStoredValueMeta<Meta> | undefined> {
+    // corner case: suffix below 0 returns undefined
+    if (inputSuffix !== undefined && inputSuffix < 0) return;
     const [filePath] = this.keyPath(key);
     if (!filePath) return;
 
     try {
-      const res = await readFileRange(filePath, inputOffset, inputRange);
-      if (res === undefined) return;
-
-      const { value, offset, length } = res;
-      const meta = await this.meta<Meta>(filePath);
-      return {
-        value: viewToArray(value),
-        expiration: meta.expiration,
-        metadata: meta.metadata,
-        range: { offset, length },
-      };
-    } catch (e: any) {
-      // We'll get this error if we try to get a namespaced key, where the
-      // namespace itself is also a key (e.g. trying to get "key/sub-key" where
-      // "key" is also a key). In this case, "key/sub-key" doesn't exist.
-      if (e.code === "ENOTDIR") return;
-      throw e;
-    }
-  }
-
-  async getSuffixMaybeExpired?<Meta = unknown>(
-    key: string,
-    suffix: number
-  ): Promise<RangeStoredValueMeta<Meta> | undefined> {
-    const [filePath] = this.keyPath(key);
-    if (!filePath) return;
-    if (suffix < 0) return;
-
-    try {
-      const res = await readFileSuffix(filePath, suffix);
+      const res = await readFileRange(
+        filePath,
+        inputOffset,
+        inputRange,
+        inputSuffix
+      );
       if (res === undefined) return;
 
       const { value, offset, length } = res;
