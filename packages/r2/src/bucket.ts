@@ -96,6 +96,16 @@ export interface R2ListOptions {
   include?: R2ListOptionsInclude;
 }
 
+interface R2PartialListOptions {
+  prefix: string;
+  limit: number;
+  include: R2ListOptionsInclude;
+  delimitedPrefixes: Set<string>;
+  delimiter?: string;
+  startAfter?: string;
+  cursor?: string;
+}
+
 export interface R2Objects {
   // An array of objects matching the list request.
   objects: R2Object[];
@@ -323,6 +333,30 @@ function validateListOptions(options: R2ListOptions): void {
   }
 }
 
+/** @internal */
+export async function _valueToArray(
+  value: R2PutValueType
+): Promise<Uint8Array> {
+  if (typeof value === "string") {
+    return encoder.encode(value);
+  } else if (value instanceof ReadableStream) {
+    // @ts-expect-error @types/node stream/consumers doesn't accept ReadableStream
+    return new Uint8Array(await arrayBuffer(value));
+  } else if (value instanceof ArrayBuffer) {
+    return new Uint8Array(value);
+  } else if (ArrayBuffer.isView(value)) {
+    return viewToArray(value);
+  } else if (value === null) {
+    return new Uint8Array();
+  } else if (value instanceof Blob) {
+    return new Uint8Array(await value.arrayBuffer());
+  } else {
+    throw new TypeError(
+      "R2 put() accepts only nulls, strings, Blobs, ArrayBuffers, ArrayBufferViews, and ReadableStreams as values."
+    );
+  }
+}
+
 export interface InternalR2BucketOptions {
   blockGlobalAsyncIO?: boolean;
 }
@@ -458,25 +492,7 @@ export class R2Bucket {
     if (!testR2Conditional(onlyIf, meta)) return null;
 
     // Convert value to Uint8Array
-    let toStore: Uint8Array;
-    if (typeof value === "string") {
-      toStore = encoder.encode(value);
-    } else if (value instanceof ReadableStream) {
-      // @ts-expect-error @types/node stream/consumers doesn't accept ReadableStream
-      toStore = new Uint8Array(await arrayBuffer(value));
-    } else if (value instanceof ArrayBuffer) {
-      toStore = new Uint8Array(value);
-    } else if (ArrayBuffer.isView(value)) {
-      toStore = viewToArray(value);
-    } else if (value === null) {
-      toStore = new Uint8Array();
-    } else if (value instanceof Blob) {
-      toStore = new Uint8Array(await value.arrayBuffer());
-    } else {
-      throw new TypeError(
-        "R2 put() accepts only nulls, strings, Blobs, ArrayBuffers, ArrayBufferViews, and ReadableStreams as values."
-      );
-    }
+    const toStore = await _valueToArray(value);
 
     // Validate value and metadata size
     if (toStore.byteLength > MAX_VALUE_SIZE) {
@@ -540,15 +556,15 @@ export class R2Bucket {
   // due to the delimiter, we may need to run multiple queries
   // the goal is to keep returning results until either we have no more
   // or objects + delmitedPrefixes are equal to maxResults
-  async #list(
-    prefix: string,
-    limit: number,
-    include: R2ListOptionsInclude,
-    delimitedPrefixes: Set<string>,
-    delimiter?: string,
-    startAfter?: string,
-    cursor?: string
-  ): Promise<PartialListResponse> {
+  async #list({
+    prefix,
+    limit,
+    include,
+    delimitedPrefixes,
+    delimiter,
+    startAfter,
+    cursor,
+  }: R2PartialListOptions): Promise<PartialListResponse> {
     // the storage list implementation is *inclusive* of start
     // r2 implementation is *exclusive*
     // to avoid issues with limit count being wrong, we need to add 1
@@ -621,15 +637,15 @@ export class R2Bucket {
 
     // iterate until we find no more objects or we have reached the limit
     do {
-      const { objects: _objects, cursor: _cursor } = await this.#list(
+      const { objects: _objects, cursor: _cursor } = await this.#list({
         prefix,
-        limit - objects.length, // adjust limit to have the correct cursor returned
+        limit: limit - objects.length, // adjust limit to have the correct cursor returned
         include,
         delimitedPrefixes,
         delimiter,
         startAfter,
-        cursor
-      );
+        cursor,
+      });
       // kill startAfter after the first iteration
       startAfter = undefined;
       // update cursor

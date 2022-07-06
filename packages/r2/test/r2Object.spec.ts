@@ -1,12 +1,11 @@
 import { Blob } from "buffer";
 import { ReadableStream, TextDecoderStream, TransformStream } from "stream/web";
 import { TextEncoder } from "util";
-import { viewToArray } from "@miniflare/shared";
 import { getObjectProperties, utf8Encode } from "@miniflare/shared-test";
 import test from "ava";
 import { Headers } from "undici";
 import { Response } from "undici";
-import { R2Conditional, R2PutValueType } from "../src/bucket";
+import { R2Conditional, _valueToArray } from "../src/bucket";
 import {
   R2HTTPMetadata,
   R2Object,
@@ -56,30 +55,6 @@ const metadata: R2ObjectMetadata = {
 
 const r2Object = new R2Object(metadata);
 const r2ObjectBody = new R2ObjectBody(metadata, new Uint8Array([0, 1, 2, 3]));
-
-const testValueMacro = async (value: R2PutValueType) => {
-  let stored: Uint8Array;
-  if (typeof value === "string") {
-    stored = encoder.encode(value);
-  } else if (value instanceof ReadableStream) {
-    // @ts-expect-error @types/node stream/consumers doesn't accept ReadableStream
-    stored = new Uint8Array(await arrayBuffer(value));
-  } else if (value instanceof ArrayBuffer) {
-    stored = new Uint8Array(value);
-  } else if (ArrayBuffer.isView(value)) {
-    stored = viewToArray(value);
-  } else if (value === null) {
-    stored = new Uint8Array();
-  } else if (value instanceof Blob) {
-    stored = new Uint8Array(await value.arrayBuffer());
-  } else {
-    throw new TypeError(
-      "Accepts only nulls, strings, Blobs, ArrayBuffers, ArrayBufferViews, and ReadableStreams as values."
-    );
-  }
-
-  return new R2ObjectBody(metadata, stored);
-};
 
 test("R2Object: R2Object: null throws error", (t) => {
   t.throws(() => {
@@ -141,7 +116,8 @@ test("R2Object: R2ObjectBody: writeHttpMetadata works as intended", (t) => {
 });
 
 test("R2Object: R2ObjectBody: test bodyUsed", async (t) => {
-  const body = await testValueMacro("hello world");
+  const text = "hello world";
+  const body = new R2ObjectBody(metadata, await _valueToArray(text));
   await body.arrayBuffer();
 
   t.true(body.bodyUsed);
@@ -153,7 +129,7 @@ test("R2Object: R2ObjectBody: test bodyUsed", async (t) => {
 
 test("R2Object: R2ObjectBody: test text", async (t) => {
   const text = "hello world";
-  const body = await testValueMacro(text);
+  const body = new R2ObjectBody(metadata, await _valueToArray(text));
   const valueText = await body.text();
 
   t.is(valueText, text);
@@ -162,7 +138,7 @@ test("R2Object: R2ObjectBody: test text", async (t) => {
 test("R2Object: R2ObjectBody: test array buffer", async (t) => {
   const text = "hello world";
   const uint8array = encoder.encode(text);
-  const body = await testValueMacro(text);
+  const body = new R2ObjectBody(metadata, await _valueToArray(text));
   const valueArrayBuffer = await body.arrayBuffer();
 
   t.deepEqual(new Uint8Array(valueArrayBuffer), uint8array);
@@ -172,7 +148,7 @@ test("R2Object: R2ObjectBody: test blob", async (t) => {
   const text = "hello world";
   const uint8array = encoder.encode(text);
   const blob = new Blob([uint8array]);
-  const body = await testValueMacro(text);
+  const body = new R2ObjectBody(metadata, await _valueToArray(text));
   const valueBlob = await body.blob();
 
   t.deepEqual(valueBlob, blob);
@@ -188,14 +164,14 @@ test("R2Object: R2ObjectBody: test JSON", async (t) => {
   };
   const string = JSON.stringify(json);
 
-  const body = await testValueMacro(string);
+  const body = new R2ObjectBody(metadata, await _valueToArray(string));
   const valueJSON = await body.json<TestObject>();
 
   t.deepEqual(valueJSON, json);
 });
 
 test("R2Object: R2ObjectBody: input is null", async (t) => {
-  const body = await testValueMacro(null);
+  const body = new R2ObjectBody(metadata, await _valueToArray(null));
   const valueString = await body.text();
 
   t.is(valueString, "");
@@ -203,7 +179,7 @@ test("R2Object: R2ObjectBody: input is null", async (t) => {
 
 test("R2Object: R2ObjectBody: very large input is consumed as one piece.", async (t) => {
   const input = new Uint8Array(1_000_000);
-  const body = await testValueMacro(input);
+  const body = new R2ObjectBody(metadata, await _valueToArray(input));
   const valueArrayBuffer = await body.arrayBuffer();
   const uint8array = new Uint8Array(valueArrayBuffer);
 
