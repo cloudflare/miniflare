@@ -72,7 +72,7 @@ export abstract class Storage {
   abstract has(key: string): Awaitable<boolean>;
   abstract head<Meta = unknown>(
     key: string
-  ): Promise<StoredMeta<Meta> | undefined>;
+  ): Awaitable<StoredMeta<Meta> | undefined>;
   abstract get<Meta = unknown>(
     key: string,
     skipMetadata?: false
