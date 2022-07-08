@@ -90,10 +90,10 @@ export abstract class Storage {
   ): Awaitable<RangeStoredValueMeta<Meta> | undefined>;
   abstract getRange(
     key: string,
-    offset?: number,
-    length?: number,
-    suffix?: number,
-    skipMetadata?: true
+    offset: undefined | number,
+    length: undefined | number,
+    suffix: undefined | number,
+    skipMetadata: true
   ): Awaitable<RangeStoredValue | undefined>;
   abstract put<Meta = unknown>(
     key: string,

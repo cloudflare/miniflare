@@ -81,28 +81,64 @@ test("FileStorage: getRangeMaybeExpired: returns partial values", async (t) => {
   t.is(utf8Decode(getMiddle?.value), "456");
   t.deepEqual(getMiddle?.range, { offset: 3, length: 3 });
 
-  // below 0 start defaults to 0
-  const outside = await storage.getRangeMaybeExpired("key", -2, 3);
-  t.is(utf8Decode(outside?.value), "123");
-  t.deepEqual(outside?.range, { offset: -2, length: 3 });
-  // past end adds 0 for each missing byte
-  const outside2 = await storage.getRangeMaybeExpired("key", 12, 7);
-  t.is(
-    utf8Decode(outside2?.value),
-    utf8Decode(new Uint8Array([0, 0, 0, 0, 0, 0, 0]))
-  );
-  t.deepEqual(outside2?.range, { offset: 12, length: 7 });
-  // length past end just pads with 0s for each missing byte
+  // length past end just reduces length
   const outside3 = await storage.getRangeMaybeExpired("key", 6, 6);
-  t.is(
-    utf8Decode(outside3?.value),
-    "789" + utf8Decode(new Uint8Array([0, 0, 0]))
-  );
-  t.deepEqual(outside3?.range, { offset: 6, length: 6 });
+  t.is(utf8Decode(outside3?.value), "789");
+  t.deepEqual(outside3?.range, { offset: 6, length: 3 });
   // no length provided, returns entire value from start
   const outside4 = await storage.getRangeMaybeExpired("key", 3);
   t.is(utf8Decode(outside4?.value), "456789");
   t.deepEqual(outside4?.range, { offset: 3, length: 6 });
+});
+test("FileStorage: getRangeMaybeExpired: throw cases", async (t) => {
+  t.plan(6);
+  const storage = await storageFactory.factory(t, {});
+  await storage.put("key", { value: utf8Encode("123456789") });
+
+  // length 0
+  await t.throwsAsync(
+    async () => await storage.getRangeMaybeExpired("key", 0, 0),
+    {
+      message: "Length must be > 0",
+    }
+  );
+  // length less than 0
+  await t.throwsAsync(
+    async () => await storage.getRangeMaybeExpired("key", 0, -2),
+    {
+      message: "Length must be > 0",
+    }
+  );
+  // offset less than 0
+  await t.throwsAsync(
+    async () => await storage.getRangeMaybeExpired("key", -2),
+    {
+      message: "Offset must be >= 0",
+    }
+  );
+  // offset greather than size
+  await t.throwsAsync(
+    async () => await storage.getRangeMaybeExpired("key", 50),
+    {
+      message: "Offset must be < size",
+    }
+  );
+  // suffix 0
+  await t.throwsAsync(
+    async () =>
+      await storage.getRangeMaybeExpired("key", undefined, undefined, 0),
+    {
+      message: "Suffix must be > 0",
+    }
+  );
+  // suffix less than 0
+  await t.throwsAsync(
+    async () =>
+      await storage.getRangeMaybeExpired("key", undefined, undefined, -2),
+    {
+      message: "Suffix must be > 0",
+    }
+  );
 });
 test("FileStorage: getRangeMaybeExpired: suffix: returns partial values", async (t) => {
   const storage = await storageFactory.factory(t, {});
@@ -124,30 +160,6 @@ test("FileStorage: getRangeMaybeExpired: suffix: returns partial values", async 
   );
   t.is(utf8Decode(getAll?.value), "123456789");
   t.deepEqual(getAll?.range, { offset: 0, length: 9 });
-  const getNone = await storage.getRangeMaybeExpired(
-    "key",
-    undefined,
-    undefined,
-    0
-  );
-  t.is(utf8Decode(getNone?.value), "");
-  t.deepEqual(getNone?.range, { offset: 9, length: 0 });
-  // larget than size adds 0s to the end
-  // TODO: Leaving this here, but windows can't handle it, so it's commented out
-  // const getMore = await storage.getRangeMaybeExpired("key", undefined, undefined, 12);
-  // t.is(
-  //   utf8Decode(getMore?.value),
-  //   "123456789" + utf8Decode(new Uint8Array([0, 0, 0]))
-  // );
-  // below 0 returns undefined
-  const getUndefined = await storage.getRangeMaybeExpired(
-    "key",
-    undefined,
-    undefined,
-    -1
-  );
-  t.is(getUndefined?.value, undefined);
-  t.is(getUndefined?.range, undefined);
 });
 
 async function unsanitisedStorageFactory(

@@ -37,42 +37,28 @@ export async function readFileRange(
   let fd: fs.FileHandle | null = null;
   let res: Buffer;
   try {
-    // if suffix is provided, build offset and length
+    const { size } = await fs.lstat(filePath);
+    // build offset and length as necessary
     if (suffix !== undefined) {
-      const { size } = await fs.lstat(filePath);
+      if (suffix <= 0) {
+        throw new Error("Suffix must be > 0");
+      }
       offset = size - suffix;
       length = size - offset;
     }
     if (offset === undefined) offset = 0;
     if (length === undefined) {
       // get length of file
-      const stat = await fs.lstat(filePath);
-      length = stat.size - offset;
+      length = size - offset;
     }
-    fd = await fs.open(filePath, "r");
-    res = Buffer.alloc(length);
-    await fd.read(res, 0, length, offset);
-  } catch (e: any) {
-    if (e.code === "ENOENT") return undefined;
-    throw e;
-  } finally {
-    await fd?.close();
-  }
-  return { value: res, offset, length };
-}
 
-export async function readFileSuffix(
-  filePath: string,
-  suffix: number
-): Promise<FileRange | undefined> {
-  let fd: fs.FileHandle | null = null;
-  let res: Buffer;
-  let offset: number, length: number;
-  try {
-    // get length of file
-    const { size } = await fs.lstat(filePath);
-    offset = size - suffix;
-    length = size - offset;
+    // check offset and length are valid
+    if (offset < 0) throw new Error("Offset must be >= 0");
+    if (offset >= size) throw new Error("Offset must be < size");
+    if (length <= 0) throw new Error("Length must be > 0");
+    if (offset + length > size) length = size - offset;
+
+    // read file
     fd = await fs.open(filePath, "r");
     res = Buffer.alloc(length);
     await fd.read(res, 0, length, offset);

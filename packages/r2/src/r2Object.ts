@@ -6,7 +6,7 @@ import { waitForOpenInputGate } from "@miniflare/shared";
 import { Headers } from "undici";
 import { R2Conditional, R2Range } from "./bucket";
 
-interface R2ConditionalUnparsed {
+export interface R2ConditionalUnparsed {
   etagMatches?: string | string[];
   etagDoesNotMatch?: string | string[];
   uploadedBefore?: string | Date;

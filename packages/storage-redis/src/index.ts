@@ -50,7 +50,9 @@ export class RedisStorage extends Storage {
 
   async head<Meta>(key: string): Promise<StoredMeta<Meta> | undefined> {
     const meta = await this.#redis.get(this.#metaKey(key));
-    return meta === null ? undefined : JSON.parse(meta);
+    return meta === null
+      ? { metadata: undefined, expiration: undefined }
+      : JSON.parse(meta);
   }
 
   get<Meta = unknown>(
@@ -190,13 +192,21 @@ export class RedisStorage extends Storage {
     // ensure offset and length are prepared
     const size = await this.#redis.memory("USAGE", this.#key(key));
     if (suffix !== undefined) {
+      if (suffix <= 0) {
+        throw new Error("Suffix must be > 0");
+      }
       offset = size - suffix;
       length = size - offset;
     }
     if (offset === undefined) offset = 0;
-    if (length === undefined) length = size;
-    // TODO: If offset is negative or offset + length goes past the end of the uint8array
-    // create 0 padding and adjust
+    if (length === undefined) length = size - offset;
+
+    // if offset is negative, throw an error
+    if (offset < 0) throw new Error("Offset must be >= 0");
+    if (offset > size) throw new Error("Offset must be < size");
+    if (length <= 0) throw new Error("Length must be > 0");
+    // if length goes beyond actual length, adjust length to the end of the value
+    if (offset + length > size) length = size - offset;
 
     if (skipMetadata) {
       // If we don't need metadata, just get the value, Redis handles expiry

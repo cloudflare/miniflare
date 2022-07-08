@@ -50,22 +50,30 @@ export class MemoryStorage extends LocalStorage {
     length?: number,
     suffix?: number
   ): RangeStoredValueMeta<Meta> | undefined {
-    // corner case: suffix below 0 returns undefined
-    if (suffix !== undefined && suffix < 0) return;
-
     const stored = this.map.get(key);
-    if (stored === undefined) return undefined;
+    if (stored === undefined) return;
     const { value } = stored;
-    const size = value.length;
+    const size = value.byteLength;
     // build proper offset and length
     if (suffix !== undefined) {
+      if (suffix <= 0) {
+        throw new Error("Suffix must be > 0");
+      }
       offset = size - suffix;
       length = size - offset;
     }
     if (offset === undefined) offset = 0;
-    if (length === undefined) length = size;
+    if (length === undefined) length = size - offset;
 
-    // TODO: If offset is negative or offset + length goes past the end of the uint8array, create 0 padding
+    // if offset is negative or greater than size, throw an error
+    if (offset < 0) throw new Error("Offset must be >= 0");
+    if (offset > size) throw new Error("Offset must be < size");
+    // if length is less than or equal to 0, throw an error
+    if (length <= 0) throw new Error("Length must be > 0");
+
+    // if length goes beyond actual length, adjust length to the end of the value
+    if (offset + length > size) length = size - offset;
+
     return {
       value: value.slice(offset, offset + length),
       expiration: stored.expiration,

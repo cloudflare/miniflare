@@ -213,6 +213,31 @@ test("get: offset is NaN", async (t) => {
     }
   );
 });
+test("get: offset is less than 0", async (t) => {
+  const { r2 } = t.context;
+  await t.throwsAsync(
+    async () => {
+      await r2.put("key", "value");
+      await r2.get("key", { range: { offset: -2 } });
+    },
+    {
+      message:
+        "R2 GET failed: (400) Invalid range. Starting offset must be greater than or equal to 0.",
+    }
+  );
+});
+test("get: offset is less greater than size", async (t) => {
+  const { r2 } = t.context;
+  await t.throwsAsync(
+    async () => {
+      await r2.put("key", "value");
+      await r2.get("key", { range: { offset: 40 } });
+    },
+    {
+      message: "R2 GET failed: (400) The requested range is not satisfiable.",
+    }
+  );
+});
 test("get: length is NaN", async (t) => {
   const { r2 } = t.context;
   await t.throwsAsync(
@@ -226,10 +251,12 @@ test("get: length is NaN", async (t) => {
 test("get: length is less than or equal to 0", async (t) => {
   const { r2 } = t.context;
   await t.throwsAsync(
-    async () => await r2.get("key", { range: { length: 0 } }),
+    async () => {
+      await r2.put("key", "value");
+      await r2.get("key", { range: { length: 0 } });
+    },
     {
-      message:
-        "R2 GET failed: (400) length must be a positive number greater than 0.",
+      message: "R2 GET failed: (400) The requested range is not satisfiable.",
     }
   );
 });
@@ -246,10 +273,12 @@ test("get: suffix is NaN", async (t) => {
 test("get: suffix is less than or equal to 0", async (t) => {
   const { r2 } = t.context;
   await t.throwsAsync(
-    async () => await r2.get("key", { range: { suffix: 0 } }),
+    async () => {
+      await r2.put("key", "value");
+      await r2.get("key", { range: { suffix: 0 } });
+    },
     {
-      message:
-        "R2 GET failed: (400) suffix must be a positive number greater than 0.",
+      message: "R2 GET failed: (400) The requested range is not satisfiable.",
     }
   );
 });
