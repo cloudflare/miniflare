@@ -59,6 +59,7 @@ export class MemoryStorage extends LocalStorage {
       if (suffix <= 0) {
         throw new Error("Suffix must be > 0");
       }
+      if (suffix > size) suffix = size;
       offset = size - suffix;
       length = size - offset;
     }

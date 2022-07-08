@@ -194,6 +194,23 @@ export const getSuffixMacro: Macro<[TestStorageFactory]> = async (
 getSuffixMacro.title = (providedTitle, { name }) =>
   `${name}: getRange: suffix: returns proper data`;
 
+export const getSuffixLargerThanSizeMacro: Macro<[TestStorageFactory]> = async (
+  t,
+  { factory }
+) => {
+  const storage = await factory(t, MIXED_SEED);
+  const value = await storage.getRange("key1", undefined, undefined, 50);
+  t.is(utf8Decode(value?.value), "value1");
+  t.is(value?.expiration, undefined);
+  t.is(value?.metadata, undefined);
+  t.deepEqual(value?.range, {
+    offset: 0,
+    length: 6,
+  });
+};
+getSuffixLargerThanSizeMacro.title = (providedTitle, { name }) =>
+  `${name}: getRange: suffix: larger than size returns proper data`;
+
 export const getOffsetLengthSuffixMacro: Macro<[TestStorageFactory]> = async (
   t,
   { factory }
