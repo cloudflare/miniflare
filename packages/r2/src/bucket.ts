@@ -439,12 +439,7 @@ export class R2Bucket {
 
     // get data dependent upon whether suffix or range exists
     try {
-      stored = await this.#storage.getRange<R2ObjectMetadata>(
-        key,
-        range.offset,
-        range.length,
-        range.suffix
-      );
+      stored = await this.#storage.getRange<R2ObjectMetadata>(key, range);
     } catch {
       throwR2Error("GET", 400, "The requested range is not satisfiable.");
     }

@@ -1,4 +1,4 @@
-import { RangeStoredValueMeta, defaultClock } from "@miniflare/shared";
+import { Range, RangeStoredValueMeta, defaultClock } from "@miniflare/shared";
 import { StoredKeyMeta, StoredMeta, StoredValueMeta } from "@miniflare/shared";
 import { cloneMetadata } from "./helpers";
 import { LocalStorage } from "./local";
@@ -46,9 +46,7 @@ export class MemoryStorage extends LocalStorage {
 
   getRangeMaybeExpired<Meta>(
     key: string,
-    offset?: number,
-    length?: number,
-    suffix?: number
+    { offset, length, suffix }: Range
   ): RangeStoredValueMeta<Meta> | undefined {
     const stored = this.map.get(key);
     if (stored === undefined) return;

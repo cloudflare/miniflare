@@ -31,6 +31,12 @@ export type RangeStoredValueMeta<Meta = unknown> = RangeStoredValue &
   RangeStoredMeta<Meta>;
 export type StoredKeyMeta<Meta = unknown> = StoredKey & StoredMeta<Meta>;
 
+export interface Range {
+  offset?: number;
+  length?: number;
+  suffix?: number;
+}
+
 export interface StorageListOptions {
   // Stage 1: filtering
   /** Returned keys must start with this string if defined */
@@ -83,16 +89,12 @@ export abstract class Storage {
   ): Awaitable<StoredValue | undefined>;
   abstract getRange<Meta = unknown>(
     key: string,
-    offset?: number,
-    length?: number,
-    suffix?: number,
+    range?: Range,
     skipMetadata?: false
   ): Awaitable<RangeStoredValueMeta<Meta> | undefined>;
   abstract getRange(
     key: string,
-    offset: undefined | number,
-    length: undefined | number,
-    suffix: undefined | number,
+    range: undefined | Range,
     skipMetadata: true
   ): Awaitable<RangeStoredValue | undefined>;
   abstract put<Meta = unknown>(

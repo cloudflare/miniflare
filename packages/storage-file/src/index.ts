@@ -2,6 +2,7 @@ import { existsSync } from "fs";
 import path from "path";
 import {
   MiniflareError,
+  Range,
   RangeStoredValueMeta,
   StoredKeyMeta,
   StoredMeta,
@@ -105,20 +106,13 @@ export class FileStorage extends LocalStorage {
 
   async getRangeMaybeExpired<Meta = unknown>(
     key: string,
-    inputOffset?: number,
-    inputLength?: number,
-    inputSuffix?: number
+    { offset: _offset, length: _length, suffix }: Range
   ): Promise<RangeStoredValueMeta<Meta> | undefined> {
     const [filePath] = this.keyPath(key);
     if (!filePath) return;
 
     try {
-      const res = await readFileRange(
-        filePath,
-        inputOffset,
-        inputLength,
-        inputSuffix
-      );
+      const res = await readFileRange(filePath, _offset, _length, suffix);
       if (res === undefined) return;
 
       const { value, offset, length } = res;

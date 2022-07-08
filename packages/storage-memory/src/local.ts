@@ -1,5 +1,6 @@
 import {
   Awaitable,
+  Range,
   RangeStoredValueMeta,
   Storage,
   StorageListOptions,
@@ -26,9 +27,7 @@ export abstract class LocalStorage extends Storage {
   ): Awaitable<StoredValueMeta<Meta> | undefined>;
   abstract getRangeMaybeExpired<Meta>(
     key: string,
-    offset?: number,
-    range?: number,
-    suffix?: number
+    range: Range
   ): Awaitable<RangeStoredValueMeta<Meta> | undefined>;
   abstract deleteMaybeExpired(key: string): Awaitable<boolean>;
   abstract listAllMaybeExpired<Meta>(): Awaitable<StoredKeyMeta<Meta>[]>;
@@ -73,16 +72,9 @@ export abstract class LocalStorage extends Storage {
 
   async getRange<Meta = unknown>(
     key: string,
-    offset?: number,
-    length?: number,
-    suffix?: number
+    range: Range = {}
   ): Promise<RangeStoredValueMeta<Meta> | undefined> {
-    const stored = await this.getRangeMaybeExpired<Meta>(
-      key,
-      offset,
-      length,
-      suffix
-    );
+    const stored = await this.getRangeMaybeExpired<Meta>(key, range);
     if (stored === undefined) return undefined;
     if (this.expired(stored)) {
       await this.deleteMaybeExpired(key);

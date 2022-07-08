@@ -1,5 +1,6 @@
 import { Blob } from "buffer";
 import crypto from "crypto";
+import { arrayBuffer } from "stream/consumers";
 import { ReadableStream } from "stream/web";
 import { TextDecoder } from "util";
 import { waitForOpenInputGate } from "@miniflare/shared";
@@ -285,14 +286,8 @@ export class R2ObjectBody extends R2Object {
   async arrayBuffer(): Promise<ArrayBuffer> {
     if (this.bodyUsed) throw new TypeError("Body already used.");
 
-    let chunk: undefined | Uint8Array;
-    for await (const chunk of this.body) return chunk;
-    if (chunk === undefined) chunk = new Uint8Array(0);
-
-    return chunk.buffer.slice(
-      chunk.byteOffset,
-      chunk.byteLength + chunk.byteOffset
-    );
+    // @ts-expect-error ReadableStream is missing properties
+    return arrayBuffer(this.body);
   }
 
   // Returns a Promise that resolves to an string containing the object’s value.

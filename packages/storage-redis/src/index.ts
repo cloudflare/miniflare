@@ -1,5 +1,6 @@
 import assert from "assert";
 import {
+  Range,
   RangeStoredValue,
   RangeStoredValueMeta,
   Storage,
@@ -189,25 +190,20 @@ export class RedisStorage extends Storage {
 
   getRange<Meta = unknown>(
     key: string,
-    offset?: number,
-    length?: number,
-    suffix?: number,
+    range?: Range,
     skipMetadata?: false
   ): Promise<RangeStoredValueMeta<Meta> | undefined>;
   getRange(
     key: string,
-    offset?: number,
-    length?: number,
-    suffix?: number,
+    range?: Range,
     skipMetadata?: true
   ): Promise<RangeStoredValue | undefined>;
   async getRange<Meta>(
     key: string,
-    offset?: number,
-    length?: number,
-    suffix?: number,
+    range: Range = {},
     skipMetadata?: boolean
   ): Promise<RangeStoredValueMeta<Meta> | undefined> {
+    let { offset, length, suffix } = range;
     // ensure offset and length are prepared
     const size = await this.#redis.strlen(this.#key(key));
     if (size === 0) return undefined;

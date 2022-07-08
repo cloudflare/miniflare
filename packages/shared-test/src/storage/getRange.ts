@@ -80,13 +80,7 @@ export const getSkipsMetadataMacro: Macro<[TestStorageFactory]> = async (
     return;
   }
   const storage = await factory(t, MIXED_SEED);
-  const value = await storage.getRange(
-    "key2",
-    undefined,
-    undefined,
-    undefined,
-    true
-  );
+  const value = await storage.getRange("key2", {}, true);
   t.is(utf8Decode(value?.value), "value2");
   // @ts-expect-error we're checking this is undefined
   t.is(value?.expiration, undefined);
@@ -131,7 +125,7 @@ export const getOffsetMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t, MIXED_SEED);
-  const value = await storage.getRange("key1", 2);
+  const value = await storage.getRange("key1", { offset: 2 });
   t.is(utf8Decode(value?.value), "lue1");
   t.is(value?.expiration, undefined);
   t.is(value?.metadata, undefined);
@@ -148,7 +142,7 @@ export const getLengthMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t, MIXED_SEED);
-  const value = await storage.getRange("key1", undefined, 2);
+  const value = await storage.getRange("key1", { length: 2 });
   t.is(utf8Decode(value?.value), "va");
   t.is(value?.expiration, undefined);
   t.is(value?.metadata, undefined);
@@ -165,7 +159,7 @@ export const getOffsetLengthMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t, MIXED_SEED);
-  const value = await storage.getRange("key1", 2, 2);
+  const value = await storage.getRange("key1", { offset: 2, length: 2 });
   t.is(utf8Decode(value?.value), "lu");
   t.is(value?.expiration, undefined);
   t.is(value?.metadata, undefined);
@@ -182,7 +176,7 @@ export const getSuffixMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t, MIXED_SEED);
-  const value = await storage.getRange("key1", undefined, undefined, 2);
+  const value = await storage.getRange("key1", { suffix: 2 });
   t.is(utf8Decode(value?.value), "e1");
   t.is(value?.expiration, undefined);
   t.is(value?.metadata, undefined);
@@ -199,7 +193,7 @@ export const getSuffixLargerThanSizeMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t, MIXED_SEED);
-  const value = await storage.getRange("key1", undefined, undefined, 50);
+  const value = await storage.getRange("key1", { suffix: 50 });
   t.is(utf8Decode(value?.value), "value1");
   t.is(value?.expiration, undefined);
   t.is(value?.metadata, undefined);
@@ -216,7 +210,11 @@ export const getOffsetLengthSuffixMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t, MIXED_SEED);
-  const value = await storage.getRange("key1", 2, 2, 2);
+  const value = await storage.getRange("key1", {
+    offset: 2,
+    length: 2,
+    suffix: 2,
+  });
   t.is(utf8Decode(value?.value), "e1");
   t.is(value?.expiration, undefined);
   t.is(value?.metadata, undefined);
@@ -233,7 +231,7 @@ export const getLengthOutsideMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t, MIXED_SEED);
-  const value = await storage.getRange("key1", 4, 4);
+  const value = await storage.getRange("key1", { offset: 4, length: 4 });
   t.is(utf8Decode(value?.value), "e1");
   t.is(value?.expiration, undefined);
   t.is(value?.metadata, undefined);
@@ -250,9 +248,12 @@ export const getOffsetOutsideMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t, MIXED_SEED);
-  await t.throwsAsync(async () => storage.getRange("key1", -2, 4), {
-    message: "Offset must be >= 0",
-  });
+  await t.throwsAsync(
+    async () => storage.getRange("key1", { offset: -2, length: 4 }),
+    {
+      message: "Offset must be >= 0",
+    }
+  );
 };
 getOffsetOutsideMacro.title = (providedTitle, { name }) =>
   `${name}: getRange: offset & length: offset goes beneath start of data throws`;
@@ -260,9 +261,12 @@ getOffsetOutsideMacro.title = (providedTitle, { name }) =>
 export const getOffsetGreaterThanSizeMacro: Macro<[TestStorageFactory]> =
   async (t, { factory }) => {
     const storage = await factory(t, MIXED_SEED);
-    await t.throwsAsync(async () => storage.getRange("key1", 12, 2), {
-      message: "Offset must be < size",
-    });
+    await t.throwsAsync(
+      async () => storage.getRange("key1", { offset: 12, length: 2 }),
+      {
+        message: "Offset must be < size",
+      }
+    );
   };
 getOffsetGreaterThanSizeMacro.title = (providedTitle, { name }) =>
   `${name}: getRange: offset & length: offset goes past size of data throws`;
@@ -272,9 +276,12 @@ export const getLengthIsZeroMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t, MIXED_SEED);
-  await t.throwsAsync(async () => storage.getRange("key1", 0, 0), {
-    message: "Length must be > 0",
-  });
+  await t.throwsAsync(
+    async () => storage.getRange("key1", { offset: 0, length: 0 }),
+    {
+      message: "Length must be > 0",
+    }
+  );
 };
 getLengthIsZeroMacro.title = (providedTitle, { name }) =>
   `${name}: getRange: length: equal to 0 throws`;
@@ -284,9 +291,12 @@ export const getLengthLessThanZeroMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t, MIXED_SEED);
-  await t.throwsAsync(async () => storage.getRange("key1", 0, -2), {
-    message: "Length must be > 0",
-  });
+  await t.throwsAsync(
+    async () => storage.getRange("key1", { offset: 0, length: -2 }),
+    {
+      message: "Length must be > 0",
+    }
+  );
 };
 getLengthLessThanZeroMacro.title = (providedTitle, { name }) =>
   `${name}: getRange: length: less than 0 throws`;
@@ -296,12 +306,9 @@ export const getSuffixZeroMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t, MIXED_SEED);
-  await t.throwsAsync(
-    async () => storage.getRange("key1", undefined, undefined, 0),
-    {
-      message: "Suffix must be > 0",
-    }
-  );
+  await t.throwsAsync(async () => storage.getRange("key1", { suffix: 0 }), {
+    message: "Suffix must be > 0",
+  });
 };
 getSuffixZeroMacro.title = (providedTitle, { name }) =>
   `${name}: getRange: suffix: equal to 0 throws`;
@@ -311,12 +318,9 @@ export const getSuffixTooSmallMacro: Macro<[TestStorageFactory]> = async (
   { factory }
 ) => {
   const storage = await factory(t, MIXED_SEED);
-  await t.throwsAsync(
-    async () => storage.getRange("key1", undefined, undefined, -2),
-    {
-      message: "Suffix must be > 0",
-    }
-  );
+  await t.throwsAsync(async () => storage.getRange("key1", { suffix: -2 }), {
+    message: "Suffix must be > 0",
+  });
 };
 getSuffixTooSmallMacro.title = (providedTitle, { name }) =>
   `${name}: getRange: suffix: less than 0 throws`;
