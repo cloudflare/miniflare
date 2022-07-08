@@ -59,31 +59,16 @@ export const headInKeyNamespaceMacro: Macro<[TestStorageFactory]> = async (
 headInKeyNamespaceMacro.title = (providedTitle, { name }) =>
   `${name}: head: returns undefined for non-existent key in namespace that is also a key`;
 
-export const headSkipsMetadataMacro: Macro<[TestStorageFactory]> = async (
-  t,
-  { usesSkipMetadata, factory }
-) => {
-  if (!usesSkipMetadata) {
-    t.pass("skipped as doesn't respect skipMetadata");
-    return;
-  }
-  const storage = await factory(t, MIXED_SEED);
-  const value = await storage.head("key2");
-  t.is(value?.expiration, undefined);
-  t.is(value?.metadata, undefined);
-};
-headSkipsMetadataMacro.title = (providedTitle, { name }) =>
-  `${name}: head: skips metadata`;
-
 export const headCopyMacro: Macro<[TestStorageFactory]> = async (
   t,
   { factory }
 ) => {
   const storage = await factory(t, MIXED_SEED);
-  const result1 = await storage.head("key1");
+  const result1 = await storage.get("key1");
   t.not(result1, undefined);
   assert(result1);
   // Mutate data and check updates not stored
+  result1.value = utf8Encode("new value");
   result1.expiration = 1000;
   result1.metadata = { new: "value" };
   const result2 = await storage.head("key1");

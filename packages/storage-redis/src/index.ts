@@ -49,10 +49,30 @@ export class RedisStorage extends Storage {
   }
 
   async head<Meta>(key: string): Promise<StoredMeta<Meta> | undefined> {
-    const meta = await this.#redis.get(this.#metaKey(key));
-    return meta === null
-      ? { metadata: undefined, expiration: undefined }
-      : JSON.parse(meta);
+    const exists = await this.#redis.exists(this.#key(key));
+    if (exists === 0) return undefined;
+
+    // If we do, pipeline get the value, metadata and expiration TTL. Ideally,
+    // we'd use EXPIRETIME here but it was only added in Redis 7 so support
+    // wouldn't be great: https://redis.io/commands/expiretime
+    const pipelineRes = await this.#redis
+      .pipeline()
+      .get(this.#metaKey(key))
+      .pttl(this.#key(key))
+      .exec();
+    // Assert pipeline returned expected number of results successfully
+    assert.strictEqual(pipelineRes.length, 2);
+    this.throwPipelineErrors(pipelineRes);
+    // Extract pipeline results
+    const meta: string | null = pipelineRes[0][1];
+    const ttl: number = pipelineRes[1][1];
+    // Return result
+    return {
+      metadata: meta ? JSON.parse(meta) : undefined,
+      // Used PTTL so ttl is in milliseconds, negative TTL means key didn't
+      // exist or no expiration
+      expiration: ttl >= 0 ? millisToSeconds(Date.now() + ttl) : undefined,
+    };
   }
 
   get<Meta = unknown>(
@@ -188,9 +208,9 @@ export class RedisStorage extends Storage {
     suffix?: number,
     skipMetadata?: boolean
   ): Promise<RangeStoredValueMeta<Meta> | undefined> {
-    if (suffix !== undefined && suffix < 0) return;
     // ensure offset and length are prepared
-    const size = await this.#redis.memory("USAGE", this.#key(key));
+    const size = await this.#redis.strlen(this.#key(key));
+    if (size === 0) return undefined;
     if (suffix !== undefined) {
       if (suffix <= 0) {
         throw new Error("Suffix must be > 0");
@@ -215,7 +235,7 @@ export class RedisStorage extends Storage {
         offset,
         offset + length
       );
-      return value === null
+      return value.byteLength === 0
         ? undefined
         : {
             value: viewToArray(value),
@@ -228,7 +248,7 @@ export class RedisStorage extends Storage {
     // wouldn't be great: https://redis.io/commands/expiretime
     const pipelineRes = await this.#redis
       .pipeline()
-      .getrangeBuffer(this.#key(key), offset, offset + length)
+      .getrangeBuffer(this.#key(key), offset, offset + length - 1)
       .get(this.#metaKey(key))
       .pttl(this.#key(key))
       .exec();
