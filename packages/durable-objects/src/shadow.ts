@@ -45,7 +45,7 @@ export class ShadowStorage extends Storage {
   }
 
   async head(_key: string): Promise<undefined> {
-    throw Error('"head" is not supported in Durable Object shadow storage');
+    throw new Error('"head" is not supported in Durable Object shadow storage');
   }
 
   async get(key: string): Promise<StoredValue | undefined> {
@@ -87,7 +87,9 @@ export class ShadowStorage extends Storage {
   }
 
   async getRange(_key: string): Promise<undefined> {
-    throw Error('"getRange" is not supported in Durable Object shadow storage');
+    throw new Error(
+      '"getRange" is not supported in Durable Object shadow storage'
+    );
   }
 
   put(key: string, value: StoredValue): void {

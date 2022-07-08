@@ -563,24 +563,18 @@ export class R2Bucket {
       limit,
       cursor,
       start: startAfter,
+      delimiter,
     });
+    // add delimited prefixes should they exist
+    for (const dP of res.delimitedPrefixes ?? []) delimitedPrefixes.add(dP);
 
     const objects = res.keys
       // grab metadata
       .map((k) => k.metadata)
       // filter out objects that exist within the delimiter
-      .filter((metadata): metadata is R2ObjectMetadata => {
-        if (metadata === undefined) return false;
-        const objectKey = metadata.key.slice(prefix.length);
-        if (delimiter !== undefined && objectKey.includes(delimiter)) {
-          const delimitedPrefix =
-            prefix + objectKey.split(delimiter)[0] + delimiter;
-          delimitedPrefixes.add(delimitedPrefix);
-          return false;
-        }
-        // otherwise, return true
-        return true;
-      })
+      .filter(
+        (metadata): metadata is R2ObjectMetadata => metadata !== undefined
+      )
       // filter "httpMetadata" and/or "customMetadata" if found in "include"
       .map((metadata) => {
         if (!include.includes("httpMetadata")) metadata.httpMetadata = {};

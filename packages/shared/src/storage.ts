@@ -62,11 +62,17 @@ export interface StorageListOptions {
   cursor?: string;
   /** Maximum number of keys to return if defined */
   limit?: number;
+
+  // Stage 4: filtering
+  /** If Delimiter, filter all keys containing delimiter and update cursor */
+  delimiter?: string;
 }
 export interface StorageListResult<Key extends StoredKey = StoredKeyMeta> {
   keys: Key[];
   /** Cursor for next page */
   cursor: string;
+  /** DelimitedPrefixes if delimiter */
+  delimitedPrefixes?: string[];
 }
 
 /**

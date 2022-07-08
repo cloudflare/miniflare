@@ -111,7 +111,7 @@ export abstract class LocalStorage extends Storage {
       return listFilterMatch(options, stored.name);
     });
 
-    // Apply sort, cursor, and limit
+    // Apply sort, cursor, limit, and delimiter
     const res = listPaginate(options, keys);
     await Promise.all(deletePromises);
     return res;
