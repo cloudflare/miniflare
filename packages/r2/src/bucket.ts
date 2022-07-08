@@ -96,16 +96,6 @@ export interface R2ListOptions {
   include?: R2ListOptionsInclude;
 }
 
-interface R2PartialListOptions {
-  prefix: string;
-  limit: number;
-  include: R2ListOptionsInclude;
-  delimitedPrefixes: Set<string>;
-  delimiter?: string;
-  startAfter?: string;
-  cursor?: string;
-}
-
 export interface R2Objects {
   // An array of objects matching the list request.
   objects: R2Object[];
@@ -120,11 +110,6 @@ export interface R2Objects {
   // would return foo as a delimited prefix. If foo/ was passed as a prefix
   // with the same structure and delimiter, foo/bar would be returned as a delimited prefix.
   delimitedPrefixes: string[];
-}
-
-interface PartialListResponse {
-  objects: R2Object[];
-  cursor: string;
 }
 
 const MAX_LIST_KEYS = 1_000;
@@ -541,18 +526,18 @@ export class R2Bucket {
     ctx?.advanceCurrentTime();
   }
 
-  // due to the delimiter, we may need to run multiple queries
-  // the goal is to keep returning results until either we have no more
-  // or objects + delmitedPrefixes are equal to maxResults
-  async #list({
-    prefix,
-    limit,
-    include,
-    delimitedPrefixes,
-    delimiter,
-    startAfter,
-    cursor,
-  }: R2PartialListOptions): Promise<PartialListResponse> {
+  async list(listOptions: R2ListOptions = {}): Promise<R2Objects> {
+    const ctx = this.#prepareCtx("LIST");
+    const delimitedPrefixes = new Set<string>();
+
+    validateListOptions(listOptions);
+    const { prefix = "", include = [], startAfter, cursor = "" } = listOptions;
+    let { delimiter, limit = MAX_LIST_KEYS } = listOptions;
+    if (delimiter === "") delimiter = undefined;
+
+    // if include contains inputs, we reduce the limit to max 100
+    if (include.length > 0) limit = Math.min(limit, 100);
+
     // the storage list implementation is *inclusive* of start
     // r2 implementation is *exclusive*
     // to avoid issues with limit count being wrong, we need to add 1
@@ -595,60 +580,14 @@ export class R2Bucket {
       }
     }
 
-    return { objects, cursor: res.cursor };
-  }
-
-  async list(listOptions: R2ListOptions = {}): Promise<R2Objects> {
-    const ctx = this.#prepareCtx("LIST");
-    let truncated = false;
-    const objects: R2Object[] = [];
-    const delimitedPrefixes = new Set<string>();
-
-    validateListOptions(listOptions);
-    const { prefix = "", include = [] } = listOptions;
-    let {
-      delimiter,
-      startAfter,
-      limit = MAX_LIST_KEYS,
-      cursor = "",
-    } = listOptions;
-    if (delimiter === "") delimiter = undefined;
-
-    // if include contains inputs, we reduce the limit to max 100
-    if (include.length > 0) limit = Math.min(limit, 100);
-
-    // iterate until we find no more objects or we have reached the limit
-    do {
-      const { objects: _objects, cursor: _cursor } = await this.#list({
-        prefix,
-        limit: limit - objects.length, // adjust limit to have the correct cursor returned
-        include,
-        delimitedPrefixes,
-        delimiter,
-        startAfter,
-        cursor,
-      });
-      // kill startAfter after the first iteration
-      startAfter = undefined;
-      // update cursor
-      cursor = _cursor;
-      // if no objects found, we are done
-      if (_objects.length === 0) break;
-      // add objects to list
-      objects.push(..._objects);
-    } while (
-      cursor.length > 0 &&
-      objects.length + delimitedPrefixes.size < limit
-    );
-
-    if (cursor.length > 0) truncated = true;
     await waitForOpenInputGate();
     ctx?.advanceCurrentTime();
 
+    const cursorLength = res.cursor.length > 0;
     return {
       objects,
-      truncated,
-      cursor: cursor.length > 0 ? cursor : undefined,
+      truncated: cursorLength,
+      cursor: cursorLength ? res.cursor : undefined,
       delimitedPrefixes: [...delimitedPrefixes],
     };
   }
