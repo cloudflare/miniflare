@@ -49,7 +49,6 @@ export function listPaginate<Key extends StoredKey>(
   let endIndex = startIndex;
   const prefix = options?.prefix ?? "";
   const delimitedPrefixes: Set<string> = new Set();
-  let lastPrefix: string | undefined;
 
   for (let i = startIndex; i < keys.length; i++) {
     const key = keys[i];
@@ -85,16 +84,6 @@ export function listPaginate<Key extends StoredKey>(
       resKeys.length + delimitedPrefixes.size >= options.limit
     ) {
       break;
-    }
-  }
-
-  // if lastPrefix, make sure we move past all keys with this prefix
-  if (lastPrefix !== undefined) {
-    while (
-      startIndex < keys.length &&
-      keys[startIndex].name.startsWith(lastPrefix)
-    ) {
-      startIndex++;
     }
   }
 
