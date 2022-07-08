@@ -1,5 +1,6 @@
 import {
   Awaitable,
+  Range,
   RangeStoredValueMeta,
   Storage,
   StorageListOptions,
@@ -49,19 +50,11 @@ export class RecorderStorage extends Storage {
 
   getRange<Meta = unknown>(
     key: string,
-    offset?: number,
-    length?: number,
-    suffix?: number,
+    range: Range,
     skipMetadata?: boolean
   ): Awaitable<RangeStoredValueMeta<Meta> | undefined> {
     this.events.push({ type: "getRange", key });
-    return this.inner.getRange(
-      key,
-      offset,
-      length,
-      suffix,
-      skipMetadata as any
-    );
+    return this.inner.getRange(key, range, skipMetadata as any);
   }
 
   put<Meta = unknown>(
