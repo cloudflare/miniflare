@@ -191,11 +191,11 @@ test("BindingsPlugin: logs warning if `name` is used instead of `binding`", asyn
   t.true(warning.includes(service));
   t.regex(
     warning,
-    /Service "\w+" is declared using deprecated syntax. Key `name` should be renamed to `binding`./
+    /^Service "\w+" declared using deprecated syntax\.\nThe `name` key should be removed and renamed to `binding`\.$/
   );
 });
 
-test("BindingsPlugin: logs no warning if `name` and `binding` are both used but they are the same", async (t) => {
+test("BindingsPlugin: logs warning if `name` and `binding` are both used but they are the same", async (t) => {
   const log = new TestLog();
   const service = "service123";
   const name = "SERVICE123";
@@ -212,7 +212,14 @@ test("BindingsPlugin: logs no warning if `name` and `binding` are both used but 
 
   // Check no warnings logged
   const warnings = log.logsAtLevel(LogLevel.WARN);
-  t.is(warnings.length, 0);
+  t.is(warnings.length, 1);
+  const [warning] = warnings;
+
+  t.true(warning.includes(service));
+  t.regex(
+    warning,
+    /^Service "\w+" declared using deprecated syntax\.\nThe `name` key should be removed and renamed to `binding`\.$/
+  );
 });
 
 test("BindingsPlugin: throws if `name` and `binding` are both present and don't match", (t) => {
