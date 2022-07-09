@@ -1,5 +1,77 @@
 # 🚧 Changelog
 
+## 2.6.0
+
+### Features
+
+- 🪣 **Add support for R2 bucket bindings.** Closes
+  [issue #276](https://github.com/cloudflare/miniflare/issues/276), thank you so
+  much [@CraigglesO](https://github.com/CraigglesO) for
+  [the _massive_ PR](https://github.com/cloudflare/miniflare/pull/289).
+- Add support for
+  [`navigator.userAgent`](https://developers.cloudflare.com/workers/platform/compatibility-dates#global-navigator).
+  Closes [issue #209](https://github.com/cloudflare/miniflare/issues/209),
+  thanks [@Electroid](https://github.com/Electroid).
+- Return fixed time from `new Date()`/`Date.now()`, unless the
+  `--actual-time`/`actualTime: true` option is set, to match
+  [the behaviour the Workers runtime](https://developers.cloudflare.com/workers/learning/security-model/#step-1-disallow-timers-and-multi-threading).
+  Closes [issue #225](https://github.com/cloudflare/miniflare/issues/225),
+  thanks [@ItalyPaleAle](https://github.com/ItalyPaleAle).
+- Add support for
+  [`(De)CompressionStream`](https://developer.mozilla.org/en-US/docs/Web/API/Compression_Streams_API).
+  Closes [issue #206](https://github.com/cloudflare/miniflare/issues/206),
+  thanks [@Electroid](https://github.com/Electroid).
+- Add an interactive REPL via the `--repl` flag. Any other flag can be passed
+  too, and options will automatically be loaded from `wrangler.toml` files.
+  Specifying a script is optional when `--repl` is enabled. The REPL can also be
+  started programmatically via the `Miniflare#startREPL()` method. See []() for
+  more details. Thanks [@threepointone](https://github.com/threepointone) for
+  the idea over at
+  [cloudflare/wrangler2#1263](https://github.com/cloudflare/wrangler2/issues/1263).
+
+### Fixes
+
+- Load service bindings from `services` instead of `experimental_services`, and
+  use `binding` instead of `name` for the binding name. Thanks
+  [@jrencz](https://github.com/jrencz) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/302).
+  [issue #280](https://github.com/cloudflare/miniflare/issues/280).
+- Log warning instead of error when fetching `Request#cf` object fails. Closes
+  [issue #224](https://github.com/cloudflare/miniflare/issues/224), thanks
+  [@threepointone](https://github.com/threepointone).
+- Increase the subrequest limit for `unbound` workers from 50 to 1000, and limit
+  the number of calls to internal APIs such as KV/Durable Object to 1000. Closes
+  [issue #274](https://github.com/cloudflare/miniflare/issues/274), thanks
+  [@isaac-mcfadyen](https://github.com/isaac-mcfadyen).
+- Fix logging of accessible hosts in Node.js 18
+- Remove `name` from `DurableObjectId`s in `DurableObjectState` to match the
+  behaviour of the Workers runtime. Closes
+  [issue #219](https://github.com/cloudflare/miniflare/issues/219).
+- Allow failure WebSocket upgrade responses. Closes
+  [issue #174](https://github.com/cloudflare/miniflare/issues/174), thanks
+  [@jinjor](https://github.com/jinjor).
+- Correctly handle internationalised domain names in routes. Closes
+  [issue #186](https://github.com/cloudflare/miniflare/issues/186), thanks
+  [@dsod](https://github.com/dsod).
+- Improve the error message when Durable Object bindings are missing a script to
+  mention mounting. Closes
+  [issue #221](https://github.com/cloudflare/miniflare/issues/221), thanks
+  [@konsumer](https://github.com/konsumer).
+- Allow WebSockets to be closed without a status code. Closes
+  [issue #284](https://github.com/cloudflare/miniflare/issues/284), thanks
+  [@hansottowirtz](https://github.com/hansottowirtz).
+- Allow Durable Object alarms to be scheduled less than 30 seconds in the
+  future. Closes
+  [issue #290](https://github.com/cloudflare/miniflare/issues/290), thanks
+  [@wighawag](https://github.com/wighawag) and
+  [@CraigglesO](https://github.com/CraigglesO) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/294).
+- Fix `DurableObjectStorage#list()` when alarms are scheduled. Closes
+  [issue #297](https://github.com/cloudflare/miniflare/issues/297), thanks
+  [@evanderkoogh](https://github.com/evanderkoogh) and
+  [@CraigglesO](https://github.com/CraigglesO) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/298).
+
 ## 2.5.1
 
 ### ⚠️ Security Update

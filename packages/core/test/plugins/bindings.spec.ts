@@ -170,6 +170,25 @@ test("BindingsPlugin: parses options from wrangler config", async (t) => {
   });
 });
 
+test("BindingsPlugin: logs no warnings if `binding` used without `name`", async (t) => {
+  const log = new TestLog();
+  const service = "service123";
+
+  parsePluginWranglerConfig(
+    BindingsPlugin,
+    {
+      services: [
+        { binding: "SERVICE123", service, environment: "development" },
+      ],
+    },
+    "",
+    log
+  );
+
+  // Check warning logged
+  const warnings = log.logsAtLevel(LogLevel.WARN);
+  t.is(warnings.length, 0);
+});
 test("BindingsPlugin: logs warning if `name` is used instead of `binding`", async (t) => {
   const log = new TestLog();
   const service = "service123";
@@ -194,7 +213,6 @@ test("BindingsPlugin: logs warning if `name` is used instead of `binding`", asyn
     /^Service "\w+" declared using deprecated syntax\.\nThe `name` key should be removed and renamed to `binding`\.$/
   );
 });
-
 test("BindingsPlugin: logs warning if `name` and `binding` are both used but they are the same", async (t) => {
   const log = new TestLog();
   const service = "service123";
@@ -221,7 +239,6 @@ test("BindingsPlugin: logs warning if `name` and `binding` are both used but the
     /^Service "\w+" declared using deprecated syntax\.\nThe `name` key should be removed and renamed to `binding`\.$/
   );
 });
-
 test("BindingsPlugin: throws if `name` and `binding` are both present and don't match", (t) => {
   t.throws(
     () =>
@@ -241,7 +258,6 @@ test("BindingsPlugin: throws if `name` and `binding` are both present and don't 
     }
   );
 });
-
 test("BindingsPlugin: throws if `name` and `binding` are both absent", (t) => {
   t.throws(
     () =>
