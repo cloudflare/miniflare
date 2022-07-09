@@ -22,6 +22,7 @@ workers in a sandbox implementing Workers' runtime APIs.
 - 🔑 Variables and Secrets with `.env` Files
 - 📚 Modules Support
 - 📦 KV (with optional persistence)
+- 🪣 R2 (with optional persistence)
 - ✨ Cache (with optional persistence)
 - 📌 Durable Objects (with optional persistence)
 - 🌐 Workers Sites
@@ -127,6 +128,10 @@ Build Options:
 KV Options:
  -k, --kv                KV namespace to bind                                                  [array]
      --kv-persist        Persist KV data (to optional path)                           [boolean/string]
+
+R2 Options:
+ -r, --r2                R2 bucket to bind                                                     [array]
+     --r2-persist        Persist R2 data (to optional path)                           [boolean/string]
 
 Durable Objects Options:
  -o, --do                Durable Object to bind                             [array:NAME=CLASS[@MOUNT]]
