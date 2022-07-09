@@ -6,7 +6,9 @@ import { ModuleRuleType } from "./runner";
 export type UsageModel = "bundled" | "unbound";
 
 export interface WranglerServiceConfig {
-  name: string;
+  /** @deprecated Use `binding` instead */
+  name?: string;
+  binding?: string;
   service: string;
   environment: string;
 }
