@@ -2,7 +2,13 @@ import fs from "fs/promises";
 import path from "path";
 import { CachePlugin } from "@miniflare/cache";
 import { Request } from "@miniflare/core";
-import { Compatibility, NoOpLog, PluginContext } from "@miniflare/shared";
+import { QueueBroker } from "@miniflare/queues";
+import {
+  Compatibility,
+  NoOpLog,
+  PluginContext,
+  QueueEventDispatcher,
+} from "@miniflare/shared";
 import {
   logPluginOptions,
   parsePluginArgv,
@@ -16,7 +22,15 @@ import test, { Macro } from "ava";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath };
+const queueBroker = new QueueBroker();
+const queueEventDispatcher: QueueEventDispatcher = (_queue, _messages) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker,
+  queueEventDispatcher,
+};
 
 test("SitesPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(SitesPlugin, [
@@ -71,7 +85,7 @@ test("SitesPlugin: setup: returns empty result if no site", async (t) => {
 test("SitesPlugin: setup: includes read-only content namespace and watches files", async (t) => {
   const tmp = await useTmp(t);
   const plugin = new SitesPlugin(
-    { log, compat, rootPath: tmp },
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     { sitePath: "site" }
   );
   const result = await plugin.setup();

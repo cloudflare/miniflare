@@ -21,6 +21,7 @@ import {
 import { HTMLRewriterPlugin } from "@miniflare/html-rewriter";
 import { KVPlugin } from "@miniflare/kv";
 import { R2Plugin } from "@miniflare/r2";
+import { QueueBroker } from "@miniflare/queues";
 import { VMScriptRunner, defineHasInstances } from "@miniflare/runner-vm";
 import { Context, NoOpLog } from "@miniflare/shared";
 import { SitesPlugin } from "@miniflare/sites";
@@ -82,6 +83,7 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
   private readonly storageFactory = new StackedMemoryStorageFactory();
   private readonly scriptRunner: VMScriptRunner;
   private readonly mockAgent: MockAgent;
+  private readonly queueBroker = new QueueBroker();
 
   constructor(
     config:
@@ -175,6 +177,7 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
         // addEventListener being called twice (once when the script is run, and
         // again when the user imports the worker in Jest tests).
         scriptRunForModuleExports: true,
+        queueBroker: this.queueBroker,
       },
       {
         // Autoload configuration files from default locations by default,

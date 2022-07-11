@@ -107,10 +107,29 @@ export class ScheduledEvent extends Event {
   }
 }
 
-export class ExecutionContext {
-  readonly #event: FetchEvent | ScheduledEvent;
+export class QueueEvent extends Event {
+  readonly queueName: string;
+  readonly messages: any[];
+  readonly [kWaitUntil]: Promise<unknown>[] = [];
 
-  constructor(event: FetchEvent | ScheduledEvent) {
+  constructor(type: "queue", init: { queueName: string; messages: any[] }) {
+    super(type);
+    this.queueName = init.queueName;
+    this.messages = init.messages;
+  }
+
+  waitUntil(promise: Promise<any>): void {
+    if (!(this instanceof QueueEvent)) {
+      throw new TypeError("Illegal invocation");
+    }
+    this[kWaitUntil].push(promise);
+  }
+}
+
+export class ExecutionContext {
+  readonly #event: FetchEvent | ScheduledEvent | QueueEvent;
+
+  constructor(event: FetchEvent | ScheduledEvent | QueueEvent) {
     this.#event = event;
   }
 
@@ -148,12 +167,20 @@ export type ModuleScheduledListener = (
   ctx: ExecutionContext
 ) => any;
 
+export type ModuleQueueListener = (
+  event: QueueEvent,
+  env: Context,
+  ctx: ExecutionContext
+) => any;
+
 export const kAddModuleFetchListener = Symbol("kAddModuleFetchListener");
 export const kAddModuleScheduledListener = Symbol(
   "kAddModuleScheduledListener"
 );
+export const kAddModuleQueueListener = Symbol("kAddModuleQueueListener");
 export const kDispatchFetch = Symbol("kDispatchFetch");
 export const kDispatchScheduled = Symbol("kDispatchScheduled");
+export const kDispatchQueue = Symbol("kDispatchQueue");
 export const kDispose = Symbol("kDispose");
 
 export class PromiseRejectionEvent extends Event {
@@ -173,6 +200,7 @@ export class PromiseRejectionEvent extends Event {
 export type WorkerGlobalScopeEventMap = {
   fetch: FetchEvent;
   scheduled: ScheduledEvent;
+  queue: QueueEvent;
   unhandledrejection: PromiseRejectionEvent;
   rejectionhandled: PromiseRejectionEvent;
 };
@@ -342,6 +370,12 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     });
   }
 
+  [kAddModuleQueueListener](listener: ModuleQueueListener): void {
+    super.addEventListener("queue", (e) => {
+      listener(e, this.#bindings, new ExecutionContext(e));
+    });
+  }
+
   async [kDispatchFetch]<WaitUntil extends any[] = unknown[]>(
     request: Request,
     proxy = false
@@ -422,6 +456,15 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
       scheduledTime: scheduledTime ?? Date.now(),
       cron: cron ?? "",
     });
+    super.dispatchEvent(event);
+    return (await Promise.all(event[kWaitUntil])) as WaitUntil;
+  }
+
+  async [kDispatchQueue]<WaitUntil extends any[] = any[]>(
+    queueName: string,
+    messages: any[]
+  ): Promise<WaitUntil> {
+    const event = new QueueEvent("queue", { queueName, messages });
     super.dispatchEvent(event);
     return (await Promise.all(event[kWaitUntil])) as WaitUntil;
   }

@@ -49,6 +49,17 @@ export interface WranglerEnvironmentConfig {
       script_name?: string;
     }[];
   }; // (probably) NOT inherited
+  queues?: {
+    bindings?: {
+      name: string;
+      queue_name: string;
+    }[];
+    subscriptions?: {
+      queue_name: string;
+      max_batch_size?: number;
+      max_wait_secs?: number;
+    }[];
+  }; // (probably) NOT inherited
   triggers?: {
     crons?: string[];
   }; // inherited

@@ -21,6 +21,7 @@ import {
 } from "@miniflare/core";
 import { DurableObjectsPlugin } from "@miniflare/durable-objects";
 import { HTTPPlugin, createServer } from "@miniflare/http-server";
+import { QueueBroker } from "@miniflare/queues";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
   Context,
@@ -55,6 +56,7 @@ const log = new NoOpLog();
 // Only use this shared storage factory when the test doesn't care about storage
 const storageFactory = new MemoryStorageFactory();
 const scriptRunner = new VMScriptRunner();
+const queueBroker = new QueueBroker();
 
 const relative = (p: string) => path.relative("", p);
 
@@ -70,7 +72,12 @@ test("_deepEqual: checks top-level symbol property equality", (t) => {
 
 test("MiniflareCore: always loads CorePlugin first", async (t) => {
   const log = new TestLog();
-  const ctx: MiniflareCoreContext = { log, storageFactory, scriptRunner };
+  const ctx: MiniflareCoreContext = {
+    log,
+    storageFactory,
+    scriptRunner,
+    queueBroker,
+  };
   const expectedLogs: LogEntry[] = [
     [LogLevel.DEBUG, "Initialising worker..."],
     [LogLevel.DEBUG, "Options:"],
@@ -94,7 +101,12 @@ test("MiniflareCore: always loads CorePlugin first", async (t) => {
 });
 test("MiniflareCore: always loads BindingsPlugin last", async (t) => {
   const log = new TestLog();
-  const ctx: MiniflareCoreContext = { log, storageFactory, scriptRunner };
+  const ctx: MiniflareCoreContext = {
+    log,
+    storageFactory,
+    scriptRunner,
+    queueBroker,
+  };
   const expectedLogs: LogEntry[] = [
     [LogLevel.DEBUG, "Initialising worker..."],
     [LogLevel.DEBUG, "Options:"],
@@ -300,7 +312,7 @@ test("MiniflareCore: runs setup with namespaced plugin-specific storage", async 
   const storageFactory = new MemoryStorageFactory();
   const mf = new MiniflareCore(
     { CorePlugin, TestPlugin },
-    { log, storageFactory, scriptRunner }
+    { log, storageFactory, scriptRunner, queueBroker }
   );
   const globalScope = await mf.getGlobalScope();
   const STORAGE: Storage = globalScope.STORAGE;
@@ -471,6 +483,7 @@ test("MiniflareCore: #init: throws if script required but not provided", async (
     storageFactory,
     scriptRunner,
     scriptRequired: true,
+    queueBroker,
   };
 
   // Check throws if no script defined
@@ -656,6 +669,7 @@ test("MiniflareCore: #reload: only runs script if module exports needed when scr
     storageFactory,
     scriptRunner,
     scriptRunForModuleExports: true,
+    queueBroker,
   };
 
   let calledback = false;
@@ -981,7 +995,7 @@ test("MiniflareCore: getPluginStorage: gets namespaced plugin-specific storage",
   const storageFactory = new MemoryStorageFactory();
   const mf = new MiniflareCore(
     { CorePlugin },
-    { log, storageFactory, scriptRunner }
+    { log, storageFactory, scriptRunner, queueBroker }
   );
   const pluginStorageFactory = mf.getPluginStorage("CorePlugin");
   t.true(pluginStorageFactory instanceof PluginStorageFactory);
@@ -1292,7 +1306,7 @@ test("MiniflareCore: dispatchScheduled: dispatches scheduled event", async (t) =
 test("MiniflareCore: dispatchScheduled: creates new request context", async (t) => {
   const mf = new MiniflareCore(
     { CorePlugin, BindingsPlugin, CachePlugin },
-    { log, storageFactory, scriptRunner },
+    { log, storageFactory, scriptRunner, queueBroker },
     {
       globals: {
         assertSubrequests(expected: number) {

@@ -2,6 +2,7 @@ import { MockAgent } from "undici";
 import { Compatibility } from "./compat";
 import { titleCase } from "./data";
 import { Log } from "./log";
+import { QueueBroker, QueueEventDispatcher } from "./queues";
 import { ScriptBlueprint } from "./runner";
 import { StorageFactory } from "./storage";
 import { Awaitable } from "./sync";
@@ -56,7 +57,7 @@ export type OptionMetadata =
   | OptionMetadataType<OptionType.STRING_POSITIONAL, string>
   | OptionMetadataType<OptionType.BOOLEAN_STRING, boolean | string>
   | OptionMetadataType<OptionType.BOOLEAN_NUMBER, boolean | number>
-  | OptionMetadataType<OptionType.ARRAY, string[]>
+  | OptionMetadataType<OptionType.ARRAY, any[]>
   | OptionMetadataType<OptionType.OBJECT, any>;
 
 export function Option(
@@ -96,6 +97,8 @@ export interface PluginContext {
   usageModel?: UsageModel;
   globalAsyncIO?: boolean;
   fetchMock?: MockAgent;
+  queueEventDispatcher: QueueEventDispatcher;
+  queueBroker: QueueBroker;
 }
 
 export abstract class Plugin<Options extends Context = never> {

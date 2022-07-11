@@ -7,11 +7,13 @@ import {
   CachedMeta,
   NoOpCache,
 } from "@miniflare/cache";
+import { QueueBroker } from "@miniflare/queues";
 import {
   Compatibility,
   LogLevel,
   NoOpLog,
   PluginContext,
+  QueueEventDispatcher,
   StoredValueMeta,
 } from "@miniflare/shared";
 import {
@@ -31,8 +33,15 @@ import { testResponse } from "./helpers";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath, globalAsyncIO: true };
-
+const queueBroker = new QueueBroker();
+const queueEventDispatcher: QueueEventDispatcher = (_queue, _messages) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker,
+  queueEventDispatcher,
+};
 test("CacheStorage: provides default cache", async (t) => {
   const factory = new MemoryStorageFactory();
   const caches = new CacheStorage({}, log, factory, {});
@@ -208,14 +217,27 @@ test("CachePlugin: setup: Responses parse files in FormData as File objects only
 });
 test("CachePlugin: setup: operations throw outside request handler unless globalAsyncIO set", async (t) => {
   const factory = new MemoryStorageFactory();
-  let plugin = new CachePlugin({ log, compat, rootPath });
+  let plugin = new CachePlugin({
+    log,
+    compat,
+    rootPath,
+    queueBroker,
+    queueEventDispatcher,
+  });
   let caches: CacheStorage = plugin.setup(factory).globals?.caches;
   await t.throwsAsync(caches.default.match("http://localhost"), {
     instanceOf: Error,
     message: /^Some functionality, such as asynchronous I\/O/,
   });
 
-  plugin = new CachePlugin({ log, compat, rootPath, globalAsyncIO: true });
+  plugin = new CachePlugin({
+    log,
+    compat,
+    rootPath,
+    globalAsyncIO: true,
+    queueBroker,
+    queueEventDispatcher,
+  });
   caches = plugin.setup(factory).globals?.caches;
   await caches.default.match("http://localhost");
 });

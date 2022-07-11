@@ -20,12 +20,14 @@ import {
   DurableObjectStub,
   DurableObjectsPlugin,
 } from "@miniflare/durable-objects";
+import { QueueBroker } from "@miniflare/queues";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
   Compatibility,
   LogLevel,
   NoOpLog,
   PluginContext,
+  QueueEventDispatcher,
   StorageFactory,
   getRequestContext,
 } from "@miniflare/shared";
@@ -48,7 +50,15 @@ import { TestObject, alarmStore, testId, testIdHex, testKey } from "./object";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath };
+const queueBroker = new QueueBroker();
+const queueEventDispatcher: QueueEventDispatcher = (_queue, _messages) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker,
+  queueEventDispatcher,
+};
 
 const throws = (): never => {
   throw new Error("Function should not be called!");
@@ -246,7 +256,7 @@ test("DurableObjectStub: fetch: throws with relative urls if compatibility flag 
   ]);
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
-    { log, compat, rootPath },
+    { log, compat, rootPath, queueBroker, queueEventDispatcher },
     { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
   );
   plugin.beforeReload();
@@ -267,7 +277,7 @@ test("DurableObjectStub: fetch: throws with unknown protocols if compatibility f
   ]);
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
-    { log, compat, rootPath },
+    { log, compat, rootPath, queueBroker, queueEventDispatcher },
     { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
   );
   plugin.beforeReload();
@@ -290,7 +300,7 @@ test("DurableObjectStub: fetch: logs warning with unknown protocol if compatibil
   const log = new TestLog();
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
-    { log, compat, rootPath },
+    { log, compat, rootPath, queueBroker, queueEventDispatcher },
     { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
   );
   plugin.beforeReload();
@@ -344,7 +354,7 @@ test("DurableObjectStub: fetch: creates new request context", async (t) => {
   const scriptRunner = new VMScriptRunner();
   const mf = new MiniflareCore(
     { CorePlugin, BindingsPlugin, CachePlugin, DurableObjectsPlugin },
-    { log, storageFactory, scriptRunner },
+    { log, storageFactory, scriptRunner, queueBroker },
     {
       bindings: {
         assertSubrequests(expected: number) {
@@ -401,7 +411,7 @@ test("DurableObjectStub: fetch: creates new request context using correct usage 
   const scriptRunner = new VMScriptRunner();
   const mf = new MiniflareCore(
     { CorePlugin, CachePlugin, DurableObjectsPlugin },
-    { log, storageFactory, scriptRunner },
+    { log, storageFactory, scriptRunner, queueBroker },
     {
       durableObjects: { TEST_OBJECT: "TestObject" },
       modules: true,
@@ -430,7 +440,7 @@ test("DurableObjectStub: fetch: increments internal subrequest count", async (t)
   const scriptRunner = new VMScriptRunner();
   const mf = new MiniflareCore(
     { CorePlugin, BindingsPlugin, CachePlugin, DurableObjectsPlugin },
-    { log, storageFactory, scriptRunner },
+    { log, storageFactory, scriptRunner, queueBroker },
     {
       bindings: {
         assertInternalSubrequests(expected: number) {

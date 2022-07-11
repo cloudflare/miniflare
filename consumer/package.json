@@ -1,0 +1,9 @@
+{
+  "name": "consumer",
+  "module": "src/index.mjs",
+  "version": "0.0.0",
+  "devDependencies": {
+    "wrangler": "2.0.15"
+  },
+  "private": true
+}

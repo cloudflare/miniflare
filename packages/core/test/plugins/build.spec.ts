@@ -3,11 +3,13 @@ import fs from "fs/promises";
 import path from "path";
 import { promisify } from "util";
 import { BindingsPlugin, BuildError, BuildPlugin } from "@miniflare/core";
+import { QueueBroker } from "@miniflare/queues";
 import {
   Compatibility,
   LogLevel,
   NoOpLog,
   PluginContext,
+  QueueEventDispatcher,
 } from "@miniflare/shared";
 import {
   TestLog,
@@ -24,7 +26,15 @@ import which from "which";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath };
+const queueBroker = new QueueBroker();
+const queueEventDispatcher: QueueEventDispatcher = (_queue, _messages) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker,
+  queueEventDispatcher,
+};
 
 const rimrafPromise = promisify(rimraf);
 
@@ -108,7 +118,7 @@ test("BuildPlugin: beforeSetup: runs build successfully", async (t) => {
   const tmp = await useTmp(t);
   const log = new TestLog();
   const plugin = new BuildPlugin(
-    { log, compat, rootPath },
+    { log, compat, rootPath, queueBroker, queueEventDispatcher },
     {
       buildCommand: "echo test > test.txt",
       buildBasePath: tmp,
@@ -127,7 +137,7 @@ test("BuildPlugin: beforeSetup: builds in plugin context's rootPath", async (t) 
   const tmp = await useTmp(t);
   let plugin = new BuildPlugin(
     // This will be set to the mounted directory when mounting workers
-    { log, compat, rootPath: tmp },
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     { buildCommand: "echo test > test.txt" }
   );
   await plugin.beforeSetup();
@@ -138,7 +148,7 @@ test("BuildPlugin: beforeSetup: builds in plugin context's rootPath", async (t) 
   const dir = path.join(tmp, "dir");
   await fs.mkdir(dir);
   plugin = new BuildPlugin(
-    { log, compat, rootPath: tmp },
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     { buildCommand: "echo test > test.txt", buildBasePath: "dir" }
   );
   await plugin.beforeSetup();

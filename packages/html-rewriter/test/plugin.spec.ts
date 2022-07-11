@@ -1,13 +1,27 @@
 import { Response } from "@miniflare/core";
 import { HTMLRewriter, HTMLRewriterPlugin } from "@miniflare/html-rewriter";
-import { Compatibility, NoOpLog, PluginContext } from "@miniflare/shared";
+import { QueueBroker } from "@miniflare/queues";
+import {
+  Compatibility,
+  NoOpLog,
+  PluginContext,
+  QueueEventDispatcher,
+} from "@miniflare/shared";
 import test from "ava";
 import type { ElementHandlers } from "html-rewriter-wasm";
 
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath };
+const queueBroker = new QueueBroker();
+const queueEventDispatcher: QueueEventDispatcher = (_queue, _messages) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker,
+  queueEventDispatcher,
+};
 
 test("HTMLRewriterPlugin: setup: includes HTMLRewriter in globals", (t) => {
   const plugin = new HTMLRewriterPlugin(ctx);
