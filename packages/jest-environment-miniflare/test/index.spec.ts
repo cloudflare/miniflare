@@ -95,3 +95,11 @@ test.serial("NodeEnvironment: runs Miniflare integration tests", async (t) => {
   const [exitCode, output] = await runJest("node.spec.js", {});
   t.is(exitCode, 0, output);
 });
+
+test.serial(
+  "MiniflareEnvironment: runs Jest tests with Service Worker format workers and test undici mocking",
+  async (t) => {
+    const [exitCode, output] = await runJest(".fetchmock.spec.js", {});
+    t.is(exitCode, 0, output);
+  }
+);

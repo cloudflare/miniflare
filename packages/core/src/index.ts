@@ -56,6 +56,7 @@ import {
   withStringFormDataFiles,
 } from "./standards";
 import { PluginStorageFactory } from "./storage";
+import { Dispatcher, MockAgent } from "undici";
 
 export * from "./plugins";
 export * from "./standards";
@@ -1004,6 +1005,23 @@ export class MiniflareCore<
   async getMount(name: string): Promise<MiniflareCore<Plugins>> {
     await this.#initPromise;
     return this.#mounts!.get(name)!;
+  }
+
+  async createMockAgent(options?: MockAgent.Options): Promise<MockAgent> {
+    await this.#initPromise;
+    return this.#instances!.CorePlugin.createMockAgent(options);
+  }
+
+  async getGlobalDispatcher(): Promise<Dispatcher> {
+    await this.#initPromise;
+    return this.#instances!.CorePlugin.getGlobalDispatcher();
+  }
+
+  async setGlobalDispatcher<DispatcherImplementation extends Dispatcher>(
+    dispatcher: DispatcherImplementation
+  ) {
+    await this.#initPromise;
+    return this.#instances!.CorePlugin.setGlobalDispatcher(dispatcher);
   }
 
   #matchMount(url: URL): MiniflareCore<Plugins> | undefined {
