@@ -90,6 +90,53 @@ test("crypto: computes other digest", async (t) => {
   );
 });
 
+test("crypto: generateKey supports NODE-ED25519 algorithm", async (t) => {
+  const alg = {
+    name: 'NODE-ED25519',
+    namedCurve: 'NODE-ED25519',
+  };
+  await t.notThrowsAsync(async () => await crypto.subtle.generateKey(alg, false, ['sign']));
+});
+
+test("crypto: importKey supports NODE-ED25519 public keys", async (t) => {
+  const alg = {
+    name: 'NODE-ED25519',
+    namedCurve: 'NODE-ED25519',
+  };
+  const publicKey = Buffer.from('953e73cb91a2494a33cd7180f05d5bbe6b5ca43cc66eb93ca38c6fc83cb18f29', 'hex')
+  await t.notThrowsAsync(
+    // @ts-expect-error importKey is missing from TS declaration for SubtleCrypto
+    crypto.subtle.importKey('raw', publicKey, alg, true, ['verify'])
+  );
+});
+
+test("crypto: importKey fails for NODE-ED25519 private keys", async (t) => {
+  const alg = {
+    name: 'NODE-ED25519',
+    namedCurve: 'NODE-ED25519',
+  };
+  const publicKey = Buffer.from('f0d3c325a99ef50181faa238e07224ec9fee292e7ebf6585560bab64654ec6209c6afa31187898a43f7ab18c3552c2cd349e912c16c803a2a6ccbd546896fe8e', 'hex')
+  await t.throwsAsync(
+    // @ts-expect-error importKey is missing from TS declaration for SubtleCrypto
+    crypto.subtle.importKey('raw', publicKey, alg, false, ['sign'])
+  );
+});
+
+test("crypto: exportKey fails for NODE-ED25519 private keys", async (t) => {
+  const alg = {
+    name: 'NODE-ED25519',
+    namedCurve: 'NODE-ED25519',
+  };
+  // generate keypair, since we can't import a private key
+  // @ts-ignore type definition assumes CryptoKey, but result is CryptoKeyPair
+  const { privateKey } = await crypto.subtle.generateKey(alg, false, ['sign']);
+  t.not(privateKey, null)
+
+  await t.throwsAsync(
+    crypto.subtle.exportKey('raw', privateKey)
+  );
+});
+
 // Checking other functions aren't broken by proxy...
 
 test("crypto: gets random values", (t) => {
