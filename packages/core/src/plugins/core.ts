@@ -109,7 +109,7 @@ export interface CoreOptions {
   // Replaced in MiniflareCoreOptions with something plugins-specific
   mounts?: Record<string, string | CoreOptions | BindingsOptions>;
   name?: string;
-  routes?: RouteType[];
+  routes?: string[];
   logUnhandledRejections?: boolean;
   globalAsyncIO?: boolean;
   globalTimers?: boolean;
