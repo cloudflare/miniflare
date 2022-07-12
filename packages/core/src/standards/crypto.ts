@@ -63,13 +63,27 @@ function digest(
   return webcrypto.subtle.digest(algorithm, data);
 }
 
+function validAlgorithm(algorithm: AlgorithmIdentifier): AlgorithmIdentifier {
+  if (typeof algorithm === 'object' && algorithm.name === 'NODE-ED25519') {
+    return 'Ed25519';
+  }
+  return algorithm;
+}
+
 export function createCrypto(blockGlobalRandom = false): typeof webcrypto {
   const getRandomValues = assertsInRequest(
     webcrypto.getRandomValues.bind(webcrypto),
     blockGlobalRandom
   );
   const generateKey = assertsInRequest(
-    webcrypto.subtle.generateKey.bind(webcrypto.subtle),
+    async (alg, extractable, usages) => 
+      webcrypto.subtle.generateKey(validAlgorithm(alg), extractable, usages),
+    blockGlobalRandom
+  );
+  const importKey = assertsInRequest(
+    async (type, key, alg, extractable, usages) => 
+      // @ts-expect-error importKey is missing from TS declaration for SubtleCrypto
+      webcrypto.subtle.importKey(type, key, validAlgorithm(alg), extractable, usages),
     blockGlobalRandom
   );
 
@@ -77,6 +91,7 @@ export function createCrypto(blockGlobalRandom = false): typeof webcrypto {
     get(target, propertyKey, receiver) {
       if (propertyKey === "digest") return digest;
       if (propertyKey === "generateKey") return generateKey;
+      if (propertyKey === "importKey") return importKey;
 
       let result = Reflect.get(target, propertyKey, receiver);
       if (typeof result === "function") result = result.bind(webcrypto.subtle);
