@@ -27,9 +27,9 @@ const ctx: PluginContext = {
   log,
   compat,
   rootPath,
-  globalAsyncIO: true,
   queueBroker,
   queueEventDispatcher,
+  globalAsyncIO: true,
 };
 
 test("R2Plugin: parses options from argv", (t) => {

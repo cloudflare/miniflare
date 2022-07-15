@@ -41,6 +41,7 @@ const ctx: PluginContext = {
   rootPath,
   queueBroker,
   queueEventDispatcher,
+  globalAsyncIO: true,
 };
 test("CacheStorage: provides default cache", async (t) => {
   const factory = new MemoryStorageFactory();

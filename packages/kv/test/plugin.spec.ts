@@ -29,6 +29,7 @@ const ctx: PluginContext = {
   rootPath,
   queueBroker,
   queueEventDispatcher,
+  globalAsyncIO: true,
 };
 
 test("KVPlugin: parses options from argv", (t) => {
