@@ -89,11 +89,7 @@ export class ModuleLinker {
       return module;
     }
 
-    // Find first matching module rule ("ignore" requires relative paths)
-    const relativeIdentifier = path.relative("", identifier);
-    const rule = this.moduleRules.find((rule) =>
-      rule.include.test(relativeIdentifier)
-    );
+    const rule = this.moduleRules.find((rule) => rule.include.test(identifier));
     if (rule === undefined) {
       const isBuiltin = builtinModules.includes(spec);
       const suggestion = isBuiltin ? SUGGEST_NODE : SUGGEST_BUNDLE;
@@ -183,11 +179,7 @@ export class ModuleLinker {
       return module.exports;
     }
 
-    // Find first matching module rule ("ignore" requires relative paths)
-    const relativeIdentifier = path.relative("", identifier);
-    const rule = this.moduleRules.find((rule) =>
-      rule.include.test(relativeIdentifier)
-    );
+    const rule = this.moduleRules.find((rule) => rule.include.test(identifier));
     if (rule === undefined) {
       const isBuiltin = builtinModules.includes(spec);
       const suggestion = isBuiltin ? SUGGEST_NODE : SUGGEST_BUNDLE;

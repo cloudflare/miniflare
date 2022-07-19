@@ -1,5 +1,5 @@
 import path from "path";
-import ignore from "ignore";
+import picomatch from "picomatch";
 
 export const numericCompare = new Intl.Collator(undefined, { numeric: true })
   .compare;
@@ -44,12 +44,17 @@ export interface Matcher {
   toString(): string;
 }
 
-export function globsToMatcher(globs?: string[]): Matcher {
-  const ign = ignore();
-  if (globs) ign.add(globs);
+export function globsToMatcher(globs: string[] = []): Matcher {
+  const isMatch = picomatch(globs, {
+    dot: true,
+    bash: true,
+    ignore: globs
+      .filter((glob) => glob.startsWith("!"))
+      .map((glob) => glob.slice(1)),
+  });
   return {
-    test: (string) => ign.ignores(string),
-    toString: () => globs?.join(", ") ?? "",
+    test: (string) => isMatch(string),
+    toString: () => globs.join(", "),
   };
 }
 
