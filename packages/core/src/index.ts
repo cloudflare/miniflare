@@ -8,6 +8,7 @@ import {
   Compatibility,
   Context,
   Log,
+  MessageBatch,
   Mutex,
   Options,
   PluginContext,
@@ -406,10 +407,12 @@ export class MiniflareCore<
     }
 
     const queueBroker = this.#ctx.queueBroker;
-    const queueEventDispatcher = async (queueName: string, messages: any[]) => {
-      await this.dispatchQueue(queueName, messages);
+    const queueEventDispatcher = async (batch: MessageBatch) => {
+      await this.dispatchQueue(batch);
       // TODO(soon) detect success vs failure during processing
-      this.#ctx.log.info(`${queueName} (${messages.length} Messages) OK`);
+      this.#ctx.log.info(
+        `${batch.queue} (${batch.messages.length} Messages) OK`
+      );
     };
 
     const ctx: PluginContext = {
@@ -1138,8 +1141,7 @@ export class MiniflareCore<
   }
 
   async dispatchQueue<WaitUntil extends any[] = unknown[]>(
-    queueName: string,
-    messages: any[]
+    batch: MessageBatch
   ): Promise<WaitUntil> {
     await this.#initPromise;
 
@@ -1151,10 +1153,7 @@ export class MiniflareCore<
     return new RequestContext({
       externalSubrequestLimit: usageModelExternalSubrequestLimit(usageModel),
     }).runWith(() => {
-      const result = globalScope![kDispatchQueue]<WaitUntil>(
-        queueName,
-        messages
-      );
+      const result = globalScope![kDispatchQueue]<WaitUntil>(batch);
       return result;
     });
   }

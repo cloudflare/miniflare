@@ -14,7 +14,7 @@ const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
 const queueBroker = new QueueBroker();
-const queueEventDispatcher: QueueEventDispatcher = (_queue, _messages) => {};
+const queueEventDispatcher: QueueEventDispatcher = (_batch) => {};
 const ctx: PluginContext = {
   log,
   compat,

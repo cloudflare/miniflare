@@ -2,6 +2,7 @@ import {
   Awaitable,
   Context,
   Log,
+  MessageBatch,
   MiniflareError,
   ThrowingEventTarget,
   TypedEventListener,
@@ -108,14 +109,12 @@ export class ScheduledEvent extends Event {
 }
 
 export class QueueEvent extends Event {
-  readonly queueName: string;
-  readonly messages: any[];
+  readonly batch: MessageBatch;
   readonly [kWaitUntil]: Promise<unknown>[] = [];
 
-  constructor(type: "queue", init: { queueName: string; messages: any[] }) {
+  constructor(type: "queue", init: { batch: MessageBatch }) {
     super(type);
-    this.queueName = init.queueName;
-    this.messages = init.messages;
+    this.batch = init.batch;
   }
 
   waitUntil(promise: Promise<any>): void {
@@ -168,7 +167,7 @@ export type ModuleScheduledListener = (
 ) => any;
 
 export type ModuleQueueListener = (
-  event: QueueEvent,
+  batch: MessageBatch,
   env: Context,
   ctx: ExecutionContext
 ) => any;
@@ -372,7 +371,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
 
   [kAddModuleQueueListener](listener: ModuleQueueListener): void {
     super.addEventListener("queue", (e) => {
-      listener(e, this.#bindings, new ExecutionContext(e));
+      listener(e.batch, this.#bindings, new ExecutionContext(e));
     });
   }
 
@@ -461,10 +460,9 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
   }
 
   async [kDispatchQueue]<WaitUntil extends any[] = any[]>(
-    queueName: string,
-    messages: any[]
+    batch: MessageBatch
   ): Promise<WaitUntil> {
-    const event = new QueueEvent("queue", { queueName, messages });
+    const event = new QueueEvent("queue", { batch });
     super.dispatchEvent(event);
     return (await Promise.all(event[kWaitUntil])) as WaitUntil;
   }

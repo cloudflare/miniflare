@@ -10,6 +10,7 @@ import {
   NoOpLog,
   PluginContext,
   QueueEventDispatcher,
+  kGetSubscription,
 } from "@miniflare/shared";
 import {
   MemoryStorageFactory,
@@ -23,7 +24,7 @@ const factory = new MemoryStorageFactory();
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const queueEventDispatcher: QueueEventDispatcher = (_queue, _messages) => {};
+const queueEventDispatcher: QueueEventDispatcher = (_batch) => {};
 
 test("QueuesPlugin: parses options from argv", async (t) => {
   const options = parsePluginArgv(QueuesPlugin, [
@@ -56,8 +57,8 @@ test("QueuesPlugin: parses options from argv", async (t) => {
   await plugin.setup(factory);
 
   const queue1 = queueBroker.getOrCreateQueue("queue1");
-  t.deepEqual(queue1.subscription?.maxBatchSize, DEFAULT_BATCH_SIZE);
-  t.deepEqual(queue1.subscription?.maxWaitMs, DEFAULT_WAIT_MS);
+  t.deepEqual(queue1[kGetSubscription]()?.maxBatchSize, DEFAULT_BATCH_SIZE);
+  t.deepEqual(queue1[kGetSubscription]()?.maxWaitMs, DEFAULT_WAIT_MS);
 });
 
 test("QueuesPlugin: parses options from wrangler config", async (t) => {
@@ -99,13 +100,13 @@ test("QueuesPlugin: parses options from wrangler config", async (t) => {
 
   // queue1 uses defaults
   const queue1 = queueBroker.getOrCreateQueue("queue1");
-  t.deepEqual(queue1.subscription?.maxBatchSize, DEFAULT_BATCH_SIZE);
-  t.deepEqual(queue1.subscription?.maxWaitMs, DEFAULT_WAIT_MS);
+  t.deepEqual(queue1[kGetSubscription]()?.maxBatchSize, DEFAULT_BATCH_SIZE);
+  t.deepEqual(queue1[kGetSubscription]()?.maxWaitMs, DEFAULT_WAIT_MS);
 
   // queue2 has custom settings
   const queue2 = queueBroker.getOrCreateQueue("queue2");
-  t.deepEqual(queue2.subscription?.maxBatchSize, 10);
-  t.deepEqual(queue2.subscription?.maxWaitMs, 7000);
+  t.deepEqual(queue2[kGetSubscription]()?.maxBatchSize, 10);
+  t.deepEqual(queue2[kGetSubscription]()?.maxWaitMs, 7000);
 });
 
 test("QueuesPlugin: logs options", (t) => {

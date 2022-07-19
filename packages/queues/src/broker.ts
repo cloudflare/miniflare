@@ -1,8 +1,13 @@
 import {
+  Message,
+  MessageBatch,
+  MessageSendOptions,
+  MessageSendRequest,
   MiniflareError,
   QueueBroker as QueueBrokerInterface,
   Queue as QueueInterface,
   Subscription,
+  kGetSubscription,
   kSetSubscription,
 } from "@miniflare/shared";
 
@@ -16,11 +21,12 @@ enum FlushType {
   IMMEDIATE,
 }
 
-export class Queue implements QueueInterface {
+export class Queue<Body = unknown> implements QueueInterface<Body> {
   #queueName: string;
-  subscription?: Subscription;
+  #subscription?: Subscription;
 
-  #messages: any[];
+  #messages: Message<Body>[];
+  #messageCounter: number;
   #pendingFlush: FlushType;
   #timeout?: NodeJS.Timeout;
 
@@ -28,30 +34,56 @@ export class Queue implements QueueInterface {
     this.#queueName = queueName;
 
     this.#messages = [];
+    this.#messageCounter = 0;
     this.#pendingFlush = FlushType.NONE;
   }
 
-  send(message: any) {
-    this.#messages.push(message);
-    if (this.subscription) {
-      this.#ensurePendingFlush();
+  async send(body: Body, options?: MessageSendOptions): Promise<void> {
+    this.#enqueue(body, options);
+  }
+
+  async sendBatch(batch: Iterable<MessageSendRequest<Body>>): Promise<void> {
+    for (const req of batch) {
+      this.#enqueue(req.body, req);
     }
   }
 
   [kSetSubscription](subscription: Subscription) {
     // only allow one subscription per queue (for now)
-    if (this.subscription) {
+    if (this.#subscription) {
       throw new QueueError("ERR_SUBSCRIBER_ALREADY_SET");
     }
 
-    this.subscription = subscription;
+    this.#subscription = subscription;
     if (this.#messages.length) {
       this.#ensurePendingFlush();
     }
   }
 
+  [kGetSubscription](): Subscription | null {
+    return this.#subscription ?? null;
+  }
+
+  #enqueue(body: Body, _options?: MessageSendOptions): void {
+    const retry = () => {
+      console.warn(`retry() is unimplemented`);
+    };
+    const msg: Message<Body> = {
+      id: `${this.#queueName}-${this.#messageCounter}`,
+      timestamp: new Date(),
+      body: body, // TODO(soon) structuredClone the body? (need to support older node versions as well...)
+      retry: retry,
+    };
+
+    this.#messages.push(msg);
+    this.#messageCounter++;
+    if (this.#subscription) {
+      this.#ensurePendingFlush();
+    }
+  }
+
   #ensurePendingFlush() {
-    if (!this.subscription) {
+    if (!this.#subscription) {
       return;
     }
 
@@ -62,7 +94,7 @@ export class Queue implements QueueInterface {
 
     if (this.#pendingFlush === FlushType.DELAYED) {
       // Nothing to do if there is already a delayed flush pending and there is no full batch
-      if (this.#messages.length < this.subscription?.maxBatchSize) {
+      if (this.#messages.length < this.#subscription?.maxBatchSize) {
         return;
       }
 
@@ -77,16 +109,21 @@ export class Queue implements QueueInterface {
     this.#pendingFlush = FlushType.DELAYED;
     this.#timeout = setTimeout(
       () => this.#flush(),
-      this.subscription?.maxWaitMs
+      this.#subscription?.maxWaitMs
     );
   }
 
   #flush() {
-    if (!this.subscription) {
+    if (!this.#subscription) {
       return;
     }
 
-    this.subscription?.dispatcher(this.#queueName, this.#messages);
+    const batch: MessageBatch<Body> = {
+      queue: this.#queueName,
+      messages: this.#messages,
+      retryAll: () => console.log("retryAll() is unimplemented"),
+    };
+    this.#subscription?.dispatcher(batch);
     this.#messages = [];
     this.#pendingFlush = FlushType.NONE;
     this.#timeout = undefined;

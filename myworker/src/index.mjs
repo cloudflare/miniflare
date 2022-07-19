@@ -5,9 +5,13 @@ export default {
   async fetch(request, env) {
     console.log(`myworker fetch!`);
 
-    env.QUEUE1.send(`hello queue1: ${i++}`);
-    env.QUEUE1.send(`hello queue1: ${i++}`);
-    env.QUEUE1.send(`hello queue1: ${i++}`);
+    await env.QUEUE1.send(`hello from send(), queue1: ${i++}`);
+
+    const batch = [
+      { body: `hello from sendBatch(), queue1: ${i++}` },
+      { body: `hello again from sendBatch(), queue1: ${i++}` },
+    ];
+    await env.QUEUE1.sendBatch(batch);
 
     return new Response("Hello World!");
   },

@@ -41,10 +41,10 @@ Output:
 
 ```
 myworker fetch!
-GET /test 200 OK (12.28ms)
+GET /test 200 OK (12.61ms)
 consumer.queue() received batch from queue "queue1":
-        hello queue1: 1
-        hello queue1: 2
-        hello queue1: 3
+        Wed Jul 20 2022 13:20:27 GMT-0500 (Central Daylight Time) (queue1-0): hello from send(), queue1: 1
+        Wed Jul 20 2022 13:20:27 GMT-0500 (Central Daylight Time) (queue1-1): hello from sendBatch(), queue1: 2
+        Wed Jul 20 2022 13:20:27 GMT-0500 (Central Daylight Time) (queue1-2): hello again from sendBatch(), queue1: 3
 [mf:inf:consumer] queue1 (3 Messages) OK
 ```
