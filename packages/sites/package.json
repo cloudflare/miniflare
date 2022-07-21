@@ -41,7 +41,8 @@
   "dependencies": {
     "@miniflare/kv": "2.6.0",
     "@miniflare/shared": "2.6.0",
-    "@miniflare/storage-file": "2.6.0"
+    "@miniflare/storage-file": "2.6.0",
+    "undici": "5.8.0"
   },
   "devDependencies": {
     "@cloudflare/kv-asset-handler": "^0.1.3",

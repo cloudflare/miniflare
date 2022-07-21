@@ -36,7 +36,8 @@
   },
   "dependencies": {
     "@miniflare/shared": "2.6.0",
-    "kleur": "^4.1.4"
+    "kleur": "^4.1.4",
+    "undici": "5.8.0"
   },
   "devDependencies": {
     "@miniflare/core": "2.6.0",

@@ -37,7 +37,8 @@
   "dependencies": {
     "@miniflare/shared": "2.6.0",
     "@miniflare/storage-memory": "2.6.0",
-    "ioredis": "^4.27.9"
+    "ioredis": "^4.27.9",
+    "undici": "5.8.0"
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.6.0",

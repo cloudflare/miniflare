@@ -35,6 +35,9 @@
     "extends": "../../package.json"
   },
   "dependencies": {
+    "@jest/environment": ">=27",
+    "@jest/fake-timers": ">=27",
+    "@jest/types": ">=27",
     "@miniflare/cache": "2.6.0",
     "@miniflare/core": "2.6.0",
     "@miniflare/durable-objects": "2.6.0",
@@ -45,12 +48,10 @@
     "@miniflare/sites": "2.6.0",
     "@miniflare/storage-memory": "2.6.0",
     "@miniflare/web-sockets": "2.6.0",
-    "miniflare": "2.6.0",
-    "@jest/environment": ">=27",
-    "@jest/fake-timers": ">=27",
-    "@jest/types": ">=27",
     "jest-mock": ">=27",
-    "jest-util": ">=27"
+    "jest-util": ">=27",
+    "miniflare": "2.6.0",
+    "undici": "5.8.0"
   },
   "peerDependencies": {
     "jest": ">=27"

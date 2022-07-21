@@ -38,6 +38,7 @@
     "@miniflare/runner-vm": "2.6.0",
     "@miniflare/shared": "2.6.0",
     "@miniflare/storage-memory": "2.6.0",
+    "undici": "5.8.0",
     "ws": "^8.2.2"
   }
 }
