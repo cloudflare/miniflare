@@ -37,6 +37,8 @@ export async function readFileRange(
   let fd: fs.FileHandle | null = null;
   let res: Buffer;
   try {
+    // adjust for symbolic links
+    filePath = await fs.realpath(filePath);
     const { size } = await fs.lstat(filePath);
     // build offset and length as necessary
     if (suffix !== undefined) {
