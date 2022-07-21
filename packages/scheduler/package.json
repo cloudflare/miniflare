@@ -37,7 +37,8 @@
   "dependencies": {
     "@miniflare/core": "2.6.0",
     "@miniflare/shared": "2.6.0",
-    "cron-schedule": "^3.0.4"
+    "cron-schedule": "^3.0.4",
+    "undici": "5.8.0"
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.6.0"
