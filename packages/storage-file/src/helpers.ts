@@ -30,6 +30,8 @@ export async function readFileRange(
   let fd: fs.FileHandle | null = null;
   let res: Buffer;
   try {
+    // adjust for symbolic links
+    filePath = await fs.realpath(filePath);
     fd = await fs.open(filePath, "r");
     res = Buffer.alloc(length);
     await fd.read(res, 0, length, start);
