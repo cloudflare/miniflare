@@ -13,11 +13,13 @@ import {
 } from "@miniflare/core";
 import {
   Compatibility,
+  LogLevel,
   NoOpLog,
   PluginContext,
   getRequestContext,
   viewToBuffer,
 } from "@miniflare/shared";
+import { TestLog } from "@miniflare/shared-test";
 import {
   getObjectProperties,
   logPluginOptions,
@@ -124,9 +126,12 @@ test("BindingsPlugin: parses options from wrangler config", async (t) => {
     services: [
       { name: "SERVICE1", service: "service1", environment: "development" },
       { name: "SERVICE2", service: "service2", environment: "production" },
+      { binding: "SERVICE_A", service: "service1", environment: "development" },
+      { binding: "SERVICE_B", service: "service2", environment: "production" },
     ],
     experimental_services: [
       { name: "SERVICE3", service: "service3", environment: "staging" },
+      { binding: "SERVICE_C", service: "service3", environment: "staging" },
     ],
     miniflare: {
       globals: { KEY5: "value5", KEY6: false, KEY7: 10 },
@@ -143,6 +148,9 @@ test("BindingsPlugin: parses options from wrangler config", async (t) => {
       SERVICE1: { service: "service1", environment: "development" },
       SERVICE2: { service: "service2", environment: "production" },
       SERVICE3: { service: "service3", environment: "staging" },
+      SERVICE_A: { service: "service1", environment: "development" },
+      SERVICE_B: { service: "service2", environment: "production" },
+      SERVICE_C: { service: "service3", environment: "staging" },
     },
   });
 
@@ -161,6 +169,113 @@ test("BindingsPlugin: parses options from wrangler config", async (t) => {
     KEY4: "42",
   });
 });
+
+test("BindingsPlugin: logs no warnings if `binding` used without `name`", async (t) => {
+  const log = new TestLog();
+  const service = "service123";
+
+  parsePluginWranglerConfig(
+    BindingsPlugin,
+    {
+      services: [
+        { binding: "SERVICE123", service, environment: "development" },
+      ],
+    },
+    "",
+    log
+  );
+
+  // Check warning logged
+  const warnings = log.logsAtLevel(LogLevel.WARN);
+  t.is(warnings.length, 0);
+});
+test("BindingsPlugin: logs warning if `name` is used instead of `binding`", async (t) => {
+  const log = new TestLog();
+  const service = "service123";
+
+  parsePluginWranglerConfig(
+    BindingsPlugin,
+    {
+      services: [{ name: "SERVICE123", service, environment: "development" }],
+    },
+    "",
+    log
+  );
+
+  // Check warning logged
+  const warnings = log.logsAtLevel(LogLevel.WARN);
+  t.is(warnings.length, 1);
+  const [warning] = warnings;
+
+  t.true(warning.includes(service));
+  t.regex(
+    warning,
+    /^Service "\w+" declared using deprecated syntax\.\nThe `name` key should be removed and renamed to `binding`\.$/
+  );
+});
+test("BindingsPlugin: logs warning if `name` and `binding` are both used but they are the same", async (t) => {
+  const log = new TestLog();
+  const service = "service123";
+  const name = "SERVICE123";
+  const binding = name;
+
+  parsePluginWranglerConfig(
+    BindingsPlugin,
+    {
+      services: [{ name, binding, service, environment: "development" }],
+    },
+    "",
+    log
+  );
+
+  // Check no warnings logged
+  const warnings = log.logsAtLevel(LogLevel.WARN);
+  t.is(warnings.length, 1);
+  const [warning] = warnings;
+
+  t.true(warning.includes(service));
+  t.regex(
+    warning,
+    /^Service "\w+" declared using deprecated syntax\.\nThe `name` key should be removed and renamed to `binding`\.$/
+  );
+});
+test("BindingsPlugin: throws if `name` and `binding` are both present and don't match", (t) => {
+  t.throws(
+    () =>
+      parsePluginWranglerConfig(BindingsPlugin, {
+        services: [
+          {
+            name: "SERVICE1",
+            binding: "SERVICE_A",
+            service: "service1",
+            environment: "development",
+          },
+        ],
+      }),
+    {
+      instanceOf: MiniflareCoreError,
+      code: "ERR_SERVICE_NAME_MISMATCH",
+    }
+  );
+});
+test("BindingsPlugin: throws if `name` and `binding` are both absent", (t) => {
+  t.throws(
+    () =>
+      parsePluginWranglerConfig(BindingsPlugin, {
+        services: [
+          {
+            service: "service1",
+            environment: "development",
+          },
+        ],
+      }),
+    {
+      instanceOf: MiniflareCoreError,
+      code: "ERR_SERVICE_NO_NAME",
+    }
+  );
+});
+
 test("BindingsPlugin: logs options", (t) => {
   // wranglerOptions should contain [kWranglerBindings]
   const wranglerOptions = parsePluginWranglerConfig(BindingsPlugin, {

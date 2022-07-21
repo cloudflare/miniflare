@@ -22,6 +22,7 @@ workers in a sandbox implementing Workers' runtime APIs.
 - 🔑 Variables and Secrets with `.env` Files
 - 📚 Modules Support
 - 📦 KV (with optional persistence)
+- 🪣 R2 (with optional persistence)
 - ✨ Cache (with optional persistence)
 - 📌 Durable Objects (with optional persistence)
 - 🌐 Workers Sites
@@ -81,75 +82,82 @@ console.log(await res.text()); // Hello Miniflare!
 Usage: miniflare [script] [options]
 
 Core Options:
- -h, --help              Show help                                                           [boolean]
- -v, --version           Show version number                                                 [boolean]
- -c, --wrangler-config   Path to wrangler.toml                                                [string]
-     --wrangler-env      Environment in wrangler.toml to use                                  [string]
-     --package           Path to package.json                                                 [string]
- -m, --modules           Enable modules                                                      [boolean]
-     --modules-rule      Modules import rule                                         [array:TYPE=GLOB]
-     --compat-date       Opt into backwards-incompatible changes from                         [string]
-     --compat-flag       Control specific backwards-incompatible changes                       [array]
- -u, --upstream          URL of upstream origin                                               [string]
- -w, --watch             Watch files for changes                                             [boolean]
- -d, --debug             Enable debug logging                                                [boolean]
- -V, --verbose           Enable verbose logging                                              [boolean]
-     --(no-)update-check Enable update checker (enabled by default)                          [boolean]
-     --root              Path to resolve files relative to                                    [string]
-     --mount             Mount additional named workers                        [array:NAME=PATH[@ENV]]
-     --name              Name of service                                                      [string]
-     --route             Route to respond with this worker on                                  [array]
-     --global-async-io   Allow async I/O outside handlers                                    [boolean]
-     --global-timers     Allow setting timers outside handlers                               [boolean]
-     --global-random     Allow secure random generation outside handlers                     [boolean]
+ -h, --help              Show help                                                   [boolean]
+ -v, --version           Show version number                                         [boolean]
+ -c, --wrangler-config   Path to wrangler.toml                                        [string]
+     --wrangler-env      Environment in wrangler.toml to use                          [string]
+     --package           Path to package.json                                         [string]
+ -m, --modules           Enable modules                                              [boolean]
+     --modules-rule      Modules import rule                                 [array:TYPE=GLOB]
+     --compat-date       Opt into backwards-incompatible changes from                 [string]
+     --compat-flag       Control specific backwards-incompatible changes               [array]
+     --usage-model       Usage model (bundled by default)                             [string]
+ -u, --upstream          URL of upstream origin                                       [string]
+ -w, --watch             Watch files for changes                                     [boolean]
+ -d, --debug             Enable debug logging                                        [boolean]
+ -V, --verbose           Enable verbose logging                                      [boolean]
+     --(no-)update-check Enable update checker (enabled by default)                  [boolean]
+     --repl              Enable interactive REPL                                     [boolean]
+     --root              Path to resolve files relative to                            [string]
+     --mount             Mount additional named workers                [array:NAME=PATH[@ENV]]
+     --name              Name of service                                              [string]
+     --route             Route to respond with this worker on                          [array]
+     --global-async-io   Allow async I/O outside handlers                            [boolean]
+     --global-timers     Allow setting timers outside handlers                       [boolean]
+     --global-random     Allow secure random generation outside handlers             [boolean]
+     --actual-time       Always return correct time from Date methods                [boolean]
 
 HTTP Options:
- -H, --host              Host for HTTP(S) server to listen on                                 [string]
- -p, --port              Port for HTTP(S) server to listen on                                 [number]
- -O, --open              Automatically open browser to URL                            [boolean/string]
-     --https             Enable self-signed HTTPS (with optional cert path)           [boolean/string]
-     --https-key         Path to PEM SSL key                                                  [string]
-     --https-cert        Path to PEM SSL cert chain                                           [string]
-     --https-ca          Path to SSL trusted CA certs                                         [string]
-     --https-pfx         Path to PFX/PKCS12 SSL key/cert chain                                [string]
-     --https-passphrase  Passphrase to decrypt SSL files                                      [string]
-     --(no-)cf-fetch     Path for cached Request cf object from Cloudflare            [boolean/string]
-     --live-reload       Reload HTML pages whenever worker is reloaded                       [boolean]
+ -H, --host              Host for HTTP(S) server to listen on                         [string]
+ -p, --port              Port for HTTP(S) server to listen on                         [number]
+ -O, --open              Automatically open browser to URL                    [boolean/string]
+     --https             Enable self-signed HTTPS (with optional cert path)   [boolean/string]
+     --https-key         Path to PEM SSL key                                          [string]
+     --https-cert        Path to PEM SSL cert chain                                   [string]
+     --https-ca          Path to SSL trusted CA certs                                 [string]
+     --https-pfx         Path to PFX/PKCS12 SSL key/cert chain                        [string]
+     --https-passphrase  Passphrase to decrypt SSL files                              [string]
+     --(no-)cf-fetch     Path for cached Request cf object from Cloudflare    [boolean/string]
+     --live-reload       Reload HTML pages whenever worker is reloaded               [boolean]
 
 Scheduler Options:
- -t, --cron              CRON expression for triggering scheduled events                       [array]
+ -t, --cron              CRON expression for triggering scheduled events               [array]
 
 Build Options:
- -B, --build-command     Command to build project                                             [string]
-     --build-base-path   Working directory for build command                                  [string]
-     --build-watch-path  Directory to watch for rebuilding on changes                          [array]
+ -B, --build-command     Command to build project                                     [string]
+     --build-base-path   Working directory for build command                          [string]
+     --build-watch-path  Directory to watch for rebuilding on changes                  [array]
 
 KV Options:
- -k, --kv                KV namespace to bind                                                  [array]
-     --kv-persist        Persist KV data (to optional path)                           [boolean/string]
+ -k, --kv                KV namespace to bind                                          [array]
+     --kv-persist        Persist KV data (to optional path)                   [boolean/string]
+
+R2 Options:
+ -r, --r2                R2 bucket to bind                                             [array]
+     --r2-persist        Persist R2 data (to optional path)                   [boolean/string]
 
 Durable Objects Options:
- -o, --do                Durable Object to bind                             [array:NAME=CLASS[@MOUNT]]
-     --do-persist        Persist Durable Object data (to optional path)               [boolean/string]
-     --(no-)do-alarms    Enable Durable Object alarms (enabled by default)                   [boolean]
+ -o, --do                Durable Object to bind                     [array:NAME=CLASS[@MOUNT]]
+     --do-persist        Persist Durable Object data (to optional path)       [boolean/string]
+     --(no-)do-alarms    Enable Durable Object alarms (enabled by default)           [boolean]
 
 Cache Options:
-     --(no-)cache        Enable default/named caches (enabled by default)                    [boolean]
-     --cache-persist     Persist cached data (to optional path)                       [boolean/string]
+     --(no-)cache        Enable default/named caches (enabled by default)            [boolean]
+     --cache-persist     Persist cached data (to optional path)               [boolean/string]
 
 Sites Options:
- -s, --site              Path to serve Workers Site files from                                [string]
-     --site-include      Glob pattern of site files to serve                                   [array]
-     --site-exclude      Glob pattern of site files not to serve                               [array]
+ -s, --site              Path to serve Workers Site files from                        [string]
+     --site-include      Glob pattern of site files to serve                           [array]
+     --site-exclude      Glob pattern of site files not to serve                       [array]
 
 Bindings Options:
- -e, --env               Path to .env file                                                    [string]
- -b, --binding           Binds variable/secret to environment                        [array:KEY=VALUE]
-     --global            Binds variable/secret to global scope                       [array:KEY=VALUE]
-     --wasm              WASM module to bind                                         [array:NAME=PATH]
-     --text-blob         Text blob to bind                                           [array:NAME=PATH]
-     --data-blob         Data blob to bind                                           [array:NAME=PATH]
- -S, --service           Mounted service to bind                              [array:NAME=MOUNT[@ENV]]
+ -e, --env               Path to .env file                                            [string]
+ -b, --binding           Binds variable/secret to environment                [array:KEY=VALUE]
+     --global            Binds variable/secret to global scope               [array:KEY=VALUE]
+     --wasm              WASM module to bind                                 [array:NAME=PATH]
+     --text-blob         Text blob to bind                                   [array:NAME=PATH]
+     --data-blob         Data blob to bind                                   [array:NAME=PATH]
+ -S, --service           Mounted service to bind                      [array:NAME=MOUNT[@ENV]]
 ```
 
 ## Acknowledgements

@@ -6,16 +6,36 @@ export interface StoredMeta<Meta = unknown> {
   /** Arbitrary JSON-serializable object */
   metadata?: Meta;
 }
+export interface RangeStoredMeta<Meta = unknown> extends StoredMeta<Meta> {
+  range: {
+    offset: number;
+    length: number;
+  };
+}
 
 export interface StoredValue {
   value: Uint8Array;
+}
+export interface RangeStoredValue extends StoredValue {
+  range: {
+    offset: number;
+    length: number;
+  };
 }
 export interface StoredKey {
   name: string;
 }
 
 export type StoredValueMeta<Meta = unknown> = StoredValue & StoredMeta<Meta>;
+export type RangeStoredValueMeta<Meta = unknown> = RangeStoredValue &
+  RangeStoredMeta<Meta>;
 export type StoredKeyMeta<Meta = unknown> = StoredKey & StoredMeta<Meta>;
+
+export interface Range {
+  offset?: number;
+  length?: number;
+  suffix?: number;
+}
 
 export interface StorageListOptions {
   // Stage 1: filtering
@@ -42,11 +62,17 @@ export interface StorageListOptions {
   cursor?: string;
   /** Maximum number of keys to return if defined */
   limit?: number;
+
+  // Stage 4: filtering
+  /** If Delimiter, filter all keys containing delimiter and update cursor */
+  delimiter?: string;
 }
 export interface StorageListResult<Key extends StoredKey = StoredKeyMeta> {
   keys: Key[];
   /** Cursor for next page */
   cursor: string;
+  /** DelimitedPrefixes if delimiter */
+  delimitedPrefixes?: string[];
 }
 
 /**
@@ -56,6 +82,9 @@ export interface StorageListResult<Key extends StoredKey = StoredKeyMeta> {
  */
 export abstract class Storage {
   abstract has(key: string): Awaitable<boolean>;
+  abstract head<Meta = unknown>(
+    key: string
+  ): Awaitable<StoredMeta<Meta> | undefined>;
   abstract get<Meta = unknown>(
     key: string,
     skipMetadata?: false
@@ -64,6 +93,16 @@ export abstract class Storage {
     key: string,
     skipMetadata: true
   ): Awaitable<StoredValue | undefined>;
+  abstract getRange<Meta = unknown>(
+    key: string,
+    range?: Range,
+    skipMetadata?: false
+  ): Awaitable<RangeStoredValueMeta<Meta> | undefined>;
+  abstract getRange(
+    key: string,
+    range: undefined | Range,
+    skipMetadata: true
+  ): Awaitable<RangeStoredValue | undefined>;
   abstract put<Meta = unknown>(
     key: string,
     value: StoredValueMeta<Meta>
@@ -77,13 +116,6 @@ export abstract class Storage {
     options: StorageListOptions,
     skipMetadata: true
   ): Awaitable<StorageListResult<StoredKey>>;
-
-  // Implementations (e.g. storage-file) may override this for efficient range requests
-  async getRangeMaybeExpired?<Meta = unknown>(
-    key: string,
-    start: number,
-    length: number
-  ): Promise<StoredValueMeta<Meta> | undefined>;
 
   // Batch functions, default implementations may be overridden to optimise
 

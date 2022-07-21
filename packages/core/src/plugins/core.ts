@@ -289,6 +289,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   @Option({
     type: OptionType.BOOLEAN,
+    logName: "REPL",
     description: "Enable interactive REPL",
   })
   repl?: boolean;

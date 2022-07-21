@@ -69,6 +69,7 @@ const mf = new Miniflare({
 
 Specifically Miniflare supports the following flags:
 
+- [`global_navigator`/`no_global_navigator`](https://developers.cloudflare.com/workers/platform/compatibility-dates#global-navigator)
 - [`durable_object_fetch_requires_full_url`/`durable_object_fetch_allows_relative_url`](https://developers.cloudflare.com/workers/platform/compatibility-dates#durable-object-stubfetch-requires-a-full-url)
 - [`fetch_refuses_unknown_protocols`/`fetch_treats_unknown_protocols_as_http`](https://developers.cloudflare.com/workers/platform/compatibility-dates#fetch-improperly-interprets-unknown-protocols-as-http)
 - [`formdata_parser_supports_files`/`formdata_parser_converts_files_to_strings`](https://developers.cloudflare.com/workers/platform/compatibility-dates#formdata-parsing-supports-file)

@@ -6,7 +6,9 @@ import { ModuleRuleType } from "./runner";
 export type UsageModel = "bundled" | "unbound";
 
 export interface WranglerServiceConfig {
-  name: string;
+  /** @deprecated Use `binding` instead */
+  name?: string;
+  binding?: string;
   service: string;
   environment: string;
 }
@@ -24,6 +26,11 @@ export interface WranglerEnvironmentConfig {
     binding: string;
     id?: string;
     preview_id?: string;
+  }[]; // NOT inherited
+  r2_buckets?: {
+    binding: string;
+    bucket_name?: string;
+    preview_bucket_name?: string;
   }[]; // NOT inherited
   site?: {
     bucket: string;
@@ -54,6 +61,7 @@ export interface WranglerEnvironmentConfig {
     watch?: boolean;
     build_watch_dirs?: string[];
     kv_persist?: boolean | string;
+    r2_persist?: boolean | string;
     cache?: boolean;
     cache_persist?: boolean | string;
     durable_objects_persist?: boolean | string;

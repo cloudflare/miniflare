@@ -22,6 +22,7 @@ import {
   startServer,
 } from "@miniflare/http-server";
 import { KVNamespace, KVPlugin } from "@miniflare/kv";
+import { R2Bucket, R2Plugin } from "@miniflare/r2";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
   CronScheduler,
@@ -46,6 +47,7 @@ export const PLUGINS = {
 
   // Storage
   KVPlugin,
+  R2Plugin,
   DurableObjectsPlugin,
   CachePlugin,
   SitesPlugin,
@@ -102,6 +104,12 @@ export class Miniflare extends MiniflareCore<Plugins> {
     const plugin = (await this.getPlugins()).KVPlugin;
     const storage = this.getPluginStorage("KVPlugin");
     return plugin.getNamespace(storage, namespace);
+  }
+
+  async getR2Bucket(bucket: string): Promise<R2Bucket> {
+    const plugin = (await this.getPlugins()).R2Plugin;
+    const storage = this.getPluginStorage("R2Plugin");
+    return plugin.getBucket(storage, bucket);
   }
 
   async getCaches(): Promise<CacheStorage> {

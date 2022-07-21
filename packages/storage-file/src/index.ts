@@ -2,6 +2,8 @@ import { existsSync } from "fs";
 import path from "path";
 import {
   MiniflareError,
+  Range,
+  RangeStoredValueMeta,
   StoredKeyMeta,
   StoredMeta,
   StoredValueMeta,
@@ -26,7 +28,7 @@ export type FileStorageErrorCode =
 
 export class FileStorageError extends MiniflareError<FileStorageErrorCode> {}
 
-interface FileMeta<Meta = unknown> extends StoredMeta<Meta> {
+export interface FileMeta<Meta = unknown> extends StoredMeta<Meta> {
   key?: string;
 }
 
@@ -56,7 +58,9 @@ export class FileStorage extends LocalStorage {
   // noinspection JSMethodCanBeStatic
   private async meta<Meta>(keyFilePath: string): Promise<FileMeta<Meta>> {
     const metaString = await readFile(keyFilePath + metaSuffix, true);
-    return metaString ? JSON.parse(metaString) : {};
+    return metaString
+      ? JSON.parse(metaString)
+      : { expiration: undefined, metadata: undefined };
   }
 
   async hasMaybeExpired(key: string): Promise<StoredMeta | undefined> {
@@ -65,6 +69,15 @@ export class FileStorage extends LocalStorage {
     if (!existsSync(filePath)) return;
     const meta = await this.meta(filePath);
     return { expiration: meta.expiration, metadata: meta.metadata };
+  }
+
+  async headMaybeExpired<Meta>(
+    key: string
+  ): Promise<FileMeta<Meta> | undefined> {
+    const [filePath] = this.keyPath(key);
+    if (!filePath) return;
+    if (!existsSync(filePath)) return;
+    return await this.meta<Meta>(filePath);
   }
 
   async getMaybeExpired<Meta>(
@@ -93,21 +106,22 @@ export class FileStorage extends LocalStorage {
 
   async getRangeMaybeExpired<Meta = unknown>(
     key: string,
-    start: number,
-    length: number
-  ): Promise<StoredValueMeta<Meta> | undefined> {
+    { offset: _offset, length: _length, suffix }: Range
+  ): Promise<RangeStoredValueMeta<Meta> | undefined> {
     const [filePath] = this.keyPath(key);
     if (!filePath) return;
 
     try {
-      const value = await readFileRange(filePath, start, length);
+      const res = await readFileRange(filePath, _offset, _length, suffix);
+      if (res === undefined) return;
 
-      if (value === undefined) return;
+      const { value, offset, length } = res;
       const meta = await this.meta<Meta>(filePath);
       return {
         value: viewToArray(value),
         expiration: meta.expiration,
         metadata: meta.metadata,
+        range: { offset, length },
       };
     } catch (e: any) {
       // We'll get this error if we try to get a namespaced key, where the
