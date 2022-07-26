@@ -15,7 +15,7 @@ import {
 } from "@miniflare/durable-objects";
 import { HTMLRewriterPlugin } from "@miniflare/html-rewriter";
 import { KVPlugin } from "@miniflare/kv";
-import { R2Plugin } from "@miniflare/r2";
+import { R2Bucket, R2Plugin } from "@miniflare/r2";
 import { VMScriptRunner, defineHasInstances } from "@miniflare/runner-vm";
 import { Context, NoOpLog } from "@miniflare/shared";
 import { SitesPlugin } from "@miniflare/sites";
@@ -29,6 +29,7 @@ declare global {
   function getMiniflareDurableObjectStorage(
     id: DurableObjectId
   ): Promise<DurableObjectStorage>;
+  function getMiniflareR2Bucket(bucket: string): Promise<R2Bucket>;
 }
 
 // MiniflareCore will ensure CorePlugin is first and BindingsPlugin is last,
@@ -222,6 +223,11 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
       const storage = mf.getPluginStorage("DurableObjectsPlugin");
       const state = await plugin.getObject(storage, id);
       return state.storage;
+    };
+    global.getMiniflareR2Bucket = async (bucket: string): Promise<R2Bucket> => {
+      const plugin = (await mf.getPlugins()).R2Plugin;
+      const storage = mf.getPluginStorage("R2Plugin");
+      return plugin.getBucket(storage, bucket);
     };
   }
 
