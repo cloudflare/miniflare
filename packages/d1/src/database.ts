@@ -1,16 +1,129 @@
-import { RequestInit, Response } from "@miniflare/core";
+import { performance } from "node:perf_hooks";
 import { Storage } from "@miniflare/shared";
 import Database from "better-sqlite3";
 
-const _404 = (body: any = {}) => Response.json(body, { status: 404 });
-const _200 = (body: any = {}) => Response.json(body);
+type BindParams = any[] | [Record<string, any>];
 
-type Statement = {
-  sql: string | string[];
-  params?: any[];
-};
+function errorWithCause(message: string, e: unknown) {
+  return new Error(message, {
+    cause: e,
+  });
+}
 
-// This is the API for the D1 Beta, which just exposes `.fetch()`
+class Statement {
+  readonly #db: Database.Database;
+  readonly #query: string;
+  readonly #bindings: BindParams | undefined;
+
+  constructor(db: Database.Database, query: string, bindings?: BindParams) {
+    this.#db = db;
+    this.#query = query;
+    this.#bindings = bindings;
+  }
+
+  // Lazily accumulate binding instructions, because ".bind" in better-sqlite3
+  // is a real action that means the query must be valid when it's written,
+  // not when it's about to be executed (i.e. in a batch).
+  bind(...params: BindParams) {
+    return new Statement(this.#db, this.#query, params);
+  }
+  private prepareAndBind() {
+    const prepared = this.#db.prepare(this.#query);
+    if (this.#bindings === undefined) return prepared;
+    try {
+      return prepared.bind(this.#bindings);
+    } catch (e) {
+      // For statements using ?1 ?2, etc, we want to pass them as varargs but
+      // "better" sqlite3 wants them as an object of {1: params[0], 2: params[1], ...}
+      if (this.#bindings.length > 0 && typeof this.#bindings[0] !== "object") {
+        return prepared.bind(
+          Object.fromEntries(this.#bindings.map((v, i) => [i + 1, v]))
+        );
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  async all() {
+    const start = performance.now();
+    const statementWithBindings = this.prepareAndBind();
+    try {
+      const results = Statement._all(statementWithBindings);
+      return {
+        results,
+        duration: performance.now() - start,
+        lastRowId: null,
+        changes: null,
+        success: true,
+        served_by: "x-miniflare.db3",
+      };
+    } catch (e) {
+      throw errorWithCause("D1_ALL_ERROR", e);
+    }
+  }
+  private static _all(statementWithBindings: Database.Statement) {
+    try {
+      return statementWithBindings.all();
+    } catch (e: unknown) {
+      // This is the quickest/simplest way I could find to return results by
+      // default, falling back to .run()
+      if (
+        /This statement does not return data\. Use run\(\) instead/.exec(
+          (e as Error).message
+        )
+      ) {
+        return Statement._run(statementWithBindings);
+      }
+      throw e;
+    }
+  }
+
+  async first(col?: string) {
+    const statementWithBindings = this.prepareAndBind();
+    try {
+      const data = Statement._first(statementWithBindings);
+      return typeof col === "string" ? data[col] : data;
+    } catch (e) {
+      throw errorWithCause("D1_FIRST_ERROR", e);
+    }
+  }
+  private static _first(statementWithBindings: Database.Statement) {
+    return statementWithBindings.get();
+  }
+
+  async run() {
+    const start = performance.now();
+    const statementWithBindings = this.prepareAndBind();
+    try {
+      const { changes, lastInsertRowid } = Statement._run(
+        statementWithBindings
+      );
+      return {
+        results: null,
+        duration: performance.now() - start,
+        lastRowId: lastInsertRowid,
+        changes,
+        success: true,
+        served_by: "x-miniflare.db3",
+      };
+    } catch (e) {
+      throw errorWithCause("D1_RUN_ERROR", e);
+    }
+  }
+  private static _run(statementWithBindings: Database.Statement) {
+    return statementWithBindings.run();
+  }
+
+  async raw() {
+    const statementWithBindings = this.prepareAndBind();
+    return Statement._raw(statementWithBindings);
+  }
+  private static _raw(statementWithBindings: Database.Statement) {
+    return statementWithBindings.raw() as any;
+  }
+}
+
 export class BetaDatabase {
   readonly #storage: Storage;
   readonly #db: Database.Database;
@@ -20,42 +133,30 @@ export class BetaDatabase {
     this.#db = storage.getSqliteDatabase();
   }
 
-  async fetch(input: string, init: RequestInit): Promise<Response> {
-    if (init.method !== "POST") return _404();
-    const body = JSON.parse(init.body as string) as Statement | Statement[];
+  prepare(source: string) {
+    return new Statement(this.#db, source);
+  }
 
-    switch (input) {
-      case "/execute":
-      case "/query": {
-        const queries = Array.isArray(body) ? body : [body];
-        const runResult = queries.flatMap((q) => {
-          const { sql, params = [] } = q;
-          const statements = Array.isArray(sql) ? sql : [sql];
-          return statements.map((s) => {
-            const statement = this.#db.prepare(s);
-            try {
-              return statement.all(...params);
-            } catch (e: unknown) {
-              // This is the quickest/simplest way I could find to return results by
-              // default, falling back to .run()
-              if (
-                /This statement does not return data\. Use run\(\) instead/.exec(
-                  (e as Error).message
-                )
-              ) {
-                return statement.run(...params);
-              }
-              throw e;
-            }
-          });
-        });
-        return _200({
-          success: true,
-          result: runResult,
-        });
-      }
+  async batch(statements: Statement[]) {
+    return await Promise.all(statements.map((s) => s.all()));
+  }
+
+  async exec(multiLineStatements: string) {
+    const statements = multiLineStatements
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    const start = performance.now();
+    for (const statement of statements) {
+      await new Statement(this.#db, statement).all();
     }
+    return {
+      count: statements.length,
+      duration: performance.now() - start,
+    };
+  }
 
-    return _404();
+  async dump() {
+    throw new Error("DB.dump() not implemented locally!");
   }
 }
