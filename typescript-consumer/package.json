@@ -1,0 +1,9 @@
+{
+  "name": "typescript-consumer",
+  "module": "dist/index.mjs",
+  "version": "0.0.0",
+  "devDependencies": {
+    "wrangler": "2.0.15"
+  },
+  "private": true
+}

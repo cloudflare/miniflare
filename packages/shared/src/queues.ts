@@ -19,7 +19,6 @@ export type Subscription = {
 };
 
 // External types (exposed to user code):
-// TODO(soon) will these be defined in cloudflare-types instead?
 export type MessageSendOptions = {
   // Reserved
 };
@@ -32,7 +31,6 @@ export interface Queue<Body = unknown> {
   send(message: Body, options?: MessageSendOptions): Promise<void>;
   sendBatch(batch: Iterable<MessageSendRequest<Body>>): Promise<void>;
 
-  // TODO(soon) these are internal and would not be exposed in cloudflare-types
   [kSetSubscription](subscription: Subscription): void;
   [kGetSubscription](): Subscription | null;
 }

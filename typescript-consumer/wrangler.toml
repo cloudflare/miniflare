@@ -1,0 +1,10 @@
+name = "typescript-consumer"
+compatibility_date = "2022-06-27"
+
+[build.upload]
+format = "modules"
+
+[[queues.subscriptions]]
+queue_name = "queue1"
+max_batch_size = 5
+max_wait_secs = 5
