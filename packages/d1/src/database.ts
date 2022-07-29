@@ -5,12 +5,11 @@ import Database from "better-sqlite3";
 type BindParams = any[] | [Record<string, any>];
 
 function errorWithCause(message: string, e: unknown) {
-  return new Error(message, {
-    cause: e,
-  });
+  // @ts-ignore Errors have causes now, why don't you know this Typescript?
+  return new Error(message, { cause: e });
 }
 
-class Statement {
+export class Statement {
   readonly #db: Database.Database;
   readonly #query: string;
   readonly #bindings: BindParams | undefined;

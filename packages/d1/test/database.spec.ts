@@ -17,33 +17,30 @@ test.beforeEach((t) => {
   t.context = { storage, db };
 });
 
-test("fetch: accepts /execute and /query", async (t) => {
+test("batch, prepare & all", async (t) => {
   const { db } = t.context;
 
-  await db.fetch("/execute", {
-    method: "POST",
-    body: JSON.stringify({
-      sql: `CREATE TABLE my_table (cid INTEGER PRIMARY KEY, name TEXT NOT NULL);`,
-    }),
-  });
-  const response = await db.fetch("/query", {
-    method: "POST",
-    body: JSON.stringify({
-      sql: `SELECT * FROM sqlite_schema`,
-    }),
-  });
-  t.deepEqual(await response.json(), {
-    success: true,
-    result: [
-      [
-        {
-          type: "table",
-          name: "my_table",
-          tbl_name: "my_table",
-          rootpage: 2,
-          sql: "CREATE TABLE my_table (cid INTEGER PRIMARY KEY, name TEXT NOT NULL)",
-        },
-      ],
-    ],
-  });
+  await db.batch([
+    db.prepare(
+      `CREATE TABLE my_table (cid INTEGER PRIMARY KEY, name TEXT NOT NULL);`
+    ),
+  ]);
+  const response = await db.prepare(`SELECT * FROM sqlite_schema`).all();
+  t.deepEqual(Object.keys(response), [
+    "results",
+    "duration",
+    "lastRowId",
+    "changes",
+    "success",
+    "served_by",
+  ]);
+  t.deepEqual(response.results, [
+    {
+      type: "table",
+      name: "my_table",
+      tbl_name: "my_table",
+      rootpage: 2,
+      sql: "CREATE TABLE my_table (cid INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+    },
+  ]);
 });
