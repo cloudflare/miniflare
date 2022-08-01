@@ -1,3 +1,4 @@
+import { MockAgent } from "undici";
 import { Compatibility } from "./compat";
 import { titleCase } from "./data";
 import { Log } from "./log";
@@ -94,6 +95,7 @@ export interface PluginContext {
   rootPath: string;
   usageModel?: UsageModel;
   globalAsyncIO?: boolean;
+  fetchMock?: MockAgent;
 }
 
 export abstract class Plugin<Options extends Context = never> {

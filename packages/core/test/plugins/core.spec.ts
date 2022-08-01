@@ -196,6 +196,7 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
     upstream: "https://miniflare.dev",
     watch: true,
     debug: undefined,
+    fetchMock: undefined,
     verbose: undefined,
     updateCheck: false,
     repl: undefined,

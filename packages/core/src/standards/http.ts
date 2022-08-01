@@ -44,6 +44,7 @@ import {
   ResponseType,
   fetch as baseFetch,
   getGlobalDispatcher,
+  MockAgent,
 } from "undici";
 import { IncomingRequestCfProperties, RequestInitCfProperties } from "./cf";
 import {
@@ -747,6 +748,7 @@ class MiniflareDispatcher extends Dispatcher {
 }
 
 export async function fetch(
+  this: Dispatcher | void,
   input: RequestInfo,
   init?: RequestInit
 ): Promise<Response> {
@@ -793,7 +795,7 @@ export async function fetch(
   // TODO: instead of using getGlobalDispatcher() here, we could allow a custom
   //  one to be passed for easy mocking
   const dispatcher = new MiniflareDispatcher(
-    getGlobalDispatcher(),
+    this instanceof Dispatcher ? this : getGlobalDispatcher(),
     removeHeaders
   );
   const baseRes = await baseFetch(req, { dispatcher });
@@ -820,6 +822,11 @@ export async function fetch(
   await waitForOpenInputGate();
   ctx?.advanceCurrentTime();
   return withInputGating(res);
+}
+
+export function createFetchMock() {
+  const agent = new MockAgent();
+  return agent;
 }
 
 /** @internal */

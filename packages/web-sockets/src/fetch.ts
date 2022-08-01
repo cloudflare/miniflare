@@ -8,12 +8,13 @@ import {
   fetch,
 } from "@miniflare/core";
 import { getRequestContext } from "@miniflare/shared";
-import { Headers } from "undici";
+import { Dispatcher, Headers } from "undici";
 import StandardWebSocket from "ws";
 import { coupleWebSocket } from "./couple";
 import { WebSocketPair } from "./websocket";
 
 export async function upgradingFetch(
+  this: Dispatcher | void,
   input: RequestInfo,
   init?: RequestInit
 ): Promise<Response> {
@@ -76,5 +77,5 @@ export async function upgradingFetch(
     });
   }
 
-  return fetch(request);
+  return fetch.call(this, request);
 }

@@ -31,6 +31,7 @@ import {
 import type { Watcher } from "@miniflare/watcher";
 import { dequal } from "dequal/lite";
 import { dim } from "kleur/colors";
+import { MockAgent } from "undici";
 import { MiniflareCoreError } from "./error";
 import { formatSize, pathsToString } from "./helpers";
 import {
@@ -274,6 +275,8 @@ export class MiniflareCore<
   #watcherCallbackMutex?: Mutex;
   #previousWatchPaths?: Set<string>;
 
+  #previousFetchMock?: MockAgent;
+
   constructor(
     plugins: Plugins,
     ctx: MiniflareCoreContext,
@@ -376,12 +379,18 @@ export class MiniflareCore<
 
     // Build compatibility manager, rebuild all plugins if reloadAll is set,
     // compatibility data, root path or any limits have changed
-    const { compatibilityDate, compatibilityFlags, usageModel, globalAsyncIO } =
-      options.CorePlugin;
+    const {
+      compatibilityDate,
+      compatibilityFlags,
+      usageModel,
+      globalAsyncIO,
+      fetchMock,
+    } = options.CorePlugin;
     let ctxUpdate =
       (this.#previousRootPath && this.#previousRootPath !== rootPath) ||
       this.#previousUsageModel !== usageModel ||
       this.#previousGlobalAsyncIO !== globalAsyncIO ||
+      this.#previousFetchMock !== fetchMock ||
       reloadAll;
     this.#previousRootPath = rootPath;
 
@@ -398,6 +407,7 @@ export class MiniflareCore<
       rootPath,
       usageModel,
       globalAsyncIO,
+      fetchMock,
     };
 
     // Log options and compatibility flags every time they might've changed
