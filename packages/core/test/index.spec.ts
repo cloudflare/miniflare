@@ -49,6 +49,7 @@ import {
 } from "@miniflare/shared-test";
 import test, { Macro } from "ava";
 import { Request as BaseRequest, File, FormData } from "undici";
+import { createFetchMock } from "../src/standards/http";
 
 const log = new NoOpLog();
 // Only use this shared storage factory when the test doesn't care about storage
@@ -1108,6 +1109,19 @@ test("MiniflareCore: dispatchFetch: fetching incoming request responds with upst
   // Host should be rewritten to match upstream
   const res = await mf.dispatchFetch("https://random.mf/");
   t.is(await res.text(), "upstream");
+});
+test("MiniflareCore: dispatchFetch: fetching incoming request with mocked upstream", async (t) => {
+  const mockAgent = createFetchMock();
+  mockAgent.disableNetConnect();
+  const client = mockAgent.get("https://random.mf");
+  client.intercept({ path: "/" }).reply(200, "Hello World!");
+  const mf = useMiniflareWithHandler(
+    {},
+    { fetchMock: mockAgent },
+    (globals, req) => globals.fetch(req)
+  );
+  const res = await mf.dispatchFetch("https://random.mf/");
+  t.is(await res.text(), "Hello World!");
 });
 test("MiniflareCore: dispatchFetch: request gets immutable headers", async (t) => {
   const mf = useMiniflareWithHandler({}, {}, (globals, req) => {

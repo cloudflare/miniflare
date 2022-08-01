@@ -60,8 +60,8 @@ import {
   createCrypto,
   createDate,
   createTimer,
-  withStringFormDataFiles,
   fetch,
+  withStringFormDataFiles,
 } from "../standards";
 import { assertsInRequest } from "../standards/helpers";
 import type { BindingsOptions } from "./bindings";
