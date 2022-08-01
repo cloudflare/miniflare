@@ -21,6 +21,8 @@ import { SitesPlugin } from "@miniflare/sites";
 import { WebSocketPlugin } from "@miniflare/web-sockets";
 import { ModuleMocker } from "jest-mock";
 import { installCommonGlobals } from "jest-util";
+import { createFetchMock } from "packages/core/src/standards/http";
+import { MockAgent } from "undici";
 import { StackedMemoryStorageFactory } from "./storage";
 
 declare global {
@@ -28,6 +30,8 @@ declare global {
   function getMiniflareDurableObjectStorage(
     id: DurableObjectId
   ): Promise<DurableObjectStorage>;
+  function getMiniflareFetchMock(): MockAgent;
+  function setMiniflareFetchMock(agent: MockAgent): Promise<void>;
 }
 
 // MiniflareCore will ensure CorePlugin is first and BindingsPlugin is last,
@@ -220,6 +224,13 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
       const storage = mf.getPluginStorage("DurableObjectsPlugin");
       const state = await plugin.getObject(storage, id);
       return state.storage;
+    };
+    global.getMiniflareFetchMock = () => {
+      const agent = createFetchMock();
+      return agent;
+    };
+    global.setMiniflareFetchMock = async (agent: MockAgent) => {
+      await mf.setOptions({ fetchMock: agent });
     };
   }
 
