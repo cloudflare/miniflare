@@ -29,6 +29,7 @@ declare global {
   function getMiniflareDurableObjectStorage(
     id: DurableObjectId
   ): Promise<DurableObjectStorage>;
+  function flushDurableObjectAlarms(ids: DurableObjectId[]): Promise<void>;
 }
 
 // MiniflareCore will ensure CorePlugin is first and BindingsPlugin is last,
@@ -222,6 +223,13 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
       const storage = mf.getPluginStorage("DurableObjectsPlugin");
       const state = await plugin.getObject(storage, id);
       return state.storage;
+    };
+    global.flushDurableObjectAlarms = async (
+      ids?: DurableObjectId[]
+    ): Promise<void> => {
+      const plugin = (await mf.getPlugins()).DurableObjectsPlugin;
+      const storage = mf.getPluginStorage("DurableObjectsPlugin");
+      plugin.flushAlarms(storage, ids);
     };
   }
 

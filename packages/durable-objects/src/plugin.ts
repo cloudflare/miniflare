@@ -214,15 +214,38 @@ export class DurableObjectsPlugin
       const id = new DurableObjectId(objectName, hexId);
       const state = await this.getObject(storage, id);
       // execute the alarm
-      await new RequestContext({
-        requestDepth: 1,
-        pipelineDepth: 1,
-        durableObject: true,
-        externalSubrequestLimit: usageModelExternalSubrequestLimit(
-          this.ctx.usageModel
-        ),
-      }).runWith(() => state[kAlarm]());
+      await this.#executeAlarm(state);
     });
+  }
+
+  async flushAlarms(
+    storageFactory: StorageFactory,
+    ids?: DurableObjectId[]
+  ): Promise<void> {
+    if (ids !== undefined) {
+      for (const id of ids) {
+        const state = await this.getObject(storageFactory, id);
+        await this.#executeAlarm(state);
+        this.#alarmStore.deleteAlarm(`${id[kObjectName]}:${id.toString()}`);
+      }
+    } else {
+      // otherwise flush all alarms
+      for (const [key, state] of this.#objects) {
+        await this.#executeAlarm(await state);
+        this.#alarmStore.deleteAlarm(key);
+      }
+    }
+  }
+
+  async #executeAlarm(state: DurableObjectState): Promise<void> {
+    await new RequestContext({
+      requestDepth: 1,
+      pipelineDepth: 1,
+      durableObject: true,
+      externalSubrequestLimit: usageModelExternalSubrequestLimit(
+        this.ctx.usageModel
+      ),
+    }).runWith(() => state[kAlarm]());
   }
 
   beforeReload(): void {
