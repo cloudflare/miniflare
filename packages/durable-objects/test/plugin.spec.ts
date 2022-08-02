@@ -4,7 +4,6 @@ import { Response } from "@miniflare/core";
 import {
   DurableObject,
   DurableObjectError,
-  DurableObjectId,
   DurableObjectNamespace,
   DurableObjectState,
   DurableObjectsPlugin,
