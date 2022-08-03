@@ -167,8 +167,8 @@ export class DurableObjectsPlugin
 
   setup(storageFactory: StorageFactory): SetupResult {
     const bindings: Context = {};
-    for (const { name } of this.#processedObjects) {
-      bindings[name] = this.getNamespace(storageFactory, name);
+    for (const { name, className } of this.#processedObjects) {
+      bindings[name] = this.getNamespace(storageFactory, className);
     }
     return {
       bindings,
