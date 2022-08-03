@@ -111,6 +111,7 @@ const routeContents = {
   "/": "<p>Index</p>",
   "/a.txt": "a",
   "/b/b.txt": "b",
+  "/ń.html": "ń",
 };
 
 const getMacro: Macro<[SitesOptions, Set<Route>]> = async (
@@ -146,7 +147,7 @@ test(
   "gets all assets with no filter",
   getMacro,
   {},
-  new Set<Route>(["/", "/a.txt", "/b/b.txt"])
+  new Set<Route>(["/", "/a.txt", "/b/b.txt", "/ń.html"])
 );
 test(
   "gets included assets with include filter",
@@ -158,7 +159,7 @@ test(
   "gets all but excluded assets with include filter",
   getMacro,
   { siteExclude: ["b"] },
-  new Set<Route>(["/", "/a.txt"])
+  new Set<Route>(["/", "/a.txt", "/ń.html"])
 );
 test(
   "gets included assets with include and exclude filters",
