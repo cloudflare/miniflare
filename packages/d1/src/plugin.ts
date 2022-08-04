@@ -46,7 +46,9 @@ export class D1Plugin extends Plugin<D1Options> implements D1Options {
     storage: StorageFactory,
     dbName: string
   ): Promise<BetaDatabase> {
-    return new BetaDatabase(await storage.storage(dbName, this.#persist));
+    const db = new BetaDatabase(await storage.storage(dbName, this.#persist));
+    await db.init();
+    return db;
   }
 
   async setup(storageFactory: StorageFactory): Promise<SetupResult> {

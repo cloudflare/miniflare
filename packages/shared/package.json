@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "@types/better-sqlite3": "^7.5.0",
-    "better-sqlite3": "^7.5.3",
+    "npx-import": "^1.0.0",
     "ignore": "^5.1.8",
     "kleur": "^4.1.4"
   },

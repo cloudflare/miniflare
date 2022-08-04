@@ -1,6 +1,6 @@
 import { performance } from "node:perf_hooks";
 import { Storage } from "@miniflare/shared";
-import Database from "better-sqlite3";
+import type Database from "better-sqlite3";
 
 type BindParams = any[] | [Record<string, any>];
 
@@ -123,16 +123,25 @@ export class Statement {
   }
 }
 
+function assert<T>(db: T | undefined): asserts db is T {
+  if (typeof db === "undefined")
+    throw new Error("D1 BetaDatabase must have await init() called!");
+}
+
 export class BetaDatabase {
   readonly #storage: Storage;
-  readonly #db: Database.Database;
+  #db?: Database.Database;
 
   constructor(storage: Storage) {
     this.#storage = storage;
-    this.#db = storage.getSqliteDatabase();
+  }
+
+  async init() {
+    this.#db = await this.#storage.getSqliteDatabase();
   }
 
   prepare(source: string) {
+    assert(this.#db);
     return new Statement(this.#db, source);
   }
 
@@ -141,6 +150,7 @@ export class BetaDatabase {
   }
 
   async exec(multiLineStatements: string) {
+    assert(this.#db);
     const statements = multiLineStatements
       .split("\n")
       .map((line) => line.trim())

@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { Database } from "better-sqlite3";
+import type Database from "better-sqlite3";
 import { Awaitable } from "./sync";
 
 export interface StoredMeta<Meta = unknown> {
@@ -118,7 +118,7 @@ export abstract class Storage {
     options: StorageListOptions,
     skipMetadata: true
   ): Awaitable<StorageListResult<StoredKey>>;
-  getSqliteDatabase(): Database {
+  async getSqliteDatabase(): Promise<Database.Database> {
     throw new Error("D1 not implemented for this Storage class");
   }
 
@@ -167,9 +167,14 @@ export interface StorageFactory {
   dispose?(): Awaitable<void>;
 }
 
-export function getSQLiteNativeBindingLocation() {
+// @types/better-sqlite3 doesn't seem to export DatabaseConstructor, so we do this
+export type BetterSqlite3Exports = {
+  new (filename: string, options?: Database.Options): Database.Database;
+};
+
+export function getSQLiteNativeBindingLocation(sqliteResolvePath: string) {
   return path.resolve(
-    path.dirname(require.resolve("better-sqlite3")),
+    path.dirname(sqliteResolvePath),
     "../build/Release/better_sqlite3.node"
   );
 }

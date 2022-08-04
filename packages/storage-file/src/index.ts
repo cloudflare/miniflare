@@ -1,7 +1,7 @@
-import { existsSync } from "fs";
-import fs from "fs";
+import fs, { existsSync } from "fs";
 import path from "path";
 import {
+  BetterSqlite3Exports,
   MiniflareError,
   Range,
   RangeStoredValueMeta,
@@ -14,7 +14,8 @@ import {
   viewToArray,
 } from "@miniflare/shared";
 import { LocalStorage } from "@miniflare/storage-memory";
-import Database from "better-sqlite3";
+import type Database from "better-sqlite3";
+import { npxImport, npxResolve } from "npx-import";
 import {
   deleteFile,
   readFile,
@@ -107,10 +108,15 @@ export class FileStorage extends LocalStorage {
     }
   }
 
-  getSqliteDatabase(): Database.Database {
+  async getSqliteDatabase(): Promise<Database.Database> {
+    const DatabaseConstructor = await npxImport<BetterSqlite3Exports>(
+      "better-sqlite3@^7.5.3"
+    );
     fs.mkdirSync(path.dirname(this.root), { recursive: true });
-    return new Database(this.root + ".sqlite3", {
-      nativeBinding: getSQLiteNativeBindingLocation(),
+    return new DatabaseConstructor(this.root + ".sqlite3", {
+      nativeBinding: getSQLiteNativeBindingLocation(
+        npxResolve("better-sqlite3")
+      ),
     });
   }
 
