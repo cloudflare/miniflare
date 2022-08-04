@@ -1,6 +1,5 @@
 import {
   Awaitable,
-  BetterSqlite3Exports,
   Range,
   RangeStoredValueMeta,
   Storage,
@@ -122,9 +121,9 @@ export abstract class LocalStorage extends Storage {
   }
 
   async getSqliteDatabase(): Promise<Database.Database> {
-    const DatabaseConstructor = await npxImport<BetterSqlite3Exports>(
-      "better-sqlite3@^7.5.3"
-    );
+    const DatabaseConstructor = await npxImport<
+      typeof import("better-sqlite3")
+    >("better-sqlite3@^7.5.3");
     return new DatabaseConstructor(":memory:", {
       nativeBinding: getSQLiteNativeBindingLocation(
         npxResolve("better-sqlite3")

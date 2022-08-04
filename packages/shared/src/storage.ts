@@ -167,11 +167,6 @@ export interface StorageFactory {
   dispose?(): Awaitable<void>;
 }
 
-// @types/better-sqlite3 doesn't seem to export DatabaseConstructor, so we do this
-export type BetterSqlite3Exports = {
-  new (filename: string, options?: Database.Options): Database.Database;
-};
-
 export function getSQLiteNativeBindingLocation(sqliteResolvePath: string) {
   return path.resolve(
     path.dirname(sqliteResolvePath),

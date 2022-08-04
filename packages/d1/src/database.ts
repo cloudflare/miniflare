@@ -2,7 +2,7 @@ import { performance } from "node:perf_hooks";
 import { Storage } from "@miniflare/shared";
 import type Database from "better-sqlite3";
 
-type BindParams = any[] | [Record<string, any>];
+export type BindParams = any[] | [Record<string, any>];
 
 function errorWithCause(message: string, e: unknown) {
   // @ts-ignore Errors have causes now, why don't you know this Typescript?

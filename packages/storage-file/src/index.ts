@@ -1,7 +1,6 @@
 import fs, { existsSync } from "fs";
 import path from "path";
 import {
-  BetterSqlite3Exports,
   MiniflareError,
   Range,
   RangeStoredValueMeta,
@@ -109,9 +108,9 @@ export class FileStorage extends LocalStorage {
   }
 
   async getSqliteDatabase(): Promise<Database.Database> {
-    const DatabaseConstructor = await npxImport<BetterSqlite3Exports>(
-      "better-sqlite3@^7.5.3"
-    );
+    const DatabaseConstructor = await npxImport<
+      typeof import("better-sqlite3")
+    >("better-sqlite3@^7.5.3");
     fs.mkdirSync(path.dirname(this.root), { recursive: true });
     return new DatabaseConstructor(this.root + ".sqlite3", {
       nativeBinding: getSQLiteNativeBindingLocation(

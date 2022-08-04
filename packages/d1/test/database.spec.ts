@@ -11,9 +11,10 @@ interface Context {
 
 const test = anyTest as TestInterface<Context>;
 
-test.beforeEach((t) => {
+test.beforeEach(async (t) => {
   const storage = new MemoryStorage(undefined, testClock);
   const db = new BetaDatabase(storage);
+  await db.init();
   t.context = { storage, db };
 });
 
