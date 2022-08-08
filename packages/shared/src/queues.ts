@@ -3,7 +3,7 @@
 export const kGetSubscription = Symbol("kGetSubscription");
 export const kSetSubscription = Symbol("kSetSubscription");
 
-export type QueueEventDispatcher = (batch: MessageBatch) => void;
+export type QueueEventDispatcher = (batch: MessageBatch) => Promise<void>;
 
 export interface QueueBroker {
   getOrCreateQueue(name: string): Queue;
@@ -11,12 +11,12 @@ export interface QueueBroker {
   setSubscription(queue: Queue, subscription: Subscription): void;
 }
 
-export type Subscription = {
+export interface Subscription {
   queueName: string;
   maxBatchSize: number;
   maxWaitMs: number;
   dispatcher: QueueEventDispatcher;
-};
+}
 
 // External types (exposed to user code):
 export type MessageSendOptions = {
@@ -35,15 +35,15 @@ export interface Queue<Body = unknown> {
   [kGetSubscription](): Subscription | null;
 }
 
-export type Message<Body = unknown> = {
+export interface Message<Body = unknown> {
   readonly id: string;
   readonly timestamp: Date;
   readonly body: Body;
   retry(): void;
-};
+}
 
-export type MessageBatch<Body = unknown> = {
+export interface MessageBatch<Body = unknown> {
   readonly queue: string;
   readonly messages: Message<Body>[];
   retryAll(): void;
-};
+}

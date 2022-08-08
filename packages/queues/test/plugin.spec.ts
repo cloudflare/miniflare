@@ -24,7 +24,7 @@ const factory = new MemoryStorageFactory();
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const queueEventDispatcher: QueueEventDispatcher = (_batch) => {};
+const queueEventDispatcher: QueueEventDispatcher = async (_batch) => {};
 
 test("QueuesPlugin: parses options from argv", async (t) => {
   const options = parsePluginArgv(QueuesPlugin, [

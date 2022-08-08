@@ -1,6 +1,6 @@
 import {
-  Message,
-  MessageBatch,
+  MessageBatch as MessageBatchInterface,
+  Message as MessageInterface,
   MessageSendOptions,
   MessageSendRequest,
   MiniflareError,
@@ -15,11 +15,76 @@ export type QueueErrorCode = "ERR_SUBSCRIBER_ALREADY_SET";
 
 export class QueueError extends MiniflareError<QueueErrorCode> {}
 
+export const MAX_ATTEMPTS = 3;
+const kShouldAttemptRetry = Symbol("kShouldAttemptRetry");
+
+export class Message<Body = unknown> implements MessageInterface<Body> {
+  readonly body: Body;
+
+  // Internal state for tracking retries
+  // Eventually, this will need to be moved or modified to support
+  // multiple subscribers on a single queue.
+  #pendingRetry: boolean;
+  #failedAttempts: number;
+
+  constructor(readonly id: string, readonly timestamp: Date, body: Body) {
+    this.body = body; // TODO(soon) structuredClone the body? (need to support older node versions as well...)
+
+    this.#pendingRetry = false;
+    this.#failedAttempts = 0;
+  }
+
+  retry(): void {
+    this.#pendingRetry = true;
+  }
+
+  [kShouldAttemptRetry](): boolean {
+    if (!this.#pendingRetry) {
+      return false;
+    }
+
+    this.#failedAttempts++;
+    if (this.#failedAttempts >= MAX_ATTEMPTS) {
+      // TODO(soon) use the miniflare Logger
+      console.warn(
+        `Dropping message "${this.id}" after ${
+          this.#failedAttempts
+        } failed attempts`
+      );
+      return false;
+    }
+
+    console.log(`Retrying message "${this.id}"`);
+    this.#pendingRetry = false;
+    return true;
+  }
+}
+
+export class MessageBatch<Body = unknown>
+  implements MessageBatchInterface<Body>
+{
+  readonly queue: string;
+  readonly messages: Message<Body>[];
+
+  constructor(queue: string, messages: Message<Body>[]) {
+    this.queue = queue;
+    this.messages = messages;
+  }
+
+  retryAll(): void {
+    for (const msg of this.messages) {
+      msg.retry();
+    }
+  }
+}
+
 enum FlushType {
   NONE,
   DELAYED,
   IMMEDIATE,
 }
+
+export const kSetFlushCallback = Symbol("kSetFlushCallback");
 
 export class Queue<Body = unknown> implements QueueInterface<Body> {
   #queueName: string;
@@ -29,6 +94,9 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
   #messageCounter: number;
   #pendingFlush: FlushType;
   #timeout?: NodeJS.Timeout;
+
+  // A callback to run after a flush() has been executed: useful for testing.
+  #flushCallback?: () => void;
 
   constructor(queueName: string) {
     this.#queueName = queueName;
@@ -65,15 +133,11 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
   }
 
   #enqueue(body: Body, _options?: MessageSendOptions): void {
-    const retry = () => {
-      console.warn(`retry() is unimplemented`);
-    };
-    const msg: Message<Body> = {
-      id: `${this.#queueName}-${this.#messageCounter}`,
-      timestamp: new Date(),
-      body: body, // TODO(soon) structuredClone the body? (need to support older node versions as well...)
-      retry: retry,
-    };
+    const msg = new Message<Body>(
+      `${this.#queueName}-${this.#messageCounter}`,
+      new Date(),
+      body
+    );
 
     this.#messages.push(msg);
     this.#messageCounter++;
@@ -98,35 +162,54 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
         return;
       }
 
-      // The batch is full now: time to flush immediately
+      // The batch is full now: clear the existing timeout
       clearTimeout(this.#timeout);
-      this.#pendingFlush = FlushType.IMMEDIATE;
-      this.#timeout = setTimeout(() => this.#flush(), 0);
-      return;
+      this.#timeout = undefined;
     }
 
-    // Otherwise, no flush is pending: set up a delayed one
-    this.#pendingFlush = FlushType.DELAYED;
-    this.#timeout = setTimeout(
-      () => this.#flush(),
-      this.#subscription?.maxWaitMs
-    );
+    // Register a new flush timeout with the appropriate delay
+    const newFlushType =
+      this.#messages.length < this.#subscription.maxBatchSize
+        ? FlushType.DELAYED
+        : FlushType.IMMEDIATE;
+    this.#pendingFlush = newFlushType;
+
+    const delay =
+      newFlushType === FlushType.DELAYED ? this.#subscription?.maxWaitMs : 0;
+
+    this.#timeout = setTimeout(() => {
+      this.#flush();
+      if (this.#flushCallback) {
+        this.#flushCallback();
+      }
+    }, delay);
   }
 
-  #flush() {
+  async #flush() {
     if (!this.#subscription) {
       return;
     }
 
-    const batch: MessageBatch<Body> = {
-      queue: this.#queueName,
-      messages: this.#messages,
-      retryAll: () => console.log("retryAll() is unimplemented"),
-    };
-    this.#subscription?.dispatcher(batch);
+    // Create a batch and execute the queue event handler
+    // TODO(soon) detect exceptions raised by the event handler, and retry the whole batch
+    const batch = new MessageBatch<Body>(this.#queueName, [...this.#messages]);
     this.#messages = [];
+    await this.#subscription?.dispatcher(batch);
+
+    // Reset state and check for any messages to retry
     this.#pendingFlush = FlushType.NONE;
     this.#timeout = undefined;
+    const messagesToRetry = batch.messages.filter((msg) =>
+      msg[kShouldAttemptRetry]()
+    );
+    this.#messages.push(...messagesToRetry);
+    if (this.#messages.length > 0) {
+      this.#ensurePendingFlush();
+    }
+  }
+
+  [kSetFlushCallback](callback: () => void) {
+    this.#flushCallback = callback;
   }
 }
 
