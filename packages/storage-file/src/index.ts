@@ -108,9 +108,9 @@ export class FileStorage extends LocalStorage {
   }
 
   async getSqliteDatabase(): Promise<Database.Database> {
-    const DatabaseConstructor = await npxImport<
-      typeof import("better-sqlite3")
-    >("better-sqlite3@^7.5.3");
+    const { default: DatabaseConstructor } = await npxImport<{
+      default: typeof import("better-sqlite3");
+    }>("better-sqlite3@7.6.2");
     fs.mkdirSync(path.dirname(this.root), { recursive: true });
     return new DatabaseConstructor(this.root + ".sqlite3", {
       nativeBinding: getSQLiteNativeBindingLocation(

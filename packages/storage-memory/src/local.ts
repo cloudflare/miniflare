@@ -121,9 +121,9 @@ export abstract class LocalStorage extends Storage {
   }
 
   async getSqliteDatabase(): Promise<Database.Database> {
-    const DatabaseConstructor = await npxImport<
-      typeof import("better-sqlite3")
-    >("better-sqlite3@^7.5.3");
+    const { default: DatabaseConstructor } = await npxImport<{
+      default: typeof import("better-sqlite3");
+    }>("better-sqlite3@7.6.2");
     return new DatabaseConstructor(":memory:", {
       nativeBinding: getSQLiteNativeBindingLocation(
         npxResolve("better-sqlite3")
