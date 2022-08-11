@@ -231,7 +231,7 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
     ): Promise<void> => {
       const plugin = (await mf.getPlugins()).DurableObjectsPlugin;
       const storage = mf.getPluginStorage("DurableObjectsPlugin");
-      plugin.flushAlarms(storage, ids);
+      return plugin.flushAlarms(storage, ids);
     };
   }
 
