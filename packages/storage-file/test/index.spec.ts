@@ -175,6 +175,7 @@ test("FileStorage: getRangeMaybeExpired: check that symbolic links are resolved 
   );
   const getResult = await storage.getRangeMaybeExpired("key", { offset: 0 });
   t.is(utf8Decode(getResult?.value), "value");
+  t.deepEqual(getResult?.range, { offset: 0, length: 5 });
 });
 
 async function unsanitisedStorageFactory(
