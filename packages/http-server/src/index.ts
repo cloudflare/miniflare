@@ -195,7 +195,6 @@ async function writeResponse(
       } else {
         // Unknown encoding, don't do any encoding at all
         log?.warn(`Unknown encoding \"${coding}\", sending plain response...`);
-        delete headers["content-encoding"];
         encoders.length = 0;
         break;
       }
