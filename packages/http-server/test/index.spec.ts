@@ -521,7 +521,7 @@ const autoEncodeMacro: Macro<
     http.get({ port }, async (res) => {
       t.is(res.headers["content-length"], undefined);
       t.is(res.headers["transfer-encoding"], "chunked");
-      t.is(res.headers["content-encoding"], encodes ? encoding : undefined);
+      t.is(res.headers["content-encoding"], encoding);
       const compressed = await buffer(res);
       const decompressed = decompress(compressed);
       if (encodes) t.true(compressed.byteLength < decompressed.byteLength);
@@ -542,6 +542,8 @@ test(autoEncodeMacro, "deflate, gZip", (buffer) =>
 );
 // Should skip all encoding with single unknown encoding
 test(autoEncodeMacro, "deflate, unknown, gzip", (buffer) => buffer, false);
+// Should allow custom `Content-Encoding`s: https://github.com/cloudflare/miniflare/issues/312
+test(autoEncodeMacro, "custom", (buffer) => buffer, false);
 test("createRequestListener: skips encoding already encoded data", async (t) => {
   const encoded = new Uint8Array(zlib.gzipSync(Buffer.from(longText, "utf8")));
   const mf = useMiniflareWithHandler(
