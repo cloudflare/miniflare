@@ -459,7 +459,8 @@ export async function startServer<Plugins extends HTTPPluginSignatures>(
     server.listen(port, host, () => {
       const log = mf.log;
       const protocol = httpsEnabled ? "https" : "http";
-      const accessibleHosts = host ? [host] : getAccessibleHosts(true);
+      const accessibleHosts =
+        host && host !== "0.0.0.0" ? [host] : getAccessibleHosts(true);
       log.info(`Listening on ${host ?? ""}:${port}`);
       for (const accessibleHost of accessibleHosts) {
         log.info(`- ${protocol}://${accessibleHost}:${port}`);
