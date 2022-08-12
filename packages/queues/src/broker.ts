@@ -191,10 +191,15 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
     }
 
     // Create a batch and execute the queue event handler
-    // TODO(soon) detect exceptions raised by the event handler, and retry the whole batch
     const batch = new MessageBatch<Body>(this.#queueName, [...this.#messages]);
     this.#messages = [];
-    await this.#subscription?.dispatcher(batch);
+    try {
+      await this.#subscription?.dispatcher(batch);
+    } catch (err) {
+      // TODO(soon) use real Miniflare logger
+      console.error("Error processing batch:", err);
+      batch.retryAll();
+    }
 
     // Reset state and check for any messages to retry
     this.#pendingFlush = FlushType.NONE;

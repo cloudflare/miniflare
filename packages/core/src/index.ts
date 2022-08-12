@@ -409,6 +409,7 @@ export class MiniflareCore<
     const queueBroker = this.#ctx.queueBroker;
     const queueEventDispatcher = async (batch: MessageBatch) => {
       await this.dispatchQueue(batch);
+
       // TODO(soon) detect success vs failure during processing
       this.#ctx.log.info(
         `${batch.queue} (${batch.messages.length} Messages) OK`

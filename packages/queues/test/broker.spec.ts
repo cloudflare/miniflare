@@ -228,6 +228,52 @@ test("QueueBroker: supports message retry()", async (t) => {
   t.deepEqual(retries, 1);
 });
 
+test("QueueBroker: automatic retryAll() on consumer error", async (t) => {
+  const broker = new QueueBroker();
+  const q = broker.getOrCreateQueue("myQueue");
+  const sub: Subscription = {
+    queueName: "myQueue",
+    maxBatchSize: 5,
+    maxWaitMs: 1,
+    dispatcher: async (_batch) => {},
+  };
+  q[kSetSubscription](sub);
+
+  let retries = 0;
+  sub.dispatcher = async (batch: MessageBatch) => {
+    if (retries == 0) {
+      // Send another message from within the dispatcher
+      // to ensure it doesn't get dropped
+      q.send("message3");
+      retries++;
+
+      throw new Error("fake consumer error");
+    }
+
+    // The second time around 3 messages should be present
+    t.deepEqual(batch.messages.length, 3);
+    t.deepEqual(batch.messages[0].body, "message3");
+    t.deepEqual(batch.messages[1].body, "message1");
+    t.deepEqual(batch.messages[2].body, "message2");
+  };
+
+  // Expect the queue to flush() twice (one retry)
+  q.send("message1");
+  q.send("message2");
+
+  let prom = new Promise<void>((resolve) => {
+    q[kSetFlushCallback](() => resolve());
+  });
+  await prom;
+  t.deepEqual(retries, 1);
+
+  prom = new Promise<void>((resolve) => {
+    q[kSetFlushCallback](() => resolve());
+  });
+  await prom;
+  t.deepEqual(retries, 1);
+});
+
 test("QueueBroker: drops messages after max retry()", async (t) => {
   const broker = new QueueBroker();
   const q = broker.getOrCreateQueue("myQueue");

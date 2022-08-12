@@ -371,7 +371,8 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
 
   [kAddModuleQueueListener](listener: ModuleQueueListener): void {
     super.addEventListener("queue", (e) => {
-      listener(e.batch, this.#bindings, new ExecutionContext(e));
+      const res = listener(e.batch, this.#bindings, new ExecutionContext(e));
+      if (res !== undefined) e.waitUntil(Promise.resolve(res));
     });
   }
 
