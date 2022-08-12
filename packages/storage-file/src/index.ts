@@ -8,13 +8,10 @@ import {
   StoredMeta,
   StoredValueMeta,
   defaultClock,
-  getSQLiteNativeBindingLocation,
   sanitisePath,
   viewToArray,
 } from "@miniflare/shared";
 import { LocalStorage } from "@miniflare/storage-memory";
-import type Database from "better-sqlite3";
-import { npxImport, npxResolve } from "npx-import";
 import {
   deleteFile,
   readFile,
@@ -107,16 +104,9 @@ export class FileStorage extends LocalStorage {
     }
   }
 
-  async getSqliteDatabase(): Promise<Database.Database> {
-    const { default: DatabaseConstructor } = await npxImport<{
-      default: typeof import("better-sqlite3");
-    }>("better-sqlite3@7.6.2");
+  getSqliteDatabasePath(): string {
     fs.mkdirSync(path.dirname(this.root), { recursive: true });
-    return new DatabaseConstructor(this.root + ".sqlite3", {
-      nativeBinding: getSQLiteNativeBindingLocation(
-        npxResolve("better-sqlite3")
-      ),
-    });
+    return this.root + ".sqlite3";
   }
 
   async getRangeMaybeExpired<Meta = unknown>(

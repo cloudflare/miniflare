@@ -1,7 +1,17 @@
+import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { Storage } from "@miniflare/shared";
-import type Database from "better-sqlite3";
+import type {
+  Database as SqliteDB,
+  Options as SqliteOptions,
+  Statement as SqliteStatement,
+} from "better-sqlite3";
+import { npxImport, npxResolve } from "npx-import";
 
+// Can't export typeof import(), so reproducing BetterSqlite3.DatabaseConstructor here
+export interface DBConstructor {
+  new (filename: string | Buffer, options?: SqliteOptions): SqliteDB;
+}
 export type BindParams = any[] | [Record<string, any>];
 
 function errorWithCause(message: string, e: unknown) {
@@ -10,11 +20,11 @@ function errorWithCause(message: string, e: unknown) {
 }
 
 export class Statement {
-  readonly #db: Database.Database;
+  readonly #db: SqliteDB;
   readonly #query: string;
   readonly #bindings: BindParams | undefined;
 
-  constructor(db: Database.Database, query: string, bindings?: BindParams) {
+  constructor(db: SqliteDB, query: string, bindings?: BindParams) {
     this.#db = db;
     this.#query = query;
     this.#bindings = bindings;
@@ -61,7 +71,7 @@ export class Statement {
       throw errorWithCause("D1_ALL_ERROR", e);
     }
   }
-  private static _all(statementWithBindings: Database.Statement) {
+  private static _all(statementWithBindings: SqliteStatement) {
     try {
       return statementWithBindings.all();
     } catch (e: unknown) {
@@ -87,7 +97,7 @@ export class Statement {
       throw errorWithCause("D1_FIRST_ERROR", e);
     }
   }
-  private static _first(statementWithBindings: Database.Statement) {
+  private static _first(statementWithBindings: SqliteStatement) {
     return statementWithBindings.get();
   }
 
@@ -110,7 +120,7 @@ export class Statement {
       throw errorWithCause("D1_RUN_ERROR", e);
     }
   }
-  private static _run(statementWithBindings: Database.Statement) {
+  private static _run(statementWithBindings: SqliteStatement) {
     return statementWithBindings.run();
   }
 
@@ -118,26 +128,27 @@ export class Statement {
     const statementWithBindings = this.prepareAndBind();
     return Statement._raw(statementWithBindings);
   }
-  private static _raw(statementWithBindings: Database.Statement) {
+  private static _raw(statementWithBindings: SqliteStatement) {
     return statementWithBindings.raw() as any;
   }
 }
 
 function assert<T>(db: T | undefined): asserts db is T {
   if (typeof db === "undefined")
-    throw new Error("D1 BetaDatabase must have await init() called!");
+    throw new Error("D1 BetaDatabase must have `await init()` called!");
 }
 
 export class BetaDatabase {
   readonly #storage: Storage;
-  #db?: Database.Database;
+  #db?: SqliteDB;
 
   constructor(storage: Storage) {
     this.#storage = storage;
   }
 
   async init() {
-    this.#db = await this.#storage.getSqliteDatabase();
+    const dbPath = this.#storage.getSqliteDatabasePath();
+    this.#db = await createSQLiteDB(dbPath);
   }
 
   prepare(source: string) {
@@ -168,4 +179,20 @@ export class BetaDatabase {
   async dump() {
     throw new Error("DB.dump() not implemented locally!");
   }
+}
+
+export async function createSQLiteDB(dbPath: string): Promise<SqliteDB> {
+  const { default: DatabaseConstructor } = await npxImport<{
+    default: DBConstructor;
+  }>("better-sqlite3@7.6.2");
+  return new DatabaseConstructor(dbPath, {
+    nativeBinding: getSQLiteNativeBindingLocation(npxResolve("better-sqlite3")),
+  });
+}
+
+export function getSQLiteNativeBindingLocation(sqliteResolvePath: string) {
+  return path.resolve(
+    path.dirname(sqliteResolvePath),
+    "../build/Release/better_sqlite3.node"
+  );
 }

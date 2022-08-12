@@ -35,7 +35,6 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@types/better-sqlite3": "^7.6.0",
     "ignore": "^5.1.8",
     "kleur": "^4.1.4",
     "npx-import": "^1.0.2"

@@ -9,11 +9,8 @@ import {
   StoredMeta,
   StoredValueMeta,
   defaultClock,
-  getSQLiteNativeBindingLocation,
   millisToSeconds,
 } from "@miniflare/shared";
-import type Database from "better-sqlite3";
-import { npxImport, npxResolve } from "npx-import";
 import { listFilterMatch, listPaginate } from "./helpers";
 
 export abstract class LocalStorage extends Storage {
@@ -120,14 +117,7 @@ export abstract class LocalStorage extends Storage {
     return res;
   }
 
-  async getSqliteDatabase(): Promise<Database.Database> {
-    const { default: DatabaseConstructor } = await npxImport<{
-      default: typeof import("better-sqlite3");
-    }>("better-sqlite3@7.6.2");
-    return new DatabaseConstructor(":memory:", {
-      nativeBinding: getSQLiteNativeBindingLocation(
-        npxResolve("better-sqlite3")
-      ),
-    });
+  getSqliteDatabasePath(): string {
+    return ":memory:";
   }
 }
