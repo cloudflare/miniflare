@@ -41,6 +41,7 @@
     "@types/better-sqlite3": "^7.6.0"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.6.0"
+    "@miniflare/shared-test": "2.6.0",
+    "better-sqlite3": "^7.6.2"
   }
 }
