@@ -309,11 +309,11 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
       busboy.on("file", (name, value, info) => {
         const { filename, encoding, mimeType } = info;
         const base64 = encoding.toLowerCase() === "base64";
-        const chunks: Buffer[] = [];
+        const chunks: Uint8Array[] = [];
         let totalLength = 0;
         value.on("data", (chunk: Buffer) => {
           if (base64) chunk = Buffer.from(chunk.toString(), "base64");
-          chunks.push(chunk);
+          chunks.push(new Uint8Array(chunk));
           totalLength += chunk.byteLength;
         });
         value.on("end", () => {
