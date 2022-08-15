@@ -420,7 +420,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     const crypto = createCrypto(!this.globalRandom);
 
     // `(De)CompressionStream`s were added in Node.js 17.0.0, and added to the
-    // global scope in Node.js 18.0.0. Our minimum supported version is 16.7.0,
+    // global scope in Node.js 18.0.0. Our minimum supported version is 16.13.0,
     // so we implement basic versions ourselves, preferring Node's if available.
     const CompressionStreamImpl =
       webStreams.CompressionStream ?? CompressionStream;

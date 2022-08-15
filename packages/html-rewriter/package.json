@@ -17,7 +17,7 @@
     "dist/src"
   ],
   "engines": {
-    "node": ">=16.7"
+    "node": ">=16.13"
   },
   "publishConfig": {
     "access": "public"
@@ -38,7 +38,7 @@
     "@miniflare/core": "2.6.0",
     "@miniflare/shared": "2.6.0",
     "html-rewriter-wasm": "^0.4.1",
-    "undici": "5.5.1"
+    "undici": "^5.8.2"
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.6.0"

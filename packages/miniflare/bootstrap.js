@@ -6,8 +6,8 @@ const semiver = require("semiver");
 
 // Miniflare makes extensive use of new Web Standards added in recent versions
 // of Node.js (streams, crypto, Blob, EventTarget). The most recent thing
-// Miniflare uses is the "stream/consumers" module, which was added in 16.7.0.
-const MIN_NODE_VERSION = "16.7.0";
+// Miniflare uses is release >=5.7.0 of undici, which requires Node >=16.8.
+const MIN_NODE_VERSION = "16.13.0";
 
 async function main() {
   // @ts-expect-error require doesn't give the correct types
