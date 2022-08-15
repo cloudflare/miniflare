@@ -704,6 +704,8 @@ test.serial(
       })
       .transform(new Response(inputStream));
     t.is(await res.text(), "<p>test</p>");
+    // TODO: try remove this, we shouldn't need it
+    await setTimeout();
     t.true(freed.freed);
   }
 );
