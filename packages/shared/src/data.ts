@@ -45,12 +45,20 @@ export interface Matcher {
 }
 
 export function globsToMatcher(globs: string[] = []): Matcher {
-  const isMatch = picomatch(globs, {
+  const matchGlobs: string[] = [];
+  const ignoreGlobs: string[] = [];
+  for (const glob of globs) {
+    if (glob.startsWith("!")) {
+      ignoreGlobs.push(glob.slice(1));
+    } else {
+      matchGlobs.push(glob);
+    }
+  }
+  const isMatch = picomatch(matchGlobs, {
     dot: true,
     bash: true,
-    ignore: globs
-      .filter((glob) => glob.startsWith("!"))
-      .map((glob) => glob.slice(1)),
+    contains: true,
+    ignore: ignoreGlobs,
   });
   return {
     test: (string) => isMatch(string),
