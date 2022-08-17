@@ -33,6 +33,7 @@ import {
   Plugin,
   PluginContext,
   ProcessedModuleRule,
+  RouteType,
   STRING_SCRIPT_PATH,
   SetupResult,
   globsToMatcher,
@@ -328,12 +329,14 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     type: OptionType.ARRAY,
     description: "Route to respond with this worker on",
     fromWrangler: ({ route, routes, miniflare }) => {
-      const result: string[] = [];
+      const result: RouteType[] = [];
+      const toPattern = (route: RouteType): string =>
+        typeof route === "string" ? route : route.pattern;
       if (route) result.push(route);
       if (routes) result.push(...routes);
       if (miniflare?.route) result.push(miniflare.route);
       if (miniflare?.routes) result.push(...miniflare.routes);
-      return result.length ? result : undefined;
+      return result.length ? result.map(toPattern) : undefined;
     },
   })
   routes?: string[];
