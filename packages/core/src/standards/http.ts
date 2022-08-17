@@ -302,7 +302,10 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
     const formData = new FormData();
     await new Promise<void>(async (resolve) => {
       const Busboy: typeof import("busboy") = require("busboy");
-      const busboy = Busboy({ headers: headers as http.IncomingHttpHeaders });
+      const busboy = Busboy({
+        headers: headers as http.IncomingHttpHeaders,
+        preservePath: true,
+      });
       busboy.on("field", (name, value) => {
         formData.append(name, value);
       });
