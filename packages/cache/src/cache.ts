@@ -119,8 +119,15 @@ function getExpirationTtl(
   const originalNow = CachePolicy.prototype.now;
   // @ts-expect-error `now` isn't included in CachePolicy's type definitions
   CachePolicy.prototype.now = clock;
+
+  const originalStorable = CachePolicy.prototype.storable;
   try {
     const policy = new CachePolicy(cacheReq, cacheRes, { shared: true });
+
+    if (cf?.cacheEverything) {
+      delete resHeaders["set-cookie"];
+      CachePolicy.prototype.storable = () => true;
+    }
 
     // Check if the request & response is cacheable, if not return undefined
     if ("set-cookie" in resHeaders || !policy.storable()) {
@@ -131,6 +138,10 @@ function getExpirationTtl(
   } finally {
     // @ts-expect-error `now` isn't included in CachePolicy's type definitions
     CachePolicy.prototype.now = originalNow;
+
+    if (CachePolicy.prototype.storable !== originalStorable) {
+      CachePolicy.prototype.storable = originalStorable;
+    }
   }
 }
 

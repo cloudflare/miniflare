@@ -200,6 +200,21 @@ test("Cache: put respects cf cacheTtlByStatus", async (t) => {
   clock.timestamp += 3000;
   t.is(await cache.match("http://localhost/302"), undefined);
 });
+test("Cache: put respects cf cacheEverthing", async (t) => {
+  const { clock, cache } = t.context;
+  await cache.put(
+    new Request("http://localhost/test", { cf: { cacheEverything: true } }),
+    new BaseResponse("value", {
+      headers: {
+        "Cache-Control": "s-maxage=1",
+        "Set-Cookie": "key=value",
+      },
+    })
+  );
+  t.not(await cache.match("http://localhost/test"), undefined);
+  clock.timestamp += 1000;
+  t.is(await cache.match("http://localhost/test"), undefined);
+});
 
 test("Cache: put increments subrequest count", async (t) => {
   const { cache } = t.context;
