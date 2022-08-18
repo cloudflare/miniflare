@@ -7,7 +7,12 @@ import type {
 import { LegacyFakeTimers, ModernFakeTimers } from "@jest/fake-timers";
 import type { Circus, Config, Global } from "@jest/types";
 import { CachePlugin } from "@miniflare/cache";
-import { BindingsPlugin, CorePlugin, MiniflareCore } from "@miniflare/core";
+import {
+  BindingsPlugin,
+  CorePlugin,
+  MiniflareCore,
+  createFetchMock,
+} from "@miniflare/core";
 import {
   DurableObjectId,
   DurableObjectStorage,
@@ -21,7 +26,6 @@ import { SitesPlugin } from "@miniflare/sites";
 import { WebSocketPlugin } from "@miniflare/web-sockets";
 import { ModuleMocker } from "jest-mock";
 import { installCommonGlobals } from "jest-util";
-import { createFetchMock } from "packages/core/src/standards/http";
 import { MockAgent } from "undici";
 import { StackedMemoryStorageFactory } from "./storage";
 
@@ -31,7 +35,6 @@ declare global {
     id: DurableObjectId
   ): Promise<DurableObjectStorage>;
   function getMiniflareFetchMock(): MockAgent;
-  function setMiniflareFetchMock(agent: MockAgent): Promise<void>;
 }
 
 // MiniflareCore will ensure CorePlugin is first and BindingsPlugin is last,
@@ -73,6 +76,7 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
 
   private readonly storageFactory = new StackedMemoryStorageFactory();
   private readonly scriptRunner: VMScriptRunner;
+  private readonly mockAgent: MockAgent;
 
   constructor(
     config:
@@ -92,6 +96,8 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
     // using Durable Objects, so may never do this.
     defineHasInstances(this.context);
     this.scriptRunner = new VMScriptRunner(this.context);
+
+    this.mockAgent = createFetchMock();
 
     const global = (this.global = vm.runInContext("this", this.context));
     global.global = global;
@@ -204,6 +210,8 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
         //   context, so we'd be returning the actual time anyway, and this
         //   might mess with Jest's own mocking.
         actualTime: true,
+
+        fetchMock: this.mockAgent,
       }
     );
 
@@ -225,13 +233,7 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
       const state = await plugin.getObject(storage, id);
       return state.storage;
     };
-    global.getMiniflareFetchMock = () => {
-      const agent = createFetchMock();
-      return agent;
-    };
-    global.setMiniflareFetchMock = async (agent: MockAgent) => {
-      await mf.setOptions({ fetchMock: agent });
-    };
+    global.getMiniflareFetchMock = () => this.mockAgent;
   }
 
   async teardown(): Promise<void> {

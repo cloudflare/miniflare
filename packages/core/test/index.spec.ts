@@ -17,6 +17,7 @@ import {
   RequestInfo,
   RequestInit,
   _deepEqual,
+  createFetchMock,
 } from "@miniflare/core";
 import { DurableObjectsPlugin } from "@miniflare/durable-objects";
 import { HTTPPlugin, createServer } from "@miniflare/http-server";
@@ -49,7 +50,6 @@ import {
 } from "@miniflare/shared-test";
 import test, { Macro } from "ava";
 import { Request as BaseRequest, File, FormData } from "undici";
-import { createFetchMock } from "../src/standards/http";
 
 const log = new NoOpLog();
 // Only use this shared storage factory when the test doesn't care about storage

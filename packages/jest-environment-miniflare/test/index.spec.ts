@@ -80,17 +80,6 @@ test.serial(
 );
 
 test.serial(
-  "MiniflareEnvironment: runs Jest tests with Mocked Upstream",
-  async (t) => {
-    const [exitCode, output] = await runJest(".mock.spec.js", {
-      modules: true,
-      scriptPath: path.join(fixturesPath, "mock-worker.js"),
-    });
-    t.is(exitCode, 0, output);
-  }
-);
-
-test.serial(
   "MiniflareEnvironment: auto-loads wrangler.toml, package.json and .env files",
   async (t) => {
     const [exitCode, output] = await runJest(

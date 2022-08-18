@@ -25,6 +25,7 @@ export {
   logResponse,
   // Re-exported from undici
   Headers,
+  createFetchMock,
 } from "./http";
 export type {
   RequestInfo,
