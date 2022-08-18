@@ -38,7 +38,7 @@ import {
   SetupResult,
   globsToMatcher,
 } from "@miniflare/shared";
-import { File, FormData, Headers } from "undici";
+import { File, FormData, Headers, MockAgent } from "undici";
 // @ts-expect-error `urlpattern-polyfill` only provides global types
 import { URLPattern } from "urlpattern-polyfill";
 import { MiniflareCoreError } from "../error";
@@ -61,6 +61,7 @@ import {
   createCrypto,
   createDate,
   createTimer,
+  fetch,
   withStringFormDataFiles,
 } from "../standards";
 import { assertsInRequest } from "../standards/helpers";
@@ -111,6 +112,7 @@ export interface CoreOptions {
   name?: string;
   routes?: string[];
   logUnhandledRejections?: boolean;
+  fetchMock?: MockAgent;
   globalAsyncIO?: boolean;
   globalTimers?: boolean;
   globalRandom?: boolean;
@@ -344,6 +346,9 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
   @Option({ type: OptionType.NONE })
   logUnhandledRejections?: boolean;
 
+  @Option({ type: OptionType.NONE })
+  fetchMock?: MockAgent;
+
   @Option({
     type: OptionType.BOOLEAN,
     name: "global-async-io",
@@ -458,7 +463,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       TextDecoder,
       TextEncoder,
 
-      fetch: createCompatFetch(ctx),
+      fetch: createCompatFetch(ctx, fetch.bind(this.fetchMock)),
       Headers,
       Request: CompatRequest,
       Response: CompatResponse,

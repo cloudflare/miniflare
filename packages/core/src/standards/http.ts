@@ -34,6 +34,7 @@ import {
   File,
   FormData,
   Headers,
+  MockAgent,
   ReferrerPolicy,
   RequestCache,
   RequestCredentials,
@@ -750,6 +751,7 @@ class MiniflareDispatcher extends Dispatcher {
 }
 
 export async function fetch(
+  this: Dispatcher | void,
   input: RequestInfo,
   init?: RequestInit
 ): Promise<Response> {
@@ -796,7 +798,7 @@ export async function fetch(
   // TODO: instead of using getGlobalDispatcher() here, we could allow a custom
   //  one to be passed for easy mocking
   const dispatcher = new MiniflareDispatcher(
-    getGlobalDispatcher(),
+    this instanceof Dispatcher ? this : getGlobalDispatcher(),
     removeHeaders
   );
   const baseRes = await baseFetch(req, { dispatcher });
@@ -823,6 +825,10 @@ export async function fetch(
   await waitForOpenInputGate();
   ctx?.advanceCurrentTime();
   return withInputGating(res);
+}
+
+export function createFetchMock() {
+  return new MockAgent();
 }
 
 /** @internal */

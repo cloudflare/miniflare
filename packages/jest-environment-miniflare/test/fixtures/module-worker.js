@@ -10,7 +10,7 @@ export class TestObject {
 }
 
 export default {
-  fetch(request) {
+  async fetch(request) {
     return new Response(`fetch:${request.url}`);
   },
 };

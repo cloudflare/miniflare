@@ -17,6 +17,7 @@ import {
   RequestInfo,
   RequestInit,
   _deepEqual,
+  createFetchMock,
 } from "@miniflare/core";
 import { DurableObjectsPlugin } from "@miniflare/durable-objects";
 import { HTTPPlugin, createServer } from "@miniflare/http-server";
@@ -1108,6 +1109,38 @@ test("MiniflareCore: dispatchFetch: fetching incoming request responds with upst
   // Host should be rewritten to match upstream
   const res = await mf.dispatchFetch("https://random.mf/");
   t.is(await res.text(), "upstream");
+});
+test("MiniflareCore: dispatchFetch: fetching incoming request with mocking enabled, but un-mocked upstream", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  const mockAgent = createFetchMock();
+  const mf = useMiniflareWithHandler(
+    {},
+    { upstream: upstream.toString(), fetchMock: mockAgent },
+    (globals, req) => globals.fetch(req)
+  );
+  const res = await mf.dispatchFetch("https://random.mf/");
+  t.is(await res.text(), "upstream");
+  // Disabling net connect should throw as upstream hasn't been mocked
+  mockAgent.disableNetConnect();
+  try {
+    await mf.dispatchFetch("https://random.mf/");
+    t.fail();
+  } catch (e: any) {
+    t.is(e.cause.code, "UND_MOCK_ERR_MOCK_NOT_MATCHED");
+  }
+});
+test("MiniflareCore: dispatchFetch: fetching incoming request with mocked upstream", async (t) => {
+  const mockAgent = createFetchMock();
+  mockAgent.disableNetConnect();
+  const client = mockAgent.get("https://random.mf");
+  client.intercept({ path: "/" }).reply(200, "Hello World!");
+  const mf = useMiniflareWithHandler(
+    {},
+    { fetchMock: mockAgent },
+    (globals, req) => globals.fetch(req)
+  );
+  const res = await mf.dispatchFetch("https://random.mf/");
+  t.is(await res.text(), "Hello World!");
 });
 test("MiniflareCore: dispatchFetch: request gets immutable headers", async (t) => {
   const mf = useMiniflareWithHandler({}, {}, (globals, req) => {

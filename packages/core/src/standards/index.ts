@@ -19,6 +19,7 @@ export {
   _getBodyLength,
   _kLoopHeader,
   fetch,
+  createFetchMock,
   _urlFromRequestInput,
   _buildUnknownProtocolWarning,
   createCompatFetch,
