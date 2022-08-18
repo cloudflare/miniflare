@@ -4,6 +4,7 @@ import path from "path";
 import {
   Awaitable,
   Context,
+  Log,
   Mount,
   Option,
   OptionType,
@@ -118,6 +119,40 @@ export class Fetcher {
     // TODO: maybe add (debug/verbose) logging here?
     return ctx.runWith(() => fetch(req));
   }
+}
+
+function getServiceBindingName(
+  log: Log,
+  service: string,
+  { name, binding }: Partial<WranglerServiceConfig>
+) {
+  // 1. Make sure name and binding match if both defined
+  if (name !== undefined && binding !== undefined && name !== binding) {
+    throw new MiniflareCoreError(
+      "ERR_SERVICE_NAME_MISMATCH",
+      `Service "${service}" declared with \`name\`="${name}" and \`binding\`="${binding}".
+The \`binding\` key should be used to define binding names.`
+    );
+  }
+
+  // 2. If name is defined, use it but log a warning
+  if (name !== undefined) {
+    log.warn(
+      `Service "${service}" declared using deprecated syntax.
+The \`name\` key should be removed and renamed to \`binding\`.`
+    );
+    return name;
+  }
+
+  // 3. If binding is defined, use it
+  if (binding !== undefined) return binding;
+
+  // 4. Otherwise, neither `name` nor `binding` defined, so throw
+  throw new MiniflareCoreError(
+    "ERR_SERVICE_NO_NAME",
+    `Service "${service}" declared with neither \`binding\` nor \`name\` keys.
+The \`binding\` key should be used to define binding names.`
+  );
 }
 
 export class BindingsPlugin
@@ -236,17 +271,23 @@ export class BindingsPlugin
     fromWrangler: ({ services, experimental_services }, configDir, log) => {
       if (experimental_services) {
         log.warn(
-          "Using `experimental_services` in `wrangler.toml` is deprecated. " +
+          "Using the `experimental_services` key is deprecated. " +
             "This key should be renamed to `services`."
         );
       }
       const allServices: WranglerServiceConfig[] = [];
       if (services) allServices.push(...services);
       if (experimental_services) allServices.push(...experimental_services);
-      return allServices?.reduce((services, { name, service, environment }) => {
-        services[name] = { service, environment };
-        return services;
-      }, {} as ServiceBindingsOptions);
+      return allServices?.reduce(
+        (services, { name, binding, service, environment }) => {
+          services[getServiceBindingName(log, service, { name, binding })] = {
+            service,
+            environment,
+          };
+          return services;
+        },
+        {} as ServiceBindingsOptions
+      );
     },
   })
   serviceBindings?: ServiceBindingsOptions;

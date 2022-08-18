@@ -159,7 +159,7 @@ function createTransformerFromTransform(transform: Transform): Transformer {
 }
 
 // `(De)CompressionStream`s were added in Node.js 17.0.0. Our minimum supported
-// version is 16.7.0, so we implement basic versions ourselves, preferring to
+// version is 16.13.0, so we implement basic versions ourselves, preferring to
 // use Node's if available.
 
 export class CompressionStream extends TransformStream<Uint8Array, Uint8Array> {

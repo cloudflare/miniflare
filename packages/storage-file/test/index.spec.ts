@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { Storage, StoredValueMeta, sanitisePath } from "@miniflare/shared";
+import { StoredValueMeta, sanitisePath } from "@miniflare/shared";
 import {
   TestStorageFactory,
   storageMacros,
@@ -18,7 +18,7 @@ class FileStorageFactory extends TestStorageFactory {
   async factory(
     t: ExecutionContext,
     seed: Record<string, StoredValueMeta>
-  ): Promise<Storage> {
+  ): Promise<FileStorage> {
     const tmp = await useTmp(t);
     for (const [key, { value, expiration, metadata }] of Object.entries(seed)) {
       await fs.mkdir(path.dirname(path.join(tmp, key)), { recursive: true });
@@ -71,33 +71,116 @@ test("FileStorage: getRangeMaybeExpired: returns partial values", async (t) => {
   const storage = await storageFactory.factory(t, {});
   await storage.put("key", { value: utf8Encode("123456789") });
 
-  const getFront = await storage.getRangeMaybeExpired?.("key", 0, 3);
+  const getFront = await storage.getRangeMaybeExpired("key", {
+    offset: 0,
+    length: 3,
+  });
   t.is(utf8Decode(getFront?.value), "123");
-  const getBack = await storage.getRangeMaybeExpired?.("key", 6, 3);
+  t.deepEqual(getFront?.range, { offset: 0, length: 3 });
+  const getBack = await storage.getRangeMaybeExpired("key", {
+    offset: 6,
+    length: 3,
+  });
   t.is(utf8Decode(getBack?.value), "789");
-  const getMiddle = await storage.getRangeMaybeExpired?.("key", 3, 3);
+  t.deepEqual(getBack?.range, { offset: 6, length: 3 });
+  const getMiddle = await storage.getRangeMaybeExpired("key", {
+    offset: 3,
+    length: 3,
+  });
   t.is(utf8Decode(getMiddle?.value), "456");
+  t.deepEqual(getMiddle?.range, { offset: 3, length: 3 });
 
-  // below 0 start defaults to 0
-  const outside = await storage.getRangeMaybeExpired?.("key", -2, 3);
-  t.is(utf8Decode(outside?.value), "123");
-  // past end adds 0 for each missing byte
-  const outside2 = await storage.getRangeMaybeExpired?.("key", 12, 7);
-  t.is(
-    utf8Decode(outside2?.value),
-    utf8Decode(new Uint8Array([0, 0, 0, 0, 0, 0, 0]))
+  // length past end just reduces length
+  const outside3 = await storage.getRangeMaybeExpired("key", {
+    offset: 6,
+    length: 6,
+  });
+  t.is(utf8Decode(outside3?.value), "789");
+  t.deepEqual(outside3?.range, { offset: 6, length: 3 });
+  // no length provided, returns entire value from start
+  const outside4 = await storage.getRangeMaybeExpired("key", { offset: 3 });
+  t.is(utf8Decode(outside4?.value), "456789");
+  t.deepEqual(outside4?.range, { offset: 3, length: 6 });
+});
+test("FileStorage: getRangeMaybeExpired: throw cases", async (t) => {
+  t.plan(6);
+  const storage = await storageFactory.factory(t, {});
+  await storage.put("key", { value: utf8Encode("123456789") });
+
+  // length 0
+  await t.throwsAsync(
+    async () =>
+      await storage.getRangeMaybeExpired("key", { offset: 0, length: 0 }),
+    {
+      message: "Length must be > 0",
+    }
   );
-  // length past end just pads with 0s for each missing byte
-  const outside3 = await storage.getRangeMaybeExpired?.("key", 6, 6);
-  t.is(
-    utf8Decode(outside3?.value),
-    "789" + utf8Decode(new Uint8Array([0, 0, 0]))
+  // length less than 0
+  await t.throwsAsync(
+    async () =>
+      await storage.getRangeMaybeExpired("key", { offset: 0, length: -2 }),
+    {
+      message: "Length must be > 0",
+    }
   );
+  // offset less than 0
+  await t.throwsAsync(
+    async () => await storage.getRangeMaybeExpired("key", { offset: -2 }),
+    {
+      message: "Offset must be >= 0",
+    }
+  );
+  // offset greather than size
+  await t.throwsAsync(
+    async () => await storage.getRangeMaybeExpired("key", { offset: 50 }),
+    {
+      message: "Offset must be < size",
+    }
+  );
+  // suffix 0
+  await t.throwsAsync(
+    async () => await storage.getRangeMaybeExpired("key", { suffix: 0 }),
+    {
+      message: "Suffix must be > 0",
+    }
+  );
+  // suffix less than 0
+  await t.throwsAsync(
+    async () => await storage.getRangeMaybeExpired("key", { suffix: -2 }),
+    {
+      message: "Suffix must be > 0",
+    }
+  );
+});
+test("FileStorage: getRangeMaybeExpired: suffix: returns partial values", async (t) => {
+  const storage = await storageFactory.factory(t, {});
+  await storage.put("key", { value: utf8Encode("123456789") });
+
+  const getThree = await storage.getRangeMaybeExpired("key", { suffix: 3 });
+  t.is(utf8Decode(getThree?.value), "789");
+  t.deepEqual(getThree?.range, { offset: 6, length: 3 });
+  const getAll = await storage.getRangeMaybeExpired("key", { suffix: 9 });
+  t.is(utf8Decode(getAll?.value), "123456789");
+  t.deepEqual(getAll?.range, { offset: 0, length: 9 });
+});
+test("FileStorage: getRangeMaybeExpired: check that symbolic links are resolved appropriately", async (t) => {
+  const storage = await storageFactory.factory(t, {});
+  await storage.put("inner/key", { value: utf8Encode("value") });
+  // create the symbolic link
+  await fs.symlink(
+    // @ts-ignore
+    path.join(storage.root, "inner/key"),
+    // @ts-ignore
+    path.join(storage.root, "key")
+  );
+  const getResult = await storage.getRangeMaybeExpired("key", { offset: 0 });
+  t.is(utf8Decode(getResult?.value), "value");
+  t.deepEqual(getResult?.range, { offset: 0, length: 5 });
 });
 
 async function unsanitisedStorageFactory(
   t: ExecutionContext
-): Promise<Storage> {
+): Promise<FileStorage> {
   const tmp = await useTmp(t);
   await fs.writeFile(path.join(tmp, "secrets.txt"), "strong password", "utf8");
   const rootPath = path.join(tmp, "root");
@@ -119,19 +202,63 @@ test("FileStorage: getRangeMaybeExpired: ignores files outside root", async (t) 
   const storage = await unsanitisedStorageFactory(t);
   t.is(
     utf8Decode(
-      (await storage.getRangeMaybeExpired?.("dir/../key", 0, 5))?.value
+      (
+        await storage.getRangeMaybeExpired("dir/../key", {
+          offset: 0,
+          length: 5,
+        })
+      )?.value
     ),
     "value"
   );
-  t.is(await storage.getRangeMaybeExpired?.("../secrets.txt", 0, 6), undefined);
+  t.is(
+    await storage.getRangeMaybeExpired("../secrets.txt", {
+      offset: 0,
+      length: 6,
+    }),
+    undefined
+  );
+});
+test("FileStorage: getRangeMaybeExpired: suffix: ignores files outside root", async (t) => {
+  const storage = await unsanitisedStorageFactory(t);
+  t.is(
+    utf8Decode(
+      (await storage.getRangeMaybeExpired("dir/../key", { suffix: 5 }))?.value
+    ),
+    "value"
+  );
+  t.is(
+    await storage.getRangeMaybeExpired("../secrets.txt", { offset: 0 }),
+    undefined
+  );
 });
 test("FileStorage: getRangeMaybeExpired: non-existant file returns undefined", async (t) => {
   const storage = await unsanitisedStorageFactory(t);
-  t.is(await storage.getRangeMaybeExpired?.("doesntexist", 0, 6), undefined);
+  t.is(
+    await storage.getRangeMaybeExpired("doesntexist", { offset: 0, length: 6 }),
+    undefined
+  );
+});
+test("FileStorage: getRangeMaybeExpired: suffix: non-existant file returns undefined", async (t) => {
+  const storage = await unsanitisedStorageFactory(t);
+  t.is(
+    await storage.getRangeMaybeExpired("doesntexist", { suffix: 6 }),
+    undefined
+  );
 });
 test("FileStorage: getRangeMaybeExpired: dir that does not exist will return undefined", async (t) => {
   const storage = await unsanitisedStorageFactory(t);
-  const empty = await storage.getRangeMaybeExpired?.("key/sub-key", 0, 6);
+  const empty = await storage.getRangeMaybeExpired("key/sub-key", {
+    offset: 0,
+    length: 6,
+  });
+  t.is(empty, undefined);
+});
+test("FileStorage: getRangeMaybeExpired: suffix: dir that does not exist will return undefined", async (t) => {
+  const storage = await unsanitisedStorageFactory(t);
+  const empty = await storage.getRangeMaybeExpired("key/sub-key", {
+    suffix: 1,
+  });
   t.is(empty, undefined);
 });
 test("FileStorage: put: throws on files outside root", async (t) => {

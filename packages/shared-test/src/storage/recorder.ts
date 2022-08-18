@@ -1,15 +1,20 @@
 import {
   Awaitable,
+  Range,
+  RangeStoredValueMeta,
   Storage,
   StorageListOptions,
   StorageListResult,
   StoredKeyMeta,
+  StoredMeta,
   StoredValueMeta,
 } from "@miniflare/shared";
 
 export type StorageEvent =
   | { type: "has"; key: string }
+  | { type: "head"; key: string }
   | { type: "get"; key: string }
+  | { type: "getRange"; key: string }
   | { type: "put"; key: string }
   | { type: "delete"; key: string }
   | { type: "list" }
@@ -30,12 +35,26 @@ export class RecorderStorage extends Storage {
     return this.inner.has(key);
   }
 
+  head<Meta = unknown>(key: string): Awaitable<StoredMeta<Meta> | undefined> {
+    this.events.push({ type: "head", key });
+    return this.inner.head(key);
+  }
+
   get<Meta = unknown>(
     key: string,
     skipMetadata?: boolean
   ): Awaitable<StoredValueMeta<Meta> | undefined> {
     this.events.push({ type: "get", key });
     return this.inner.get(key, skipMetadata as any);
+  }
+
+  getRange<Meta = unknown>(
+    key: string,
+    range: Range,
+    skipMetadata?: boolean
+  ): Awaitable<RangeStoredValueMeta<Meta> | undefined> {
+    this.events.push({ type: "getRange", key });
+    return this.inner.getRange(key, range, skipMetadata as any);
   }
 
   put<Meta = unknown>(

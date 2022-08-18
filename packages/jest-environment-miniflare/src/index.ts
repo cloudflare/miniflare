@@ -20,6 +20,7 @@ import {
 } from "@miniflare/durable-objects";
 import { HTMLRewriterPlugin } from "@miniflare/html-rewriter";
 import { KVPlugin } from "@miniflare/kv";
+import { R2Plugin } from "@miniflare/r2";
 import { VMScriptRunner, defineHasInstances } from "@miniflare/runner-vm";
 import { Context, NoOpLog } from "@miniflare/shared";
 import { SitesPlugin } from "@miniflare/sites";
@@ -35,6 +36,9 @@ declare global {
     id: DurableObjectId
   ): Promise<DurableObjectStorage>;
   function getMiniflareFetchMock(): MockAgent;
+  function flushMiniflareDurableObjectAlarms(
+    ids: DurableObjectId[]
+  ): Promise<void>;
 }
 
 // MiniflareCore will ensure CorePlugin is first and BindingsPlugin is last,
@@ -44,6 +48,7 @@ declare global {
 const PLUGINS = {
   CorePlugin,
   KVPlugin,
+  R2Plugin,
   DurableObjectsPlugin,
   CachePlugin,
   SitesPlugin,
@@ -234,6 +239,13 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
       return state.storage;
     };
     global.getMiniflareFetchMock = () => this.mockAgent;
+    global.flushMiniflareDurableObjectAlarms = async (
+      ids?: DurableObjectId[]
+    ): Promise<void> => {
+      const plugin = (await mf.getPlugins()).DurableObjectsPlugin;
+      const storage = mf.getPluginStorage("DurableObjectsPlugin");
+      return plugin.flushAlarms(storage, ids);
+    };
   }
 
   async teardown(): Promise<void> {

@@ -33,6 +33,7 @@ import {
   Plugin,
   PluginContext,
   ProcessedModuleRule,
+  RouteType,
   STRING_SCRIPT_PATH,
   SetupResult,
   globsToMatcher,
@@ -291,6 +292,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   @Option({
     type: OptionType.BOOLEAN,
+    logName: "REPL",
     description: "Enable interactive REPL",
   })
   repl?: boolean;
@@ -329,12 +331,14 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     type: OptionType.ARRAY,
     description: "Route to respond with this worker on",
     fromWrangler: ({ route, routes, miniflare }) => {
-      const result: string[] = [];
+      const result: RouteType[] = [];
+      const toPattern = (route: RouteType): string =>
+        typeof route === "string" ? route : route.pattern;
       if (route) result.push(route);
       if (routes) result.push(...routes);
       if (miniflare?.route) result.push(miniflare.route);
       if (miniflare?.routes) result.push(...miniflare.routes);
-      return result.length ? result : undefined;
+      return result.length ? result.map(toPattern) : undefined;
     },
   })
   routes?: string[];
@@ -424,7 +428,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     const crypto = createCrypto(!this.globalRandom);
 
     // `(De)CompressionStream`s were added in Node.js 17.0.0, and added to the
-    // global scope in Node.js 18.0.0. Our minimum supported version is 16.7.0,
+    // global scope in Node.js 18.0.0. Our minimum supported version is 16.13.0,
     // so we implement basic versions ourselves, preferring Node's if available.
     const CompressionStreamImpl =
       webStreams.CompressionStream ?? CompressionStream;

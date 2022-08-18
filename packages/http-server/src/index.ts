@@ -195,7 +195,6 @@ async function writeResponse(
       } else {
         // Unknown encoding, don't do any encoding at all
         log?.warn(`Unknown encoding \"${coding}\", sending plain response...`);
-        delete headers["content-encoding"];
         encoders.length = 0;
         break;
       }
@@ -460,7 +459,8 @@ export async function startServer<Plugins extends HTTPPluginSignatures>(
     server.listen(port, host, () => {
       const log = mf.log;
       const protocol = httpsEnabled ? "https" : "http";
-      const accessibleHosts = host ? [host] : getAccessibleHosts(true);
+      const accessibleHosts =
+        host && host !== "0.0.0.0" ? [host] : getAccessibleHosts(true);
       log.info(`Listening on ${host ?? ""}:${port}`);
       for (const accessibleHost of accessibleHosts) {
         log.info(`- ${protocol}://${accessibleHost}:${port}`);

@@ -27,6 +27,7 @@ export class AlarmStore {
   // 'objectName:hexId' -> DurableObjectAlarm [pulled from plugin.getObject]
   #alarms: Map<string, DurableObjectAlarm> = new Map();
   #alarmTimeout?: NodeJS.Timeout;
+  #callback?: (objectKey: string) => Promise<void>;
 
   // build a map of all alarms from file storage if persist
   async setupStore(storage: StorageFactory, persist?: boolean | string) {
@@ -38,8 +39,23 @@ export class AlarmStore {
     }
   }
 
+  #setAlarmTimeout(
+    now: number,
+    objectKey: string,
+    doAlarm: DurableObjectAlarm
+  ) {
+    // if timeout was already created, delete alarm incase scheduledTime changed
+    if (doAlarm.timeout) clearTimeout(doAlarm.timeout);
+    // set alarm
+    doAlarm.timeout = setTimeout(() => {
+      this.#deleteAlarm(objectKey, doAlarm);
+      this.#callback?.(objectKey);
+    }, Math.max(doAlarm.scheduledTime - now, 0));
+  }
+
   // any alarms 30 seconds in the future or sooner are returned
-  async setupAlarms(callback: (objectKey: string) => Promise<void>) {
+  async setupAlarms(callback?: (objectKey: string) => Promise<void>) {
+    if (typeof callback === "function") this.#callback = callback;
     if (this.#alarmTimeout) return;
     const now = Date.now();
 
@@ -47,11 +63,9 @@ export class AlarmStore {
     // setup a timeout and run the callback and then delete the alarm
     for (const [objectKey, doAlarm] of this.#alarms) {
       const { scheduledTime } = doAlarm;
+      // if the alarm is within the next 30 seconds, set a timeout
       if (scheduledTime < now + 30_000) {
-        doAlarm.timeout = setTimeout(() => {
-          this.#deleteAlarm(objectKey, doAlarm);
-          callback(objectKey);
-        }, Math.max(scheduledTime - now, 0));
+        this.#setAlarmTimeout(now, objectKey, doAlarm);
       }
     }
 
@@ -60,7 +74,7 @@ export class AlarmStore {
     // prior to our next check.
     this.#alarmTimeout = setTimeout(() => {
       this.#alarmTimeout = undefined;
-      this.setupAlarms(callback);
+      this.setupAlarms();
     }, 30_000);
     this.#alarmTimeout.unref();
   }
@@ -74,10 +88,25 @@ export class AlarmStore {
   }
 
   async setAlarm(objectKey: string, scheduledTime: number | Date) {
+    const now = Date.now();
     if (typeof scheduledTime !== "number")
       scheduledTime = scheduledTime.getTime();
+    if (scheduledTime <= 0) {
+      throw TypeError("setAlarm() cannot be called with an alarm time <= 0");
+    }
+    // pull in the alarm or create a new one if it does not exist
+    const doAlarm: DurableObjectAlarm = this.#alarms.get(objectKey) ?? {
+      scheduledTime,
+    };
+    // update scheduledTime incase old alarm existed
+    doAlarm.scheduledTime = scheduledTime;
+    // if the alarm is within the next 31 seconds, set a timeout immediately
+    // add a second to ensure healthy overlap between alarm checks
+    if (scheduledTime < now + 31_000) {
+      this.#setAlarmTimeout(now, objectKey, doAlarm);
+    }
     // set the alarm in the store
-    this.#alarms.set(objectKey, { scheduledTime });
+    this.#alarms.set(objectKey, doAlarm);
     // store the alarm in storage
     assert(this.#store);
     await this.#store.put(objectKey, {

@@ -1,10 +1,14 @@
 import assert from "assert";
 import {
+  Range,
+  RangeStoredValue,
+  RangeStoredValueMeta,
   Storage,
   StorageListOptions,
   StorageListResult,
   StoredKey,
   StoredKeyMeta,
+  StoredMeta,
   StoredValue,
   StoredValueMeta,
   millisToSeconds,
@@ -43,6 +47,33 @@ export class RedisStorage extends Storage {
   async hasMany(keys: string[]): Promise<number> {
     if (keys.length === 0) return 0;
     return await this.#redis.exists(...keys.map(this.#key));
+  }
+
+  async head<Meta>(key: string): Promise<StoredMeta<Meta> | undefined> {
+    const exists = await this.#redis.exists(this.#key(key));
+    if (exists === 0) return undefined;
+
+    // If we do, pipeline get the value, metadata and expiration TTL. Ideally,
+    // we'd use EXPIRETIME here but it was only added in Redis 7 so support
+    // wouldn't be great: https://redis.io/commands/expiretime
+    const pipelineRes = await this.#redis
+      .pipeline()
+      .get(this.#metaKey(key))
+      .pttl(this.#key(key))
+      .exec();
+    // Assert pipeline returned expected number of results successfully
+    assert.strictEqual(pipelineRes.length, 2);
+    this.throwPipelineErrors(pipelineRes);
+    // Extract pipeline results
+    const meta: string | null = pipelineRes[0][1];
+    const ttl: number = pipelineRes[1][1];
+    // Return result
+    return {
+      metadata: meta ? JSON.parse(meta) : undefined,
+      // Used PTTL so ttl is in milliseconds, negative TTL means key didn't
+      // exist or no expiration
+      expiration: ttl >= 0 ? millisToSeconds(Date.now() + ttl) : undefined,
+    };
   }
 
   get<Meta = unknown>(
@@ -155,6 +186,86 @@ export class RedisStorage extends Storage {
       }
     }
     return res;
+  }
+
+  getRange<Meta = unknown>(
+    key: string,
+    range?: Range,
+    skipMetadata?: false
+  ): Promise<RangeStoredValueMeta<Meta> | undefined>;
+  getRange(
+    key: string,
+    range?: Range,
+    skipMetadata?: true
+  ): Promise<RangeStoredValue | undefined>;
+  async getRange<Meta>(
+    key: string,
+    range: Range = {},
+    skipMetadata?: boolean
+  ): Promise<RangeStoredValueMeta<Meta> | undefined> {
+    let { offset, length, suffix } = range;
+    // ensure offset and length are prepared
+    const size = await this.#redis.strlen(this.#key(key));
+    if (size === 0) return undefined;
+    if (suffix !== undefined) {
+      if (suffix <= 0) {
+        throw new Error("Suffix must be > 0");
+      }
+      if (suffix > size) suffix = size;
+      offset = size - suffix;
+      length = size - offset;
+    }
+    if (offset === undefined) offset = 0;
+    if (length === undefined) length = size - offset;
+
+    // if offset is negative, throw an error
+    if (offset < 0) throw new Error("Offset must be >= 0");
+    if (offset > size) throw new Error("Offset must be < size");
+    if (length <= 0) throw new Error("Length must be > 0");
+    // if length goes beyond actual length, adjust length to the end of the value
+    if (offset + length > size) length = size - offset;
+
+    if (skipMetadata) {
+      // If we don't need metadata, just get the value, Redis handles expiry
+      const value = await this.#redis.getrangeBuffer(
+        this.#key(key),
+        offset,
+        offset + length
+      );
+      return value.byteLength === 0
+        ? undefined
+        : {
+            value: viewToArray(value),
+            range: { offset, length },
+          };
+    }
+
+    // If we do, pipeline get the value, metadata and expiration TTL. Ideally,
+    // we'd use EXPIRETIME here but it was only added in Redis 7 so support
+    // wouldn't be great: https://redis.io/commands/expiretime
+    const pipelineRes = await this.#redis
+      .pipeline()
+      .getrangeBuffer(this.#key(key), offset, offset + length - 1)
+      .get(this.#metaKey(key))
+      .pttl(this.#key(key))
+      .exec();
+    // Assert pipeline returned expected number of results successfully
+    assert.strictEqual(pipelineRes.length, 3);
+    this.throwPipelineErrors(pipelineRes);
+    // Extract pipeline results
+    const value: Buffer | null = pipelineRes[0][1];
+    const meta: string | null = pipelineRes[1][1];
+    const ttl: number = pipelineRes[2][1];
+    // Return result
+    if (value === null) return undefined;
+    return {
+      value: viewToArray(value),
+      metadata: meta ? JSON.parse(meta) : undefined,
+      // Used PTTL so ttl is in milliseconds, negative TTL means key didn't
+      // exist or no expiration
+      expiration: ttl >= 0 ? millisToSeconds(Date.now() + ttl) : undefined,
+      range: { offset, length },
+    };
   }
 
   async put<Meta = unknown>(

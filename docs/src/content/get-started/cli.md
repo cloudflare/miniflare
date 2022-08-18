@@ -32,7 +32,7 @@ $ npx miniflare
 
 <Aside type="warning" header="Warning">
 
-Miniflare requires at least **Node.js 16.7.0**, as it makes extensive use of
+Miniflare requires at least **Node.js 16.13.0**, as it makes extensive use of
 recently added web standards. You should use the latest Node.js version if
 possible, as Cloudflare Workers use a very up-to-date version of V8. Consider
 using a Node.js version manager such as https://volta.sh/ or
@@ -209,12 +209,37 @@ $ miniflare worker.js --open # Opens http://localhost:8787
 $ miniflare worker.js --open https://example.com # Opens https://example.com
 ```
 
+### REPL
+
+Add the `--repl` flag to start an interactive REPL session. This behaves exactly
+like the [Node.js REPL](https://nodejs.org/api/repl.html#repl), except you have
+access to Workers Runtime APIs instead. Any other Miniflare flag can be used
+too, with `.env`, `package.json` and `wrangler.toml` files automatically loaded.
+Specifying a script is optional when `--repl` is enabled, but may be required if
+you're using Durable Objects. If you're using an ES module format worker,
+bindings will be accessible via the `env` global variable.
+
+```sh
+$ miniflare --repl --kv TEST_NAMESPACE
+> await new HTMLRewriter().on("p", {
+... element(e) {
+..... e.setInnerContent("new");
+..... }
+... }).transform(new Response("<p>old</p>")).text()
+'<p>new</p>'
+> await env.TEST_NAMESPACE.put("key", "value")
+undefined
+> await env.TEST_NAMESPACE.get("key")
+'value'
+>
+```
+
 ### Update Checker
 
 The CLI includes an automatic update checker that looks for new versions of
 Miniflare once a day. As Cloudflare are always improving and tweaking workers,
 you should aim to install these promptly for improved compatibility with the
-real workers environment. You can disable this with the `--no-update-check`
+real Workers environment. You can disable this with the `--no-update-check`
 flag.
 
 ## Reference
@@ -234,11 +259,13 @@ Core Options:
      --modules-rule      Modules import rule                   [array:TYPE=GLOB]
      --compat-date       Opt into backwards-incompatible changes from   [string]
      --compat-flag       Control specific backwards-incompatible changes [array]
+     --usage-model       Usage model (bundled by default)               [string]
  -u, --upstream          URL of upstream origin                         [string]
  -w, --watch             Watch files for changes                       [boolean]
  -d, --debug             Enable debug logging                          [boolean]
  -V, --verbose           Enable verbose logging                        [boolean]
      --(no-)update-check Enable update checker (enabled by default)    [boolean]
+     --repl              Enable interactive REPL                       [boolean]
      --root              Path to resolve files relative to              [string]
      --mount             Mount additional named workers  [array:NAME=PATH[@ENV]]
      --name              Name of service                                [string]
@@ -247,6 +274,7 @@ Core Options:
      --global-timers     Allow setting timers outside handlers         [boolean]
      --global-random     Allow secure random generation outside        [boolean]
                          handlers
+     --actual-time       Always return correct time from Date methods  [boolean]
 
 HTTP Options:
  -H, --host              Host for HTTP(S) server to listen on           [string]
@@ -274,6 +302,10 @@ Build Options:
 KV Options:
  -k, --kv                KV namespace to bind                            [array]
      --kv-persist        Persist KV data (to optional path)     [boolean/string]
+
+R2 Options:
+ -r, --r2                R2 bucket to bind                               [array]
+     --r2-persist        Persist R2 data (to optional path)     [boolean/string]
 
 Durable Objects Options:
  -o, --do                Durable Object to bind       [array:NAME=CLASS[@MOUNT]]
@@ -323,6 +355,10 @@ kv_namespaces = [                  # --kv
   { binding = "TEST_NAMESPACE", id = "", preview_id = "" }
 ]
 
+r2_buckets = [                     # --r2
+  { binding = "BUCKET", bucket_name = "" }
+]
+
 [durable_objects]
 bindings = [                       # --do
   { name = "OBJECT", class_name = "Object" }
@@ -366,6 +402,7 @@ watch = true                       # --watch
 live_reload = true                 # --live-reload
 env_path = ".env.test"             # --env
 kv_persist = true                  # --kv-persist
+r2_persist = true                  # --r2-persist
 cache_persist = "./cache"          # --cache-persist
 cache = false                      # --no-cache
 durable_objects_persist = true     # --do-persist
@@ -375,6 +412,7 @@ cf_fetch = "./cf.json"             # --cf-fetch ./cf.json
 cf_fetch = false                   # --no-cf-fetch
 https = true                       # --https
 https = "./cert_cache"             # --https ./cert_cache
+actual_time = true                 # --actual-time
 global_async_io = true             # --global-async-io
 global_timers = true               # --global-timers
 global_random = true               # --global-random

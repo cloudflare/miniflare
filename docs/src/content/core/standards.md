@@ -33,15 +33,15 @@ Miniflare supports the following Web Standards in its sandbox:
   `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`,
   `TransformStream`, `TransformStreamDefaultController`, `WritableStream`,
   `WritableStreamDefaultController`, `WritableStreamDefaultWriter`,
-  `FixedLengthStream`
+  `FixedLengthStream`, `CompressionStream`, `DecompressionStream`
 - **Events:** `Event`, `EventTarget`, `AbortController`, `AbortSignal`
 - **Event Types:** `fetch`, `scheduled`, `unhandledrejection`,
   `rejectionhandled`
-- **Misc:** `structuredClone`
+- **Misc:** `structuredClone`, `navigator`
 
 ## Subrequests
 
-Like the real workers runtime, Miniflare limits you to
+To match the behaviour of the Workers runtime, Miniflare limits you to
 [50 subrequests per request](https://developers.cloudflare.com/workers/platform/limits#account-plan-limits).
 Each call to `fetch()`, each URL in a redirect chain, and each call to a Cache
 API method (`put()`/`match()`/`delete()`) counts as a subrequest.
@@ -54,21 +54,55 @@ number disables the limit. Setting this to 0 disables subrequests.
 $ MINIFLARE_SUBREQUEST_LIMIT=100 miniflare
 ```
 
+## Frozen Time
+
+To match the
+[behaviour of the Workers runtime](https://developers.cloudflare.com/workers/learning/security-model/#step-1-disallow-timers-and-multi-threading),
+Miniflare will always return the time of last I/O from `new Date()` and
+`Date.now()`.
+
+This behaviour can be disabled by setting the `actualTime` option, which may be
+useful for performance testing. Note that the Miniflare
+[🤹 Jest Environment](/testing/jest) automatically enables this option.
+
+import ConfigTabs from "../components/mdx/config-tabs";
+
+<ConfigTabs>
+
+```sh
+$ miniflare --actual-time
+```
+
+```toml
+---
+filename: wrangler.toml
+---
+[miniflare]
+actual_time = true
+```
+
+```js
+const mf = new Miniflare({
+  actualTime: true,
+});
+```
+
+</ConfigTabs>
+
 ## Global Functionality Limits
 
-To match the behaviour of the Workers runtime, some functionality, such as
-asynchronous I/O (`fetch`, Cache API, KV), timeouts (`setTimeout`,
-`setInterval`), and generating cryptographically-secure random values
-(`crypto.getRandomValues`, `crypto.subtle.generateKey`), can only be performed
-while handling a request, not in the global scope.
+To match the
+[behaviour of the Workers runtime](https://developers.cloudflare.com/workers/runtime-apis/request/#the-request-context),
+some functionality, such as asynchronous I/O (`fetch`, Cache API, KV), timeouts
+(`setTimeout`, `setInterval`), and generating cryptographically-secure random
+values (`crypto.getRandomValues`, `crypto.subtle.generateKey`), can only be
+performed while handling a request, not in the global scope.
 
 This behaviour can be disabled by setting the `globalAsyncIO`, `globalTimers`
 and `globalRandom` options respectively, which may be useful for tests or
 libraries that need async I/O for setup during local development. Note that the
 Miniflare [🤹 Jest Environment](/testing/jest) automatically enables these
 options.
-
-import ConfigTabs from "../components/mdx/config-tabs";
 
 <ConfigTabs>
 

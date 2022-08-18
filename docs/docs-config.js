@@ -1,7 +1,14 @@
+const fs = require("fs");
+const path = require("path");
+
+const logoSVGPath = path.resolve(__dirname, "..", "miniflare.svg");
+const logoSVGContent = fs.readFileSync(logoSVGPath, "utf8");
+
 module.exports = {
   product: "Miniflare",
   pathPrefix: "/",
-  productIconKey: "docs-engine",
+  productIconKey: "miniflare",
+  logoSVGContent,
   contentRepo: "cloudflare/miniflare",
   contentRepoFolder: "../master/docs", // "../" removes "production/"
   externalLinks: [

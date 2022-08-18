@@ -1,5 +1,7 @@
 import {
   Awaitable,
+  Range,
+  RangeStoredValueMeta,
   Storage,
   StorageListOptions,
   StorageListResult,
@@ -17,9 +19,16 @@ export abstract class LocalStorage extends Storage {
   }
 
   abstract hasMaybeExpired(key: string): Awaitable<StoredMeta | undefined>;
+  abstract headMaybeExpired<Meta>(
+    key: string
+  ): Awaitable<StoredMeta<Meta> | undefined>;
   abstract getMaybeExpired<Meta>(
     key: string
   ): Awaitable<StoredValueMeta<Meta> | undefined>;
+  abstract getRangeMaybeExpired<Meta>(
+    key: string,
+    range: Range
+  ): Awaitable<RangeStoredValueMeta<Meta> | undefined>;
   abstract deleteMaybeExpired(key: string): Awaitable<boolean>;
   abstract listAllMaybeExpired<Meta>(): Awaitable<StoredKeyMeta<Meta>[]>;
 
@@ -37,10 +46,35 @@ export abstract class LocalStorage extends Storage {
     return true;
   }
 
+  async head<Meta = unknown>(
+    key: string
+  ): Promise<StoredMeta<Meta> | undefined> {
+    const stored = await this.headMaybeExpired<Meta>(key);
+    if (stored === undefined) return undefined;
+    if (this.expired(stored)) {
+      await this.deleteMaybeExpired(key);
+      return undefined;
+    }
+    return stored;
+  }
+
   async get<Meta = unknown>(
     key: string
   ): Promise<StoredValueMeta<Meta> | undefined> {
     const stored = await this.getMaybeExpired<Meta>(key);
+    if (stored === undefined) return undefined;
+    if (this.expired(stored)) {
+      await this.deleteMaybeExpired(key);
+      return undefined;
+    }
+    return stored;
+  }
+
+  async getRange<Meta = unknown>(
+    key: string,
+    range: Range = {}
+  ): Promise<RangeStoredValueMeta<Meta> | undefined> {
+    const stored = await this.getRangeMaybeExpired<Meta>(key, range);
     if (stored === undefined) return undefined;
     if (this.expired(stored)) {
       await this.deleteMaybeExpired(key);
@@ -77,7 +111,7 @@ export abstract class LocalStorage extends Storage {
       return listFilterMatch(options, stored.name);
     });
 
-    // Apply sort, cursor, and limit
+    // Apply sort, cursor, limit, and delimiter
     const res = listPaginate(options, keys);
     await Promise.all(deletePromises);
     return res;

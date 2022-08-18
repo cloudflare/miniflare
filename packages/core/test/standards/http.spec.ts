@@ -340,6 +340,26 @@ test("Body: formData: parses files as File objects by default", async (t) => {
   t.is(await file.text(), "file contents");
   t.is(file.name, "test.txt");
 });
+test("Body: formData: preserves path of File objects", async (t) => {
+  const body = new Body(
+    new BaseResponse(
+      [
+        "--boundary",
+        'Content-Disposition: form-data; name="key"; filename="directory/test.txt"',
+        "Content-Type: text/plain",
+        "",
+        "file contents",
+        "--boundary--",
+      ].join("\r\n"),
+      { headers: { "content-type": 'multipart/form-data;boundary="boundary"' } }
+    )
+  );
+  const formData = await body.formData();
+  const file = formData.get("key");
+  assert(file instanceof File);
+  t.is(await file.text(), "file contents");
+  t.is(file.name, "directory/test.txt");
+});
 test("Body: formData: parses files as strings if option set", async (t) => {
   let body = new Body(
     new BaseResponse(
