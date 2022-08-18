@@ -274,7 +274,6 @@ export class MiniflareCore<
   #watcher?: Watcher;
   #watcherCallbackMutex?: Mutex;
   #previousWatchPaths?: Set<string>;
-
   #previousFetchMock?: MockAgent;
 
   constructor(

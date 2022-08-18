@@ -215,7 +215,7 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
         //   context, so we'd be returning the actual time anyway, and this
         //   might mess with Jest's own mocking.
         actualTime: true,
-
+        // - We always want getMiniflareFetchMock() to return this MockAgent
         fetchMock: this.mockAgent,
       }
     );

@@ -10,6 +10,6 @@ test("handles requests with mocked upstream", async () => {
   mockAgent.disableNetConnect();
   const client = mockAgent.get("https://random.mf");
   client.intercept({ path: "/" }).reply(200, "Hello World!");
-  const res = await worker.fetch(new Request("https://random.mf"), true);
+  const res = await fetch(new Request("https://random.mf"));
   expect(await res.text()).toBe("Hello World!");
 });

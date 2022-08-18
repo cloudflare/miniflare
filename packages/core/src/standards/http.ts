@@ -34,6 +34,7 @@ import {
   File,
   FormData,
   Headers,
+  MockAgent,
   ReferrerPolicy,
   RequestCache,
   RequestCredentials,
@@ -44,7 +45,6 @@ import {
   ResponseType,
   fetch as baseFetch,
   getGlobalDispatcher,
-  MockAgent,
 } from "undici";
 import { IncomingRequestCfProperties, RequestInitCfProperties } from "./cf";
 import {
@@ -828,8 +828,7 @@ export async function fetch(
 }
 
 export function createFetchMock() {
-  const agent = new MockAgent();
-  return agent;
+  return new MockAgent();
 }
 
 /** @internal */

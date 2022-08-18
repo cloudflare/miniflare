@@ -19,13 +19,13 @@ export {
   _getBodyLength,
   _kLoopHeader,
   fetch,
+  createFetchMock,
   _urlFromRequestInput,
   _buildUnknownProtocolWarning,
   createCompatFetch,
   logResponse,
   // Re-exported from undici
   Headers,
-  createFetchMock,
 } from "./http";
 export type {
   RequestInfo,

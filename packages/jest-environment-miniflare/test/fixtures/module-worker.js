@@ -10,9 +10,7 @@ export class TestObject {
 }
 
 export default {
-  async fetch(request, performFetch = false) {
-    return performFetch
-      ? await fetch(request)
-      : new Response(`fetch:${request.url}`);
+  async fetch(request) {
+    return new Response(`fetch:${request.url}`);
   },
 };
