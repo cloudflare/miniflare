@@ -1119,6 +1119,10 @@ export class MiniflareCore<
   }
 
   async dispose(): Promise<void> {
+    // Ensure initialisation complete before disposing
+    // (see https://github.com/cloudflare/miniflare/issues/341)
+    await this.#initPromise;
+
     // Run dispose hooks
     for (const [name] of this.#plugins) {
       const instance = this.#instances?.[name];
