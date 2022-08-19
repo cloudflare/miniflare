@@ -1,5 +1,112 @@
 # 🚧 Changelog
 
+# 2.7.0
+
+> ⚠️ **Miniflare's minimum supported Node.js version is now `16.13.0`.** This
+> was the first LTS release of Node.js 16.
+>
+> We recommend you use the latest Node.js version if possible, as Cloudflare
+> Workers use a very up-to-date version of V8. Consider using a Node.js version
+> manager such as https://volta.sh/ or https://github.com/nvm-sh/nvm.
+
+### Features
+
+- 🎉 Add support for easily **mocking outbound `fetch` requests**. See
+  [🕸 Web Standards](https://miniflare.dev/core/standards#mocking-outbound-fetch-requests)
+  for more details. Closes
+  [issue #162](https://github.com/cloudflare/miniflare/issues/162), thanks
+  [@william1616](https://github.com/william1616) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/293).
+
+  ```js
+  test("mocks fetch", async () => {
+    // Get correctly set up `MockAgent`
+    const fetchMock = getMiniflareFetchMock();
+    // Throw when no matching mocked request is found
+    fetchMock.disableNetConnect();
+    // Mock request to https://example.com/thing
+    const origin = fetchMock.get("https://example.com");
+    origin
+      .intercept({ method: "GET", path: "/thing" })
+      .reply(200, "Mocked response!");
+
+    const res = await fetch("https://example.com/thing");
+    const text = await res.text();
+    expect(text).toBe("Mocked response!");
+  });
+  ```
+
+- 🚽 Add support to immediately invoke _("flush")_ scheduled Durable Object
+  alarms in the [🤹 Jest Environment](https://miniflare.dev/testing/jest).
+  Closes [issue #322](https://github.com/cloudflare/miniflare/issues/322),
+  thanks [@robertcepa](https://github.com/robertcepa) and
+  [@CraigglesO](https://github.com/CraigglesO) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/324).
+
+  ```js
+  test("flushes alarms", async () => {
+    // Get Durable Object stub
+    const env = getMiniflareBindings();
+    const id = env.TEST_OBJECT.newUniqueId();
+    const stub = env.TEST_OBJECT.get(id);
+
+    // Schedule Durable Object alarm
+    await stub.fetch("http://localhost/");
+
+    // Flush all alarms...
+    await flushMiniflareDurableObjectAlarms();
+    // ...or specify an array of `DurableObjectId`s to flush
+    await flushMiniflareDurableObjectAlarms([id]);
+  });
+  ```
+
+- 🪣 Add support for R2 bucket bindings to the
+  [🤹 Jest Environment](https://miniflare.dev/testing/jest). Closes
+  [issue #305](https://github.com/cloudflare/miniflare/issues/305), thanks
+  [@Cerberus](https://github.com/Cerberus) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/306).
+- 2️⃣ Add support for Wrangler 2's `routes` property. Closes
+  [issue #254](https://github.com/cloudflare/miniflare/issues/254), thanks
+  [@jrencz](https://github.com/jrencz) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/307).
+- ⚠️ Upgrade [`undici`](https://github.com/nodejs/undici) to
+  [`5.9.1`](https://github.com/nodejs/undici/releases/tag/v5.9.1). Thanks
+  [@yusukebe](https://github.com/yusukebe) and
+  [@cameron-robey](https://github.com/cameron-robey) for
+  [the](https://github.com/cloudflare/miniflare/pull/320)
+  [PRs](https://github.com/cloudflare/miniflare/pull/333).
+
+### Fixes
+
+- Return custom `Content-Encoding`s, closes
+  [issue #312](https://github.com/cloudflare/miniflare/issues/312), thanks
+  [@vlovich](https://github.com/vlovich).
+- Fix reading symlinked files from Miniflare's file-system storage. Closes
+  [issue #318](https://github.com/cloudflare/miniflare/issues/318), thanks
+  [@CraigglesO](https://github.com/CraigglesO) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/319).
+- Display all accessible addresses when listening on host `0.0.0.0`. Closes
+  [issue cloudflare/wrangler2#1652](https://github.com/cloudflare/wrangler2/issues/1652),
+  thanks [@Skye-31](https://github.com/Skye-31) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/332).
+- Fix unbounded recursion when calling `Date.now()`/`new Date()` without
+  `--actual-time` flag. Closes
+  [issue #314](https://github.com/cloudflare/miniflare/issues/314), thanks
+  [@WalshyDev](https://github.com/WalshyDev) and
+  [@AggressivelyMeows](https://github.com/AggressivelyMeows).
+- Preserve full path in `File#name` field. Thanks
+  [@yusefnapora](https://github.com/yusefnapora) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/309).
+- Change underlying glob matching implementation to `picomatch`. Closes
+  [issue #244](https://github.com/cloudflare/miniflare/issues/244), thanks
+  [@jed](https://github.com/jed) and [@cometkim](https://github.com/cometkim)
+  for [the PR](https://github.com/cloudflare/miniflare/pull/316).
+- Fix `NotSupportedError` when using the `NODE-ED25519` algorithm in recent
+  versions of Node.js. Closes
+  [issue #310](https://github.com/cloudflare/miniflare/issues/310), thanks
+  [@yusefnapora](https://github.com/yusefnapora) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/311).
+
 ## 2.6.0
 
 ### Features
