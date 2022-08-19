@@ -60,11 +60,25 @@ test("base64Decode: decodes base64 string", (t) => {
 test("globsToMatcher: converts globs to string matcher", (t) => {
   const globs = ["*.txt", "src/**/*.js", "!src/bad.js"];
   const matcher = globsToMatcher(globs);
+
+  // Check `*.txt`
   t.true(matcher.test("test.txt"));
   t.true(matcher.test("dist/test.txt"));
+
+  // Check `src/**/*.js`
   t.true(matcher.test("src/index.js"));
   t.true(matcher.test("src/lib/add.js"));
+  t.false(matcher.test("src/image.jpg"));
+
+  // Check `!src/bad.js`
   t.false(matcher.test("src/bad.js"));
+
+  // Check absolute paths (`ModuleLinker` will `path.resolve` to absolute paths)
+  // (see https://github.com/cloudflare/miniflare/issues/244)
+  t.true(matcher.test("/one/two/three.txt"));
+  t.true(matcher.test(path.join(process.cwd(), "src/index.js")));
+
+  // Check debug output
   t.is(matcher.toString(), globs.join(", "));
 });
 test("globsToMatcher: returns matcher that matches nothing on undefined globs", (t) => {
