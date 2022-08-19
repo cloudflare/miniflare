@@ -35,10 +35,11 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "ignore": "^5.1.8",
-    "kleur": "^4.1.4"
+    "kleur": "^4.1.4",
+    "picomatch": "^2.3.1"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "3.0.0-next.1"
+    "@miniflare/shared-test": "3.0.0-next.1",
+    "@types/picomatch": "^2.3.0"
   }
 }
