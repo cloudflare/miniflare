@@ -34,7 +34,7 @@ const SUGGEST_GLOBAL_BINDING_MODULES =
 
 const kResponse = Symbol("kResponse");
 const kPassThrough = Symbol("kPassThrough");
-const kWaitUntil = Symbol("kWaitUntil");
+export const kWaitUntil = Symbol("kWaitUntil");
 const kSent = Symbol("kSent");
 
 export class FetchEvent extends Event {
