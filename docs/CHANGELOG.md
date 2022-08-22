@@ -1,5 +1,16 @@
 # 🚧 Changelog
 
+# 2.7.1
+
+## Fixes
+
+- Ensure initialisation is complete before tear down in `Miniflare#dispose()`.
+  Closes [issue #341](https://github.com/cloudflare/miniflare/issues/341),
+  thanks [@vlovich](https://github.com/vlovich).
+- Ensure `DurableObjectTransaction` operations are executed in program order.
+  Closes [issue #344](https://github.com/cloudflare/miniflare/issues/344),
+  thanks [@vlovich](https://github.com/vlovich).
+
 # 2.7.0
 
 > ⚠️ **Miniflare's minimum supported Node.js version is now `16.13.0`.** This
