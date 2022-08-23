@@ -264,7 +264,10 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
     type: OptionType.BOOLEAN,
     alias: "w",
     description: "Watch files for changes",
-    fromWrangler: ({ miniflare }) => miniflare?.watch,
+    fromWrangler: ({ miniflare }) => {
+      if (miniflare?.watch !== undefined) return miniflare.watch;
+      if (miniflare?.live_reload) return true;
+    },
   })
   watch?: boolean;
 

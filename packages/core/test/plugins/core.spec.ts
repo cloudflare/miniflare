@@ -250,6 +250,15 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
   );
   t.is(options.scriptPath, path.resolve(configDir, "dist", "script.js"));
   t.is(options.routes, undefined);
+  // Check live_reload implies watch
+  options = parsePluginWranglerConfig(CorePlugin, {
+    miniflare: { live_reload: true },
+  });
+  t.true(options.watch);
+  options = parsePluginWranglerConfig(CorePlugin, {
+    miniflare: { live_reload: false },
+  });
+  t.is(options.watch, undefined);
 });
 test("CorePlugin: logs options", (t) => {
   let logs = logPluginOptions(CorePlugin, {
