@@ -16,9 +16,8 @@ test("FetchEvent: waitUntil: await resolving promise array using getMiniflareWai
   expect(cachedResponse).toBeUndefined();
 
   // pull in the waitUntil stack
-  const waitUntilList = getMiniflareWaitUntil(fetchEvent);
+  const waitUntilList = await getMiniflareWaitUntil(fetchEvent);
   expect(waitUntilList).not.toBeNull();
-  await Promise.all(waitUntilList);
 
   cachedResponse = await caches.default.match(url);
   expect(cachedResponse).toBeTruthy();
@@ -43,9 +42,52 @@ test("ScheduledEvent: waitUntil: await resolving promise array using getMiniflar
   expect(cachedResponse).toBeUndefined();
 
   // pull in the waitUntil stack
-  const waitUntilList = getMiniflareWaitUntil(scheduledEvent);
+  const waitUntilList = await getMiniflareWaitUntil(scheduledEvent);
   expect(waitUntilList).not.toBeNull();
-  await Promise.all(waitUntilList);
+
+  cachedResponse = await caches.default.match(url);
+  expect(cachedResponse).toBeTruthy();
+  expect(await cachedResponse.text()).toBe("example cache");
+});
+
+test("ExecutionContext: waitUntil: await resolving promise array using getMiniflareWaitUntil.", async () => {
+  const url = "http://localhost/ctx/waitUntil";
+
+  const ctx = getMiniflareExecutionContext();
+  expect(Object.getPrototypeOf(ctx).constructor.name).toBe("ExecutionContext");
+
+  // run a waitUntil
+  ctx.waitUntil(caches.default.put(url, testResponse("example cache")));
+
+  // ensure that waitUntil has yet to be run
+  let cachedResponse = await caches.default.match(url);
+  expect(cachedResponse).toBeUndefined();
+
+  // pull in the waitUntil stack
+  const waitUntilList = await getMiniflareWaitUntil(ctx);
+  expect(waitUntilList).not.toBeNull();
+
+  cachedResponse = await caches.default.match(url);
+  expect(cachedResponse).toBeTruthy();
+  expect(await cachedResponse.text()).toBe("example cache");
+});
+
+test("ExecutionContext: waitUntil: await resolving promise array using ctx.flush().", async () => {
+  const url = "http://localhost/ctx/waitUntil";
+
+  const ctx = getMiniflareExecutionContext();
+  expect(Object.getPrototypeOf(ctx).constructor.name).toBe("ExecutionContext");
+
+  // run a waitUntil
+  ctx.waitUntil(caches.default.put(url, testResponse("example cache")));
+
+  // ensure that waitUntil has yet to be run
+  let cachedResponse = await caches.default.match(url);
+  expect(cachedResponse).toBeUndefined();
+
+  // pull in the waitUntil stack
+  const waitUntilList = await ctx.flush();
+  expect(waitUntilList).not.toBeNull();
 
   cachedResponse = await caches.default.match(url);
   expect(cachedResponse).toBeTruthy();
