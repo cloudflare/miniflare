@@ -629,6 +629,28 @@ test("DurableObjectStub: fetch: throws if handler doesn't return Response", asyn
       "Durable Object fetch handler didn't respond with a Response object",
   });
 });
+test("DurableObjectStub: fetch: returns response with immutable headers", async (t) => {
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: "TestObject" },
+  });
+
+  class TestObject implements DurableObject {
+    fetch(): Response {
+      return new Response();
+    }
+  }
+  plugin.beforeReload();
+  plugin.reload({}, { TestObject }, new Map());
+
+  const ns = plugin.getNamespace(factory, "TEST");
+  const stub = ns.get(testId);
+  const res = await stub.fetch("http://localhost");
+  await t.throws(() => res.headers.set("X-Key", "value"), {
+    instanceOf: TypeError,
+    message: "immutable",
+  });
+});
 test("DurableObjectStub: hides implementation details", async (t) => {
   const [ns] = getTestObjectNamespace();
   const stub = ns.get(testId);

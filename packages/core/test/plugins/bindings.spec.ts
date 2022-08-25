@@ -901,3 +901,29 @@ test("BindingsPlugin: service fetch increases pipeline depth", async (t) => {
       /^Subrequest depth limit exceeded.+\nService bindings can recurse up to 32 times\./,
   });
 });
+test("BindingsPlugin: service fetch returns response with immutable headers", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/346
+  const mf = useMiniflare(
+    { BindingsPlugin },
+    {
+      modules: true,
+      serviceBindings: {
+        SERVICE() {
+          return new Response();
+        },
+      },
+      script: `export default {
+        async fetch(request, env) {
+          const res = await env.SERVICE.fetch(request);
+          res.headers.set("X-Key", "value");
+          return res;
+        }
+      }`,
+    }
+  );
+
+  await t.throwsAsync(mf.dispatchFetch("http://localhost"), {
+    instanceOf: TypeError,
+    message: "immutable",
+  });
+});

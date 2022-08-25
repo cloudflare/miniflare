@@ -471,10 +471,12 @@ export class Request extends Body<BaseRequest> {
   }
 }
 
-export function withImmutableHeaders(req: Request): Request {
+export function withImmutableHeaders<Body extends Request | Response>(
+  body: Body
+): Body {
   // @ts-expect-error internal kGuard isn't included in type definitions
-  req.headers[fetchSymbols.kGuard] = "immutable";
-  return req;
+  body.headers[fetchSymbols.kGuard] = "immutable";
+  return body;
 }
 
 export interface ResponseInit extends BaseResponseInit {

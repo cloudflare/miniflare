@@ -193,7 +193,7 @@ export class DurableObjectStub {
       );
     }
 
-    return res;
+    return withImmutableHeaders(res);
   }
 }
 

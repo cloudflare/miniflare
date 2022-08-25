@@ -20,7 +20,13 @@ import {
 } from "@miniflare/shared";
 import dotenv from "dotenv";
 import { MiniflareCoreError } from "../error";
-import { Request, RequestInfo, RequestInit, Response } from "../standards";
+import {
+  Request,
+  RequestInfo,
+  RequestInit,
+  Response,
+  withImmutableHeaders,
+} from "../standards";
 
 const kWranglerBindings = Symbol("kWranglerBindings");
 
@@ -117,7 +123,8 @@ export class Fetcher {
     // Durable Objects. If user's want this behaviour, they can explicitly catch
     // the error in their service.
     // TODO: maybe add (debug/verbose) logging here?
-    return ctx.runWith(() => fetch(req));
+    const res = await ctx.runWith(() => fetch(req));
+    return withImmutableHeaders(res);
   }
 }
 
