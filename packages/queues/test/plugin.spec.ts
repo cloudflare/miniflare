@@ -10,7 +10,7 @@ import {
   NoOpLog,
   PluginContext,
   QueueEventDispatcher,
-  kGetSubscription,
+  kGetConsumer,
 } from "@miniflare/shared";
 import {
   MemoryStorageFactory,
@@ -32,7 +32,7 @@ test("QueuesPlugin: parses options from argv", async (t) => {
     "QUEUE1=queue1",
     "--queue",
     "QUEUE2=queue2",
-    "--queue-subscription",
+    "--queue-consumer",
     "queue1",
   ]);
   t.deepEqual(options, {
@@ -40,7 +40,7 @@ test("QueuesPlugin: parses options from argv", async (t) => {
       { name: "QUEUE1", queueName: "queue1" },
       { name: "QUEUE2", queueName: "queue2" },
     ],
-    queueSubscriptions: ["queue1"],
+    queueConsumers: ["queue1"],
   });
 
   // setup the plugin and verify default values
@@ -57,20 +57,26 @@ test("QueuesPlugin: parses options from argv", async (t) => {
   await plugin.setup(factory);
 
   const queue1 = queueBroker.getOrCreateQueue("queue1");
-  t.deepEqual(queue1[kGetSubscription]()?.maxBatchSize, DEFAULT_BATCH_SIZE);
-  t.deepEqual(queue1[kGetSubscription]()?.maxWaitMs, DEFAULT_WAIT_MS);
+  t.deepEqual(queue1[kGetConsumer]()?.maxBatchSize, DEFAULT_BATCH_SIZE);
+  t.deepEqual(queue1[kGetConsumer]()?.maxWaitMs, DEFAULT_WAIT_MS);
 });
 
 test("QueuesPlugin: parses options from wrangler config", async (t) => {
   const options = parsePluginWranglerConfig(QueuesPlugin, {
     queues: {
-      bindings: [
-        { name: "QUEUE1", queue_name: "queue1" },
-        { name: "QUEUE2", queue_name: "queue2" },
+      producers: [
+        { binding: "QUEUE1", queue: "queue1" },
+        { binding: "QUEUE2", queue: "queue2" },
       ],
-      subscriptions: [
-        { queue_name: "queue1" },
-        { queue_name: "queue2", max_batch_size: 10, max_wait_secs: 7 },
+      consumers: [
+        { queue: "queue1" },
+        {
+          queue: "queue2",
+          batch_size: 10,
+          batch_timeout: 7,
+          message_retries: 5,
+          dead_letter_queue: "DLQ",
+        },
       ],
     },
   });
@@ -79,9 +85,15 @@ test("QueuesPlugin: parses options from wrangler config", async (t) => {
       { name: "QUEUE1", queueName: "queue1" },
       { name: "QUEUE2", queueName: "queue2" },
     ],
-    queueSubscriptions: [
+    queueConsumers: [
       { queueName: "queue1" },
-      { queueName: "queue2", maxBatchSize: 10, maxWaitMs: 7000 },
+      {
+        queueName: "queue2",
+        maxBatchSize: 10,
+        maxWaitMs: 7000,
+        maxRetries: 5,
+        deadLetterQueue: "DLQ",
+      },
     ],
   });
 
@@ -100,13 +112,13 @@ test("QueuesPlugin: parses options from wrangler config", async (t) => {
 
   // queue1 uses defaults
   const queue1 = queueBroker.getOrCreateQueue("queue1");
-  t.deepEqual(queue1[kGetSubscription]()?.maxBatchSize, DEFAULT_BATCH_SIZE);
-  t.deepEqual(queue1[kGetSubscription]()?.maxWaitMs, DEFAULT_WAIT_MS);
+  t.deepEqual(queue1[kGetConsumer]()?.maxBatchSize, DEFAULT_BATCH_SIZE);
+  t.deepEqual(queue1[kGetConsumer]()?.maxWaitMs, DEFAULT_WAIT_MS);
 
   // queue2 has custom settings
   const queue2 = queueBroker.getOrCreateQueue("queue2");
-  t.deepEqual(queue2[kGetSubscription]()?.maxBatchSize, 10);
-  t.deepEqual(queue2[kGetSubscription]()?.maxWaitMs, 7000);
+  t.deepEqual(queue2[kGetConsumer]()?.maxBatchSize, 10);
+  t.deepEqual(queue2[kGetConsumer]()?.maxWaitMs, 7000);
 });
 
 test("QueuesPlugin: logs options", (t) => {
@@ -115,14 +127,14 @@ test("QueuesPlugin: logs options", (t) => {
       { name: "QUEUE1", queueName: "queue1" },
       { name: "QUEUE2", queueName: "queue2" },
     ],
-    queueSubscriptions: [
+    queueConsumers: [
       { queueName: "queue1", maxBatchSize: 10, maxWaitMs: 7000 },
       { queueName: "queue2", maxBatchSize: 10, maxWaitMs: 7000 },
     ],
   });
   t.deepEqual(logs, [
     "Queue Bindings: QUEUE1, QUEUE2",
-    "Queue Subscriptions: queue1, queue2",
+    "Queue Consumers: queue1, queue2",
   ]);
 });
 

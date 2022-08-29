@@ -50,14 +50,16 @@ export interface WranglerEnvironmentConfig {
     }[];
   }; // (probably) NOT inherited
   queues?: {
-    bindings?: {
-      name: string;
-      queue_name: string;
+    producers?: {
+      binding: string;
+      queue: string;
     }[];
-    subscriptions?: {
-      queue_name: string;
-      max_batch_size?: number;
-      max_wait_secs?: number;
+    consumers?: {
+      queue: string;
+      batch_size?: number;
+      batch_timeout?: number;
+      message_retries?: number;
+      dead_letter_queue?: string;
     }[];
   }; // (probably) NOT inherited
   triggers?: {

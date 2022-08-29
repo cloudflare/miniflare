@@ -1,4 +1,5 @@
 import {
+  Consumer,
   MessageBatch as MessageBatchInterface,
   Message as MessageInterface,
   MessageSendOptions,
@@ -6,12 +7,11 @@ import {
   MiniflareError,
   QueueBroker as QueueBrokerInterface,
   Queue as QueueInterface,
-  Subscription,
-  kGetSubscription,
-  kSetSubscription,
+  kGetConsumer,
+  kSetConsumer,
 } from "@miniflare/shared";
 
-export type QueueErrorCode = "ERR_SUBSCRIBER_ALREADY_SET";
+export type QueueErrorCode = "ERR_CONSUMER_ALREADY_SET";
 
 export class QueueError extends MiniflareError<QueueErrorCode> {}
 
@@ -23,7 +23,7 @@ export class Message<Body = unknown> implements MessageInterface<Body> {
 
   // Internal state for tracking retries
   // Eventually, this will need to be moved or modified to support
-  // multiple subscribers on a single queue.
+  // multiple consumers on a single queue.
   #pendingRetry: boolean;
   #failedAttempts: number;
 
@@ -88,7 +88,7 @@ export const kSetFlushCallback = Symbol("kSetFlushCallback");
 
 export class Queue<Body = unknown> implements QueueInterface<Body> {
   #queueName: string;
-  #subscription?: Subscription;
+  #consumer?: Consumer;
 
   #messages: Message<Body>[];
   #messageCounter: number;
@@ -116,20 +116,20 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
     }
   }
 
-  [kSetSubscription](subscription: Subscription) {
+  [kSetConsumer](consumer: Consumer) {
     // only allow one subscription per queue (for now)
-    if (this.#subscription) {
-      throw new QueueError("ERR_SUBSCRIBER_ALREADY_SET");
+    if (this.#consumer) {
+      throw new QueueError("ERR_CONSUMER_ALREADY_SET");
     }
 
-    this.#subscription = subscription;
+    this.#consumer = consumer;
     if (this.#messages.length) {
       this.#ensurePendingFlush();
     }
   }
 
-  [kGetSubscription](): Subscription | null {
-    return this.#subscription ?? null;
+  [kGetConsumer](): Consumer | null {
+    return this.#consumer ?? null;
   }
 
   #enqueue(body: Body, _options?: MessageSendOptions): void {
@@ -141,13 +141,13 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
 
     this.#messages.push(msg);
     this.#messageCounter++;
-    if (this.#subscription) {
+    if (this.#consumer) {
       this.#ensurePendingFlush();
     }
   }
 
   #ensurePendingFlush() {
-    if (!this.#subscription) {
+    if (!this.#consumer) {
       return;
     }
 
@@ -158,7 +158,7 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
 
     if (this.#pendingFlush === FlushType.DELAYED) {
       // Nothing to do if there is already a delayed flush pending and there is no full batch
-      if (this.#messages.length < this.#subscription?.maxBatchSize) {
+      if (this.#messages.length < this.#consumer?.maxBatchSize) {
         return;
       }
 
@@ -169,13 +169,13 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
 
     // Register a new flush timeout with the appropriate delay
     const newFlushType =
-      this.#messages.length < this.#subscription.maxBatchSize
+      this.#messages.length < this.#consumer.maxBatchSize
         ? FlushType.DELAYED
         : FlushType.IMMEDIATE;
     this.#pendingFlush = newFlushType;
 
     const delay =
-      newFlushType === FlushType.DELAYED ? this.#subscription?.maxWaitMs : 0;
+      newFlushType === FlushType.DELAYED ? this.#consumer?.maxWaitMs : 0;
 
     this.#timeout = setTimeout(() => {
       this.#flush();
@@ -186,7 +186,7 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
   }
 
   async #flush() {
-    if (!this.#subscription) {
+    if (!this.#consumer) {
       return;
     }
 
@@ -194,7 +194,7 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
     const batch = new MessageBatch<Body>(this.#queueName, [...this.#messages]);
     this.#messages = [];
     try {
-      await this.#subscription?.dispatcher(batch);
+      await this.#consumer?.dispatcher(batch);
     } catch (err) {
       // TODO(soon) use real Miniflare logger
       console.error("Error processing batch:", err);
@@ -231,7 +231,7 @@ export class QueueBroker implements QueueBrokerInterface {
     return queue;
   }
 
-  setSubscription(queue: Queue, subscription: Subscription) {
-    queue[kSetSubscription](subscription);
+  setConsumer(queue: Queue, consumer: Consumer) {
+    queue[kSetConsumer](consumer);
   }
 }

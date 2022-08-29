@@ -1,17 +1,17 @@
 // Internal types:
 
-export const kGetSubscription = Symbol("kGetSubscription");
-export const kSetSubscription = Symbol("kSetSubscription");
+export const kGetConsumer = Symbol("kGetConsumer");
+export const kSetConsumer = Symbol("kSetConsumer");
 
 export type QueueEventDispatcher = (batch: MessageBatch) => Promise<void>;
 
 export interface QueueBroker {
   getOrCreateQueue(name: string): Queue;
 
-  setSubscription(queue: Queue, subscription: Subscription): void;
+  setConsumer(queue: Queue, consumer: Consumer): void;
 }
 
-export interface Subscription {
+export interface Consumer {
   queueName: string;
   maxBatchSize: number;
   maxWaitMs: number;
@@ -31,8 +31,8 @@ export interface Queue<Body = unknown> {
   send(message: Body, options?: MessageSendOptions): Promise<void>;
   sendBatch(batch: Iterable<MessageSendRequest<Body>>): Promise<void>;
 
-  [kSetSubscription](subscription: Subscription): void;
-  [kGetSubscription](): Subscription | null;
+  [kSetConsumer](consumer: Consumer): void;
+  [kGetConsumer](): Consumer | null;
 }
 
 export interface Message<Body = unknown> {

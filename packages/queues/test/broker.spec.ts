@@ -3,23 +3,19 @@ import {
   QueueBroker,
   kSetFlushCallback,
 } from "@miniflare/queues";
-import {
-  MessageBatch,
-  Subscription,
-  kSetSubscription,
-} from "@miniflare/shared";
+import { MessageBatch, Consumer, kSetConsumer } from "@miniflare/shared";
 import test from "ava";
 
 test("QueueBroker: flushes partial batches", async (t) => {
   const broker = new QueueBroker();
   const q = broker.getOrCreateQueue("myQueue");
-  const sub: Subscription = {
+  const sub: Consumer = {
     queueName: "myQueue",
     maxBatchSize: 5,
     maxWaitMs: 1,
     dispatcher: async (_batch) => {},
   };
-  q[kSetSubscription](sub);
+  q[kSetConsumer](sub);
 
   sub.dispatcher = async (batch: MessageBatch) => {
     t.deepEqual(batch.queue, "myQueue");
@@ -103,13 +99,13 @@ test("QueueBroker: flushes partial batches", async (t) => {
 test("QueueBroker: flushes full batches", async (t) => {
   const broker = new QueueBroker();
   const q = broker.getOrCreateQueue("myQueue");
-  const sub: Subscription = {
+  const sub: Consumer = {
     queueName: "myQueue",
     maxBatchSize: 5,
     maxWaitMs: 1,
     dispatcher: async (_batch) => {},
   };
-  q[kSetSubscription](sub);
+  q[kSetConsumer](sub);
   sub.dispatcher = async (batch: MessageBatch) => {
     t.deepEqual(
       batch.messages.map((x) => x.body),
@@ -187,13 +183,13 @@ test("QueueBroker: flushes full batches", async (t) => {
 test("QueueBroker: supports message retry()", async (t) => {
   const broker = new QueueBroker();
   const q = broker.getOrCreateQueue("myQueue");
-  const sub: Subscription = {
+  const sub: Consumer = {
     queueName: "myQueue",
     maxBatchSize: 5,
     maxWaitMs: 1,
     dispatcher: async (_batch) => {},
   };
-  q[kSetSubscription](sub);
+  q[kSetConsumer](sub);
 
   let retries = 0;
   sub.dispatcher = async (batch: MessageBatch) => {
@@ -231,13 +227,13 @@ test("QueueBroker: supports message retry()", async (t) => {
 test("QueueBroker: automatic retryAll() on consumer error", async (t) => {
   const broker = new QueueBroker();
   const q = broker.getOrCreateQueue("myQueue");
-  const sub: Subscription = {
+  const sub: Consumer = {
     queueName: "myQueue",
     maxBatchSize: 5,
     maxWaitMs: 1,
     dispatcher: async (_batch) => {},
   };
-  q[kSetSubscription](sub);
+  q[kSetConsumer](sub);
 
   let retries = 0;
   sub.dispatcher = async (batch: MessageBatch) => {
@@ -277,13 +273,13 @@ test("QueueBroker: automatic retryAll() on consumer error", async (t) => {
 test("QueueBroker: drops messages after max retry()", async (t) => {
   const broker = new QueueBroker();
   const q = broker.getOrCreateQueue("myQueue");
-  const sub: Subscription = {
+  const sub: Consumer = {
     queueName: "myQueue",
     maxBatchSize: 5,
     maxWaitMs: 1,
     dispatcher: async (_batch) => {},
   };
-  q[kSetSubscription](sub);
+  q[kSetConsumer](sub);
 
   let retries = 0;
   sub.dispatcher = async (batch: MessageBatch) => {

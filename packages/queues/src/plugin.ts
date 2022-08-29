@@ -6,7 +6,7 @@ import {
   PluginContext,
   SetupResult,
   StorageFactory,
-  Subscription,
+  Consumer as Consumer,
 } from "@miniflare/shared";
 
 export const DEFAULT_BATCH_SIZE = 5;
@@ -17,15 +17,17 @@ export interface BindingOptions {
   queueName: string;
 }
 
-export interface SubscriptionOptions {
+export interface ConsumerOptions {
   queueName: string;
   maxBatchSize?: number;
   maxWaitMs?: number;
+  maxRetries?: number;
+  deadLetterQueue?: string;
 }
 
 export interface QueuesOptions {
   queueBindings?: BindingOptions[];
-  queueSubscriptions?: (string | SubscriptionOptions)[];
+  queueConsumers?: (string | ConsumerOptions)[];
 }
 
 export class QueuesPlugin
@@ -46,32 +48,38 @@ export class QueuesPlugin
         return { name: k, queueName: v };
       }),
     fromWrangler: (wranglerConfig) =>
-      wranglerConfig.queues?.bindings?.map((b) => {
-        return { name: b.name, queueName: b.queue_name };
+      wranglerConfig.queues?.producers?.map((b) => {
+        return { name: b.binding, queueName: b.queue };
       }),
   })
   queueBindings?: BindingOptions[];
 
   @Option({
     type: OptionType.ARRAY,
-    name: "queue-subscription",
-    description: "Queue Subscriptions",
-    logName: "Queue Subscriptions",
-    logValue: (subscriptions: SubscriptionOptions[]) =>
-      subscriptions.map((b) => b.queueName).join(", "),
+    name: "queue-consumers",
+    description: "Queue Consumers",
+    logName: "Queue Consumers",
+    logValue: (consumers: ConsumerOptions[]) =>
+      consumers.map((b) => b.queueName).join(", "),
     fromWrangler: (wranglerConfig) =>
-      wranglerConfig.queues?.subscriptions?.map((opts) => {
-        const result: SubscriptionOptions = { queueName: opts.queue_name };
-        if (opts.max_batch_size) {
-          result.maxBatchSize = opts.max_batch_size;
+      wranglerConfig.queues?.consumers?.map((opts) => {
+        const result: ConsumerOptions = { queueName: opts.queue };
+        if (opts.batch_size) {
+          result.maxBatchSize = opts.batch_size;
         }
-        if (opts.max_wait_secs) {
-          result.maxWaitMs = 1000 * opts.max_wait_secs;
+        if (opts.batch_timeout) {
+          result.maxWaitMs = 1000 * opts.batch_timeout;
+        }
+        if (opts.message_retries) {
+          result.maxRetries = opts.message_retries;
+        }
+        if (opts.dead_letter_queue) {
+          result.deadLetterQueue = opts.dead_letter_queue;
         }
         return result;
       }),
   })
-  queueSubscriptions?: (string | SubscriptionOptions)[];
+  queueConsumers?: (string | ConsumerOptions)[];
 
   constructor(ctx: PluginContext, options?: QueuesOptions) {
     super(ctx);
@@ -79,8 +87,8 @@ export class QueuesPlugin
   }
 
   async setup(_storageFactory: StorageFactory): Promise<SetupResult> {
-    for (const entry of this.queueSubscriptions ?? []) {
-      let opts: SubscriptionOptions;
+    for (const entry of this.queueConsumers ?? []) {
+      let opts: ConsumerOptions;
       if (typeof entry === "string") {
         opts = {
           queueName: entry,
@@ -89,7 +97,7 @@ export class QueuesPlugin
         opts = entry;
       }
 
-      const sub: Subscription = {
+      const consumer: Consumer = {
         queueName: opts.queueName,
         maxBatchSize: opts.maxBatchSize ?? DEFAULT_BATCH_SIZE,
         maxWaitMs: opts.maxWaitMs ?? DEFAULT_WAIT_MS,
@@ -97,7 +105,7 @@ export class QueuesPlugin
       };
 
       const queue = this.ctx.queueBroker.getOrCreateQueue(opts.queueName);
-      this.ctx.queueBroker.setSubscription(queue, sub);
+      this.ctx.queueBroker.setConsumer(queue, consumer);
     }
 
     const bindings: Context = {};
