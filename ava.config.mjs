@@ -11,7 +11,7 @@ export default {
   nonSemVerExperiments: {
     nextGenConfig: true,
   },
-  files: ["packages/jest-environment-miniflare/test/**/*.spec.ts"],
+  files: ["packages/*/test/**/*.spec.ts"],
   timeout: "5m",
   nodeArguments: ["--no-warnings", "--experimental-vm-modules"],
   typescript: {
