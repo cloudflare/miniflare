@@ -1,3 +1,4 @@
+import fs from "fs/promises";
 import path from "path";
 import { Extractor, ExtractorConfig } from "@microsoft/api-extractor";
 import { getPackage, pkgsDir, pkgsList, projectRoot } from "./common.mjs";
@@ -57,6 +58,28 @@ async function buildTypes() {
   for (const name of pkgsList) {
     console.log(`\n--> Bundling ${name}'s types...`);
     const pkgRoot = path.join(pkgsDir, name);
+
+    if (name === "tre") {
+      await fs.copyFile(
+        path.join(
+          pkgRoot,
+          "src",
+          "runtime",
+          "config",
+          "sserve-conf.capnp.d.ts"
+        ),
+        path.join(
+          projectRoot,
+          "dist",
+          "packages",
+          "tre",
+          "src",
+          "runtime",
+          "config",
+          "sserve-conf.capnp.d.ts"
+        )
+      );
+    }
 
     const extractorCfg = ExtractorConfig.prepare({
       projectFolderLookupToken: projectRoot,
