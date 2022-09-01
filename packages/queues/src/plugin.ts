@@ -1,4 +1,5 @@
 import {
+  Consumer as Consumer,
   Context,
   Option,
   OptionType,
@@ -6,7 +7,6 @@ import {
   PluginContext,
   SetupResult,
   StorageFactory,
-  Consumer as Consumer,
 } from "@miniflare/shared";
 
 export const DEFAULT_BATCH_SIZE = 5;

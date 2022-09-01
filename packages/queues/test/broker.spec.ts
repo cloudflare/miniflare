@@ -3,7 +3,7 @@ import {
   QueueBroker,
   kSetFlushCallback,
 } from "@miniflare/queues";
-import { MessageBatch, Consumer, kSetConsumer } from "@miniflare/shared";
+import { Consumer, MessageBatch, kSetConsumer } from "@miniflare/shared";
 import test from "ava";
 
 test("QueueBroker: flushes partial batches", async (t) => {

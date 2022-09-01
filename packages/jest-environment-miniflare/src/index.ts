@@ -20,8 +20,8 @@ import {
 } from "@miniflare/durable-objects";
 import { HTMLRewriterPlugin } from "@miniflare/html-rewriter";
 import { KVPlugin } from "@miniflare/kv";
-import { R2Plugin } from "@miniflare/r2";
 import { QueueBroker } from "@miniflare/queues";
+import { R2Plugin } from "@miniflare/r2";
 import { VMScriptRunner, defineHasInstances } from "@miniflare/runner-vm";
 import { Context, NoOpLog } from "@miniflare/shared";
 import { SitesPlugin } from "@miniflare/sites";
