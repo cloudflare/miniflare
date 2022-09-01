@@ -1,4 +1,5 @@
 import { Response } from "undici";
+import { TextDecoder, TextEncoder } from "util";
 import {
   DELETE,
   GET,
@@ -16,7 +17,7 @@ export interface R2Params {
 export class R2Router extends Router<R2Gateway> {
   @GET("/:bucket/:key")
   get: RouteHandler<R2Params> = async (req, params) => {
-    // console.log(await req.json());
+    console.log("GET KEY");
 
     const persist = decodePersist(req.headers);
     const gateway = this.gatewayFactory.get(params.bucket, persist);
@@ -24,12 +25,22 @@ export class R2Router extends Router<R2Gateway> {
     return new Response();
   };
 
-  @PUT("/:bucket/:key")
-  put: RouteHandler<R2Params> = async (req, params) => {
+  @PUT("/:bucket")
+  put: RouteHandler<Omit<R2Params, "key">> = async (req, params) => {
+    const bytes = await req.arrayBuffer();
+
+    const metadataSize = Number(req.headers.get("cf-r2-metadata-size"));
+
+    const [metadataBytes, value] = [
+      bytes.slice(0, metadataSize),
+      bytes.slice(metadataSize),
+    ];
+    const metadata = JSON.parse(new TextDecoder().decode(metadataBytes));
     const persist = decodePersist(req.headers);
     const gateway = this.gatewayFactory.get(params.bucket, persist);
-    await gateway.put(params.key, new Uint8Array(await req.arrayBuffer()));
-    return new Response();
+    return Response.json(
+      await gateway.put(metadata.object, new Uint8Array(value))
+    );
   };
 
   @DELETE("/:bucket/:key")
@@ -44,7 +55,16 @@ export class R2Router extends Router<R2Gateway> {
   list: RouteHandler<Omit<R2Params, "key">> = async (req, params) => {
     const persist = decodePersist(req.headers);
     const gateway = this.gatewayFactory.get(params.bucket, persist);
-    await gateway.list();
-    return new Response();
+
+    const json = JSON.stringify(await gateway.list());
+    const utf8 = new TextEncoder().encode(json);
+    const byteSize = utf8.length;
+
+    return new Response(json, {
+      headers: {
+        "CF-R2-Metadata-Size": `${byteSize}`,
+        "Content-Type": "application/json",
+      },
+    });
   };
 }
