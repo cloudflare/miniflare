@@ -367,7 +367,13 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
   const { WebSocketServer }: typeof import("ws") = require("ws");
 
   // Setup WebSocket servers
-  const webSocketServer = new WebSocketServer({ noServer: true });
+  const webSocketServer = new WebSocketServer({
+    noServer: true,
+    // Disable automatic handling of `Sec-WebSocket-Protocol` header, Cloudflare
+    // Workers require users to include this header themselves in `Response`s:
+    // https://github.com/cloudflare/miniflare/issues/179
+    handleProtocols: () => false,
+  });
   const liveReloadServer = new WebSocketServer({ noServer: true });
 
   // Add custom headers included in response to WebSocket upgrade requests

@@ -684,6 +684,39 @@ test("createServer: includes headers from web socket upgrade response", async (t
   t.not(req.headers["sec-websocket-accept"], ":(");
   t.deepEqual(req.headers["set-cookie"], ["key=value"]);
 });
+test("createServer: handles web socket upgrade response with Sec-WebSocket-Protocol header", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/179
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin, WebSocketPlugin },
+    {},
+    async (globals) => {
+      const [client, worker] = Object.values(new globals.WebSocketPair());
+      worker.accept();
+      worker.addEventListener("message", (e: MessageEvent) => {
+        worker.send(`worker:${e.data}`);
+      });
+      return new globals.Response(null, {
+        status: 101,
+        webSocket: client,
+        headers: { "Sec-WebSocket-Protocol": "protocol2" },
+      });
+    }
+  );
+  const port = await listen(t, await createServer(mf));
+
+  const ws = new StandardWebSocket(`ws://localhost:${port}`, [
+    "protocol1",
+    "protocol2",
+    "protocol3",
+  ]);
+  ws.addListener("upgrade", (req) => {
+    t.is(req.headers["sec-websocket-protocol"], "protocol2");
+  });
+  const [eventTrigger, eventPromise] = triggerPromise<Data>();
+  ws.addEventListener("message", (e) => eventTrigger(e.data));
+  ws.addEventListener("open", () => ws.send("hello"));
+  t.is(await eventPromise, "worker:hello");
+});
 test("createServer: expects status 101 and web socket response for successful upgrades", async (t) => {
   const log = new TestLog();
   log.error = (message) => log.logWithLevel(LogLevel.ERROR, message.toString());
