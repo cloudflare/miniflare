@@ -94,6 +94,7 @@ export interface WranglerEnvironmentConfig {
     global_timers?: boolean;
     global_random?: boolean;
     actual_time?: boolean;
+    inaccurate_cpu?: boolean;
   }; // inherited
 }
 

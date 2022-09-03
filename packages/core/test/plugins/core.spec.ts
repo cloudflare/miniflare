@@ -195,6 +195,7 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
         global_timers: true,
         global_random: true,
         actual_time: true,
+        inaccurate_cpu: true,
       },
     },
     configDir
@@ -256,6 +257,7 @@ test("CorePlugin: parses options from wrangler config", async (t) => {
     globalTimers: true,
     globalRandom: true,
     actualTime: true,
+    inaccurateCpu: true,
   });
   // Check build upload dir defaults to dist
   options = parsePluginWranglerConfig(
@@ -301,6 +303,7 @@ test("CorePlugin: logs options", (t) => {
     globalTimers: true,
     globalRandom: true,
     actualTime: true,
+    inaccurateCpu: true,
   });
   t.deepEqual(logs, [
     // script is OptionType.NONE so omitted
@@ -324,6 +327,7 @@ test("CorePlugin: logs options", (t) => {
     "Allow Global Timers: true",
     "Allow Global Secure Random: true",
     "Actual Time: true",
+    "Inaccurate CPU Time Measurements: true",
   ]);
   // Check logs default wrangler config/package paths
   logs = logPluginOptions(CorePlugin, {

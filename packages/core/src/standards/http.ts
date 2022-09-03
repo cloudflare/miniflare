@@ -21,7 +21,16 @@ import {
   waitForOpenOutputGate,
 } from "@miniflare/shared";
 import type { WebSocket } from "@miniflare/web-sockets";
-import { Colorize, blue, bold, green, grey, red, yellow } from "kleur/colors";
+import {
+  Colorize,
+  blue,
+  bold,
+  dim,
+  green,
+  grey,
+  red,
+  yellow,
+} from "kleur/colors";
 import { splitCookiesString } from "set-cookie-parser";
 import {
   Request as BaseRequest,
@@ -913,6 +922,10 @@ function millisFromHRTime([seconds, nanoseconds]: HRTime): string {
   return `${((seconds * 1e9 + nanoseconds) / 1e6).toFixed(2)}ms`;
 }
 
+function millisFromCPUTime(microseconds: number): string {
+  return `${(microseconds / 1e3).toFixed(2)}ms`;
+}
+
 function colourFromHTTPStatus(status: number): Colorize {
   if (200 <= status && status < 300) return green;
   if (400 <= status && status < 500) return yellow;
@@ -924,19 +937,27 @@ export async function logResponse(
   log: Log,
   {
     start,
+    startCpu,
     method,
     url,
     status,
     waitUntil,
   }: {
     start: HRTime;
+    startCpu?: NodeJS.CpuUsage;
     method: string;
     url: string;
     status?: number;
     waitUntil?: Promise<any[]>;
   }
 ): Promise<void> {
+  const cpuParts: string[] = [];
+
   const responseTime = millisFromHRTime(process.hrtime(start));
+  if (startCpu !== undefined) {
+    const responseTimeCpu = millisFromCPUTime(process.cpuUsage(startCpu).user);
+    cpuParts.push(dim(grey(` (CPU: ~${responseTimeCpu}`)));
+  }
 
   // Wait for all waitUntil promises to resolve
   let waitUntilResponse: any[] | undefined;
@@ -948,6 +969,15 @@ export async function logResponse(
     log.error(e);
   }
   const waitUntilTime = millisFromHRTime(process.hrtime(start));
+  if (startCpu !== undefined) {
+    if (waitUntilResponse?.length) {
+      const waitUntilTimeCpu = millisFromCPUTime(
+        process.cpuUsage(startCpu).user
+      );
+      cpuParts.push(dim(grey(`, waitUntil: ~${waitUntilTimeCpu}`)));
+    }
+    cpuParts.push(dim(grey(")")));
+  }
 
   log.log(
     [
@@ -961,6 +991,7 @@ export async function logResponse(
       // Only include waitUntilTime if there were waitUntil promises
       waitUntilResponse?.length ? grey(`, waitUntil: ${waitUntilTime}`) : "",
       grey(")"),
+      ...cpuParts,
     ].join("")
   );
 }

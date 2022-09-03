@@ -133,6 +133,7 @@ export interface CoreOptions {
   globalTimers?: boolean;
   globalRandom?: boolean;
   actualTime?: boolean;
+  inaccurateCpu?: boolean;
 }
 
 function mapMountEntries(
@@ -400,6 +401,14 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
   })
   actualTime?: boolean;
 
+  @Option({
+    type: OptionType.BOOLEAN,
+    description: "Log inaccurate CPU time measurements",
+    logName: "Inaccurate CPU Time Measurements",
+    fromWrangler: ({ miniflare }) => miniflare?.inaccurate_cpu,
+  })
+  inaccurateCpu?: boolean;
+
   readonly processedModuleRules: ProcessedModuleRule[] = [];
 
   readonly upstreamURL?: URL;
@@ -505,6 +514,13 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       webStreams.CompressionStream ?? CompressionStream;
     const DecompressionStreamImpl =
       webStreams.DecompressionStream ?? DecompressionStream;
+
+    if (this.inaccurateCpu) {
+      ctx.log.warn(
+        "CPU time measurements are experimental, highly inaccurate and not representative of deployed worker performance.\n" +
+          "They should only be used for relative comparisons and may be removed in the future."
+      );
+    }
 
     // Build globals object
     // noinspection JSDeprecatedSymbols

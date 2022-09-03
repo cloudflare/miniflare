@@ -72,6 +72,15 @@ test("CronScheduler: schedules tasks for validated CRONs on reload", async (t) =
   t.is(events.length, 1);
   t.is(events[0].cron, "30 * * * *");
   t.regex(log.logs[0][1], /^SCHD 30 \* \* \* \* \(\d+\.\d+ms\)$/);
+
+  // Check includes inaccurate CPU time if enabled
+  await mf.setOptions({ inaccurateCpu: true });
+  log.logs = [];
+  await dispatch("30 * * * *");
+  t.regex(
+    log.logs[0][1],
+    /^SCHD 30 \* \* \* \* \(\d+\.\d+ms\) \(CPU: ~\d+\.\d+ms\)$/
+  );
 });
 test("CronScheduler: destroys tasks when CRONs change", async (t) => {
   const events: ScheduledEvent[] = [];

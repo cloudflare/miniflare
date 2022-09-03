@@ -669,6 +669,31 @@ test("createRequestListener: should include Content-Length header on responses",
     });
   });
 });
+test("createRequestListener: logs response", async (t) => {
+  const log = new TestLog();
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin },
+    {},
+    (globals) => new globals.Response("body"),
+    log
+  );
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+
+  let [body] = await request(port);
+  t.is(body, "body");
+  let logs = log.logsAtLevel(LogLevel.NONE);
+  t.is(logs.length, 1);
+  t.regex(logs[0], /^GET \/ 200 OK \(\d+\.\d+ms\)$/);
+
+  // Check includes inaccurate CPU time if enabled
+  await mf.setOptions({ inaccurateCpu: true });
+  log.logs = [];
+  [body] = await request(port);
+  t.is(body, "body");
+  logs = log.logsAtLevel(LogLevel.NONE);
+  t.is(logs.length, 1);
+  t.regex(logs[0], /^GET \/ 200 OK \(\d+\.\d+ms\) \(CPU: ~\d+\.\d+ms\)$/);
+});
 
 test("createServer: handles regular requests", async (t) => {
   const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals, req) => {

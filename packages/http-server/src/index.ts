@@ -254,8 +254,9 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
   mf: MiniflareCore<Plugins>
 ): RequestListener {
   return async (req, res) => {
-    const { HTTPPlugin } = await mf.getPlugins();
+    const { CorePlugin, HTTPPlugin } = await mf.getPlugins();
     const start = process.hrtime();
+    const startCpu = CorePlugin.inaccurateCpu ? process.cpuUsage() : undefined;
     const { request, url } = await convertNodeRequest(
       req,
       await HTTPPlugin.getRequestMeta(req)
@@ -334,6 +335,7 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
     assert(req.method && req.url);
     await logResponse(mf.log, {
       start,
+      startCpu,
       method: req.method,
       url: req.url,
       status,
