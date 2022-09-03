@@ -5,7 +5,6 @@ import {
   MiniflareError,
   ThrowingEventTarget,
   TypedEventListener,
-  ValueOf,
   prefixError,
 } from "@miniflare/shared";
 import { Response as BaseResponse } from "undici";
@@ -177,6 +176,15 @@ export type WorkerGlobalScopeEventMap = {
   rejectionhandled: PromiseRejectionEvent;
 };
 
+function isSpecialEventType(type: string) {
+  return (
+    type === "fetch" ||
+    type === "scheduled" ||
+    type === "trace" ||
+    type === "queue"
+  );
+}
+
 export class WorkerGlobalScope extends ThrowingEventTarget<WorkerGlobalScopeEventMap> {}
 
 // true will be added to this set if #logUnhandledRejections is true so we
@@ -269,10 +277,9 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     listener: TypedEventListener<WorkerGlobalScopeEventMap[Type]> | null,
     options?: AddEventListenerOptions | boolean
   ): void => {
-    if (this.#modules) {
-      throw new TypeError(
-        "Global addEventListener() cannot be used in modules. Instead, event " +
-          "handlers should be declared as exports on the root module."
+    if (this.#modules && isSpecialEventType(type)) {
+      return this.#log.warn(
+        `When using module syntax, the '${type}' event handler should be declared as an exported function on the root module as opposed to using the global addEventListener().`
       );
     }
 
@@ -295,12 +302,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     listener: TypedEventListener<WorkerGlobalScopeEventMap[Type]> | null,
     options?: EventListenerOptions | boolean
   ): void => {
-    if (this.#modules) {
-      throw new TypeError(
-        "Global removeEventListener() cannot be used in modules. Instead, event " +
-          "handlers should be declared as exports on the root module."
-      );
-    }
+    if (this.#modules && isSpecialEventType(type)) return;
 
     // Unregister process wide rejectionHandled/unhandledRejection listeners if
     // no longer needed and not already done so
@@ -312,16 +314,6 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     }
 
     super.removeEventListener(type, listener, options);
-  };
-
-  dispatchEvent = (event: ValueOf<WorkerGlobalScopeEventMap>): boolean => {
-    if (this.#modules) {
-      throw new TypeError(
-        "Global dispatchEvent() cannot be used in modules. Instead, event " +
-          "handlers should be declared as exports on the root module."
-      );
-    }
-    return super.dispatchEvent(event);
   };
 
   [kAddModuleFetchListener](listener: ModuleFetchListener): void {
