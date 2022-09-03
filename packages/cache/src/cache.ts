@@ -9,6 +9,7 @@ import {
 import {
   Awaitable,
   Clock,
+  SITES_NO_CACHE_PREFIX,
   Storage,
   assertInRequest,
   defaultClock,
@@ -183,6 +184,11 @@ export class Cache implements CacheInterface {
     if (res.headers.get("vary")?.includes("*")) {
       throw new TypeError("Cannot cache response with 'Vary: *' header.");
     }
+
+    // Disable caching of Workers Sites files, so we always serve the latest
+    // version from disk
+    const url = new URL(req.url);
+    if (url.pathname.startsWith("/" + SITES_NO_CACHE_PREFIX)) return;
 
     // Check if response cacheable and get expiration TTL if any
     const expirationTtl = getExpirationTtl(this.#clock, req, res);
