@@ -523,8 +523,12 @@ const autoEncodeMacro: Macro<
   const port = await listen(t, http.createServer(createRequestListener(mf)));
   return new Promise<void>((resolve) => {
     http.get({ port }, async (res) => {
-      t.is(res.headers["content-length"], undefined);
-      t.is(res.headers["transfer-encoding"], "chunked");
+      if (encodes) {
+        t.is(res.headers["content-length"], undefined);
+        t.is(res.headers["transfer-encoding"], "chunked");
+      } else {
+        t.not(res.headers["content-length"], undefined);
+      }
       t.is(res.headers["content-encoding"], encoding);
       const compressed = await buffer(res);
       const decompressed = decompress(compressed);
@@ -613,6 +617,57 @@ test("createRequestListener: should allow connection close before stream finishe
   await setTimeout(1000);
   // This shouldn't throw a premature close
   await writer.write(utf8Encode("data: test\n\n"));
+});
+test("createRequestListener: should include Content-Length header on responses", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/313
+  const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals, req) => {
+    const url = new globals.URL(req.url);
+    if (url.pathname === "/content-encoding") {
+      return new globals.Response("body", {
+        headers: { "Content-Encoding": "custom", "Content-Length": "4" },
+      });
+    } else if (url.pathname === "/encode-body-manual") {
+      return new globals.Response("body", {
+        encodeBody: "manual",
+        headers: { "Content-Length": "4" },
+      });
+    } else {
+      return new globals.Response(null, { status: 404 });
+    }
+  });
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+
+  // Check with custom `Content-Encoding` (https://github.com/cloudflare/miniflare/issues/312)
+  await new Promise<void>((resolve) => {
+    http.get({ port, path: "/content-encoding" }, async (res) => {
+      t.is(res.headers["content-length"], "4");
+      t.is(res.headers["content-encoding"], "custom");
+      t.is(await text(res), "body");
+      resolve();
+    });
+  });
+  await new Promise<void>((resolve) => {
+    http.get({ port, method: "HEAD", path: "/content-encoding" }, (res) => {
+      t.is(res.headers["content-length"], "4");
+      t.is(res.headers["content-encoding"], "custom");
+      resolve();
+    });
+  });
+
+  // Check with `encodeBody: "manual"`
+  await new Promise<void>((resolve) => {
+    http.get({ port, path: "/encode-body-manual" }, async (res) => {
+      t.is(res.headers["content-length"], "4");
+      t.is(await text(res), "body");
+      resolve();
+    });
+  });
+  await new Promise<void>((resolve) => {
+    http.get({ port, method: "HEAD", path: "/encode-body-manual" }, (res) => {
+      t.is(res.headers["content-length"], "4");
+      resolve();
+    });
+  });
 });
 
 test("createServer: handles regular requests", async (t) => {

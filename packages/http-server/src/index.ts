@@ -177,8 +177,6 @@ async function writeResponse(
   // we're responsible for doing so.
   const encoders: Transform[] = [];
   if (headers["content-encoding"] && response.encodeBody === "auto") {
-    // Content-Length will be wrong as it's for the decoded length
-    delete headers["content-length"];
     // Reverse of https://github.com/nodejs/undici/blob/48d9578f431cbbd6e74f77455ba92184f57096cf/lib/fetch/index.js#L1660
     const codings = headers["content-encoding"]
       .toString()
@@ -198,6 +196,10 @@ async function writeResponse(
         encoders.length = 0;
         break;
       }
+    }
+    if (encoders.length > 0) {
+      // Content-Length will be wrong as it's for the decoded length
+      delete headers["content-length"];
     }
   }
 
