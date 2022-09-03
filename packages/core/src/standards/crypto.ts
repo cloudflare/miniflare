@@ -63,7 +63,7 @@ const usesModernEd25519 = (async () => {
   }
 })();
 
-async function ensureValidAlgorithm(
+async function ensureValidNodeAlgorithm(
   algorithm: webcrypto.AlgorithmIdentifier | webcrypto.EcKeyAlgorithm
 ): Promise<webcrypto.AlgorithmIdentifier | webcrypto.EcKeyAlgorithm> {
   if (
@@ -76,6 +76,27 @@ async function ensureValidAlgorithm(
     return { name: "Ed25519", namedCurve: "Ed25519" };
   }
   return algorithm;
+}
+
+function ensureValidWorkerKey(key: webcrypto.CryptoKey): webcrypto.CryptoKey {
+  // Users' workers will expect to see the `NODE-ED25519` algorithm, even if
+  // we're using "Ed25519" internally (https://github.com/panva/jose/issues/446)
+  if (key.algorithm.name === "Ed25519") key.algorithm.name = "NODE-ED25519";
+  return key;
+}
+
+async function ensureValidNodeKey(
+  key: webcrypto.CryptoKey
+): Promise<webcrypto.CryptoKey> {
+  if (key.algorithm.name === "NODE-ED25519" && (await usesModernEd25519)) {
+    return new Proxy(key, {
+      get(target, property, receiver) {
+        if (property === "algorithm") return { name: "Ed25519" };
+        return Reflect.get(target, property, receiver);
+      },
+    });
+  }
+  return key;
 }
 
 // Workers support non-standard MD5 digests, see
@@ -99,9 +120,18 @@ const generateKey: typeof webcrypto.subtle.generateKey = async function (
   extractable,
   keyUsages
 ) {
-  algorithm = await ensureValidAlgorithm(algorithm);
-  // @ts-expect-error TypeScript cannot infer the correct overload here
-  return webcrypto.subtle.generateKey(algorithm, extractable, keyUsages);
+  algorithm = await ensureValidNodeAlgorithm(algorithm);
+  const key: webcrypto.CryptoKey | webcrypto.CryptoKeyPair =
+    // @ts-expect-error TypeScript cannot infer the correct overload here
+    await webcrypto.subtle.generateKey(algorithm, extractable, keyUsages);
+  // noinspection SuspiciousTypeOfGuard
+  if (key instanceof webcrypto.CryptoKey) {
+    return ensureValidWorkerKey(key);
+  } else {
+    key.publicKey = ensureValidWorkerKey(key.publicKey);
+    key.privateKey = ensureValidWorkerKey(key.privateKey);
+    return key as any;
+  }
 };
 const importKey: typeof webcrypto.subtle.importKey = async function (
   format,
@@ -119,13 +149,13 @@ const importKey: typeof webcrypto.subtle.importKey = async function (
     "namedCurve" in algorithm &&
     algorithm.namedCurve === "NODE-ED25519";
 
-  algorithm = await ensureValidAlgorithm(algorithm);
+  algorithm = await ensureValidNodeAlgorithm(algorithm);
 
   // @ts-expect-error `public` isn't included in the definitions, but required
   // for marking `keyData` as public key material
   if (forcePublic) algorithm.public = true;
 
-  return webcrypto.subtle.importKey(
+  const key = await webcrypto.subtle.importKey(
     // @ts-expect-error TypeScript cannot infer the correct overload here
     format,
     keyData,
@@ -133,13 +163,23 @@ const importKey: typeof webcrypto.subtle.importKey = async function (
     extractable,
     keyUsages
   );
+  return ensureValidWorkerKey(key);
+};
+const exportKey: typeof webcrypto.subtle.exportKey = async function (
+  format,
+  key
+) {
+  key = await ensureValidNodeKey(key);
+  // @ts-expect-error TypeScript cannot infer the correct overload here
+  return webcrypto.subtle.exportKey(format, key);
 };
 const sign: typeof webcrypto.subtle.sign = async function (
   algorithm,
   key,
   data
 ) {
-  algorithm = await ensureValidAlgorithm(algorithm);
+  algorithm = await ensureValidNodeAlgorithm(algorithm);
+  key = await ensureValidNodeKey(key);
   return webcrypto.subtle.sign(algorithm, key, data);
 };
 const verify: typeof webcrypto.subtle.verify = async function (
@@ -148,7 +188,8 @@ const verify: typeof webcrypto.subtle.verify = async function (
   signature,
   data
 ) {
-  algorithm = await ensureValidAlgorithm(algorithm);
+  algorithm = await ensureValidNodeAlgorithm(algorithm);
+  key = await ensureValidNodeKey(key);
   return webcrypto.subtle.verify(algorithm, key, signature, data);
 };
 
@@ -168,6 +209,7 @@ export function createCrypto(blockGlobalRandom = false): WorkerCrypto {
       if (propertyKey === "digest") return digest;
       if (propertyKey === "generateKey") return assertingGenerateKey;
       if (propertyKey === "importKey") return importKey;
+      if (propertyKey === "exportKey") return exportKey;
       if (propertyKey === "sign") return sign;
       if (propertyKey === "verify") return verify;
 
