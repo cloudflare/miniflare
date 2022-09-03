@@ -11,12 +11,16 @@ export interface CompatibilityFeature {
 // will get a type error if they try to use an unsupported flag via the API,
 // and they won't be logged in the "Enabled Compatibility Flags" section.
 export type CompatibilityEnableFlag =
+  | "streams_enable_constructors"
+  | "transformstream_enable_standard_constructor"
   | "global_navigator"
   | "durable_object_fetch_requires_full_url"
   | "fetch_refuses_unknown_protocols"
   | "formdata_parser_supports_files"
   | "html_rewriter_treats_esi_include_as_void_tag";
 export type CompatibilityDisableFlag =
+  | "streams_disable_constructors"
+  | "transformstream_disable_standard_constructor"
   | "no_global_navigator"
   | "durable_object_fetch_allows_relative_url"
   | "fetch_treats_unknown_protocols_as_http"
@@ -26,6 +30,14 @@ export type CompatibilityFlag =
   | CompatibilityDisableFlag;
 
 const FEATURES: CompatibilityFeature[] = [
+  {
+    enableFlag: "streams_enable_constructors",
+    disableFlag: "streams_disable_constructors",
+  },
+  {
+    enableFlag: "transformstream_enable_standard_constructor",
+    disableFlag: "transformstream_disable_standard_constructor",
+  },
   {
     defaultAsOf: "2022-03-21",
     enableFlag: "global_navigator",

@@ -282,18 +282,22 @@ test("createRequestListener: handles buffer http worker response", async (t) => 
   t.is(body, "buffer");
 });
 test("createRequestListener: handles stream http worker response", async (t) => {
-  const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {
-    return new globals.Response(
-      new globals.ReadableStream({
-        start(controller: ReadableStreamDefaultController) {
-          const encoder = new globals.TextEncoder();
-          controller.enqueue(encoder.encode("str"));
-          controller.enqueue(encoder.encode("eam"));
-          controller.close();
-        },
-      })
-    );
-  });
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin },
+    { compatibilityFlags: ["streams_enable_constructors"] },
+    (globals) => {
+      return new globals.Response(
+        new globals.ReadableStream({
+          start(controller: ReadableStreamDefaultController) {
+            const encoder = new globals.TextEncoder();
+            controller.enqueue(encoder.encode("str"));
+            controller.enqueue(encoder.encode("eam"));
+            controller.close();
+          },
+        })
+      );
+    }
+  );
   const port = await listen(t, http.createServer(createRequestListener(mf)));
   const [body] = await request(port);
   t.is(body, "stream");
