@@ -1,7 +1,7 @@
 {
-  "name": "jest-environment-miniflare",
+  "name": "vitest-environment-miniflare",
   "version": "2.7.1",
-  "description": "Jest testing environment for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
+  "description": "Vitest testing environment for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
     "workers",
@@ -12,6 +12,7 @@
   "author": "MrBBot <me@mrbbot.dev>",
   "license": "MIT",
   "main": "./dist/src/index.js",
+  "module": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "files": [
     "dist/src"
@@ -25,37 +26,27 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cloudflare/miniflare.git",
-    "directory": "packages/jest"
+    "directory": "packages/vitest-environment-miniflare"
   },
   "bugs": {
     "url": "https://github.com/cloudflare/miniflare/issues"
   },
-  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/jest#readme",
+  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/vitest-environment-miniflare#readme",
   "volta": {
     "extends": "../../package.json"
   },
   "dependencies": {
     "@miniflare/runner-vm": "2.7.1",
     "@miniflare/shared": "2.7.1",
-    "@miniflare/shared-test-environment": "2.7.1",
-    "@jest/environment": ">=27",
-    "@jest/fake-timers": ">=27",
-    "@jest/types": ">=27",
-    "jest-mock": ">=27",
-    "jest-util": ">=27"
+    "@miniflare/shared-test-environment": "2.7.1"
   },
   "peerDependencies": {
-    "jest": ">=27"
+    "vitest": ">=0.23.0"
   },
   "devDependencies": {
-    "@jest/environment": "^28.1.0",
-    "@jest/fake-timers": "^28.1.0",
-    "@jest/types": "^28.1.0",
     "@miniflare/shared-test": "2.7.1",
-    "jest": "^28.1.0",
-    "jest-mock": "^28.1.0",
-    "jest-util": "^28.1.0",
     "miniflare": "2.7.1",
-    "react-dom": "^18.1.0"
+    "react-dom": "^18.1.0",
+    "vitest": "^0.23.1"
   }
 }

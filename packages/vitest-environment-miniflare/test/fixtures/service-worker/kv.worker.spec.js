@@ -1,3 +1,6 @@
+import { beforeAll, beforeEach, expect, test } from "vitest";
+const describe = setupMiniflareIsolatedStorage();
+
 async function get() {
   return await TEST_NAMESPACE.get("thing");
 }

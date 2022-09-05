@@ -6,64 +6,21 @@ import type {
 } from "@jest/environment";
 import { LegacyFakeTimers, ModernFakeTimers } from "@jest/fake-timers";
 import type { Circus, Config, Global } from "@jest/types";
-import { CachePlugin } from "@miniflare/cache";
-import {
-  BindingsPlugin,
-  CorePlugin,
-  MiniflareCore,
-  createFetchMock,
-} from "@miniflare/core";
-import {
-  DurableObjectId,
-  DurableObjectStorage,
-  DurableObjectsPlugin,
-} from "@miniflare/durable-objects";
-import { HTMLRewriterPlugin } from "@miniflare/html-rewriter";
-import { KVPlugin } from "@miniflare/kv";
-import { R2Plugin } from "@miniflare/r2";
+import { MiniflareCore } from "@miniflare/core";
 import { VMScriptRunner, defineHasInstances } from "@miniflare/runner-vm";
-import { Context, NoOpLog } from "@miniflare/shared";
-import { SitesPlugin } from "@miniflare/sites";
-import { WebSocketPlugin } from "@miniflare/web-sockets";
+import {
+  PLUGINS,
+  StackedMemoryStorageFactory,
+  createMiniflareEnvironment,
+} from "@miniflare/shared-test-environment";
 import { ModuleMocker } from "jest-mock";
 import { installCommonGlobals } from "jest-util";
-import { MockAgent } from "undici";
-import { StackedMemoryStorageFactory } from "./storage";
-
-declare global {
-  function getMiniflareBindings<Bindings = Context>(): Bindings;
-  function getMiniflareDurableObjectStorage(
-    id: DurableObjectId
-  ): Promise<DurableObjectStorage>;
-  function getMiniflareFetchMock(): MockAgent;
-  function flushMiniflareDurableObjectAlarms(
-    ids: DurableObjectId[]
-  ): Promise<void>;
-}
-
-// MiniflareCore will ensure CorePlugin is first and BindingsPlugin is last,
-// so help it out by doing it ourselves so it doesn't have to. BuildPlugin
-// is intentionally omitted as the worker should only be built once per test
-// run, as opposed to once per test suite. The user is responsible for this.
-const PLUGINS = {
-  CorePlugin,
-  KVPlugin,
-  R2Plugin,
-  DurableObjectsPlugin,
-  CachePlugin,
-  SitesPlugin,
-  HTMLRewriterPlugin,
-  WebSocketPlugin,
-  BindingsPlugin,
-};
 
 export type Timer = {
   id: number;
   ref: () => Timer;
   unref: () => Timer;
 };
-
-const log = new NoOpLog();
 
 // Adapted from jest-environment-node:
 // https://github.com/facebook/jest/blob/8f2cdad7694f4c217ac779d3f4e3a150b5a3d74d/packages/jest-environment-node/src/index.ts
@@ -81,7 +38,7 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
 
   private readonly storageFactory = new StackedMemoryStorageFactory();
   private readonly scriptRunner: VMScriptRunner;
-  private readonly mockAgent: MockAgent;
+  private mf?: MiniflareCore<typeof PLUGINS>;
 
   constructor(
     config:
@@ -101,8 +58,6 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
     // using Durable Objects, so may never do this.
     defineHasInstances(this.context);
     this.scriptRunner = new VMScriptRunner(this.context);
-
-    this.mockAgent = createFetchMock();
 
     const global = (this.global = vm.runInContext("this", this.context));
     global.global = global;
@@ -162,93 +117,30 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
 
   async setup(): Promise<void> {
     const global = this.global as any;
-
-    const mf = new MiniflareCore(
-      PLUGINS,
+    const [mf, mfGlobalScope] = await createMiniflareEnvironment(
       {
-        log,
         storageFactory: this.storageFactory,
         scriptRunner: this.scriptRunner,
-        // Only run the script if we're using Durable Objects and need to have
-        // access to the exported classes. This means we're only running the
-        // script in modules mode, so we don't need to worry about
-        // addEventListener being called twice (once when the script is run, and
-        // again when the user imports the worker in Jest tests).
-        scriptRunForModuleExports: true,
       },
+      this.config.testEnvironmentOptions,
       {
-        // Autoload configuration files from default locations by default,
-        // like the CLI (but allow the user to disable this/customise locations)
-        wranglerConfigPath: true,
-        packagePath: true,
-        envPathDefaultFallback: true,
-
-        // Apply user's custom Miniflare options
-        ...this.config.testEnvironmentOptions,
-
-        globals: {
-          ...(this.config.testEnvironmentOptions?.globals as any),
-
-          // Make sure fancy jest console and faked timers are included
-          console: global.console,
-          setTimeout: global.setTimeout,
-          setInterval: global.setInterval,
-          clearTimeout: global.clearTimeout,
-          clearInterval: global.clearInterval,
-        },
-
-        // These options cannot be overwritten:
-        // - We get the global scope once, so watch mode wouldn't do anything,
-        //   apart from stopping Jest exiting
-        watch: false,
-        // - Persistence must be disabled for stacked storage to work
-        kvPersist: false,
-        cachePersist: false,
-        durableObjectsPersist: false,
-        // - Allow all global operations, tests will be outside of a request
-        //   context, but we definitely want to allow people to access their
-        //   namespaces, perform I/O, etc.
-        globalAsyncIO: true,
-        globalTimers: true,
-        globalRandom: true,
-        // - Use the actual `Date` class. We'll be operating outside a request
-        //   context, so we'd be returning the actual time anyway, and this
-        //   might mess with Jest's own mocking.
-        actualTime: true,
-        // - We always want getMiniflareFetchMock() to return this MockAgent
-        fetchMock: this.mockAgent,
+        // Make sure fancy jest console and faked timers are included
+        console: global.console,
+        setTimeout: global.setTimeout,
+        setInterval: global.setInterval,
+        clearTimeout: global.clearTimeout,
+        clearInterval: global.clearInterval,
       }
     );
+    this.mf = mf;
 
-    const mfGlobalScope = await mf.getGlobalScope();
-    mfGlobalScope.global = global;
-    mfGlobalScope.self = global;
     // Make sure Miniflare's global scope is assigned to Jest's global context,
     // even if we didn't run a script because we had no Durable Objects
     Object.assign(global, mfGlobalScope);
-
-    // Add a way of getting bindings in modules mode to allow seeding data.
-    // These names are intentionally verbose so they don't collide with anything
-    // else in scope.
-    const bindings = await mf.getBindings();
-    global.getMiniflareBindings = () => bindings;
-    global.getMiniflareDurableObjectStorage = async (id: DurableObjectId) => {
-      const plugin = (await mf.getPlugins()).DurableObjectsPlugin;
-      const storage = mf.getPluginStorage("DurableObjectsPlugin");
-      const state = await plugin.getObject(storage, id);
-      return state.storage;
-    };
-    global.getMiniflareFetchMock = () => this.mockAgent;
-    global.flushMiniflareDurableObjectAlarms = async (
-      ids?: DurableObjectId[]
-    ): Promise<void> => {
-      const plugin = (await mf.getPlugins()).DurableObjectsPlugin;
-      const storage = mf.getPluginStorage("DurableObjectsPlugin");
-      return plugin.flushAlarms(storage, ids);
-    };
   }
 
   async teardown(): Promise<void> {
+    await this.mf?.dispose();
     this.fakeTimers?.dispose();
     this.fakeTimersModern?.dispose();
     this.context = null;
