@@ -33,8 +33,16 @@ async function runVitest(
   const vitestPath = await vitestPathPromise;
   return new Promise((resolve) => {
     const vitest = childProcess.spawn(
-      vitestPath,
-      ["run", "--reporter=verbose", "--allowOnly", "--no-color"],
+      process.execPath,
+      [
+        "--experimental-vm-modules",
+        "--no-warnings",
+        vitestPath,
+        "run",
+        "--reporter=verbose",
+        "--allowOnly",
+        "--no-color",
+      ],
       {
         cwd,
         env: {
