@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import { TextEncoder } from "util";
 import {
   BadDigest,
   EntityTooLarge,
@@ -17,7 +16,6 @@ import {
 } from "./gateway";
 
 import { R2HTTPMetadata, R2Object, R2ObjectMetadata } from "./r2Object";
-const encoder = new TextEncoder();
 const MAX_LIST_KEYS = 1_000;
 
 const MAX_KEY_SIZE = 1024;
@@ -94,7 +92,7 @@ export class Validator {
   }
   key(key: string): Validator {
     // Check key isn't too long and exists outside regex
-    const keyLength = encoder.encode(key).byteLength;
+    const keyLength = Buffer.byteLength(key);
     if (UNPAIRED_SURROGATE_PAIR_REGEX.test(key)) {
       throw new InvalidObjectName();
     }
