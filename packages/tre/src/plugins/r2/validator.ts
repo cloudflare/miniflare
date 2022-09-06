@@ -16,8 +16,8 @@ import {
 } from "./gateway";
 
 import { R2HTTPMetadata, R2Object, R2ObjectMetadata } from "./r2Object";
-const MAX_LIST_KEYS = 1_000;
 
+const MAX_LIST_KEYS = 1_000;
 const MAX_KEY_SIZE = 1024;
 
 const UNPAIRED_SURROGATE_PAIR_REGEX =
@@ -25,7 +25,7 @@ const UNPAIRED_SURROGATE_PAIR_REGEX =
 const MAX_VALUE_SIZE = 5 * 1_000 * 1_000 * 1_000 - 5 * 1_000 * 1_000;
 
 // false -> the condition testing "failed"
-export function testR2Conditional(
+function testR2Conditional(
   conditional?: R2Conditional,
   metadata?: R2ObjectMetadata
 ): boolean {
@@ -78,11 +78,12 @@ export class Validator {
     }
     return md5Hash;
   }
-  condition(meta: R2Object, onlyIf?: R2Conditional) {
+  condition(meta: R2Object, onlyIf?: R2Conditional): Validator {
     // test conditional should it exist
     if (!testR2Conditional(onlyIf, meta) || meta?.size === 0) {
       throw new PreconditionFailed().attach(meta);
     }
+    return this;
   }
   size(value: Uint8Array): Validator {
     if (value.byteLength > MAX_VALUE_SIZE) {

@@ -16,6 +16,7 @@ enum CfCode {
   InvalidDigest = 10014,
   InvalidObjectName = 10020,
   InvalidMaxKeys = 10022,
+  InvalidArgument = 10029,
   PreconditionFailed = 10031,
   BadDigest = 10037,
   InvalidRange = 10039,
@@ -70,6 +71,16 @@ export class R2Error extends Error {
   attach(object: R2Object) {
     this.object = object;
     return this;
+  }
+}
+
+export class InvalidMetadata extends R2Error {
+  constructor() {
+    super(
+      Status.BadRequest,
+      "Metadata missing or invalid",
+      CfCode.InvalidArgument
+    );
   }
 }
 

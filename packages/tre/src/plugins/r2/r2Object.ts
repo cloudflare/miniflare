@@ -44,9 +44,13 @@ export interface RawR2ObjectMetadata
   customFields: { k: string; v: string }[];
 }
 
+interface EncodedMetadata {
+  metadataSize: number;
+  value: Uint8Array;
+}
+
 export function createVersion(): string {
-  const size = 32;
-  return crypto.randomBytes(size).toString("base64").slice(0, size);
+  return crypto.randomBytes(24).toString("base64");
 }
 
 /**
@@ -100,16 +104,13 @@ export class R2Object implements R2ObjectMetadata {
     };
   }
 
-  encode(): { metadataSize: number; value: Uint8Array } {
+  encode(): EncodedMetadata {
     const json = JSON.stringify(this.rawProperties());
     const bytes = encoder.encode(json);
     return { metadataSize: bytes.length, value: bytes };
   }
 
-  static encodeMultiple(objects: R2Objects): {
-    metadataSize: number;
-    value: Uint8Array;
-  } {
+  static encodeMultiple(objects: R2Objects): EncodedMetadata {
     const json = JSON.stringify({
       ...objects,
       objects: objects.objects.map((o) => o.rawProperties()),
@@ -127,7 +128,7 @@ export class R2ObjectBody extends R2Object {
     this.body = body;
   }
 
-  encode(): { metadataSize: number; value: Uint8Array } {
+  encode(): EncodedMetadata {
     const { metadataSize, value: metadata } = super.encode();
     const merged = new Uint8Array(metadataSize + this.body.length);
     merged.set(metadata);

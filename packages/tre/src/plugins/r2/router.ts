@@ -1,7 +1,7 @@
 import { TextDecoder } from "util";
 import { Request, Response } from "undici";
 import { GET, PUT, RouteHandler, Router, decodePersist } from "../shared";
-import { InternalError, R2Error } from "./errors";
+import { InternalError, InvalidMetadata, R2Error } from "./errors";
 import {
   R2Gateway,
   R2GetOptions,
@@ -20,10 +20,13 @@ export interface R2Params {
 }
 const decoder = new TextDecoder();
 
-const decodeMetadata = async (req: Request) => {
+async function decodeMetadata(req: Request) {
   const bytes = await req.arrayBuffer();
 
   const metadataSize = Number(req.headers.get(CfHeader.MetadataSize));
+  if (Number.isNaN(metadataSize)) {
+    throw new InvalidMetadata();
+  }
 
   const [metadataBytes, value] = [
     bytes.slice(0, metadataSize),
@@ -31,12 +34,13 @@ const decodeMetadata = async (req: Request) => {
   ];
   const metadata = JSON.parse(decoder.decode(metadataBytes));
   return { metadata, value: new Uint8Array(value) };
-};
-const decodeHeaderMetadata = (req: Request) => {
-  const metadata = JSON.parse(req.headers.get(CfHeader.Request) as string);
-
-  return metadata;
-};
+}
+function decodeHeaderMetadata(req: Request) {
+  if (req.headers.get(CfHeader.Request) === null) {
+    throw new InvalidMetadata();
+  }
+  return JSON.parse(req.headers.get(CfHeader.Request) as string);
+}
 
 export interface RawR2GetOptions {
   range?: {
