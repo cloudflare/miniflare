@@ -3,7 +3,13 @@ import {
   QueueBroker,
   kSetFlushCallback,
 } from "@miniflare/queues";
-import { Consumer, MessageBatch, kSetConsumer } from "@miniflare/shared";
+import {
+  Consumer,
+  LogLevel,
+  MessageBatch,
+  kSetConsumer,
+} from "@miniflare/shared";
+import { TestLog } from "@miniflare/shared-test";
 import test from "ava";
 
 test("QueueBroker: flushes partial batches", async (t) => {
@@ -225,7 +231,11 @@ test("QueueBroker: supports message retry()", async (t) => {
 });
 
 test("QueueBroker: automatic retryAll() on consumer error", async (t) => {
-  const broker = new QueueBroker();
+  const log = new TestLog();
+  log.error = (message) =>
+    log.logWithLevel(LogLevel.ERROR, message?.stack ?? "");
+
+  const broker = new QueueBroker(log);
   const q = broker.getOrCreateQueue("myQueue");
   const sub: Consumer = {
     queueName: "myQueue",
@@ -263,6 +273,14 @@ test("QueueBroker: automatic retryAll() on consumer error", async (t) => {
   await prom;
   t.deepEqual(retries, 1);
 
+  // Check consumer error logged followed by message retries
+  t.is(log.logs[0][0], LogLevel.ERROR);
+  t.regex(log.logs[0][1], /^myQueue Consumer: Error: fake consumer error/);
+  t.deepEqual(log.logsAtLevel(LogLevel.DEBUG), [
+    'Retrying message "myQueue-0"...',
+    'Retrying message "myQueue-1"...',
+  ]);
+
   prom = new Promise<void>((resolve) => {
     q[kSetFlushCallback](() => resolve());
   });
@@ -271,7 +289,11 @@ test("QueueBroker: automatic retryAll() on consumer error", async (t) => {
 });
 
 test("QueueBroker: drops messages after max retry()", async (t) => {
-  const broker = new QueueBroker();
+  const log = new TestLog();
+  log.error = (message) =>
+    log.logWithLevel(LogLevel.ERROR, message?.stack ?? "");
+
+  const broker = new QueueBroker(log);
   const q = broker.getOrCreateQueue("myQueue");
   const sub: Consumer = {
     queueName: "myQueue",
@@ -297,6 +319,12 @@ test("QueueBroker: drops messages after max retry()", async (t) => {
     await prom;
     t.deepEqual(retries, i + 1);
   }
+
+  // Check last log message is warning that message dropped
+  t.deepEqual(log.logs[log.logs.length - 1], [
+    LogLevel.WARN,
+    'Dropped message "myQueue-0" after 3 failed attempts!',
+  ]);
 
   // To check that "message1" is dropped:
   // send another message "message2" and ensure it is the only one in the new batch

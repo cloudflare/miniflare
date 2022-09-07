@@ -22,7 +22,6 @@ import {
 import webStreams from "stream/web";
 import { URL, URLSearchParams } from "url";
 import { TextDecoder, TextEncoder } from "util";
-import { deserialize, serialize } from "v8";
 import {
   CompatibilityFlag,
   Context,
@@ -37,6 +36,7 @@ import {
   STRING_SCRIPT_PATH,
   SetupResult,
   globsToMatcher,
+  structuredCloneBuffer,
 } from "@miniflare/shared";
 import { File, FormData, Headers, MockAgent } from "undici";
 // @ts-expect-error `urlpattern-polyfill` only provides global types
@@ -97,11 +97,6 @@ function proxyDisableStreamConstructor<
       );
     },
   });
-}
-
-// Approximation of structuredClone for Node < 17.0.0
-function structuredCloneBuffer<T>(value: T): T {
-  return deserialize(serialize(value));
 }
 
 export interface CoreOptions {

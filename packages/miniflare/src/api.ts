@@ -84,12 +84,13 @@ export class Miniflare extends MiniflareCore<Plugins> {
       sourceMap.install({ emptyCacheBetweenOperations: true });
     }
 
+    const log = options?.log ?? new NoOpLog();
     const storageFactory = new VariedStorageFactory();
-    const queueBroker = new QueueBroker();
+    const queueBroker = new QueueBroker(log);
     super(
       PLUGINS,
       {
-        log: options?.log ?? new NoOpLog(),
+        log,
         storageFactory,
         queueBroker,
         scriptRunner: new VMScriptRunner(),

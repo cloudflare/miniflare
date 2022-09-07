@@ -1,5 +1,6 @@
 import {
   Consumer,
+  Log,
   MessageBatch as MessageBatchInterface,
   Message as MessageInterface,
   MessageSendOptions,
@@ -9,6 +10,8 @@ import {
   Queue as QueueInterface,
   kGetConsumer,
   kSetConsumer,
+  prefixError,
+  structuredCloneBuffer,
 } from "@miniflare/shared";
 
 export type QueueErrorCode = "ERR_CONSUMER_ALREADY_SET";
@@ -20,6 +23,7 @@ const kShouldAttemptRetry = Symbol("kShouldAttemptRetry");
 
 export class Message<Body = unknown> implements MessageInterface<Body> {
   readonly body: Body;
+  readonly #log?: Log;
 
   // Internal state for tracking retries
   // Eventually, this will need to be moved or modified to support
@@ -27,8 +31,14 @@ export class Message<Body = unknown> implements MessageInterface<Body> {
   #pendingRetry: boolean;
   #failedAttempts: number;
 
-  constructor(readonly id: string, readonly timestamp: Date, body: Body) {
-    this.body = body; // TODO(soon) structuredClone the body? (need to support older node versions as well...)
+  constructor(
+    readonly id: string,
+    readonly timestamp: Date,
+    body: Body,
+    log?: Log
+  ) {
+    this.body = (globalThis.structuredClone ?? structuredCloneBuffer)(body);
+    this.#log = log;
 
     this.#pendingRetry = false;
     this.#failedAttempts = 0;
@@ -45,16 +55,15 @@ export class Message<Body = unknown> implements MessageInterface<Body> {
 
     this.#failedAttempts++;
     if (this.#failedAttempts >= MAX_ATTEMPTS) {
-      // TODO(soon) use the miniflare Logger
-      console.warn(
-        `Dropping message "${this.id}" after ${
+      this.#log?.warn(
+        `Dropped message "${this.id}" after ${
           this.#failedAttempts
-        } failed attempts`
+        } failed attempts!`
       );
       return false;
     }
 
-    console.log(`Retrying message "${this.id}"`);
+    this.#log?.debug(`Retrying message "${this.id}"...`);
     this.#pendingRetry = false;
     return true;
   }
@@ -87,7 +96,9 @@ enum FlushType {
 export const kSetFlushCallback = Symbol("kSetFlushCallback");
 
 export class Queue<Body = unknown> implements QueueInterface<Body> {
-  #queueName: string;
+  readonly #queueName: string;
+  readonly #log?: Log;
+
   #consumer?: Consumer;
 
   #messages: Message<Body>[];
@@ -98,8 +109,9 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
   // A callback to run after a flush() has been executed: useful for testing.
   #flushCallback?: () => void;
 
-  constructor(queueName: string) {
+  constructor(queueName: string, log?: Log) {
     this.#queueName = queueName;
+    this.#log = log;
 
     this.#messages = [];
     this.#messageCounter = 0;
@@ -136,7 +148,8 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
     const msg = new Message<Body>(
       `${this.#queueName}-${this.#messageCounter}`,
       new Date(),
-      body
+      body,
+      this.#log
     );
 
     this.#messages.push(msg);
@@ -196,8 +209,7 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
     try {
       await this.#consumer?.dispatcher(batch);
     } catch (err) {
-      // TODO(soon) use real Miniflare logger
-      console.error("Error processing batch:", err);
+      this.#log?.error(prefixError(`${this.#queueName} Consumer`, err));
       batch.retryAll();
     }
 
@@ -219,15 +231,19 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
 }
 
 export class QueueBroker implements QueueBrokerInterface {
-  #queues: Map<string, Queue>;
+  readonly #queues: Map<string, Queue>;
+  readonly #log?: Log;
 
-  constructor() {
+  constructor(log?: Log) {
     this.#queues = new Map<string, Queue>();
+    this.#log = log;
   }
 
   getOrCreateQueue(name: string): Queue {
     let queue = this.#queues.get(name);
-    if (queue === undefined) this.#queues.set(name, (queue = new Queue(name)));
+    if (queue === undefined) {
+      this.#queues.set(name, (queue = new Queue(name, this.#log)));
+    }
     return queue;
   }
 
