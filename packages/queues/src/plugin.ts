@@ -84,6 +84,11 @@ export class QueuesPlugin
   constructor(ctx: PluginContext, options?: QueuesOptions) {
     super(ctx);
     this.assignOptions(options);
+    if (options?.queueBindings?.length || options?.queueConsumers?.length) {
+      ctx.log.warn(
+        "Queues are experimental. There may be breaking changes in the future."
+      );
+    }
   }
 
   async setup(_storageFactory: StorageFactory): Promise<SetupResult> {
