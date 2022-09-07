@@ -10,6 +10,7 @@ import { MiniflareCore } from "@miniflare/core";
 import { QueueBroker } from "@miniflare/queues";
 import { VMScriptRunner, defineHasInstances } from "@miniflare/runner-vm";
 import {
+  ExecutionContext,
   PLUGINS,
   StackedMemoryStorageFactory,
   createMiniflareEnvironment,
@@ -127,6 +128,7 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
       },
       this.config.testEnvironmentOptions,
       {
+        ExecutionContext,
         // Make sure fancy jest console and faked timers are included
         console: global.console,
         setTimeout: global.setTimeout,

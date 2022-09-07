@@ -10,6 +10,7 @@ import { PLUGINS } from "./plugins";
 
 export * from "./plugins";
 export * from "./storage";
+export { ExecutionContext } from "./globals";
 export type { MiniflareEnvironmentUtilities } from "./globals";
 
 const log = new NoOpLog();
