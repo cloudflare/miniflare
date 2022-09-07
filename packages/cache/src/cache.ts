@@ -2,7 +2,6 @@ import { URL } from "url";
 import {
   Request,
   RequestInfo,
-  RequestInitCfProperties,
   Response,
   withStringFormDataFiles,
 } from "@miniflare/core";
@@ -57,36 +56,11 @@ function getKey(req: BaseRequest | Request): string {
   }
 }
 
-const cacheTtlByStatusRangeRegexp = /^(?<from>\d+)(-(?<to>\d+))?$/;
-
 function getExpirationTtl(
   clock: Clock,
   req: BaseRequest | Request,
   res: BaseResponse | Response
 ): number | undefined {
-  // Check cf property first for expiration TTL
-  // @ts-expect-error cf doesn't exist on BaseRequest, but it will just be
-  // undefined if it doesn't
-  const cf: RequestInitCfProperties | undefined = req.cf;
-  if (cf?.cacheTtl) return cf.cacheTtl * 1000;
-  if (cf?.cacheTtlByStatus) {
-    for (const [range, ttl] of Object.entries(cf.cacheTtlByStatus)) {
-      const match = cacheTtlByStatusRangeRegexp.exec(range);
-      const fromString: string | undefined = match?.groups?.from;
-      // If no match, skip to next range
-      if (!fromString) continue;
-      const from = parseInt(fromString);
-      const toString: string | undefined = match?.groups?.to;
-      // If matched "to" group, check range, otherwise, just check equal status
-      if (toString) {
-        const to = parseInt(toString);
-        if (from <= res.status && res.status <= to) return ttl * 1000;
-      } else if (res.status === from) {
-        return ttl * 1000;
-      }
-    }
-  }
-
   // Cloudflare ignores request Cache-Control
   const reqHeaders = normaliseHeaders(req.headers);
   delete reqHeaders["cache-control"];
