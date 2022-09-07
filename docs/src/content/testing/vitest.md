@@ -1,20 +1,19 @@
 ---
-order: 0
+order: 1
 ---
 
-# 🤹 Jest Environment
+# ⚡️ Vitest Environment
 
-Miniflare includes a custom Jest environment that allows you to run your unit
-tests within the Miniflare sandbox. Note that Jest 27 is required. See
-[this repository](https://github.com/mrbbot/miniflare-typescript-esbuild-jest)
-for an example using TypeScript.
+Miniflare includes a custom Vitest environment that allows you to run your unit
+tests within the Miniflare sandbox. Note that Vitest 0.23.0 is required.
 
 ## Setup
 
-The Miniflare environment isn't installed by default, install it and Jest with:
+The Miniflare environment isn't installed by default, install it and Vitest
+with:
 
 ```sh
-$ npm install -D jest-environment-miniflare jest
+$ npm install -D vitest-environment-miniflare vitest
 ```
 
 In the following examples, we'll assume your `package.json` contains
@@ -22,23 +21,27 @@ In the following examples, we'll assume your `package.json` contains
 [⚡️ Developing with esbuild](/developing/esbuild) for an example.
 
 To enable the Miniflare environment, set the
-[`testEnvironment` option](https://jestjs.io/docs/configuration#testenvironment-string)
-in your Jest configuration:
+[`environment` option](https://Vitestjs.io/docs/configuration#testenvironment-string)
+in your Vitest configuration:
 
-```js
+```ts
 ---
-filename: jest.config.js
+filename: vitest.config.ts
 ---
-export default {
-  testEnvironment: "miniflare",
-  // Configuration is automatically loaded from `.env`, `package.json` and
-  // `wrangler.toml` files by default, but you can pass any additional Miniflare
-  // API options here:
-  testEnvironmentOptions: {
-    bindings: { KEY: "value" },
-    kvNamespaces: ["TEST_NAMESPACE"],
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    environment: "miniflare",
+    // Configuration is automatically loaded from `.env`, `package.json` and
+    // `wrangler.toml` files by default, but you can pass any additional Miniflare
+    // API options here:
+    environmentOptions: {
+      bindings: { KEY: "value" },
+      kvNamespaces: ["TEST_NAMESPACE"],
+    },
   },
-};
+})
 ```
 
 ## Writing and Running Tests
@@ -65,6 +68,7 @@ export async function handleRequest(request) {
 ---
 filename: test/index.spec.js
 ---
+import { expect, test } from "vitest";
 import { handleRequest } from "../src/index.js";
 
 test("responds with url", async () => {
@@ -74,11 +78,10 @@ test("responds with url", async () => {
 });
 ```
 
-Modules support is still experimental in Jest and requires the
-`--experimental-vm-modules` flag. To run this test:
+To run this test:
 
 ```sh
-$ NODE_OPTIONS=--experimental-vm-modules npx jest
+$ NODE_OPTIONS=--experimental-vm-modules npx vitest run
 ```
 
 ## Isolated Storage
@@ -89,9 +92,26 @@ a test or `describe`-block are automatically undone afterwards. The isolated
 storage is copied from the parent `describe`-block, allowing you to seed data in
 `beforeAll` hooks.
 
+<Aside type="warning" header="Warning">
+
+Unlike the [🤹 Jest Environment](/testing/jest), you must call the global
+`setupMiniflareIsolatedStorage()` method at the start of your tests and use the
+returned `describe` function in-place of the regular `describe`/`suite`
+functions imported from `vitest` to enable isolated storage.
+
+We're investigating ways of removing this requirement in the future, and will
+likely remove this function in a future release.
+
+Note `concurrent` tests cannot be used with isolated storage.
+
+</Aside>
+
 As an example, consider the following tests:
 
 ```js
+import { expect, test } from "vitest";
+const describe = setupMiniflareIsolatedStorage();
+
 // Gets the array
 async function get() {
   const jsonValue = await TEST_NAMESPACE.get("array");
@@ -169,14 +189,14 @@ const { TEST_NAMESPACE } = getMiniflareBindings();
 ```
 
 Note also that storage persistence options (`kvPersist`, `cachePersist`, and
-`durableObjectsPersist`) are ignored by the Miniflare Jest environment.
+`durableObjectsPersist`) are ignored by the Miniflare Vitest environment.
 
 ## Durable Objects
 
 When testing Durable Objects, Miniflare needs to run your script itself to
 extract exported Durable Object classes. Miniflare should be able to auto-detect
 your script from your `package.json` or `wrangler.toml` file, but you can also
-set it manually in Jest configuration:
+set it manually in Vitest configuration:
 
 ```js
 ---
@@ -195,26 +215,33 @@ export class TestObject {
 }
 ```
 
-```js
+```ts
 ---
-filename: jest.config.js
+filename: vitest.config.ts
 ---
-export default {
-  testEnvironment: "miniflare",
-  testEnvironmentOptions: {
-    modules: true,
-    scriptPath: "./src/index.mjs",
-    durableObjects: {
-      TEST_OBJECT: "TestObject",
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    environment: "miniflare",
+    environmentOptions: {
+      modules: true,
+      scriptPath: "./src/index.mjs",
+      durableObjects: {
+        TEST_OBJECT: "TestObject",
+      },
     },
   },
-};
+})
 ```
 
 To access Durable Object storage in tests, use the
 `getMiniflareDurableObjectStorage()` global function:
 
 ```js
+import { expect, test } from "vitest";
+const describe = setupMiniflareIsolatedStorage();
+
 test("increments count", async () => {
   // Durable Objects requires modules mode so bindings aren't accessible via the
   // global scope
@@ -238,7 +265,7 @@ test("increments count", async () => {
 <Aside type="warning" header="Warning">
 
 Note that if you also import `../src/index.mjs` in your test, your script will
-be run twice, as Miniflare and Jest don't share a module cache. This usually
+be run twice, as Miniflare and Vitest don't share a module cache. This usually
 won't be a problem, but be aware you may have issues with unique `Symbol()`s or
 `instanceof`s.
 
@@ -248,6 +275,9 @@ To immediately invoke _("flush")_ scheduled Durable Object alarms, use the
 `flushMiniflareDurableObjectAlarms()` global function:
 
 ```js
+import { expect, test } from "vitest";
+const describe = setupMiniflareIsolatedStorage();
+
 test("flushes alarms", async () => {
   // Get Durable Object stub
   const env = getMiniflareBindings();
@@ -275,6 +305,9 @@ obtain a correctly set-up
 use the `getMiniflareFetchMock()` global function.
 
 ```js
+import { expect, test } from "vitest";
+const describe = setupMiniflareIsolatedStorage();
+
 test("mocks fetch", async () => {
   // Get correctly set up `MockAgent`
   const fetchMock = getMiniflareFetchMock();
@@ -322,6 +355,9 @@ export default {
 ---
 filename: test/index.spec.js
 ---
+import { expect, test } from "vitest";
+const describe = setupMiniflareIsolatedStorage();
+
 import worker from "../src/index.js";
 
 test("wait until", async () => {

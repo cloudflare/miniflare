@@ -17,7 +17,8 @@ function suppressWarnings() {
       if (
         warningString.startsWith("VM Modules") ||
         warningString.startsWith("stream/web") ||
-        warningString.startsWith("buffer.Blob")
+        warningString.startsWith("buffer.Blob") ||
+        warningString.startsWith("The Ed25519")
       ) {
         return;
       }

@@ -1,5 +1,99 @@
 # 🚧 Changelog
 
+# 2.8.0
+
+## Features
+
+- ⚡️ Add **custom Vitest testing environment**. This behaves almost identically
+  to the Jest environment. However, isolated storage must be installed manually
+  in each test file. Call the `setupMiniflareIsolatedStorage()` global function
+  and use the returned `describe` function instead of the regular
+  `describe`/`suite` functions imported from `vitest`. See
+  [⚡️ Vitest Environment](https://miniflare.dev/testing/vitest) for more
+  details.
+- 🌐 **Populate Workers Sites `__STATIC_CONTENT_MANIFEST`** with site files
+  instead of an empty object. Miniflare will still disable caching of Workers
+  Sites files to ensure the most up-to-date files are always returned. Closes
+  [issues #233](https://github.com/cloudflare/miniflare/issues/233),
+  [#326](https://github.com/cloudflare/miniflare/issues/326) and
+  [cloudflare/wrangler2#1632](https://github.com/cloudflare/wrangler2/issues/1632).
+  Thanks [@ItalyPaleAle](https://github.com/ItalyPaleAle),
+  [@Skye-31](https://github.com/Skye-31),
+  [@CraigglesO](https://github.com/CraigglesO),
+  [@Hexstream](https://github.com/Hexstream) and
+  [@PolariTOON](https://github.com/PolariTOON).
+- ⏱ **Add global `getMiniflareWaitUntil()` method** and `ExecutionContext` class
+  to the Jest and Vitest testing environments. This can be used to `await` the
+  results of `waitUntil`ed `Promise`s in tests. See
+  [🤹️ Jest Environment](https://miniflare.dev/testing/jest#waiting-for-waituntiled-promises)
+  and
+  [⚡️ Vitest Environment](https://miniflare.dev/testing/vitest#waiting-for-waituntiled-promises)
+  for more details.
+- ⏳ Match Web Streams implementations with Workers runtime, closes issue
+  [#168](https://github.com/cloudflare/miniflare/issues/168), thanks
+  [@leviwolfe](https://github.com/leviwolfe):
+  - Add support for the non-standard
+    [`IdentityTransformStream`](https://developers.cloudflare.com/workers/runtime-apis/streams/transformstream/#identitytransformstream)
+    class.
+  - Add support for the **`streams_enable_constructors` compatibility flag**.
+    `ReadableStream` and `WritableStream` constructors will throw unless this
+    flag is enabled. `ReadableByteStreamController`,
+    `ReadableStreamBYOBRequest`, `ReadableStreamDefaultController` and
+    `WritableStreamDefaultController` will only be included in the sandbox if
+    this flag is enabled.
+  - Add support for the **`transformstream_enable_standard_constructor`
+    compatibility flag**. `TransformStream` will behave like
+    `IdentityTransformStream` if this isn't enabled, ignoring custom
+    transformers. If `transformstream_enable_standard_constructor` is set, but
+    `streams_enable_constructors` isn't, the `TransformStream` constructor will
+    throw. `TransformStreamDefaultController` will only be included in the
+    sandbox if both flags are enabled.
+  - Add support for BYOB reads to the non-standard
+    [`FixedLengthStream`](https://developers.cloudflare.com/workers/runtime-apis/streams/transformstream/#fixedlengthstream)
+    class.
+- 🇬🇧 Add support for **Queues**. Docs coming soon™... 👀
+- 🙉 Allow calls to `addEventListener`, `removeEventListener` and
+  `dispatchEvent` in modules mode. Please note, calling `addEventListener` with
+  a special event type (e.g. `fetch`, `scheduled`) will log a warning prompting
+  you to use the `export default` syntax. Closes
+  [issue #207](https://github.com/cloudflare/miniflare/issues/207), thanks
+  [@Electroid](https://github.com/Electroid).
+- 🍟 Add experimental and highly-inaccurate request CPU time measurements. These
+  are not representative of deployed worker performance, should only be used for
+  relative comparisons, and may be removed in the future. Enable measurements
+  with the `--inaccurate-cpu`/`[miniflare] inaccurate_cpu`/`inaccurateCpu`
+  option. Closes
+  [issue #161](https://github.com/cloudflare/miniflare/issues/161). Thanks
+  [@alexandernst](https://github.com/alexandernst) and
+  [@y21](https://github.com/y21).
+- 🦄 Automatically enable watch mode when `live_reload = true` is set in
+  `wrangler.toml`.
+
+## Fixes
+
+- Return `Response`s with immutable headers from `fetch`es to Durable Objects
+  and service bindings. Closes
+  [issue #346](https://github.com/cloudflare/miniflare/issues/346), thanks
+  [@Cherry](https://github.com/Cherry).
+- Fix `CryptoKey#algorithm.name` property of `NODE-ED25519` keys. Closes
+  [issue panva/jose#446](https://github.com/panva/jose/issues/446), thanks
+  [@ItalyPaleAle](https://github.com/ItalyPaleAle).
+- Disable automatic insertion of `Sec-WebSocket-Protocol` header. Closes
+  [issue #179](https://github.com/cloudflare/miniflare/issues/179), thanks
+  [@aboodman](https://github.com/aboodman) and
+  [@grgbkr](https://github.com/grgbkr).
+- Return `Content-Length` header is custom `Content-Encoding` is specified.
+  Closes [issue #313](https://github.com/cloudflare/miniflare/issues/313),
+  thanks [@vlovich](https://github.com/vlovich).
+- Require `"automatic"` instead of `"auto"` for the `encodeBody` option when
+  constructing `Request`s. Closes
+  [issue #357](https://github.com/cloudflare/miniflare/issues/357), thanks
+  [@GregBrimble](https://github.com/GregBrimble) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/358).
+- Remove `request.cf.cacheTtl`/`request.cf.cacheTtlByStatus` support from the
+  Cache API to match the behaviour of the Workers runtime, which only supports
+  `request.cf.cacheKey`.
+
 # 2.7.1
 
 ## Fixes

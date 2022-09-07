@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/storage-memory",
-  "version": "2.7.1",
+  "version": "2.8.0",
   "description": "In-memory storage module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -35,9 +35,9 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/shared": "2.7.1"
+    "@miniflare/shared": "2.8.0"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.7.1"
+    "@miniflare/shared-test": "2.8.0"
   }
 }

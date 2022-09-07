@@ -275,6 +275,7 @@ Core Options:
      --global-random     Allow secure random generation outside        [boolean]
                          handlers
      --actual-time       Always return correct time from Date methods  [boolean]
+     --inaccurate-cpu    Log inaccurate CPU time measurements          [boolean]
 
 HTTP Options:
  -H, --host              Host for HTTP(S) server to listen on           [string]
@@ -416,6 +417,8 @@ actual_time = true                 # --actual-time
 global_async_io = true             # --global-async-io
 global_timers = true               # --global-timers
 global_random = true               # --global-random
+actual_time = true                 # --actual-time
+inaccurate_cpu = true              # --inaccurate-cpu
 [miniflare.https]
 key = "./key.pem"                  # --https-key
 cert = "./cert.pem"                # --https-cert

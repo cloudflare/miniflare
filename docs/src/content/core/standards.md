@@ -33,7 +33,8 @@ Miniflare supports the following Web Standards in its sandbox:
   `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`,
   `TransformStream`, `TransformStreamDefaultController`, `WritableStream`,
   `WritableStreamDefaultController`, `WritableStreamDefaultWriter`,
-  `FixedLengthStream`, `CompressionStream`, `DecompressionStream`
+  `IdentityTransformStream`, `FixedLengthStream`, `CompressionStream`,
+  `DecompressionStream`
 - **Events:** `Event`, `EventTarget`, `AbortController`, `AbortSignal`
 - **Event Types:** `fetch`, `scheduled`, `unhandledrejection`,
   `rejectionhandled`
