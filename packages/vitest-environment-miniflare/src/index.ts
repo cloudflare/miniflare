@@ -1,6 +1,7 @@
 import { QueueBroker } from "@miniflare/queues";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
+  ExecutionContext,
   StackedMemoryStorageFactory,
   createMiniflareEnvironment,
 } from "@miniflare/shared-test-environment";
@@ -66,7 +67,8 @@ export default <Environment>{
     const storageFactory = new StackedMemoryStorageFactory();
     const [mf, mfGlobalScope] = await createMiniflareEnvironment(
       { storageFactory, scriptRunner, queueBroker },
-      options
+      options,
+      { ExecutionContext }
     );
 
     // Attach isolated storage setup function

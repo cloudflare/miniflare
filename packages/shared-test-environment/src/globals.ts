@@ -1,4 +1,9 @@
-import { MiniflareCore } from "@miniflare/core";
+import {
+  FetchEvent,
+  MiniflareCore,
+  ScheduledEvent,
+  kWaitUntil,
+} from "@miniflare/core";
 import {
   DurableObjectId,
   DurableObjectStorage,
@@ -7,12 +12,25 @@ import { Context } from "@miniflare/shared";
 import { MockAgent } from "undici";
 import { PLUGINS } from "./plugins";
 
+export class ExecutionContext {
+  [kWaitUntil]: Promise<unknown>[] = [];
+
+  passThroughOnException(): void {}
+
+  waitUntil(promise: Promise<any>): void {
+    this[kWaitUntil].push(promise);
+  }
+}
+
 declare global {
   function getMiniflareBindings<Bindings = Context>(): Bindings;
   function getMiniflareDurableObjectStorage(
     id: DurableObjectId
   ): Promise<DurableObjectStorage>;
   function getMiniflareFetchMock(): MockAgent;
+  function getMiniflareWaitUntil<WaitUntil extends any[] = unknown[]>(
+    event: FetchEvent | ScheduledEvent | ExecutionContext
+  ): Promise<WaitUntil>;
   function flushMiniflareDurableObjectAlarms(
     ids: DurableObjectId[]
   ): Promise<void>;
@@ -24,6 +42,9 @@ export interface MiniflareEnvironmentUtilities {
     id: DurableObjectId
   ): Promise<DurableObjectStorage>;
   getMiniflareFetchMock(): MockAgent;
+  getMiniflareWaitUntil<WaitUntil extends any[] = unknown[]>(
+    event: FetchEvent | ScheduledEvent | ExecutionContext
+  ): Promise<WaitUntil>;
   flushMiniflareDurableObjectAlarms(ids: DurableObjectId[]): Promise<void>;
 }
 
@@ -47,6 +68,11 @@ export async function createMiniflareEnvironmentUtilities(
     },
     getMiniflareFetchMock() {
       return fetchMock;
+    },
+    getMiniflareWaitUntil<WaitUntil extends any[] = unknown[]>(
+      event: FetchEvent | ScheduledEvent | ExecutionContext
+    ): Promise<WaitUntil> {
+      return Promise.all(event[kWaitUntil]) as Promise<WaitUntil>;
     },
     async flushMiniflareDurableObjectAlarms(ids?: DurableObjectId[]) {
       const plugin = (await mf.getPlugins()).DurableObjectsPlugin;

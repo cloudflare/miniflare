@@ -1,3 +1,6 @@
+import { expect, test } from "vitest";
+setupMiniflareIsolatedStorage();
+
 function testResponse(body) {
   return new Response(body, { headers: { "Cache-Control": "max-age=3600" } });
 }
