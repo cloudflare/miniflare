@@ -695,7 +695,7 @@ test("Response: supports non-standard properties", (t) => {
 });
 test("Response: encodeBody defaults to auto", (t) => {
   const res = new Response(null);
-  t.is(res.encodeBody, "auto");
+  t.is(res.encodeBody, "automatic");
 });
 test("Response: requires status 101 for WebSocket response", (t) => {
   const pair = new WebSocketPair();
