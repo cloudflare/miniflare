@@ -16,6 +16,7 @@ import {
 import { DurableObjectsPlugin } from "@miniflare/durable-objects";
 import { HTTPPlugin, createServer } from "@miniflare/http-server";
 import { KVPlugin } from "@miniflare/kv";
+import { QueueBroker } from "@miniflare/queues";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import { LogLevel, NoOpLog, StoredValueMeta } from "@miniflare/shared";
 import {
@@ -248,6 +249,7 @@ test("MiniflareCore: #init: doesn't throw if script required, parent script not 
     storageFactory: new MemoryStorageFactory(),
     scriptRunner: new VMScriptRunner(),
     scriptRequired: true,
+    queueBroker: new QueueBroker(),
   };
 
   const mf = new MiniflareCore({ CorePlugin }, ctx, {
@@ -262,6 +264,7 @@ test("MiniflareCore: #init: logs reload errors when mount options update instead
     log,
     storageFactory: new MemoryStorageFactory(),
     scriptRunner: new VMScriptRunner(),
+    queueBroker: new QueueBroker(),
   };
   const mf = new MiniflareCore({ CorePlugin, DurableObjectsPlugin }, ctx, {
     mounts: { a: { script: "//" } },
@@ -780,6 +783,7 @@ test("MiniflareCore: runs mounted worker script for Durable Object classes used 
       storageFactory: new MemoryStorageFactory(),
       scriptRunner: new VMScriptRunner(),
       scriptRunForModuleExports: true,
+      queueBroker: new QueueBroker(),
     },
     {
       modules: true,
@@ -823,6 +827,7 @@ test("MiniflareCore: can access Durable Objects defined in parent or other mount
       log: new NoOpLog(),
       storageFactory: new MemoryStorageFactory(),
       scriptRunner: new VMScriptRunner(),
+      queueBroker: new QueueBroker(),
     },
     {
       name: "parent",

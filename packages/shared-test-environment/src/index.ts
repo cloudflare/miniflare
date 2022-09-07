@@ -15,7 +15,10 @@ export type { MiniflareEnvironmentUtilities } from "./globals";
 const log = new NoOpLog();
 
 export async function createMiniflareEnvironment(
-  ctx: Pick<MiniflareCoreContext, "storageFactory" | "scriptRunner">,
+  ctx: Pick<
+    MiniflareCoreContext,
+    "storageFactory" | "scriptRunner" | "queueBroker"
+  >,
   options: MiniflareCoreOptions<typeof PLUGINS>,
   globalOverrides?: Context
 ): Promise<[mf: MiniflareCore<typeof PLUGINS>, globals: Context]> {

@@ -7,6 +7,7 @@ import type {
 import { LegacyFakeTimers, ModernFakeTimers } from "@jest/fake-timers";
 import type { Circus, Config, Global } from "@jest/types";
 import { MiniflareCore } from "@miniflare/core";
+import { QueueBroker } from "@miniflare/queues";
 import { VMScriptRunner, defineHasInstances } from "@miniflare/runner-vm";
 import {
   PLUGINS,
@@ -38,6 +39,7 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
 
   private readonly storageFactory = new StackedMemoryStorageFactory();
   private readonly scriptRunner: VMScriptRunner;
+  private readonly queueBroker = new QueueBroker();
   private mf?: MiniflareCore<typeof PLUGINS>;
 
   constructor(
@@ -121,6 +123,7 @@ export default class MiniflareEnvironment implements JestEnvironment<Timer> {
       {
         storageFactory: this.storageFactory,
         scriptRunner: this.scriptRunner,
+        queueBroker: this.queueBroker,
       },
       this.config.testEnvironmentOptions,
       {

@@ -1,12 +1,14 @@
 import fs from "fs/promises";
 import path from "path";
 import { URL } from "url";
+import { QueueBroker } from "@miniflare/queues";
 import {
   AdditionalModules,
   BeforeSetupResult,
   Compatibility,
   Context,
   Log,
+  MessageBatch,
   Mutex,
   Options,
   PluginContext,
@@ -49,8 +51,10 @@ import {
   ServiceWorkerGlobalScope,
   _kLoopHeader,
   kAddModuleFetchListener,
+  kAddModuleQueueListener,
   kAddModuleScheduledListener,
   kDispatchFetch,
+  kDispatchQueue,
   kDispatchScheduled,
   kDispose,
   withImmutableHeaders,
@@ -216,6 +220,7 @@ function throwNoScriptError(modules?: boolean) {
 export interface MiniflareCoreContext {
   log: Log;
   storageFactory: StorageFactory;
+  queueBroker: QueueBroker;
   scriptRunner?: ScriptRunner;
   scriptRequired?: boolean;
   scriptRunForModuleExports?: boolean;
@@ -400,6 +405,17 @@ export class MiniflareCore<
     } else {
       this.#compat = new Compatibility(compatibilityDate, compatibilityFlags);
     }
+
+    const queueBroker = this.#ctx.queueBroker;
+    const queueEventDispatcher = async (batch: MessageBatch) => {
+      await this.dispatchQueue(batch);
+
+      // TODO(soon) detect success vs failure during processing
+      this.#ctx.log.info(
+        `${batch.queue} (${batch.messages.length} Messages) OK`
+      );
+    };
+
     const ctx: PluginContext = {
       log: this.#ctx.log,
       compat: this.#compat,
@@ -407,6 +423,8 @@ export class MiniflareCore<
       usageModel,
       globalAsyncIO,
       fetchMock,
+      queueEventDispatcher,
+      queueBroker,
     };
 
     // Log options and compatibility flags every time they might've changed
@@ -782,6 +800,11 @@ export class MiniflareCore<
         if (scheduledListener) {
           globalScope[kAddModuleScheduledListener](scheduledListener);
         }
+
+        const queueListener = defaults?.queue?.bind(defaults);
+        if (queueListener) {
+          globalScope[kAddModuleQueueListener](queueListener);
+        }
       }
     }
 
@@ -1116,6 +1139,24 @@ export class MiniflareCore<
     }).runWith(() =>
       globalScope![kDispatchScheduled]<WaitUntil>(scheduledTime, cron)
     );
+  }
+
+  async dispatchQueue<WaitUntil extends any[] = unknown[]>(
+    batch: MessageBatch
+  ): Promise<WaitUntil> {
+    await this.#initPromise;
+
+    const { usageModel } = this.#instances!.CorePlugin;
+    const globalScope = this.#globalScope;
+
+    // Each fetch gets its own context (e.g. 50 subrequests).
+    // Start a new pipeline too.
+    return new RequestContext({
+      externalSubrequestLimit: usageModelExternalSubrequestLimit(usageModel),
+    }).runWith(() => {
+      const result = globalScope![kDispatchQueue]<WaitUntil>(batch);
+      return result;
+    });
   }
 
   async dispose(): Promise<void> {

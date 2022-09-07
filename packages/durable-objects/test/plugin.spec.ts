@@ -8,11 +8,13 @@ import {
   DurableObjectState,
   DurableObjectsPlugin,
 } from "@miniflare/durable-objects";
+import { QueueBroker } from "@miniflare/queues";
 import {
   Compatibility,
   Mount,
   NoOpLog,
   PluginContext,
+  QueueEventDispatcher,
   StoredValue,
 } from "@miniflare/shared";
 import {
@@ -28,8 +30,15 @@ import { TestObject, testId } from "./object";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath };
-
+const queueBroker = new QueueBroker();
+const queueEventDispatcher: QueueEventDispatcher = async (_batch) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker,
+  queueEventDispatcher,
+};
 test("DurableObjectsPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(DurableObjectsPlugin, [
     "--do",
@@ -133,7 +142,7 @@ test("DurableObjectsPlugin: getObject: reresolves persist path relative to rootP
     [`${tmp}${path.sep}test:TEST:${testId.toString()}`]: map,
   });
   const plugin = new DurableObjectsPlugin(
-    { log, compat, rootPath: tmp },
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     {
       durableObjects: { TEST: "TestObject" },
       durableObjectsPersist: "test",

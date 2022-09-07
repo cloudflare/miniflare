@@ -1,4 +1,5 @@
 import path from "path";
+import { deserialize, serialize } from "v8";
 import picomatch from "picomatch";
 
 export const numericCompare = new Intl.Collator(undefined, { numeric: true })
@@ -12,6 +13,10 @@ export function lexicographicCompare(x: string, y: string): number {
 
 export function nonCircularClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
+}
+// Approximation of structuredClone for Node < 17.0.0
+export function structuredCloneBuffer<T>(value: T): T {
+  return deserialize(serialize(value));
 }
 
 export function addAll<T>(set: Set<T>, values: Iterable<T>): void {

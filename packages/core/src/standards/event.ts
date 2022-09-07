@@ -2,6 +2,7 @@ import {
   Awaitable,
   Context,
   Log,
+  MessageBatch,
   MiniflareError,
   ThrowingEventTarget,
   TypedEventListener,
@@ -106,10 +107,27 @@ export class ScheduledEvent extends Event {
   }
 }
 
-export class ExecutionContext {
-  readonly #event: FetchEvent | ScheduledEvent;
+export class QueueEvent extends Event {
+  readonly batch: MessageBatch;
+  readonly [kWaitUntil]: Promise<unknown>[] = [];
 
-  constructor(event: FetchEvent | ScheduledEvent) {
+  constructor(type: "queue", init: { batch: MessageBatch }) {
+    super(type);
+    this.batch = init.batch;
+  }
+
+  waitUntil(promise: Promise<any>): void {
+    if (!(this instanceof QueueEvent)) {
+      throw new TypeError("Illegal invocation");
+    }
+    this[kWaitUntil].push(promise);
+  }
+}
+
+export class ExecutionContext {
+  readonly #event: FetchEvent | ScheduledEvent | QueueEvent;
+
+  constructor(event: FetchEvent | ScheduledEvent | QueueEvent) {
     this.#event = event;
   }
 
@@ -147,12 +165,20 @@ export type ModuleScheduledListener = (
   ctx: ExecutionContext
 ) => any;
 
+export type ModuleQueueListener = (
+  batch: MessageBatch,
+  env: Context,
+  ctx: ExecutionContext
+) => any;
+
 export const kAddModuleFetchListener = Symbol("kAddModuleFetchListener");
 export const kAddModuleScheduledListener = Symbol(
   "kAddModuleScheduledListener"
 );
+export const kAddModuleQueueListener = Symbol("kAddModuleQueueListener");
 export const kDispatchFetch = Symbol("kDispatchFetch");
 export const kDispatchScheduled = Symbol("kDispatchScheduled");
+export const kDispatchQueue = Symbol("kDispatchQueue");
 export const kDispose = Symbol("kDispose");
 
 export class PromiseRejectionEvent extends Event {
@@ -172,6 +198,7 @@ export class PromiseRejectionEvent extends Event {
 export type WorkerGlobalScopeEventMap = {
   fetch: FetchEvent;
   scheduled: ScheduledEvent;
+  queue: QueueEvent;
   unhandledrejection: PromiseRejectionEvent;
   rejectionhandled: PromiseRejectionEvent;
 };
@@ -334,6 +361,13 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     });
   }
 
+  [kAddModuleQueueListener](listener: ModuleQueueListener): void {
+    super.addEventListener("queue", (e) => {
+      const res = listener(e.batch, this.#bindings, new ExecutionContext(e));
+      if (res !== undefined) e.waitUntil(Promise.resolve(res));
+    });
+  }
+
   async [kDispatchFetch]<WaitUntil extends any[] = unknown[]>(
     request: Request,
     proxy = false
@@ -414,6 +448,14 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
       scheduledTime: scheduledTime ?? Date.now(),
       cron: cron ?? "",
     });
+    super.dispatchEvent(event);
+    return (await Promise.all(event[kWaitUntil])) as WaitUntil;
+  }
+
+  async [kDispatchQueue]<WaitUntil extends any[] = any[]>(
+    batch: MessageBatch
+  ): Promise<WaitUntil> {
+    const event = new QueueEvent("queue", { batch });
     super.dispatchEvent(event);
     return (await Promise.all(event[kWaitUntil])) as WaitUntil;
   }

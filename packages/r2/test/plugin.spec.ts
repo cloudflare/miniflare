@@ -1,10 +1,12 @@
 import assert from "assert";
 import path from "path";
+import { QueueBroker } from "@miniflare/queues";
 import { R2Bucket, R2Plugin } from "@miniflare/r2";
 import {
   Compatibility,
   NoOpLog,
   PluginContext,
+  QueueEventDispatcher,
   StoredValueMeta,
 } from "@miniflare/shared";
 import {
@@ -19,7 +21,16 @@ import test from "ava";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath, globalAsyncIO: true };
+const queueBroker = new QueueBroker();
+const queueEventDispatcher: QueueEventDispatcher = async (_batch) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker,
+  queueEventDispatcher,
+  globalAsyncIO: true,
+};
 
 test("R2Plugin: parses options from argv", (t) => {
   let options = parsePluginArgv(R2Plugin, [
@@ -80,7 +91,7 @@ test("R2Plugin: getBucket: resolves persist path relative to rootPath", async (t
   });
 
   const plugin = new R2Plugin(
-    { log, compat, rootPath: tmp },
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     { r2Persist: "test" }
   );
   const bucket = await plugin.getBucket(factory, "BUCKET");
@@ -112,7 +123,7 @@ test("R2Plugin: setup: includes buckets in bindings", async (t) => {
 test("R2Plugin: setup: operations throw outside request handler unless globalAsyncIO set", async (t) => {
   const factory = new MemoryStorageFactory();
   let plugin = new R2Plugin(
-    { log, compat, rootPath },
+    { log, compat, rootPath, queueBroker, queueEventDispatcher },
     { r2Buckets: ["BUCKET"] }
   );
   let r2: R2Bucket = (await plugin.setup(factory)).bindings?.BUCKET;
@@ -122,7 +133,14 @@ test("R2Plugin: setup: operations throw outside request handler unless globalAsy
   });
 
   plugin = new R2Plugin(
-    { log, compat, rootPath, globalAsyncIO: true },
+    {
+      log,
+      compat,
+      rootPath,
+      globalAsyncIO: true,
+      queueBroker,
+      queueEventDispatcher,
+    },
     { r2Buckets: ["BUCKET"] }
   );
   r2 = (await plugin.setup(factory)).bindings?.BUCKET;

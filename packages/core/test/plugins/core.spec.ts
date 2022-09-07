@@ -16,11 +16,13 @@ import {
   Response,
   Scheduler,
 } from "@miniflare/core";
+import { QueueBroker } from "@miniflare/queues";
 import {
   Compatibility,
   LogLevel,
   NoOpLog,
   PluginContext,
+  QueueEventDispatcher,
   RequestContext,
   STRING_SCRIPT_PATH,
 } from "@miniflare/shared";
@@ -40,8 +42,16 @@ import { File, FormData } from "undici";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath, globalAsyncIO: true };
-
+const queueBroker = new QueueBroker();
+const queueEventDispatcher: QueueEventDispatcher = async (_batch) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker,
+  queueEventDispatcher,
+  globalAsyncIO: true,
+};
 test("CorePlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(CorePlugin, [
     "script.js",
@@ -511,7 +521,14 @@ test("CorePlugin: setup: fetch refuses unknown protocols only if compatibility f
   const compat = new Compatibility(undefined, [
     "fetch_refuses_unknown_protocols",
   ]);
-  plugin = new CorePlugin({ log, compat, rootPath, globalAsyncIO: true });
+  plugin = new CorePlugin({
+    log,
+    compat,
+    rootPath,
+    globalAsyncIO: true,
+    queueBroker,
+    queueEventDispatcher,
+  });
   globals = (await plugin.setup()).globals;
   await t.throwsAsync(async () => globals?.fetch(upstream), {
     instanceOf: TypeError,
@@ -520,13 +537,26 @@ test("CorePlugin: setup: fetch refuses unknown protocols only if compatibility f
 });
 test("CorePlugin: setup: fetch throws outside request handler unless globalAsyncIO set", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
-  let plugin = new CorePlugin({ log, compat, rootPath });
+  let plugin = new CorePlugin({
+    log,
+    compat,
+    rootPath,
+    queueBroker,
+    queueEventDispatcher,
+  });
   let { globals } = await plugin.setup();
   await t.throwsAsync(globals?.fetch(upstream), {
     instanceOf: Error,
     message: /^Some functionality, such as asynchronous I\/O/,
   });
-  plugin = new CorePlugin({ log, compat, rootPath, globalAsyncIO: true });
+  plugin = new CorePlugin({
+    log,
+    compat,
+    rootPath,
+    globalAsyncIO: true,
+    queueBroker,
+    queueEventDispatcher,
+  });
   globals = (await plugin.setup()).globals;
   await globals?.fetch(upstream);
 });
@@ -546,7 +576,13 @@ test("CorePlugin: setup: Request parses files in FormData as File objects only i
   const compat = new Compatibility(undefined, [
     "formdata_parser_supports_files",
   ]);
-  plugin = new CorePlugin({ log, compat, rootPath });
+  plugin = new CorePlugin({
+    log,
+    compat,
+    rootPath,
+    queueBroker,
+    queueEventDispatcher,
+  });
   CompatRequest = (await plugin.setup()).globals?.Request;
   req = new CompatRequest("http://localhost", {
     method: "POST",
@@ -569,7 +605,13 @@ test("CorePlugin: setup: Response parses files in FormData as File objects only 
   const compat = new Compatibility(undefined, [
     "formdata_parser_supports_files",
   ]);
-  plugin = new CorePlugin({ log, compat, rootPath });
+  plugin = new CorePlugin({
+    log,
+    compat,
+    rootPath,
+    queueBroker,
+    queueEventDispatcher,
+  });
   CompatResponse = (await plugin.setup()).globals?.Response;
   res = new CompatResponse(formData);
   resFormData = await res.formData();
@@ -581,7 +623,13 @@ test("CorePlugin: setup: includes navigator only if compatibility flag enabled",
   t.is(globals?.navigator, undefined);
 
   const compat = new Compatibility(undefined, ["global_navigator"]);
-  plugin = new CorePlugin({ log, compat, rootPath });
+  plugin = new CorePlugin({
+    log,
+    compat,
+    rootPath,
+    queueBroker,
+    queueEventDispatcher,
+  });
   globals = (await plugin.setup()).globals;
   t.is(globals?.navigator.userAgent, "Cloudflare-Workers");
 });
@@ -931,7 +979,7 @@ test("CorePlugin: setup: loads script from package.json in default location", as
   const scriptPath = path.join(tmp, "script.js");
   await fs.writeFile(scriptPath, "console.log(42)");
   const plugin = new CorePlugin(
-    { log, compat, rootPath: tmp },
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     { packagePath: true }
   );
 
@@ -961,7 +1009,7 @@ test("CorePlugin: setup: loads script from package.json in custom location", asy
   await fs.writeFile(scriptPath, "console.log('custom')");
 
   const plugin = new CorePlugin(
-    { log, compat, rootPath: tmp },
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     // Should resolve packagePath relative to rootPath
     { packagePath: "package.custom.json" }
   );
@@ -1004,7 +1052,7 @@ test("CorePlugin: setup: loads script from explicit path", async (t) => {
   const scriptPath = path.join(tmp, "script.js");
   await fs.writeFile(scriptPath, "console.log(42)");
   const plugin = new CorePlugin(
-    { log, compat, rootPath: tmp },
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     {
       // Should resolve scriptPath relative to rootPath
       scriptPath: "script.js",

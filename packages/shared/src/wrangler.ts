@@ -49,6 +49,19 @@ export interface WranglerEnvironmentConfig {
       script_name?: string;
     }[];
   }; // (probably) NOT inherited
+  queues?: {
+    producers?: {
+      binding: string;
+      queue: string;
+    }[];
+    consumers?: {
+      queue: string;
+      batch_size?: number;
+      batch_timeout?: number;
+      message_retries?: number;
+      dead_letter_queue?: string;
+    }[];
+  }; // (probably) NOT inherited
   triggers?: {
     crons?: string[];
   }; // inherited

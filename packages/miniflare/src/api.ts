@@ -22,6 +22,8 @@ import {
   startServer,
 } from "@miniflare/http-server";
 import { KVNamespace, KVPlugin } from "@miniflare/kv";
+import { QueuesPlugin } from "@miniflare/queues";
+import { QueueBroker } from "@miniflare/queues";
 import { R2Bucket, R2Plugin } from "@miniflare/r2";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
@@ -51,6 +53,7 @@ export const PLUGINS = {
   DurableObjectsPlugin,
   CachePlugin,
   SitesPlugin,
+  QueuesPlugin,
 
   // No options
   HTMLRewriterPlugin,
@@ -81,12 +84,15 @@ export class Miniflare extends MiniflareCore<Plugins> {
       sourceMap.install({ emptyCacheBetweenOperations: true });
     }
 
+    const log = options?.log ?? new NoOpLog();
     const storageFactory = new VariedStorageFactory();
+    const queueBroker = new QueueBroker(log);
     super(
       PLUGINS,
       {
-        log: options?.log ?? new NoOpLog(),
+        log,
         storageFactory,
+        queueBroker,
         scriptRunner: new VMScriptRunner(),
         scriptRequired: options?.scriptRequired ?? true,
       },
