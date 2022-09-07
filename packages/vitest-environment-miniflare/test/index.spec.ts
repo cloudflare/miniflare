@@ -65,11 +65,13 @@ test.serial(
       path.join(fixturesPath, "service-worker")
     );
     t.is(exitCode, 0, output);
-    // Check using Vitest's console
-    t.regex(
-      output,
-      /stdout \| core\.worker\.spec\.js > uses Vitest console\nhello!/
-    );
+    // Check using Vitest's console (this test is flaky on Windows)
+    if (process.platform !== "win32") {
+      t.regex(
+        output,
+        /stdout \| core\.worker\.spec\.js > uses Vitest console\nhello!/
+      );
+    }
     // Check `describe.each` title substitution
     t.regex(output, /each describe 1 > each describe test/);
     t.regex(output, /each describe 2 > each describe test/);
