@@ -38,6 +38,8 @@ export function randomHex(digits = 8): string {
     .join("");
 }
 
+export const SITES_NO_CACHE_PREFIX = "$__MINIFLARE_SITES__$/";
+
 // Arbitrary string matcher, note RegExp adheres to this interface
 export interface Matcher {
   test(string: string): boolean;

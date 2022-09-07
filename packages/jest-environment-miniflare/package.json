@@ -1,7 +1,7 @@
 {
   "name": "jest-environment-miniflare",
   "version": "2.7.1",
-  "description": "Jest testing module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
+  "description": "Jest testing environment for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
     "workers",
@@ -35,17 +35,9 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/cache": "2.7.1",
-    "@miniflare/core": "2.7.1",
-    "@miniflare/durable-objects": "2.7.1",
-    "@miniflare/html-rewriter": "2.7.1",
-    "@miniflare/kv": "2.7.1",
     "@miniflare/runner-vm": "2.7.1",
     "@miniflare/shared": "2.7.1",
-    "@miniflare/sites": "2.7.1",
-    "@miniflare/storage-memory": "2.7.1",
-    "@miniflare/web-sockets": "2.7.1",
-    "miniflare": "2.7.1",
+    "@miniflare/shared-test-environment": "2.7.1",
     "@jest/environment": ">=27",
     "@jest/fake-timers": ">=27",
     "@jest/types": ">=27",
@@ -63,6 +55,7 @@
     "jest": "^28.1.0",
     "jest-mock": "^28.1.0",
     "jest-util": "^28.1.0",
+    "miniflare": "2.7.1",
     "react-dom": "^18.1.0"
   }
 }

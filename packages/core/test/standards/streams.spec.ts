@@ -1,11 +1,16 @@
 import assert from "assert";
 import { arrayBuffer } from "stream/consumers";
-import { ReadableStream, ReadableStreamBYOBReadResult } from "stream/web";
+import {
+  ReadableStream,
+  ReadableStreamBYOBReadResult,
+  TransformStream,
+} from "stream/web";
 import {
   ArrayBufferViewConstructor,
   CompressionStream,
   DecompressionStream,
   FixedLengthStream,
+  IdentityTransformStream,
   Request,
   Response,
 } from "@miniflare/core";
@@ -184,6 +189,103 @@ test("ReadableStreamBYOBReader: readAtLeast: throws if minimum number of bytes e
   });
 });
 
+const identityMacro: Macro<[TransformStream]> = async (t, stream) => {
+  const { readable, writable } = stream;
+  const writer = writable.getWriter();
+  // noinspection ES6MissingAwait
+  void writer.write(new Uint8Array([1, 2]));
+  // noinspection ES6MissingAwait
+  void writer.write(new Uint8Array([3]));
+  // noinspection ES6MissingAwait
+  void writer.close();
+
+  const reader = readable.getReader();
+  t.deepEqual((await reader.read()).value, new Uint8Array([1, 2]));
+  t.deepEqual((await reader.read()).value, new Uint8Array([3]));
+  t.true((await reader.read()).done);
+};
+const identityByobMacro: Macro<[TransformStream]> = async (t, stream) => {
+  const { readable, writable } = stream;
+  const writer = writable.getWriter();
+  // noinspection ES6MissingAwait
+  void writer.write(new Uint8Array([1]));
+  // noinspection ES6MissingAwait
+  void writer.write(new Uint8Array([2, 3]));
+  // noinspection ES6MissingAwait
+  void writer.close();
+
+  const reads = byobReadAtLeast(readable, 3, 8, Uint8Array);
+
+  let value = (await reads.next()).value;
+  assert(value);
+  t.false(value.done);
+  t.deepEqual(value.value, new Uint8Array([1, 2, 3]));
+
+  value = (await reads.next()).value;
+  assert(value);
+  t.true(value.done);
+  t.deepEqual(value.value, new Uint8Array([]));
+};
+const identityStringChunkMacro: Macro<[TransformStream]> = async (
+  t,
+  stream
+) => {
+  const { readable, writable } = stream;
+  const writer = writable.getWriter();
+  // noinspection ES6MissingAwait
+  void writer.write(
+    "how much chunk would a chunk-chuck chuck if a chunk-chuck could chuck chunk?"
+  );
+
+  const reader = readable.getReader();
+  await t.throwsAsync(reader.read(), {
+    instanceOf: TypeError,
+    message:
+      "This TransformStream is being used as a byte stream, " +
+      "but received a string on its writable side. " +
+      "If you wish to write a string, you'll probably want to " +
+      "explicitly UTF-8-encode it with TextEncoder.",
+  });
+};
+const identityNonArrayChunkMacro: Macro<[TransformStream]> = async (
+  t,
+  stream
+) => {
+  const { readable, writable } = stream;
+  const writer = writable.getWriter();
+  // noinspection ES6MissingAwait
+  void writer.write(42);
+
+  const reader = readable.getReader();
+  await t.throwsAsync(reader.read(), {
+    instanceOf: TypeError,
+    message:
+      "This TransformStream is being used as a byte stream, " +
+      "but received an object of non-ArrayBuffer/ArrayBufferView " +
+      "type on its writable side.",
+  });
+};
+test(
+  "IdentityTransformStream: behaves as identity transform",
+  identityMacro,
+  new IdentityTransformStream()
+);
+test(
+  "IdentityTransformStream: permits BYOB reads",
+  identityByobMacro,
+  new IdentityTransformStream()
+);
+test(
+  "IdentityTransformStream: throws on string chunks",
+  identityStringChunkMacro,
+  new IdentityTransformStream()
+);
+test(
+  "IdentityTransformStream: throws on non-ArrayBuffer/ArrayBufferView chunks",
+  identityNonArrayChunkMacro,
+  new IdentityTransformStream()
+);
+
 test("FixedLengthStream: requires non-negative integer expected length", (t) => {
   const expectations: ThrowsExpectation = {
     instanceOf: TypeError,
@@ -225,56 +327,26 @@ test("FixedLengthStream: throws if too few bytes written", async (t) => {
     message: "FixedLengthStream did not see all expected bytes before close().",
   });
 });
-test("FixedLengthStream: behaves as identity transform if just right number of bytes written", async (t) => {
-  const { readable, writable } = new FixedLengthStream(3);
-  const writer = writable.getWriter();
-  // noinspection ES6MissingAwait
-  void writer.write(new Uint8Array([1, 2]));
-  // noinspection ES6MissingAwait
-  void writer.write(new Uint8Array([3]));
-  // noinspection ES6MissingAwait
-  void writer.close();
-
-  const reader = readable.getReader();
-  t.deepEqual((await reader.read()).value, new Uint8Array([1, 2]));
-  t.deepEqual((await reader.read()).value, new Uint8Array([3]));
-  t.true((await reader.read()).done);
-});
-test("FixedLengthStream: throws on string chunks", async (t) => {
-  const { readable, writable } = new FixedLengthStream(5);
-  const writer = writable.getWriter();
-  // noinspection ES6MissingAwait
-  void writer.write(
-    // @ts-expect-error intentionally testing incorrect types
-    "how much chunk would a chunk-chuck chuck if a chunk-chuck could chuck chunk?"
-  );
-
-  const reader = readable.getReader();
-  await t.throwsAsync(reader.read(), {
-    instanceOf: TypeError,
-    message:
-      "This TransformStream is being used as a byte stream, " +
-      "but received a string on its writable side. " +
-      "If you wish to write a string, you'll probably want to " +
-      "explicitly UTF-8-encode it with TextEncoder.",
-  });
-});
-test("FixedLengthStream: throws on non-ArrayBuffer/ArrayBufferView chunks", async (t) => {
-  const { readable, writable } = new FixedLengthStream(5);
-  const writer = writable.getWriter();
-  // @ts-expect-error intentionally testing incorrect types
-  // noinspection ES6MissingAwait
-  void writer.write(42);
-
-  const reader = readable.getReader();
-  await t.throwsAsync(reader.read(), {
-    instanceOf: TypeError,
-    message:
-      "This TransformStream is being used as a byte stream, " +
-      "but received an object of non-ArrayBuffer/ArrayBufferView " +
-      "type on its writable side.",
-  });
-});
+test(
+  "FixedLengthStream: behaves as identity transform if just right number of bytes written",
+  identityMacro,
+  new FixedLengthStream(3)
+);
+test(
+  "FixedLengthStream: permits BYOB reads",
+  identityByobMacro,
+  new FixedLengthStream(3)
+);
+test(
+  "FixedLengthStream: throws on string chunks",
+  identityStringChunkMacro,
+  new FixedLengthStream(5)
+);
+test(
+  "FixedLengthStream: throws on non-ArrayBuffer/ArrayBufferView chunks",
+  identityNonArrayChunkMacro,
+  new FixedLengthStream(5)
+);
 function buildFixedLengthReadableStream(length: number) {
   const { readable, writable } = new FixedLengthStream(length);
   const writer = writable.getWriter();

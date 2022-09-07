@@ -24,6 +24,7 @@ export class CronScheduler<Plugins extends SchedulerPluginSignatures> {
   // noinspection JSMismatchedCollectionQueryUpdate
   private previousValidatedCrons?: Cron[];
   private scheduledHandles?: ITimerHandle[];
+  private inaccurateCpu?: boolean;
 
   constructor(
     private readonly mf: MiniflareCore<Plugins>,
@@ -36,6 +37,7 @@ export class CronScheduler<Plugins extends SchedulerPluginSignatures> {
 
   [kReload] = async (event: ReloadEvent<Plugins>): Promise<void> => {
     const validatedCrons = event.plugins.SchedulerPlugin.validatedCrons;
+    this.inaccurateCpu = event.plugins.CorePlugin.inaccurateCpu;
     // Checking references here, if different, SchedulerPlugin setup must've
     // been called meaning crons changed so reload scheduled tasks
     if (this.previousValidatedCrons === validatedCrons) return;
@@ -53,10 +55,12 @@ export class CronScheduler<Plugins extends SchedulerPluginSignatures> {
       const spec = cron.toString();
       return cronScheduler.setInterval(cron, async () => {
         const start = process.hrtime();
+        const startCpu = this.inaccurateCpu ? process.cpuUsage() : undefined;
         // scheduledTime will default to Date.now()
         const waitUntil = this.mf.dispatchScheduled(undefined, spec);
         await logResponse(this.mf.log, {
           start,
+          startCpu,
           method: "SCHD",
           url: spec,
           waitUntil,

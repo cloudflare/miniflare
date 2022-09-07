@@ -100,6 +100,8 @@ test("crypto: generateKey/exportKey: supports NODE-ED25519 algorithm", async (t)
     true,
     ["sign", "verify"]
   );
+  t.is(keyPair.publicKey.algorithm.name, "NODE-ED25519");
+  t.is(keyPair.privateKey.algorithm.name, "NODE-ED25519");
   const exported = await crypto.subtle.exportKey("raw", keyPair.publicKey);
   t.is(exported.byteLength, 32);
 });
@@ -109,6 +111,7 @@ test("crypto: generateKey/exportKey: supports other algorithms", async (t) => {
     true,
     ["encrypt", "decrypt"]
   );
+  t.is(key.algorithm.name, "AES-GCM");
   const exported = await crypto.subtle.exportKey("raw", key);
   t.is(exported.byteLength, 32);
 });
@@ -123,6 +126,7 @@ test("crypto: importKey/exportKey: supports NODE-ED25519 public keys", async (t)
     true,
     ["verify"]
   );
+  t.is(publicKey.algorithm.name, "NODE-ED25519");
   const exported = await crypto.subtle.exportKey("raw", publicKey);
   t.is(Buffer.from(exported).toString("hex"), keyData);
 });
@@ -149,6 +153,7 @@ test("crypto: importKey/exportKey: supports other algorithms", async (t) => {
     true,
     ["encrypt", "decrypt"]
   );
+  t.is(key.algorithm.name, "AES-GCM");
   const exported = await crypto.subtle.exportKey("raw", key);
   t.is(Buffer.from(exported).toString("hex"), keyData);
 });

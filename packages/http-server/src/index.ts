@@ -177,8 +177,6 @@ async function writeResponse(
   // we're responsible for doing so.
   const encoders: Transform[] = [];
   if (headers["content-encoding"] && response.encodeBody === "auto") {
-    // Content-Length will be wrong as it's for the decoded length
-    delete headers["content-length"];
     // Reverse of https://github.com/nodejs/undici/blob/48d9578f431cbbd6e74f77455ba92184f57096cf/lib/fetch/index.js#L1660
     const codings = headers["content-encoding"]
       .toString()
@@ -198,6 +196,10 @@ async function writeResponse(
         encoders.length = 0;
         break;
       }
+    }
+    if (encoders.length > 0) {
+      // Content-Length will be wrong as it's for the decoded length
+      delete headers["content-length"];
     }
   }
 
@@ -252,8 +254,9 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
   mf: MiniflareCore<Plugins>
 ): RequestListener {
   return async (req, res) => {
-    const { HTTPPlugin } = await mf.getPlugins();
+    const { CorePlugin, HTTPPlugin } = await mf.getPlugins();
     const start = process.hrtime();
+    const startCpu = CorePlugin.inaccurateCpu ? process.cpuUsage() : undefined;
     const { request, url } = await convertNodeRequest(
       req,
       await HTTPPlugin.getRequestMeta(req)
@@ -332,6 +335,7 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
     assert(req.method && req.url);
     await logResponse(mf.log, {
       start,
+      startCpu,
       method: req.method,
       url: req.url,
       status,
@@ -367,7 +371,13 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
   const { WebSocketServer }: typeof import("ws") = require("ws");
 
   // Setup WebSocket servers
-  const webSocketServer = new WebSocketServer({ noServer: true });
+  const webSocketServer = new WebSocketServer({
+    noServer: true,
+    // Disable automatic handling of `Sec-WebSocket-Protocol` header, Cloudflare
+    // Workers require users to include this header themselves in `Response`s:
+    // https://github.com/cloudflare/miniflare/issues/179
+    handleProtocols: () => false,
+  });
   const liveReloadServer = new WebSocketServer({ noServer: true });
 
   // Add custom headers included in response to WebSocket upgrade requests

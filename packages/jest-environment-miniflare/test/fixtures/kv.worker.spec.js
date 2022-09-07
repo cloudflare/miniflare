@@ -46,3 +46,12 @@ describe("more KV tests", () => {
     });
   });
 });
+
+test("KV test 7", async () => {
+  await append("m");
+  expect(await get()).toBe("abm");
+});
+test("KV test 8", async () => {
+  await append("n");
+  expect(await get()).toBe("abn");
+});

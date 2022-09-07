@@ -60,6 +60,7 @@ Core Options:
                              handlers
      --actual-time           Always return correct time from Date      [boolean]
                              methods
+     --inaccurate-cpu        Log inaccurate CPU time measurements      [boolean]
 
 Test Options:
  -b, --boolean-option        Boolean option                            [boolean]

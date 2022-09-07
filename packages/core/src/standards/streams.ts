@@ -1,8 +1,11 @@
 import type { Transform } from "stream";
 import {
+  ReadableStream,
   ReadableStreamBYOBReadResult,
   ReadableStreamBYOBReader,
+  ReadableStreamDefaultReader,
   TransformStream,
+  TransformStreamDefaultController,
   Transformer,
 } from "stream/web";
 import zlib from "zlib";
@@ -80,56 +83,122 @@ ReadableStreamBYOBReader.prototype.readAtLeast = async function <
   return { value: value as any, done };
 };
 
+const kTransformHook = Symbol("kTransformHook");
+const kFlushHook = Symbol("kFlushHook");
+
+export class IdentityTransformStream extends TransformStream<
+  Uint8Array,
+  Uint8Array
+> {
+  #readableByteStream?: ReadableStream<Uint8Array>;
+
+  // Hooks for FixedLengthStream
+  [kTransformHook]?: (
+    chunk: Uint8Array,
+    controller: TransformStreamDefaultController<Uint8Array>
+  ) => boolean;
+  [kFlushHook]?: (
+    controller: TransformStreamDefaultController<Uint8Array>
+  ) => void;
+
+  constructor() {
+    super({
+      transform: (chunk, controller) => {
+        // Make sure this chunk is an ArrayBuffer(View)
+        if (isBufferSource(chunk)) {
+          const array = bufferSourceToArray(chunk);
+          if (this[kTransformHook]?.(array, controller) === false) return;
+          controller.enqueue(array);
+        } else {
+          controller.error(new TypeError(buildNotBufferSourceError(chunk)));
+        }
+      },
+      flush: (controller) => this[kFlushHook]?.(controller),
+    });
+  }
+
+  get readable() {
+    if (this.#readableByteStream !== undefined) return this.#readableByteStream;
+    const readable = super.readable;
+    let reader: ReadableStreamDefaultReader;
+    return (this.#readableByteStream = new ReadableStream({
+      type: "bytes",
+      start() {
+        reader = readable.getReader();
+      },
+      async pull(controller) {
+        const { done, value } = await reader.read();
+        if (done) {
+          queueMicrotask(() => {
+            controller.close();
+            // Not documented in MDN but if there's an ongoing request that's waiting,
+            // we need to tell it that there were 0 bytes delivered so that it unblocks
+            // and notices the end of stream.
+            // @ts-expect-error `byobRequest` has type `undefined` in `@types/node`
+            controller.byobRequest?.respond(0);
+          });
+        } else {
+          controller.enqueue(value);
+        }
+      },
+      cancel() {
+        return reader.cancel();
+      },
+    }));
+  }
+}
+
 export const kContentLength = Symbol("kContentLength");
 
-export class FixedLengthStream extends TransformStream<Uint8Array, Uint8Array> {
+export class FixedLengthStream extends IdentityTransformStream {
+  readonly #expectedLength: number;
+  #bytesWritten = 0;
+
   constructor(expectedLength: number) {
+    super();
+
     // noinspection SuspiciousTypeOfGuard
     if (typeof expectedLength !== "number" || expectedLength < 0) {
       throw new TypeError(
         "FixedLengthStream requires a non-negative integer expected length."
       );
     }
-
-    // Keep track of the number of bytes written
-    let written = 0;
-    super({
-      transform(chunk, controller) {
-        // Make sure this chunk is an ArrayBuffer(View)
-        if (isBufferSource(chunk)) {
-          const array = bufferSourceToArray(chunk);
-
-          // Throw if written too many bytes
-          written += array.byteLength;
-          if (written > expectedLength) {
-            return controller.error(
-              new TypeError(
-                "Attempt to write too many bytes through a FixedLengthStream."
-              )
-            );
-          }
-
-          controller.enqueue(array);
-        } else {
-          controller.error(new TypeError(buildNotBufferSourceError(chunk)));
-        }
-      },
-      flush(controller) {
-        // Throw if not written enough bytes on close
-        if (written < expectedLength) {
-          controller.error(
-            new TypeError(
-              "FixedLengthStream did not see all expected bytes before close()."
-            )
-          );
-        }
-      },
-    });
+    this.#expectedLength = expectedLength;
 
     // When used as Request/Response body, override the Content-Length header
     // with the expectedLength
-    (this.readable as any)[kContentLength] = expectedLength;
+    Object.defineProperty(this.readable, kContentLength, {
+      value: expectedLength,
+    });
   }
+
+  [kTransformHook] = (
+    chunk: Uint8Array,
+    controller: TransformStreamDefaultController<Uint8Array>
+  ) => {
+    // Throw if written too many bytes
+    this.#bytesWritten += chunk.byteLength;
+    if (this.#bytesWritten > this.#expectedLength) {
+      controller.error(
+        new TypeError(
+          "Attempt to write too many bytes through a FixedLengthStream."
+        )
+      );
+      return false;
+    }
+    return true;
+  };
+
+  [kFlushHook] = (controller: TransformStreamDefaultController<Uint8Array>) => {
+    // Throw if not written enough bytes on close
+    if (this.#bytesWritten < this.#expectedLength) {
+      controller.error(
+        new TypeError(
+          "FixedLengthStream did not see all expected bytes before close()."
+        )
+      );
+    }
+  };
 }
 
 function createTransformerFromTransform(transform: Transform): Transformer {

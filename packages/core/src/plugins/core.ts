@@ -49,6 +49,7 @@ import {
   DecompressionStream,
   FetchEvent,
   FixedLengthStream,
+  IdentityTransformStream,
   Navigator,
   Request,
   Response,
@@ -79,6 +80,21 @@ function proxyStringFormDataFiles<
     construct(target, args, newTarget) {
       const value = Reflect.construct(target, args, newTarget);
       return withStringFormDataFiles(value);
+    },
+  });
+}
+
+function proxyDisableStreamConstructor<
+  Class extends
+    | typeof ReadableStream
+    | typeof WritableStream
+    | typeof TransformStream
+>(klass: Class) {
+  return new Proxy(klass, {
+    construct() {
+      throw new Error(
+        `To use the new ${klass.name}() constructor, enable the streams_enable_constructors feature flag.`
+      );
     },
   });
 }
@@ -117,6 +133,7 @@ export interface CoreOptions {
   globalTimers?: boolean;
   globalRandom?: boolean;
   actualTime?: boolean;
+  inaccurateCpu?: boolean;
 }
 
 function mapMountEntries(
@@ -384,6 +401,14 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
   })
   actualTime?: boolean;
 
+  @Option({
+    type: OptionType.BOOLEAN,
+    description: "Log inaccurate CPU time measurements",
+    logName: "Inaccurate CPU Time Measurements",
+    fromWrangler: ({ miniflare }) => miniflare?.inaccurate_cpu,
+  })
+  inaccurateCpu?: boolean;
+
   readonly processedModuleRules: ProcessedModuleRule[] = [];
 
   readonly upstreamURL?: URL;
@@ -398,21 +423,73 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       );
     }
 
+    const extraGlobals: Context = {};
+
     // Make sure the kFormDataFiles flag is set correctly when constructing
     let CompatRequest = Request;
     let CompatResponse = Response;
-    const formDataFiles = ctx.compat.isEnabled(
-      "formdata_parser_supports_files"
-    );
-    if (!formDataFiles) {
-      CompatRequest = proxyStringFormDataFiles(CompatRequest);
-      CompatResponse = proxyStringFormDataFiles(CompatResponse);
+    if (!ctx.compat.isEnabled("formdata_parser_supports_files")) {
+      CompatRequest = proxyStringFormDataFiles(Request);
+      CompatResponse = proxyStringFormDataFiles(Response);
     }
 
     // Only include `navigator` if `global_navigator` compatibility flag is set
-    const compatGlobals: Context = {};
     if (ctx.compat.isEnabled("global_navigator")) {
-      compatGlobals.navigator = new Navigator();
+      extraGlobals.navigator = new Navigator();
+      extraGlobals.Navigator = Navigator;
+    }
+
+    const enableStreamConstructors = ctx.compat.isEnabled(
+      "streams_enable_constructors"
+    );
+    const enableTransformStreamConstructor = ctx.compat.isEnabled(
+      "transformstream_enable_standard_constructor"
+    );
+    let CompatReadableStream = ReadableStream;
+    let CompatWritableStream = WritableStream;
+    let CompatTransformStream:
+      | typeof TransformStream
+      | typeof IdentityTransformStream = TransformStream;
+    // Disable stream constructors if `streams_enable_constructors`
+    // compatibility flag not set
+    if (!enableStreamConstructors) {
+      CompatReadableStream = proxyDisableStreamConstructor(ReadableStream);
+      CompatWritableStream = proxyDisableStreamConstructor(WritableStream);
+      // If `transformstream_enable_standard_constructor` flag set, but
+      // `streams_enable_constructors` not set, disable `TransformStream`
+      // constructor
+      if (enableTransformStreamConstructor) {
+        CompatTransformStream = proxyDisableStreamConstructor(TransformStream);
+      }
+    }
+    // If `transformstream_enable_standard_constructor` flag not set, use
+    // non-spec `IdentityTransformStream` implementation instead
+    if (!enableTransformStreamConstructor) {
+      CompatTransformStream = new Proxy(IdentityTransformStream, {
+        construct(target, args, newTarget) {
+          if (args.length > 0) {
+            ctx.log.warn(
+              "To use the new TransformStream() constructor with a custom transformer, enable the transformstream_enable_standard_constructor feature flag."
+            );
+          }
+          return Reflect.construct(target, args, newTarget);
+        },
+      });
+    }
+
+    // Only include stream controllers if constructors enabled
+    if (enableStreamConstructors) {
+      extraGlobals.ReadableByteStreamController = ReadableByteStreamController;
+      extraGlobals.ReadableStreamBYOBRequest = ReadableStreamBYOBRequest;
+      extraGlobals.ReadableStreamDefaultController =
+        ReadableStreamDefaultController;
+      extraGlobals.WritableStreamDefaultController =
+        WritableStreamDefaultController;
+
+      if (enableTransformStreamConstructor) {
+        extraGlobals.TransformStreamDefaultController =
+          TransformStreamDefaultController;
+      }
     }
 
     // Try to parse upstream URL if set
@@ -437,6 +514,13 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       webStreams.CompressionStream ?? CompressionStream;
     const DecompressionStreamImpl =
       webStreams.DecompressionStream ?? DecompressionStream;
+
+    if (this.inaccurateCpu) {
+      ctx.log.warn(
+        "CPU time measurements are experimental, highly inaccurate and not representative of deployed worker performance.\n" +
+          "They should only be used for relative comparisons and may be removed in the future."
+      );
+    }
 
     // Build globals object
     // noinspection JSDeprecatedSymbols
@@ -477,20 +561,20 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       URLSearchParams,
       URLPattern,
 
+      ReadableStream: CompatReadableStream,
+      WritableStream: CompatWritableStream,
+      TransformStream: CompatTransformStream,
+
+      ReadableStreamBYOBReader,
+      ReadableStreamDefaultReader,
+      WritableStreamDefaultWriter,
+
       ByteLengthQueuingStrategy,
       CountQueuingStrategy,
-      ReadableByteStreamController,
-      ReadableStream,
-      ReadableStreamBYOBReader,
-      ReadableStreamBYOBRequest,
-      ReadableStreamDefaultController,
-      ReadableStreamDefaultReader,
-      TransformStream,
-      TransformStreamDefaultController,
-      WritableStream,
-      WritableStreamDefaultController,
-      WritableStreamDefaultWriter,
+
+      IdentityTransformStream,
       FixedLengthStream,
+
       CompressionStream: CompressionStreamImpl,
       DecompressionStream: DecompressionStreamImpl,
 
@@ -511,7 +595,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
       Date: createDate(this.actualTime),
 
-      ...compatGlobals,
+      ...extraGlobals,
 
       // The types below would be included automatically, but it's not possible
       // to create instances of them without using their constructors and they

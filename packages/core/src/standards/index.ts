@@ -44,6 +44,7 @@ export type {
   ResponseRedirectStatus,
 } from "./http";
 export {
+  IdentityTransformStream,
   FixedLengthStream,
   CompressionStream,
   DecompressionStream,

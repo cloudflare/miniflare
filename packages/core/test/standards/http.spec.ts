@@ -1326,3 +1326,33 @@ test("logResponse: logs waitUntil error", async (t) => {
     /GET http:\/\/localhost 200 OK \(\d+.\d{2}ms, waitUntil: \d+.\d{2}ms\)/
   );
 });
+test("logResponse: logs CPU time", async (t) => {
+  const log = new TestLog();
+
+  // Check without waitUntil
+  const toLog: Parameters<typeof logResponse>[1] = {
+    start: process.hrtime(),
+    startCpu: process.cpuUsage(),
+    method: "GET",
+    url: "http://localhost",
+    status: 404,
+  };
+  await logResponse(log, toLog);
+  let [level, message] = log.logs[0];
+  t.is(level, LogLevel.NONE);
+  t.regex(
+    message,
+    /GET http:\/\/localhost 404 Not Found \(\d+.\d{2}ms\) \(CPU: ~\d+.\d{2}ms\)/
+  );
+
+  // Check with waitUntil
+  log.logs = [];
+  toLog.waitUntil = Promise.all([Promise.resolve(42)]);
+  await logResponse(log, toLog);
+  [level, message] = log.logs[0];
+  t.is(level, LogLevel.NONE);
+  t.regex(
+    message,
+    /GET http:\/\/localhost 404 Not Found \(\d+.\d{2}ms, waitUntil: \d+.\d{2}ms\) \(CPU: ~\d+.\d{2}ms, waitUntil: ~\d+.\d{2}ms\)/
+  );
+});
