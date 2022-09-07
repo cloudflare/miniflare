@@ -489,7 +489,7 @@ export function withImmutableHeaders<Body extends Request | Response>(
 }
 
 export interface ResponseInit extends BaseResponseInit {
-  readonly encodeBody?: "auto" | "manual";
+  readonly encodeBody?: "automatic" | "manual";
   readonly webSocket?: WebSocket;
 }
 
@@ -528,7 +528,7 @@ export class Response<
 
   // https://developers.cloudflare.com/workers/runtime-apis/response#properties
   // noinspection TypeScriptFieldCanBeMadeReadonly
-  #encodeBody: "auto" | "manual";
+  #encodeBody: "automatic" | "manual";
   // noinspection TypeScriptFieldCanBeMadeReadonly
   #status?: number;
   readonly #webSocket?: WebSocket;
@@ -584,8 +584,8 @@ export class Response<
       super(new BaseResponse(body, init));
     }
 
-    encodeBody ??= "auto";
-    if (encodeBody !== "auto" && encodeBody !== "manual") {
+    encodeBody ??= "automatic";
+    if (encodeBody !== "automatic" && encodeBody !== "manual") {
       throw new TypeError(`encodeBody: unexpected value: ${encodeBody}`);
     }
     this.#encodeBody = encodeBody;
@@ -625,7 +625,7 @@ export class Response<
     return clone;
   }
 
-  get encodeBody(): "auto" | "manual" {
+  get encodeBody(): "automatic" | "manual" {
     return this.#encodeBody;
   }
 

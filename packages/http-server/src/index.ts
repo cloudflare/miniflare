@@ -176,7 +176,7 @@ async function writeResponse(
   // If a Content-Encoding is set, and the user hasn't encoded the body,
   // we're responsible for doing so.
   const encoders: Transform[] = [];
-  if (headers["content-encoding"] && response.encodeBody === "auto") {
+  if (headers["content-encoding"] && response.encodeBody === "automatic") {
     // Reverse of https://github.com/nodejs/undici/blob/48d9578f431cbbd6e74f77455ba92184f57096cf/lib/fetch/index.js#L1660
     const codings = headers["content-encoding"]
       .toString()
@@ -207,7 +207,7 @@ async function writeResponse(
   // response, and it's HTML
   const liveReloadEnabled =
     liveReload &&
-    response.encodeBody === "auto" &&
+    response.encodeBody === "automatic" &&
     response.headers.get("content-type")?.toLowerCase().includes("text/html");
 
   // If Content-Length is specified, and we're live-reloading, we'll
