@@ -7,51 +7,10 @@ import { IncomingRequestCfProperties, fetch } from "@miniflare/core";
 import getPort from "get-port";
 import { bold, dim, green, grey, red } from "kleur/colors";
 import stoppable, { StoppableServer } from "stoppable";
-import {
-  Headers,
-  HeadersInit,
-  Request,
-  RequestInfo,
-  RequestInit,
-  Response,
-} from "undici";
+import { Request, RequestInfo, RequestInit, Response } from "undici";
 import { MessageEvent, WebSocket, WebSocketServer } from "ws";
 import { OptionalZodTypeOf } from "./helpers";
 import { CfHeader, Plugins } from "./plugins";
-
-export function filterWebSocketHeaders(
-  headers: IncomingHttpHeaders
-): IncomingHttpHeaders {
-  return Object.fromEntries(
-    Object.entries(headers).filter(
-      ([h]) =>
-        ![
-          "sec-websocket-version",
-          "sec-websocket-key",
-          "sec-websocket-extensions",
-        ].includes(h)
-    )
-  );
-}
-
-export function injectCfHeaders(
-  headers: HeadersInit | IncomingHttpHeaders,
-  cf: object
-) {
-  let entries: [string, string | readonly string[] | undefined][];
-  if (typeof headers.entries == "function") {
-    entries = [...(headers as Headers).entries()];
-  } else if (Array.isArray(headers)) {
-    assert(headers.every((h) => h.length == 2));
-    entries = headers as [string, string][];
-  } else {
-    entries = Object.entries(headers);
-  }
-  return {
-    ...Object.fromEntries(entries),
-    [CfHeader.Blob]: JSON.stringify(cf),
-  };
-}
 
 const defaultCfPath = path.resolve("node_modules", ".mf", "cf.json");
 const defaultCfFetch = process.env.NODE_ENV !== "test";
@@ -154,45 +113,62 @@ ${dim(e.cause ? e.cause.stack : e.stack)}`)
     const proxyWebSocketServer = new WebSocketServer({ noServer: true });
     proxyWebSocketServer.on("connection", (client, request) => {
       // Filter out browser WebSocket headers, since `ws` injects some. Leaving browser ones in causes key mismatches, especially with `Sec-WebSocket-Accept`
-      const safeHeaders = filterWebSocketHeaders(request.headers);
+      delete request.headers["sec-websocket-version"];
+      delete request.headers["sec-websocket-key"];
+      delete request.headers["sec-websocket-extensions"];
+      request.headers[CfHeader.Blob] = JSON.stringify(this.#cf);
+      console.log(request.url);
 
-      const runtime = new WebSocket(
-        `ws://127.0.0.1:${Number(this.runtimeURL?.port)}${request.url}`,
-        {
-          headers: injectCfHeaders(safeHeaders, this.#cf),
-        }
-      );
+      const url = new URL(request.url!);
+      url.host = this.runtimeURL!.host;
+      const runtime = new WebSocket(url, {
+        headers: request.headers,
+      });
 
       // Proxy messages to and from the runtime
       client.addEventListener("message", (e: MessageEvent) =>
         runtime.send(e.data)
       );
-      client.addEventListener("close", () => runtime.close());
+      client.addEventListener("close", (e) => {
+        if (e.code === 1005 /* No Status Received */) {
+          runtime.close();
+        } else {
+          runtime.close(e.code, e.reason);
+        }
+      });
 
       runtime.addEventListener("message", (e: MessageEvent) => {
         client.send(e.data);
       });
-      runtime.addEventListener("close", () => client.close());
+      runtime.addEventListener("close", (e) => {
+        if (e.code === 1005 /* No Status Received */) {
+          client.close();
+        } else {
+          client.close(e.code, e.reason);
+        }
+      });
     });
     const server = http.createServer((originalRequest, originalResponse) => {
-      const proxyToRuntime = http.request(
+      originalRequest.headers[CfHeader.Blob] = JSON.stringify(this.#cf);
+
+      const runtimeRequest = http.request(
         {
-          hostname: "127.0.0.1",
-          port: Number(this.runtimeURL?.port),
+          hostname: this.runtimeURL!.hostname,
+          port: this.runtimeURL!.port,
           path: originalRequest.url,
           method: originalRequest.method,
-          headers: injectCfHeaders(originalRequest.headers, this.#cf),
+          headers: originalRequest.headers,
         },
-        (runtime) => {
+        (runtimeResponse) => {
           originalResponse.writeHead(
-            runtime.statusCode as number,
-            runtime.headers
+            runtimeResponse.statusCode as number,
+            runtimeResponse.headers
           );
-          runtime.pipe(originalResponse);
+          runtimeResponse.pipe(originalResponse);
         }
       );
 
-      originalRequest.pipe(proxyToRuntime);
+      originalRequest.pipe(runtimeRequest);
     });
     // Handle websocket requests
     server.on("upgrade", (request, socket, head) => {
@@ -218,24 +194,10 @@ ${dim(e.cause ? e.cause.stack : e.stack)}`)
     input: RequestInfo,
     init?: RequestInit
   ): Promise<Response> {
-    let forward: Request;
-    let url: URL;
-    // Depending on the form of the input, construct a new request with the `host` set to the internal runtime URL
-    if (input instanceof URL || typeof input == "string") {
-      url = input instanceof URL ? input : new URL(input as string);
-      url.host = (this.runtimeURL as URL).host;
-      forward = new Request(url, {
-        ...init,
-        headers: injectCfHeaders(init?.headers ?? {}, this.#cf),
-      });
-    } else {
-      url = new URL(input.url);
-      url.host = (this.runtimeURL as URL).host;
-      forward = new Request(url, {
-        ...(input as RequestInit),
-        headers: injectCfHeaders(input?.headers ?? {}, this.#cf),
-      });
-    }
+    const forward = new Request(input, init);
+    forward.headers.set(CfHeader.Blob, JSON.stringify(this.#cf));
+    const url = new URL(forward.url);
+    url.host = this.runtimeURL!.host;
     return await fetch(url, forward as RequestInit);
   }
   stop(): Promise<void> {
