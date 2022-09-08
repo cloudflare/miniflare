@@ -46,6 +46,7 @@ export const CoreOptionsSchema = z.object({
 export const CoreSharedOptionsSchema = z.object({
   host: z.string().optional(),
   port: z.number().optional(),
+  cfFetch: z.union([z.boolean(), z.string()]).optional(),
 });
 
 export const CORE_PLUGIN_NAME = "core";

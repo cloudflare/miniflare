@@ -118,9 +118,9 @@ export function injectCfHeaders(
   };
 }
 
-export const cfPath = path.resolve("node_modules", ".mf", "cf.json");
-export const cfFetch = process.env.NODE_ENV !== "test";
-export const cfFetchEndpoint = "https://workers.cloudflare.com/cf.json";
+export const defaultCfPath = path.resolve("node_modules", ".mf", "cf.json");
+export const defaultCfFetch = process.env.NODE_ENV !== "test";
+export const defaultCfFetchEndpoint = "https://workers.cloudflare.com/cf.json";
 export const fallbackCf: IncomingRequestCfProperties = {
   asn: 395747,
   colo: "DFW",

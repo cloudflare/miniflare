@@ -18,8 +18,9 @@ import {
   OptionalZodTypeOf,
   UnionToIntersection,
   ValueOf,
-  cfFetchEndpoint,
-  cfPath,
+  defaultCfFetch,
+  defaultCfFetchEndpoint,
+  defaultCfPath,
   fallbackCf,
   filterWebSocketHeaders,
   injectCfHeaders,
@@ -175,10 +176,14 @@ export class Miniflare {
     }
   }
   async #setupCf(): Promise<void> {
-    // Bail early if we're testing
-    if (process.env.NODE_ENV === "test") {
-      return;
-    }
+    // Default to enabling cfFetch if we're not testing
+    let cfPath = this.#sharedOpts.core.cfFetch ?? defaultCfFetch;
+    // If cfFetch is disabled or we're using a custom provider, don't fetch the
+    // cf object
+    if (!cfPath) return;
+    if (cfPath === true) cfPath = defaultCfPath;
+    // Determine whether to refetch cf.json, should do this if doesn't exist
+    // or expired
 
     // Determine whether to refetch cf.json, should do this if doesn't exist
     // or expired
@@ -195,7 +200,7 @@ export class Miniflare {
     // If no need to refetch, stop here, otherwise fetch
     if (!refetch) return;
     try {
-      const res = await fetch(cfFetchEndpoint);
+      const res = await fetch(defaultCfFetchEndpoint);
       const cfText = await res.text();
       this.#cf = JSON.parse(cfText);
       // Write cf so we can reuse it later
