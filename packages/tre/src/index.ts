@@ -1,29 +1,19 @@
 import assert from "assert";
-import { mkdir, readFile, stat, writeFile } from "fs/promises";
 import http from "http";
 import path from "path";
-import { RequestInfo, RequestInit, fetch } from "@miniflare/core";
 import getPort from "get-port";
-import { bold, dim, green, grey, red } from "kleur/colors";
+import { grey } from "kleur/colors";
 import stoppable from "stoppable";
+import { RequestInfo, RequestInit } from "undici";
 import { HeadersInit, Request, Response } from "undici";
-import { MessageEvent, WebSocket, WebSocketServer } from "ws";
 import { z } from "zod";
 import {
-  CF_DAYS,
-  DAY,
   DeferredPromise,
   HttpError,
   MiniflareCoreError,
   OptionalZodTypeOf,
   UnionToIntersection,
   ValueOf,
-  defaultCfFetch,
-  defaultCfFetchEndpoint,
-  defaultCfPath,
-  fallbackCf,
-  filterWebSocketHeaders,
-  injectCfHeaders,
 } from "./helpers";
 
 import {
@@ -37,6 +27,7 @@ import {
   SOCKET_ENTRY,
 } from "./plugins";
 import { HEADER_CUSTOM_SERVICE } from "./plugins/core";
+import { ProxyServer } from "./proxy";
 import {
   Config,
   Runtime,
@@ -118,7 +109,6 @@ type StoppableServer = http.Server & stoppable.WithStop;
 export class Miniflare {
   readonly #gatewayFactories: PluginGatewayFactories;
   readonly #routers: PluginRouters;
-  #cf = fallbackCf;
   #optionsVersion: number;
   #sharedOpts: PluginSharedOptions;
   #workerOpts: PluginWorkerOptions[];
@@ -134,7 +124,7 @@ export class Miniflare {
 
   #updatePromise?: Promise<void>;
 
-  #proxyServer?: StoppableServer;
+  #proxyServer?: ProxyServer;
 
   constructor(opts: MiniflareOptions) {
     // Initialise plugin gateway factories and routers
@@ -161,6 +151,7 @@ export class Miniflare {
 
     this.#disposeController = new AbortController();
     this.#initPromise = this.#init();
+    this.#proxyServer = new ProxyServer(sharedOpts.core);
   }
 
   #initPlugins() {
@@ -175,140 +166,25 @@ export class Miniflare {
       }
     }
   }
-  async #setupCf(): Promise<void> {
-    // Default to enabling cfFetch if we're not testing
-    let cfPath = this.#sharedOpts.core.cfFetch ?? defaultCfFetch;
-    // If cfFetch is disabled or we're using a custom provider, don't fetch the
-    // cf object
-    if (!cfPath) return;
-    if (cfPath === true) cfPath = defaultCfPath;
-    // Determine whether to refetch cf.json, should do this if doesn't exist
-    // or expired
 
-    // Determine whether to refetch cf.json, should do this if doesn't exist
-    // or expired
-    let refetch = true;
-    try {
-      // Try load cfPath, if this fails, we'll catch the error and refetch.
-      // If this succeeds, and the file is stale, that's fine: it's very likely
-      // we'll be fetching the same data anyways.
-      this.#cf = JSON.parse(await readFile(cfPath, "utf8"));
-      const cfStat = await stat(cfPath);
-      refetch = Date.now() - cfStat.mtimeMs > CF_DAYS * DAY;
-    } catch {}
-
-    // If no need to refetch, stop here, otherwise fetch
-    if (!refetch) return;
-    try {
-      const res = await fetch(defaultCfFetchEndpoint);
-      const cfText = await res.text();
-      this.#cf = JSON.parse(cfText);
-      // Write cf so we can reuse it later
-      await mkdir(path.dirname(cfPath), { recursive: true });
-      await writeFile(cfPath, cfText, "utf8");
-      console.log(grey("Updated `Request.cf` object cache!"));
-    } catch (e: any) {
-      console.log(
-        bold(
-          red(`Unable to fetch the \`Request.cf\` object! Falling back to a default placeholder...
-${dim(e.cause ? e.cause.stack : e.stack)}`)
-        )
-      );
-    }
-  }
   // Initialise a proxy server that adds the `CF-Blob` header to runtime requests
-  #createServer(port: number): http.Server {
-    const proxyWebSocketServer = new WebSocketServer({ noServer: true });
-    proxyWebSocketServer.on("connection", (client, request) => {
-      // Filter out browser WebSocket headers, since `ws` injects some. Leaving browser ones in causes key mismatches, especially with `Sec-WebSocket-Accept`
-      const safeHeaders = filterWebSocketHeaders(request.headers);
-
-      const runtime = new WebSocket(`ws://127.0.0.1:${port}${request.url}`, {
-        headers: injectCfHeaders(safeHeaders, this.#cf),
-      });
-
-      // Proxy messages to and from the runtime
-      client.addEventListener("message", (e: MessageEvent) =>
-        runtime.send(e.data)
-      );
-      client.addEventListener("close", () => runtime.close());
-
-      runtime.addEventListener("message", (e: MessageEvent) => {
-        client.send(e.data);
-      });
-      runtime.addEventListener("close", () => client.close());
-    });
-    const server = http.createServer((originalRequest, originalResponse) => {
-      const proxyToRuntime = http.request(
-        {
-          hostname: "127.0.0.1",
-          port,
-          path: originalRequest.url,
-          method: originalRequest.method,
-          headers: injectCfHeaders(originalRequest.headers, this.#cf),
-        },
-        (runtime) => {
-          originalResponse.writeHead(
-            runtime.statusCode as number,
-            runtime.headers
-          );
-          runtime.pipe(originalResponse);
-        }
-      );
-
-      originalRequest.pipe(proxyToRuntime);
-    });
-    // Handle websocket requests
-    server.on("upgrade", (request, socket, head) => {
-      proxyWebSocketServer.handleUpgrade(request, socket, head, (ws) => {
-        proxyWebSocketServer.emit("connection", ws, request);
-      });
-    });
-
-    return server;
+  async createServer() {
+    await this.#initPromise;
+    return this.#proxyServer!.createServer();
   }
 
   async startServer() {
     await this.#initPromise;
-    const port = await getPort({ port: this.#sharedOpts.core.port });
-    const host = this.#sharedOpts.core.host ?? "127.0.0.1";
-    this.#proxyServer = stoppable(
-      this.#createServer(Number(this.#runtimeEntryURL?.port))
-    );
-
-    await new Promise<void>((resolve) => {
-      (this.#proxyServer as StoppableServer).listen(port, host, () =>
-        resolve()
-      );
-    });
-    console.log(bold(green(`Ready on http://${host}:${port}! 🎉`)));
+    return this.#proxyServer!.startServer();
   }
   async dispatchFetch(
     input: RequestInfo,
     init?: RequestInit
   ): Promise<Response> {
-    let forward: Request;
-    let url: URL;
-    // Depending on the form of the input, construct a new request with the `host` set to the internal runtime URL
-    if (input instanceof URL || typeof input == "string") {
-      url = input instanceof URL ? input : new URL(input as string);
-      url.host = (this.#runtimeEntryURL as URL).host;
-      forward = new Request(url, {
-        ...init,
-        headers: injectCfHeaders(init?.headers ?? {}, this.#cf),
-      });
-    } else {
-      url = new URL(input.url);
-      url.host = (this.#runtimeEntryURL as URL).host;
-      forward = new Request(url, {
-        ...(input as RequestInit),
-        headers: injectCfHeaders(input?.headers ?? {}, this.#cf),
-      });
-    }
-    return await fetch(url, forward as RequestInit);
+    await this.#initPromise;
+    return this.#proxyServer!.dispatchFetch(input, init);
   }
   async #init() {
-    await this.#setupCf();
     // Start loopback server (how the runtime accesses with Miniflare's storage)
     this.#loopbackServer = await this.#startLoopbackServer(0, "127.0.0.1");
     const address = this.#loopbackServer.address();
@@ -336,6 +212,8 @@ ${dim(e.cause ? e.cause.stack : e.stack)}`)
 
     // Wait for runtime to start
     await this.#waitForRuntime();
+    this.#proxyServer!.runtimeURL = this.#runtimeEntryURL;
+    await this.#proxyServer!.ready;
   }
 
   async #handleLoopbackCustomService(
@@ -444,12 +322,6 @@ ${dim(e.cause ? e.cause.stack : e.stack)}`)
     return new Promise((resolve, reject) => {
       assert(this.#loopbackServer !== undefined);
       this.#loopbackServer.stop((err) => (err ? reject(err) : resolve()));
-    });
-  }
-  #stopProxyServer(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (this.#proxyServer !== undefined)
-        this.#proxyServer.stop((err) => (err ? reject(err) : resolve()));
     });
   }
 
@@ -562,7 +434,7 @@ ${dim(e.cause ? e.cause.stack : e.stack)}`)
     await this.#updatePromise;
     this.#runtime?.dispose();
     await this.#stopLoopbackServer();
-    await this.#stopProxyServer();
+    await this.#proxyServer?.stop();
   }
 }
 
