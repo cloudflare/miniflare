@@ -39,6 +39,7 @@
   ],
   "dependencies": {
     "@iarna/toml": "^2.2.5",
+    "@miniflare/queues": "2.8.0",
     "@miniflare/shared": "2.8.0",
     "@miniflare/watcher": "2.8.0",
     "busboy": "^1.6.0",

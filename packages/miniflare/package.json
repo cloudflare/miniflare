@@ -53,6 +53,7 @@
     "@miniflare/html-rewriter": "2.8.0",
     "@miniflare/http-server": "2.8.0",
     "@miniflare/kv": "2.8.0",
+    "@miniflare/queues": "2.8.0",
     "@miniflare/r2": "2.8.0",
     "@miniflare/runner-vm": "2.8.0",
     "@miniflare/scheduler": "2.8.0",
