@@ -35,6 +35,7 @@
     "extends": "../../package.json"
   },
   "dependencies": {
+    "@miniflare/queues": "2.8.0",
     "@miniflare/runner-vm": "2.8.0",
     "@miniflare/shared": "2.8.0",
     "@miniflare/shared-test-environment": "2.8.0",

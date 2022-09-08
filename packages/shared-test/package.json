@@ -35,6 +35,7 @@
   "dependencies": {
     "@miniflare/cli-parser": "2.8.0",
     "@miniflare/core": "2.8.0",
+    "@miniflare/queues": "2.8.0",
     "@miniflare/runner-vm": "2.8.0",
     "@miniflare/shared": "2.8.0",
     "@miniflare/storage-memory": "2.8.0",
