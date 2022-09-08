@@ -38,7 +38,11 @@
   [🤹️ Jest Environment](https://miniflare.dev/testing/jest#waiting-for-waituntiled-promises)
   and
   [⚡️ Vitest Environment](https://miniflare.dev/testing/vitest#waiting-for-waituntiled-promises)
-  for more details.
+  for more details. Closes
+  [issue #202](https://github.com/cloudflare/miniflare/issues/202), thanks
+  [@jamesarosen](https://github.com/jamesarosen) and
+  [@CraigglesO](https://github.com/CraigglesO) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/345).
 - ⏳ Match Web Streams implementations with Workers runtime, closes issue
   [#168](https://github.com/cloudflare/miniflare/issues/168), thanks
   [@leviwolfe](https://github.com/leviwolfe):
