@@ -1,4 +1,13 @@
+import assert from "assert";
+import { IncomingHttpHeaders } from "http";
+import path from "path";
+import {
+  Headers,
+  HeadersInit,
+  IncomingRequestCfProperties,
+} from "@miniflare/core";
 import { z } from "zod";
+import { CfHeader } from "./plugins/shared/constants";
 
 export type Awaitable<T> = T | Promise<T>;
 
@@ -74,3 +83,76 @@ export class DeferredPromise<T> extends Promise<T> {
     this.reject = promiseReject!;
   }
 }
+
+export function filterWebSocketHeaders(
+  headers: IncomingHttpHeaders
+): IncomingHttpHeaders {
+  return Object.fromEntries(
+    Object.entries(headers).filter(
+      ([h]) =>
+        ![
+          "sec-websocket-version",
+          "sec-websocket-key",
+          "sec-websocket-extensions",
+        ].includes(h)
+    )
+  );
+}
+
+export function injectCfHeaders(
+  headers: HeadersInit | IncomingHttpHeaders,
+  cf: object
+) {
+  let entries: [string, string | readonly string[] | undefined][];
+  if (typeof headers.entries == "function") {
+    entries = [...(headers as Headers).entries()];
+  } else if (Array.isArray(headers)) {
+    assert(headers.every((h) => h.length == 2));
+    entries = headers as [string, string][];
+  } else {
+    entries = Object.entries(headers);
+  }
+  return {
+    ...Object.fromEntries(entries),
+    [CfHeader.Blob]: JSON.stringify(cf),
+  };
+}
+
+export const cfPath = path.resolve("node_modules", ".mf", "cf.json");
+export const cfFetch = process.env.NODE_ENV !== "test";
+export const cfFetchEndpoint = "https://workers.cloudflare.com/cf.json";
+export const fallbackCf: IncomingRequestCfProperties = {
+  asn: 395747,
+  colo: "DFW",
+  city: "Austin",
+  region: "Texas",
+  regionCode: "TX",
+  metroCode: "635",
+  postalCode: "78701",
+  country: "US",
+  continent: "NA",
+  timezone: "America/Chicago",
+  latitude: "30.27130",
+  longitude: "-97.74260",
+  clientTcpRtt: 0,
+  httpProtocol: "HTTP/1.1",
+  requestPriority: "weight=192;exclusive=0",
+  tlsCipher: "AEAD-AES128-GCM-SHA256",
+  tlsVersion: "TLSv1.3",
+  tlsClientAuth: {
+    certIssuerDNLegacy: "",
+    certIssuerDN: "",
+    certPresented: "0",
+    certSubjectDNLegacy: "",
+    certSubjectDN: "",
+    certNotBefore: "",
+    certNotAfter: "",
+    certSerial: "",
+    certFingerprintSHA1: "",
+    certVerified: "NONE",
+  },
+};
+// Milliseconds in 1 day
+export const DAY = 86400000;
+// Max age in days of cf.json
+export const CF_DAYS = 30;

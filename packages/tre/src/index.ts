@@ -1,20 +1,32 @@
 import assert from "assert";
+import { mkdir, readFile, stat, writeFile } from "fs/promises";
 import http from "http";
 import path from "path";
+import { RequestInfo, RequestInit, fetch } from "@miniflare/core";
 import getPort from "get-port";
-import { bold, green, grey } from "kleur/colors";
+import { bold, dim, green, grey, red } from "kleur/colors";
 import stoppable from "stoppable";
 import { HeadersInit, Request, Response } from "undici";
+import { MessageEvent, WebSocket, WebSocketServer } from "ws";
 import { z } from "zod";
 import {
+  CF_DAYS,
+  DAY,
   DeferredPromise,
   HttpError,
   MiniflareCoreError,
   OptionalZodTypeOf,
   UnionToIntersection,
   ValueOf,
+  cfFetchEndpoint,
+  cfPath,
+  fallbackCf,
+  filterWebSocketHeaders,
+  injectCfHeaders,
 } from "./helpers";
+
 import {
+  CfHeader,
   GatewayConstructor,
   GatewayFactory,
   HEADER_PROBE,
@@ -35,7 +47,6 @@ import {
   serializeConfig,
 } from "./runtime";
 import { waitForRequest } from "./wait";
-
 // ===== `Miniflare` User Options =====
 export type WorkerOptions = UnionToIntersection<
   z.infer<ValueOf<Plugins>["options"]>
@@ -106,7 +117,7 @@ type StoppableServer = http.Server & stoppable.WithStop;
 export class Miniflare {
   readonly #gatewayFactories: PluginGatewayFactories;
   readonly #routers: PluginRouters;
-
+  #cf = fallbackCf;
   #optionsVersion: number;
   #sharedOpts: PluginSharedOptions;
   #workerOpts: PluginWorkerOptions[];
@@ -121,6 +132,8 @@ export class Miniflare {
   #loopbackServer?: StoppableServer;
 
   #updatePromise?: Promise<void>;
+
+  #proxyServer?: StoppableServer;
 
   constructor(opts: MiniflareOptions) {
     // Initialise plugin gateway factories and routers
@@ -161,8 +174,136 @@ export class Miniflare {
       }
     }
   }
+  async #setupCf(): Promise<void> {
+    // Bail early if we're testing
+    if (process.env.NODE_ENV === "test") {
+      return;
+    }
 
+    // Determine whether to refetch cf.json, should do this if doesn't exist
+    // or expired
+    let refetch = true;
+    try {
+      // Try load cfPath, if this fails, we'll catch the error and refetch.
+      // If this succeeds, and the file is stale, that's fine: it's very likely
+      // we'll be fetching the same data anyways.
+      this.#cf = JSON.parse(await readFile(cfPath, "utf8"));
+      const cfStat = await stat(cfPath);
+      refetch = Date.now() - cfStat.mtimeMs > CF_DAYS * DAY;
+    } catch {}
+
+    // If no need to refetch, stop here, otherwise fetch
+    if (!refetch) return;
+    try {
+      const res = await fetch(cfFetchEndpoint);
+      const cfText = await res.text();
+      this.#cf = JSON.parse(cfText);
+      // Write cf so we can reuse it later
+      await mkdir(path.dirname(cfPath), { recursive: true });
+      await writeFile(cfPath, cfText, "utf8");
+      console.log(grey("Updated `Request.cf` object cache!"));
+    } catch (e: any) {
+      console.log(
+        bold(
+          red(`Unable to fetch the \`Request.cf\` object! Falling back to a default placeholder...
+${dim(e.cause ? e.cause.stack : e.stack)}`)
+        )
+      );
+    }
+  }
+  // Initialise a proxy server that adds the `CF-Blob` header to runtime requests
+  #createServer(port: number): http.Server {
+    const proxyWebSocketServer = new WebSocketServer({ noServer: true });
+    proxyWebSocketServer.on("connection", (client, request) => {
+      // Filter out browser WebSocket headers, since `ws` injects some. Leaving browser ones in causes key mismatches, especially with `Sec-WebSocket-Accept`
+      const safeHeaders = filterWebSocketHeaders(request.headers);
+
+      const runtime = new WebSocket(`ws://127.0.0.1:${port}${request.url}`, {
+        headers: injectCfHeaders(safeHeaders, this.#cf),
+      });
+
+      // Proxy messages to and from the runtime
+      client.addEventListener("message", (e: MessageEvent) =>
+        runtime.send(e.data)
+      );
+      client.addEventListener("close", () => runtime.close());
+
+      runtime.addEventListener("message", (e: MessageEvent) => {
+        client.send(e.data);
+      });
+      runtime.addEventListener("close", () => client.close());
+    });
+    const server = http.createServer((originalRequest, originalResponse) => {
+      const proxyToRuntime = http.request(
+        {
+          hostname: "127.0.0.1",
+          port,
+          path: originalRequest.url,
+          method: originalRequest.method,
+          headers: injectCfHeaders(originalRequest.headers, this.#cf),
+        },
+        (runtime) => {
+          originalResponse.writeHead(
+            runtime.statusCode as number,
+            runtime.headers
+          );
+          runtime.pipe(originalResponse);
+        }
+      );
+
+      originalRequest.pipe(proxyToRuntime);
+    });
+    // Handle websocket requests
+    server.on("upgrade", (request, socket, head) => {
+      proxyWebSocketServer.handleUpgrade(request, socket, head, (ws) => {
+        proxyWebSocketServer.emit("connection", ws, request);
+      });
+    });
+
+    return server;
+  }
+
+  async startServer() {
+    await this.#initPromise;
+    const port = await getPort({ port: this.#sharedOpts.core.port });
+    const host = this.#sharedOpts.core.host ?? "127.0.0.1";
+    this.#proxyServer = stoppable(
+      this.#createServer(Number(this.#runtimeEntryURL?.port))
+    );
+
+    await new Promise<void>((resolve) => {
+      (this.#proxyServer as StoppableServer).listen(port, host, () =>
+        resolve()
+      );
+    });
+    console.log(bold(green(`Ready on http://${host}:${port}! 🎉`)));
+  }
+  async dispatchFetch(
+    input: RequestInfo,
+    init?: RequestInit
+  ): Promise<Response> {
+    let forward: Request;
+    let url: URL;
+    // Depending on the form of the input, construct a new request with the `host` set to the internal runtime URL
+    if (input instanceof URL || typeof input == "string") {
+      url = input instanceof URL ? input : new URL(input as string);
+      url.host = (this.#runtimeEntryURL as URL).host;
+      forward = new Request(url, {
+        ...init,
+        headers: injectCfHeaders(init?.headers ?? {}, this.#cf),
+      });
+    } else {
+      url = new URL(input.url);
+      url.host = (this.#runtimeEntryURL as URL).host;
+      forward = new Request(url, {
+        ...(input as RequestInit),
+        headers: injectCfHeaders(input?.headers ?? {}, this.#cf),
+      });
+    }
+    return await fetch(url, forward as RequestInit);
+  }
   async #init() {
+    await this.#setupCf();
     // Start loopback server (how the runtime accesses with Miniflare's storage)
     this.#loopbackServer = await this.#startLoopbackServer(0, "127.0.0.1");
     const address = this.#loopbackServer.address();
@@ -172,8 +313,7 @@ export class Miniflare {
     const loopbackPort = address.port;
 
     // Start runtime
-    const entryPort =
-      this.#sharedOpts.core.port ?? (await getPort({ port: 8787 }));
+    const entryPort = await getPort();
     // TODO: respect entry `host` option
     // TODO: download/cache from GitHub releases or something, or include in pkg?
     this.#runtime = new this.#runtimeConstructor(
@@ -191,7 +331,6 @@ export class Miniflare {
 
     // Wait for runtime to start
     await this.#waitForRuntime();
-    console.log(bold(green(`Ready on ${this.#runtimeEntryURL}! 🎉`)));
   }
 
   async #handleLoopbackCustomService(
@@ -302,6 +441,12 @@ export class Miniflare {
       this.#loopbackServer.stop((err) => (err ? reject(err) : resolve()));
     });
   }
+  #stopProxyServer(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.#proxyServer !== undefined)
+        this.#proxyServer.stop((err) => (err ? reject(err) : resolve()));
+    });
+  }
 
   async #waitForRuntime() {
     await waitForRequest(this.#runtimeEntryURL!, {
@@ -318,7 +463,11 @@ export class Miniflare {
 
     const services: Service[] = [];
     const sockets: Socket[] = [
-      { name: SOCKET_ENTRY, http: {}, service: { name: SERVICE_ENTRY } },
+      {
+        name: SOCKET_ENTRY,
+        http: { cfBlobHeader: CfHeader.Blob },
+        service: { name: SERVICE_ENTRY },
+      },
     ];
 
     // Dedupe services by name
@@ -400,10 +549,6 @@ export class Miniflare {
     await this.#runtime.updateConfig(configBuffer);
     await this.#waitForRuntime();
     updatePromise.resolve();
-
-    console.log(
-      bold(green(`Updated and ready on ${this.#runtimeEntryURL}! 🎉`))
-    );
   }
 
   async dispose() {
@@ -412,6 +557,7 @@ export class Miniflare {
     await this.#updatePromise;
     this.#runtime?.dispose();
     await this.#stopLoopbackServer();
+    await this.#stopProxyServer();
   }
 }
 
