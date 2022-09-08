@@ -1,5 +1,15 @@
 # 🚧 Changelog
 
+# 2.8.1
+
+## Fixes
+
+- Add missing `@miniflare/queues` dependencies. Closes
+  [issue #360](https://github.com/cloudflare/miniflare/issues/360), thanks
+  [@AlCalzone](https://github.com/AlCalzone) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/361).
+- Fix support for queues in Jest/Vitest testing environments
+
 # 2.8.0
 
 ## Features
