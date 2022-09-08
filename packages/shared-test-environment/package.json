@@ -40,6 +40,7 @@
     "@miniflare/durable-objects": "2.8.0",
     "@miniflare/html-rewriter": "2.8.0",
     "@miniflare/kv": "2.8.0",
+    "@miniflare/queues": "2.8.0",
     "@miniflare/shared": "2.8.0",
     "@miniflare/sites": "2.8.0",
     "@miniflare/storage-memory": "2.8.0",

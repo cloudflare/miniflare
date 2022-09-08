@@ -3,6 +3,7 @@ import { BindingsPlugin, CorePlugin } from "@miniflare/core";
 import { DurableObjectsPlugin } from "@miniflare/durable-objects";
 import { HTMLRewriterPlugin } from "@miniflare/html-rewriter";
 import { KVPlugin } from "@miniflare/kv";
+import { QueuesPlugin } from "@miniflare/queues";
 import { R2Plugin } from "@miniflare/r2";
 import { SitesPlugin } from "@miniflare/sites";
 import { WebSocketPlugin } from "@miniflare/web-sockets";
@@ -18,6 +19,7 @@ export const PLUGINS = {
   DurableObjectsPlugin,
   CachePlugin,
   SitesPlugin,
+  QueuesPlugin,
   HTMLRewriterPlugin,
   WebSocketPlugin,
   BindingsPlugin,
