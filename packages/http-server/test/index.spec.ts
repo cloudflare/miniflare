@@ -797,6 +797,42 @@ test("createServer: handles web socket upgrade response with Sec-WebSocket-Proto
   ws.addEventListener("open", () => ws.send("hello"));
   t.is(await eventPromise, "worker:hello");
 });
+test("createServer: handles web socket upgrade immediately with waitUntil", async (t) => {
+  const [waitUntilTrigger, waitUntilPromise] = triggerPromise<void>();
+  const mf = useMiniflare(
+    { HTTPPlugin, WebSocketPlugin, BindingsPlugin },
+    {
+      globals: { waitUntilPromise },
+      script: `
+      addEventListener("fetch", (event) => {
+        const [client, worker] = Object.values(new WebSocketPair());
+        worker.accept();
+        worker.send("worker:1");
+        event.waitUntil(waitUntilPromise.then(() => worker.send("worker:2")));
+        event.respondWith(new Response(null, { status: 101, webSocket: client }));
+      })
+      `,
+    }
+  );
+  const port = await listen(t, await createServer(mf));
+  const ws = new StandardWebSocket(`ws://localhost:${port}`);
+
+  const [finishTrigger, finishPromise] = triggerPromise<void>();
+  let triggeredWaitUntil = false;
+  ws.addEventListener("message", (e) => {
+    if (!triggeredWaitUntil) {
+      // Only release waitUntil once we've received the first message, ensuring
+      // upgrade handled before waitUntil resolves
+      t.is(e.data, "worker:1");
+      waitUntilTrigger();
+      triggeredWaitUntil = true;
+    } else {
+      t.is(e.data, "worker:2");
+      finishTrigger();
+    }
+  });
+  await finishPromise;
+});
 test("createServer: expects status 101 and web socket response for successful upgrades", async (t) => {
   const log = new TestLog();
   log.error = (message) => log.logWithLevel(LogLevel.ERROR, message.toString());

@@ -336,7 +336,7 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
     }
 
     assert(req.method && req.url);
-    await logResponse(mf.log, {
+    const logPromise = logResponse(mf.log, {
       start,
       startCpu,
       method: req.method,
@@ -344,6 +344,11 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
       status,
       waitUntil,
     });
+    // `res` will be undefined if we're calling this function in response to a
+    // WebSocket upgrade. In that case, we don't want to wait for `waitUntil`s
+    // to resolve, before we can use the returned `response`. So, only `await`
+    // if we've already written the `response` somewhere.
+    if (res !== undefined) await logPromise;
     return response;
   };
 }
