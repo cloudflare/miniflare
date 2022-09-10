@@ -238,6 +238,16 @@ test("Cache: match throws if attempting to load cached response created with Min
       "load cached data created with Miniflare 1 and must delete it.",
   });
 });
+test("Cache: match returns Response with immutable headers", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/365
+  const { cache } = t.context;
+  await cache.put("http://localhost:8787/", testResponse());
+  const cached = await cache.match("http://localhost:8787/");
+  t.throws(() => cached?.headers.set("X-Key", "value"), {
+    instanceOf: TypeError,
+    message: "immutable",
+  });
+});
 
 const deleteMacro: Macro<[RequestInfo], Context> = async (t, req) => {
   const { storage, cache } = t.context;

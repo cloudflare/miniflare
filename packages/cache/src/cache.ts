@@ -3,6 +3,7 @@ import {
   Request,
   RequestInfo,
   Response,
+  withImmutableHeaders,
   withStringFormDataFiles,
 } from "@miniflare/core";
 import {
@@ -226,7 +227,7 @@ export class Cache implements CacheInterface {
       headers,
     });
     if (!this.#formDataFiles) res = withStringFormDataFiles(res);
-    return res;
+    return withImmutableHeaders(res);
   }
 
   async delete(
