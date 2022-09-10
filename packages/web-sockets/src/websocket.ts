@@ -66,6 +66,13 @@ export type WebSocketEventMap = {
   error: ErrorEvent;
 };
 export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
+  // The Workers runtime prefixes these constants with `READY_STATE_`, unlike
+  // those in the spec: https://websockets.spec.whatwg.org/#interface-definition
+  static readonly READY_STATE_CONNECTING = 0;
+  static readonly READY_STATE_OPEN = 1;
+  static readonly READY_STATE_CLOSING = 2;
+  static readonly READY_STATE_CLOSED = 3;
+
   #sendQueue?: MessageEvent[] = [];
   [kPair]: WebSocket;
   [kAccepted] = false;
@@ -106,7 +113,14 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
     };
   }
 
-  // TODO: ready states?
+  get readyState(): number {
+    if (this[kClosedOutgoing] && this[kClosedIncoming]) {
+      return WebSocket.READY_STATE_CLOSED;
+    } else if (this[kClosedOutgoing] || this[kClosedIncoming]) {
+      return WebSocket.READY_STATE_CLOSING;
+    }
+    return WebSocket.READY_STATE_OPEN;
+  }
 
   accept(): void {
     if (this[kCoupled]) {

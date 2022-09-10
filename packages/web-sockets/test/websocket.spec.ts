@@ -135,6 +135,38 @@ test("WebSocket: closes both sides of pair", async (t) => {
   // Check both event listeners called once
   t.deepEqual(closes, [1, 2, 3]);
 });
+test("WebSocket: has correct readyStates", async (t) => {
+  // Check constants have correct values:
+  // https://websockets.spec.whatwg.org/#interface-definition
+  t.is(WebSocket.READY_STATE_CONNECTING, 0);
+  t.is(WebSocket.READY_STATE_OPEN, 1);
+  t.is(WebSocket.READY_STATE_CLOSING, 2);
+  t.is(WebSocket.READY_STATE_CLOSED, 3);
+
+  const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
+  t.is(webSocket1.readyState, WebSocket.READY_STATE_OPEN);
+  t.is(webSocket2.readyState, WebSocket.READY_STATE_OPEN);
+
+  webSocket1.accept();
+  webSocket2.accept();
+
+  t.is(webSocket1.readyState, WebSocket.READY_STATE_OPEN);
+  t.is(webSocket2.readyState, WebSocket.READY_STATE_OPEN);
+
+  const [closeTrigger, closePromise] = triggerPromise<void>();
+  webSocket1.addEventListener("close", () => {
+    t.is(webSocket1.readyState, WebSocket.READY_STATE_CLOSED);
+    t.is(webSocket2.readyState, WebSocket.READY_STATE_CLOSED);
+    closeTrigger();
+  });
+  webSocket2.addEventListener("close", () => {
+    t.is(webSocket1.readyState, WebSocket.READY_STATE_CLOSING);
+    t.is(webSocket2.readyState, WebSocket.READY_STATE_CLOSING);
+    webSocket2.close();
+  });
+  webSocket1.close();
+  await closePromise;
+});
 
 test("WebSocket: waits for output gate to open before sending message", async (t) => {
   const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
