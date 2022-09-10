@@ -7,7 +7,7 @@
 - Allow WebSocket client connection errors to be caught. Closes
   [issue #229](https://github.com/cloudflare/miniflare/issues/229), thanks
   [@viorel-d](https://github.com/viorel-d).
-- Return `Response`s with immutable headers from `catch.match`s. Closes
+- Return `Response`s with immutable headers from `cache.match`s. Closes
   [issue #365](https://github.com/cloudflare/miniflare/issues/365), thanks
   [@AlCalzone](https://github.com/AlCalzone).
 - Ensure `request.cf.clientAcceptEncoding` is always a `string`. Closes
