@@ -200,6 +200,11 @@ test("upgradingFetch: requires GET for web socket upgrade", async (t) => {
     }
   );
 });
+test("upgradeFetch: throws catchable error on connection failure", async (t) => {
+  await t.throwsAsync(
+    upgradingFetch("http://[100::]", { headers: { upgrade: "websocket" } })
+  );
+});
 test("upgradingFetch: increments subrequest count", async (t) => {
   const server = await useServer(
     t,

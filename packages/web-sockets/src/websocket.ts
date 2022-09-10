@@ -50,6 +50,9 @@ const kPair = Symbol("kPair");
 export const kAccepted = Symbol("kAccepted");
 export const kCoupled = Symbol("kCoupled");
 export const kClosed = Symbol("kClosed");
+
+// Internal send method exposed to bypass accept checking
+export const kSend = Symbol("kSend");
 // Internal close method exposed to bypass close code checking
 export const kClose = Symbol("kClose");
 
@@ -121,6 +124,10 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
         "You must call accept() on this WebSocket before sending messages."
       );
     }
+    this[kSend](message);
+  }
+
+  [kSend](message: ArrayBuffer | string): void {
     if (this[kClosed]) {
       throw new TypeError("Can't call WebSocket send() after close().");
     }

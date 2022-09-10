@@ -1,3 +1,4 @@
+import { once } from "events";
 import { viewToBuffer } from "@miniflare/shared";
 import StandardWebSocket from "ws";
 import {
@@ -7,6 +8,7 @@ import {
   kClose,
   kClosed,
   kCoupled,
+  kSend,
 } from "./websocket";
 
 export async function coupleWebSocket(
@@ -24,19 +26,15 @@ export async function coupleWebSocket(
     );
   }
 
-  // Forward events from client to worker
+  // Forward messages from client to worker (register this before `open` to
+  // ensure messages queued before other pair `accept`s to release)
   ws.on("message", (message: Buffer, isBinary: boolean) => {
-    if (isBinary) {
-      pair.send(viewToBuffer(message));
-    } else {
-      pair.send(message.toString());
+    // Silently discard messages sent after close
+    if (!pair[kClosed]) {
+      // Convert binary messages to `ArrayBuffer`s (note `[kSend]` will queue
+      // messages if other pair hasn't `accept`ed yet)
+      pair[kSend](isBinary ? viewToBuffer(message) : message.toString());
     }
-  });
-  ws.on("close", (code: number, reason: Buffer) => {
-    if (!pair[kClosed]) pair[kClose](code, reason.toString());
-  });
-  ws.on("error", (error) => {
-    pair.dispatchEvent(new ErrorEvent("error", { error }));
   });
 
   // Forward events from worker to client
@@ -55,26 +53,24 @@ export async function coupleWebSocket(
 
   if (ws.readyState === StandardWebSocket.CONNECTING) {
     // Wait for client to be open before accepting worker pair (which would
-    // release buffered messages)
-    await new Promise<void>((resolve, reject) => {
-      ws.once("open", () => {
-        pair.accept();
-        pair[kCoupled] = true;
-
-        ws.off("close", reject);
-        ws.off("error", reject);
-        resolve();
-      });
-      ws.once("close", reject);
-      ws.once("error", reject);
-    });
-  } else {
-    // Accept worker pair immediately
-    pair.accept();
-    pair[kCoupled] = true;
-    // Throw error if socket is already closing/closed
-    if (ws.readyState >= StandardWebSocket.CLOSING) {
-      throw new TypeError("Incoming WebSocket connection already closed.");
-    }
+    // release buffered messages). Note this will throw if an "error" event is
+    // dispatched.
+    await once(ws, "open");
+  } else if (ws.readyState >= StandardWebSocket.CLOSING) {
+    throw new TypeError("Incoming WebSocket connection already closed.");
   }
+  pair.accept();
+  pair[kCoupled] = true;
+
+  // Forward close/error events from client to worker (register this after
+  // `once(ws, "open")` to ensure close/error due to connection failure throws
+  // and can be caught from this function: https://github.com/cloudflare/miniflare/issues/229)
+  ws.on("close", (code: number, reason: Buffer) => {
+    // `[kClose]` skips code/reason validation, allowing reserved codes
+    // (e.g. 1005 for "No Status Received")
+    if (!pair[kClosed]) pair[kClose](code, reason.toString());
+  });
+  ws.on("error", (error) => {
+    pair.dispatchEvent(new ErrorEvent("error", { error }));
+  });
 }
