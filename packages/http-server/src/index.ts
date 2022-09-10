@@ -114,9 +114,12 @@ export async function convertNodeRequest(
   req.headers["cf-visitor"] ??= `{"scheme":"${proto}"}`;
   req.headers["host"] = url.host;
 
-  // Keep it to use later
+  // Store original `Accept-Encoding` for `request.cf.clientAcceptEncoding`
   const clientAcceptEncoding = req.headers["accept-encoding"];
-  // This should be fixed
+  // Only the `Set-Cookie` header is an array: https://nodejs.org/api/http.html#messageheaders
+  assert(!Array.isArray(clientAcceptEncoding));
+  // The Workers runtime will always set `Accept-Encoding` to `gzip`:
+  // https://github.com/cloudflare/miniflare/issues/180
   req.headers["accept-encoding"] = "gzip";
 
   // Build Headers object from request
