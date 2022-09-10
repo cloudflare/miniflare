@@ -6,7 +6,7 @@ import {
   WebSocket,
   kAccepted,
   kClose,
-  kClosed,
+  kClosedOutgoing,
   kCoupled,
   kSend,
 } from "./websocket";
@@ -29,8 +29,9 @@ export async function coupleWebSocket(
   // Forward messages from client to worker (register this before `open` to
   // ensure messages queued before other pair `accept`s to release)
   ws.on("message", (message: Buffer, isBinary: boolean) => {
-    // Silently discard messages sent after close
-    if (!pair[kClosed]) {
+    // Silently discard messages received after close:
+    // https://www.rfc-editor.org/rfc/rfc6455#section-1.4
+    if (!pair[kClosedOutgoing]) {
       // Convert binary messages to `ArrayBuffer`s (note `[kSend]` will queue
       // messages if other pair hasn't `accept`ed yet)
       pair[kSend](isBinary ? viewToBuffer(message) : message.toString());
@@ -42,12 +43,10 @@ export async function coupleWebSocket(
     ws.send(e.data);
   });
   pair.addEventListener("close", (e) => {
-    if (ws.readyState < StandardWebSocket.CLOSING) {
-      if (e.code === 1005 /* No Status Received */) {
-        ws.close();
-      } else {
-        ws.close(e.code, e.reason);
-      }
+    if (e.code === 1005 /* No Status Received */) {
+      ws.close();
+    } else {
+      ws.close(e.code, e.reason);
     }
   });
 
@@ -68,7 +67,7 @@ export async function coupleWebSocket(
   ws.on("close", (code: number, reason: Buffer) => {
     // `[kClose]` skips code/reason validation, allowing reserved codes
     // (e.g. 1005 for "No Status Received")
-    if (!pair[kClosed]) pair[kClose](code, reason.toString());
+    if (!pair[kClosedOutgoing]) pair[kClose](code, reason.toString());
   });
   ws.on("error", (error) => {
     pair.dispatchEvent(new ErrorEvent("error", { error }));

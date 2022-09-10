@@ -49,7 +49,11 @@ const kPair = Symbol("kPair");
 
 export const kAccepted = Symbol("kAccepted");
 export const kCoupled = Symbol("kCoupled");
-export const kClosed = Symbol("kClosed");
+
+// Whether close() has been called on the socket
+export const kClosedOutgoing = Symbol("kClosedOutgoing");
+// Whether a close event has been dispatched on the socket
+export const kClosedIncoming = Symbol("kClosedIncoming");
 
 // Internal send method exposed to bypass accept checking
 export const kSend = Symbol("kSend");
@@ -66,7 +70,8 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
   [kPair]: WebSocket;
   [kAccepted] = false;
   [kCoupled] = false;
-  [kClosed] = false;
+  [kClosedOutgoing] = false;
+  [kClosedIncoming] = false;
 
   protected [kWrapListener]<Type extends keyof WebSocketEventMap>(
     listener: (event: WebSocketEventMap[Type]) => void
@@ -130,7 +135,7 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
   }
 
   [kSend](message: ArrayBuffer | string): void {
-    if (this[kClosed]) {
+    if (this[kClosedOutgoing]) {
       throw new TypeError("Can't call WebSocket send() after close().");
     }
 
@@ -178,16 +183,25 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
         "You must call accept() on this WebSocket before sending messages."
       );
     }
-    if (this[kClosed]) throw new TypeError("WebSocket already closed");
-    this[kClosed] = true;
-    this[kPair][kClosed] = true;
+    if (this[kClosedOutgoing]) throw new TypeError("WebSocket already closed");
+    this[kClosedOutgoing] = true;
+    this[kPair][kClosedIncoming] = true;
     void this.#dispatchCloseEvent(code, reason);
   }
 
   async #dispatchCloseEvent(code?: number, reason?: string): Promise<void> {
     await waitForOpenOutputGate();
-    // See https://github.com/nodejs/node/pull/39772
-    this.dispatchEvent(new CloseEvent("close", { code, reason }));
+    // Send close event to pair, it should then eventually call `close()` on
+    // itself which will dispatch a close event to us, completing the closing
+    // handshake:
+    //               Network
+    //  Browser/Server  |   ws                            WebSocketPair
+    //     -------      | -------                         -------------
+    //     |     |  ... | |     | <--- 2) CloseEvent <--- | inc < out | <--- 1) close()
+    //     |     |      | |     |                         |     |     |
+    //     |     |  ... | |     | --->    3) close() ---> | out > inc | ---> 4) CloseEvent
+    //     -------      | -------                         -------------
+    //                  |
     this[kPair].dispatchEvent(new CloseEvent("close", { code, reason }));
   }
 }

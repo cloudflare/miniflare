@@ -1,5 +1,6 @@
 // noinspection HttpUrlsUsage
 
+import { once } from "events";
 import http from "http";
 import https from "https";
 import { AddressInfo } from "net";
@@ -38,7 +39,11 @@ import {
   useTmp,
   utf8Encode,
 } from "@miniflare/shared-test";
-import { MessageEvent, WebSocketPlugin } from "@miniflare/web-sockets";
+import {
+  CloseEvent,
+  MessageEvent,
+  WebSocketPlugin,
+} from "@miniflare/web-sockets";
 import test, { ExecutionContext, Macro } from "ava";
 import StandardWebSocket, {
   Data,
@@ -832,6 +837,88 @@ test("createServer: handles web socket upgrade immediately with waitUntil", asyn
     }
   });
   await finishPromise;
+});
+test("createServer: dispatches close events on client and server close", async (t) => {
+  const [clientCloseTrigger, clientClosePromise] = triggerPromise<void>();
+  const [serverCloseTrigger, serverClosePromise] = triggerPromise<void>();
+  const counts = {
+    clientCloses: 0,
+    serverCloses: 0,
+    clientCloseTrigger,
+    serverCloseTrigger,
+  };
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin, WebSocketPlugin, BindingsPlugin },
+    { globals: { t, counts } },
+    async (globals, req) => {
+      const url = new globals.URL(req.url);
+      if (url.pathname.startsWith("/client")) {
+        const [client, worker] = Object.values(new globals.WebSocketPair());
+        worker.accept();
+        worker.addEventListener("close", (e: CloseEvent) => {
+          globals.t.is(e.code, 3001);
+          globals.t.is(e.reason, "Client Close");
+          if (url.pathname === "/client/event-listener") {
+            worker.close(3002, "Server Event Listener Close");
+          }
+
+          globals.counts.clientCloses++;
+          if (globals.counts.clientCloses === 2) {
+            globals.counts.clientCloseTrigger();
+          }
+        });
+        return new globals.Response(null, { status: 101, webSocket: client });
+      } else if (url.pathname === "/server") {
+        const [client, worker] = Object.values(new globals.WebSocketPair());
+        worker.accept();
+        worker.addEventListener("message", (e: MessageEvent) => {
+          if (e.data === "close") worker.close(3003, "Server Close");
+        });
+        worker.addEventListener("close", (e: CloseEvent) => {
+          globals.t.is(e.code, 3003);
+          globals.t.is(e.reason, "Server Close");
+
+          globals.counts.serverCloses++;
+          if (globals.counts.serverCloses === 2) {
+            globals.counts.serverCloseTrigger();
+          }
+        });
+        return new globals.Response(null, { status: 101, webSocket: client });
+      }
+      return new globals.Response(null, { status: 404 });
+    }
+  );
+  const port = await listen(t, await createServer(mf));
+
+  // Check client-side close
+  async function clientSideClose(closeInEventListener: boolean) {
+    const path = closeInEventListener ? "/client/event-listener" : "/client";
+    const ws = new StandardWebSocket(`ws://localhost:${port}${path}`);
+    ws.addEventListener("open", () => {
+      ws.close(3001, "Client Close");
+    });
+    const [code, reason] = await once(ws, "close");
+    t.is(code, 3001);
+    t.is(reason.toString(), "Client Close");
+  }
+  await clientSideClose(false);
+  await clientSideClose(true);
+  await clientClosePromise;
+
+  // Check server-side close
+  async function serverSideClose(closeInEventListener: boolean) {
+    const ws = new StandardWebSocket(`ws://localhost:${port}/server`);
+    ws.addEventListener("open", () => {
+      ws.send("close");
+    });
+    const [code, reason] = await once(ws, "close");
+    if (closeInEventListener) ws.close(3004, "Client Event Listener Close");
+    t.is(code, 3003);
+    t.is(reason.toString(), "Server Close");
+  }
+  await serverSideClose(false);
+  await serverSideClose(true);
+  await serverClosePromise;
 });
 test("createServer: expects status 101 and web socket response for successful upgrades", async (t) => {
   const log = new TestLog();

@@ -11,7 +11,7 @@ import {
   MessageEvent,
   WebSocket,
   WebSocketPair,
-  kClosed,
+  kClosedOutgoing,
 } from "./websocket";
 
 const constructError =
@@ -60,7 +60,7 @@ export class WebSocketPlugin extends Plugin {
   reload(): void {
     // Ensure all fetched web sockets are closed
     for (const ws of this.#webSockets) {
-      if (!ws[kClosed]) ws.close(1012, "Service Restart");
+      if (!ws[kClosedOutgoing]) ws.close(1012, "Service Restart");
     }
     this.#webSockets.clear();
   }

@@ -92,8 +92,13 @@ test("WebSocket: queues messages if pair not accepted", async (t) => {
   t.deepEqual(messages1, ["from2_1", "from2_2"]);
   t.deepEqual(messages2, ["from1_1", "from1_2"]);
 });
-test("WebSocket: fails to send message to pair if either side closed", (t) => {
+test("WebSocket: discards sent message to pair if other side closed", async (t) => {
   const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
+
+  const messages1: (string | ArrayBuffer)[] = [];
+  const messages2: (string | ArrayBuffer)[] = [];
+  webSocket1.addEventListener("message", (e) => messages1.push(e.data));
+  webSocket2.addEventListener("message", (e) => messages2.push(e.data));
 
   webSocket1.accept();
   webSocket2.accept();
@@ -102,10 +107,15 @@ test("WebSocket: fails to send message to pair if either side closed", (t) => {
     instanceOf: Error,
     message: "Can't call WebSocket send() after close().",
   });
-  t.throws(() => webSocket2.send("from2"), {
-    instanceOf: Error,
-    message: "Can't call WebSocket send() after close().",
-  });
+  await setImmediate();
+  t.deepEqual(messages1, []);
+  t.deepEqual(messages2, []);
+
+  // Message sent from non-close()d side received
+  webSocket2.send("from2");
+  await setImmediate();
+  t.deepEqual(messages1, ["from2"]);
+  t.deepEqual(messages2, []);
 });
 test("WebSocket: closes both sides of pair", async (t) => {
   const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
@@ -113,13 +123,17 @@ test("WebSocket: closes both sides of pair", async (t) => {
   webSocket2.accept();
 
   const closes: number[] = [];
-  webSocket1.addEventListener("close", () => closes.push(1));
-  webSocket2.addEventListener("close", () => closes.push(2));
-
+  webSocket1.addEventListener("close", () => closes.push(3));
+  webSocket2.addEventListener("close", () => {
+    closes.push(2);
+    webSocket2.close();
+  });
+  closes.push(1);
   webSocket1.close();
   await setImmediate();
+
   // Check both event listeners called once
-  t.deepEqual(closes, [1, 2]);
+  t.deepEqual(closes, [1, 2, 3]);
 });
 
 test("WebSocket: waits for output gate to open before sending message", async (t) => {
