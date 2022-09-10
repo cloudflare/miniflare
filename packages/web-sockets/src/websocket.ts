@@ -101,6 +101,8 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
     };
   }
 
+  // TODO: ready states?
+
   accept(): void {
     if (this[kCoupled]) {
       throw new TypeError(

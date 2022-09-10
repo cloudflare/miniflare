@@ -1,5 +1,19 @@
 # 🚧 Changelog
 
+# 2.8.2
+
+## Fixes
+
+- Allow WebSocket client connection errors to be caught. Closes
+  [issue #229](https://github.com/cloudflare/miniflare/issues/229), thanks
+  [@viorel-d](https://github.com/viorel-d).
+- Return `Response`s with immutable headers from `catch.match`s. Closes
+  [issue #365](https://github.com/cloudflare/miniflare/issues/365), thanks
+  [@AlCalzone](https://github.com/AlCalzone).
+- Ensure `request.cf.clientAcceptEncoding` is always a `string`. Closes
+  [issue #362](https://github.com/cloudflare/miniflare/issues/362), thanks
+  [@GregBrimble](https://github.com/GregBrimble).
+
 # 2.8.1
 
 ## Fixes
