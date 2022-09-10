@@ -1,8 +1,8 @@
 # 🚧 Changelog
 
-# 2.8.2
+## 2.8.2
 
-## Fixes
+### Fixes
 
 - Allow WebSocket client connection errors to be caught. Closes
   [issue #229](https://github.com/cloudflare/miniflare/issues/229), thanks
@@ -14,9 +14,9 @@
   [issue #362](https://github.com/cloudflare/miniflare/issues/362), thanks
   [@GregBrimble](https://github.com/GregBrimble).
 
-# 2.8.1
+## 2.8.1
 
-## Fixes
+### Fixes
 
 - Add missing `@miniflare/queues` dependencies. Closes
   [issue #360](https://github.com/cloudflare/miniflare/issues/360), thanks
@@ -24,9 +24,9 @@
   [the PR](https://github.com/cloudflare/miniflare/pull/361).
 - Fix support for queues in Jest/Vitest testing environments
 
-# 2.8.0
+## 2.8.0
 
-## Features
+### Features
 
 - ⚡️ Add **custom Vitest testing environment**. This behaves almost identically
   to the Jest environment. However, isolated storage must be installed manually
@@ -97,7 +97,7 @@
 - 🦄 Automatically enable watch mode when `live_reload = true` is set in
   `wrangler.toml`.
 
-## Fixes
+### Fixes
 
 - Return `Response`s with immutable headers from `fetch`es to Durable Objects
   and service bindings. Closes
@@ -122,9 +122,9 @@
   Cache API to match the behaviour of the Workers runtime, which only supports
   `request.cf.cacheKey`.
 
-# 2.7.1
+## 2.7.1
 
-## Fixes
+### Fixes
 
 - Ensure initialisation is complete before tear down in `Miniflare#dispose()`.
   Closes [issue #341](https://github.com/cloudflare/miniflare/issues/341),
@@ -133,7 +133,7 @@
   Closes [issue #344](https://github.com/cloudflare/miniflare/issues/344),
   thanks [@vlovich](https://github.com/vlovich).
 
-# 2.7.0
+## 2.7.0
 
 > ⚠️ **Miniflare's minimum supported Node.js version is now `16.13.0`.** This
 > was the first LTS release of Node.js 16.
