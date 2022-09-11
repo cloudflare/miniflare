@@ -60,6 +60,8 @@ export const kClosedIncoming = Symbol("kClosedIncoming");
 export const kSend = Symbol("kSend");
 // Internal close method exposed to bypass close code checking
 export const kClose = Symbol("kClose");
+// Internal error method exposed to dispatch error events to pair
+export const kError = Symbol("kError");
 
 export type WebSocketEventMap = {
   message: MessageEvent;
@@ -161,7 +163,7 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
   }
 
   [kSend](message: ArrayBuffer | string): void {
-    // Split from send() we can queue messages before accept() is called when
+    // Split from send() so we can queue messages before accept() is called when
     // forwarding message events from the client
     if (this[kClosedOutgoing]) {
       throw new TypeError("Can't call WebSocket send() after close().");
@@ -188,17 +190,17 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
         "If you specify a WebSocket close reason, you must also specify a code."
       );
     }
-    this[kClose](code, reason);
-  }
-
-  [kClose](code?: number, reason?: string): void {
-    // Split from close() so we don't check the close code when forwarding close
-    // events from the client
     if (!this[kAccepted]) {
       throw new TypeError(
         "You must call accept() on this WebSocket before sending messages."
       );
     }
+    this[kClose](code, reason);
+  }
+
+  [kClose](code?: number, reason?: string): void {
+    // Split from close() so we can queue closes before accept() is called, and
+    // skip close code checks when forwarding close events from the client.
     if (this[kClosedOutgoing]) throw new TypeError("WebSocket already closed");
 
     // Send close event to pair, it should then eventually call `close()` on
@@ -224,6 +226,11 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
     this[kPair][kClosedIncoming] = true;
 
     const event = new CloseEvent("close", { code, reason });
+    void this.#queuingDispatchToPair(event);
+  }
+
+  [kError](error?: Error): void {
+    const event = new ErrorEvent("error", { error });
     void this.#queuingDispatchToPair(event);
   }
 }
