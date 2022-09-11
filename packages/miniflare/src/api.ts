@@ -136,8 +136,7 @@ export class Miniflare extends MiniflareCore<Plugins> {
   ): Promise<DurableObjectStorage> {
     const plugin = (await this.getPlugins()).DurableObjectsPlugin;
     const storage = this.getPluginStorage("DurableObjectsPlugin");
-    const state = await plugin.getObject(storage, id);
-    return state.storage;
+    return plugin.getStorage(storage, id);
   }
 
   createServer(

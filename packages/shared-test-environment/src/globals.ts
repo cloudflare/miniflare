@@ -63,8 +63,7 @@ export async function createMiniflareEnvironmentUtilities(
     async getMiniflareDurableObjectStorage(id: DurableObjectId) {
       const plugin = (await mf.getPlugins()).DurableObjectsPlugin;
       const storage = mf.getPluginStorage("DurableObjectsPlugin");
-      const state = await plugin.getObject(storage, id);
-      return state.storage;
+      return plugin.getStorage(storage, id);
     },
     getMiniflareFetchMock() {
       return fetchMock;

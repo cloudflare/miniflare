@@ -43,6 +43,11 @@ interface ProcessedDurableObject {
   scriptName?: string;
 }
 
+function getObjectKey(id: DurableObjectId) {
+  // Put each object in its own namespace/directory
+  return `${id[kObjectName]}:${id.toString()}`;
+}
+
 export class DurableObjectsPlugin
   extends Plugin<DurableObjectsOptions>
   implements DurableObjectsOptions
@@ -108,7 +113,8 @@ export class DurableObjectsPlugin
   #constructors = new Map<string, DurableObjectConstructor>();
   #bindings: Context = {};
 
-  readonly #objects = new Map<string, DurableObjectState>();
+  readonly #objectStorages = new Map<string, DurableObjectStorage>();
+  readonly #objectStates = new Map<string, DurableObjectState>();
 
   readonly #alarmStore: AlarmStore;
 
@@ -135,6 +141,26 @@ export class DurableObjectsPlugin
     );
   }
 
+  getStorage(
+    storage: StorageFactory,
+    id: DurableObjectId
+  ): DurableObjectStorage {
+    // Allow access to storage without constructing the corresponding object:
+    // https://github.com/cloudflare/miniflare/issues/300
+
+    const key = getObjectKey(id);
+    // Make sure we only create one storage instance per object to ensure
+    // transactional semantics hold
+    let objectStorage = this.#objectStorages.get(key);
+    if (objectStorage !== undefined) return objectStorage;
+    objectStorage = new DurableObjectStorage(
+      storage.storage(key, this.#persist),
+      this.#alarmStore.buildBridge(key)
+    );
+    this.#objectStorages.set(key, objectStorage);
+    return objectStorage;
+  }
+
   async getObject(
     storage: StorageFactory,
     id: DurableObjectId
@@ -146,24 +172,19 @@ export class DurableObjectsPlugin
     );
     await this.#contextPromise;
 
-    // Reuse existing instances
+    const key = getObjectKey(id);
+    // Durable Object states should be unique per key
+    let state = this.#objectStates.get(key);
+    if (state !== undefined) return state;
+
     const objectName = id[kObjectName];
-    // Put each object in its own namespace/directory
-    const key = `${objectName}:${id.toString()}`;
-
-    // Durable Object states/storages should be unique per key
-    let state = this.#objects.get(key);
-    if (state) return state;
-
-    const objectStorage = new DurableObjectStorage(
-      storage.storage(key, this.#persist),
-      this.#alarmStore.buildBridge(key)
-    );
     // `name` should not be passed to the constructed `state`:
     // https://github.com/cloudflare/miniflare/issues/219
     const unnamedId = new DurableObjectId(objectName, id.toString());
+    const objectStorage = this.getStorage(storage, id);
+
     state = new DurableObjectState(unnamedId, objectStorage);
-    this.#objects.set(key, state);
+    this.#objectStates.set(key, state);
 
     // Create and store new instance if none found
     const constructor = this.#constructors.get(objectName);
@@ -199,16 +220,16 @@ export class DurableObjectsPlugin
 
   async #setupAlarms(storage: StorageFactory): Promise<void> {
     if (this.durableObjectsAlarms === false) return;
-    // if the alarm store doesn't exist yet, create
+    // If the alarm store doesn't exist yet, create it
     await this.#alarmStore.setupStore(storage, this.#persist);
-    await this.#alarmStore.setupAlarms(async (objectKey: string) => {
+    await this.#alarmStore.setupAlarms(async (objectKey) => {
       const index = objectKey.lastIndexOf(":");
       const objectName = objectKey.substring(0, index);
       const hexId = objectKey.substring(index + 1);
-      // grab the instance
+      // Grab the instance
       const id = new DurableObjectId(objectName, hexId);
       const state = await this.getObject(storage, id);
-      // execute the alarm
+      // Execute the alarm
       await this.#executeAlarm(state);
     });
   }
@@ -221,13 +242,13 @@ export class DurableObjectsPlugin
       for (const id of ids) {
         const state = await this.getObject(storageFactory, id);
         await this.#executeAlarm(state);
-        this.#alarmStore.deleteAlarm(`${id[kObjectName]}:${id.toString()}`);
+        await this.#alarmStore.deleteAlarm(getObjectKey(id));
       }
     } else {
-      // otherwise flush all alarms
-      for (const [key, state] of this.#objects) {
+      // Otherwise, flush all alarms
+      for (const [key, state] of this.#objectStates) {
         await this.#executeAlarm(await state);
-        this.#alarmStore.deleteAlarm(key);
+        await this.#alarmStore.deleteAlarm(key);
       }
     }
   }
@@ -245,7 +266,8 @@ export class DurableObjectsPlugin
 
   beforeReload(): void {
     // Clear instance map, this should cause old instances to be GCed
-    this.#objects.clear();
+    this.#objectStorages.clear();
+    this.#objectStates.clear();
     this.#contextPromise = new Promise(
       (resolve) => (this.#contextResolve = resolve)
     );
