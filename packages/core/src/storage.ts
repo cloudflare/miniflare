@@ -15,7 +15,7 @@ export class PluginStorageFactory implements StorageFactory {
       .toLowerCase();
   }
 
-  storage(namespace: string, persist?: boolean | string): Awaitable<Storage> {
+  storage(namespace: string, persist?: boolean | string): Storage {
     // After transformation, persist will NEVER be a boolean
     if (persist === undefined || persist === false) {
       // If persist is falsy, we'll be using memory storage. We want to make

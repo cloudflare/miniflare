@@ -999,7 +999,7 @@ test("MiniflareCore: getPluginStorage: gets namespaced plugin-specific storage",
   );
   const pluginStorageFactory = mf.getPluginStorage("CorePlugin");
   t.true(pluginStorageFactory instanceof PluginStorageFactory);
-  const NS = await pluginStorageFactory.storage("NS");
+  const NS = pluginStorageFactory.storage("NS");
   await NS.put("key", { value: utf8Encode("value") });
 
   // "core" is automatically derived from "CorePlugin"

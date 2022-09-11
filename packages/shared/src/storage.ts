@@ -158,6 +158,6 @@ export abstract class Storage {
 }
 
 export interface StorageFactory {
-  storage(namespace: string, persist?: boolean | string): Awaitable<Storage>;
+  storage(namespace: string, persist?: boolean | string): Storage;
   dispose?(): Awaitable<void>;
 }

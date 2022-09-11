@@ -108,7 +108,7 @@ export class DurableObjectsPlugin
   #constructors = new Map<string, DurableObjectConstructor>();
   #bindings: Context = {};
 
-  readonly #objects = new Map<string, Promise<DurableObjectState>>();
+  readonly #objects = new Map<string, DurableObjectState>();
 
   readonly #alarmStore: AlarmStore;
 
@@ -150,36 +150,31 @@ export class DurableObjectsPlugin
     const objectName = id[kObjectName];
     // Put each object in its own namespace/directory
     const key = `${objectName}:${id.toString()}`;
-    let statePromise = this.#objects.get(key);
-    if (statePromise) return statePromise;
 
-    // We store Promise<DurableObjectState> for map values instead of
-    // DurableObjectState as we only ever want to create one
-    // DurableObjectStorage for a Durable Object, and getting storage is an
-    // asynchronous operation. The alternative would be to make this a critical
-    // section protected with a mutex.
-    statePromise = (async () => {
-      const objectStorage = new DurableObjectStorage(
-        await storage.storage(key, this.#persist),
-        this.#alarmStore.buildBridge(key)
-      );
-      // `name` should not be passed to the constructed `state`:
-      // https://github.com/cloudflare/miniflare/issues/219
-      const unnamedId = new DurableObjectId(objectName, id.toString());
-      const state = new DurableObjectState(unnamedId, objectStorage);
+    // Durable Object states/storages should be unique per key
+    let state = this.#objects.get(key);
+    if (state) return state;
 
-      // Create and store new instance if none found
-      const constructor = this.#constructors.get(objectName);
-      // Should've thrown error earlier in reload if class not found
-      assert(constructor);
+    const objectStorage = new DurableObjectStorage(
+      storage.storage(key, this.#persist),
+      this.#alarmStore.buildBridge(key)
+    );
+    // `name` should not be passed to the constructed `state`:
+    // https://github.com/cloudflare/miniflare/issues/219
+    const unnamedId = new DurableObjectId(objectName, id.toString());
+    state = new DurableObjectState(unnamedId, objectStorage);
+    this.#objects.set(key, state);
 
-      state[kInstance] = new constructor(state, this.#bindings);
-      // we need to throw an error on "setAlarm" if the "alarm" method does not exist
-      if (!state[kInstance]?.alarm) objectStorage[kAlarmExists] = false;
-      return state;
-    })();
-    this.#objects.set(key, statePromise);
-    return statePromise;
+    // Create and store new instance if none found
+    const constructor = this.#constructors.get(objectName);
+    // Should've thrown error earlier in reload if class not found
+    assert(constructor);
+
+    state[kInstance] = new constructor(state, this.#bindings);
+    // We need to throw an error on "setAlarm" if the "alarm" method does not exist
+    if (!state[kInstance]?.alarm) objectStorage[kAlarmExists] = false;
+
+    return state;
   }
 
   getNamespace(

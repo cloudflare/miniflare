@@ -79,7 +79,7 @@ test("R2Plugin: getBucket: creates bucket", async (t) => {
   const factory = new MemoryStorageFactory({ ["test://map:BUCKET"]: map });
 
   const plugin = new R2Plugin(ctx, { r2Persist: "test://map" });
-  const bucket = await plugin.getBucket(factory, "BUCKET");
+  const bucket = plugin.getBucket(factory, "BUCKET");
   await bucket.put("key", "value");
   t.true(map.has("key"));
 });
@@ -94,7 +94,7 @@ test("R2Plugin: getBucket: resolves persist path relative to rootPath", async (t
     { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     { r2Persist: "test" }
   );
-  const bucket = await plugin.getBucket(factory, "BUCKET");
+  const bucket = plugin.getBucket(factory, "BUCKET");
   await bucket.put("key", "value");
   t.true(map.has("key"));
 });

@@ -10,11 +10,11 @@ test("VariedStorageFactory: creates and reuses in-memory-storage", async (t) => 
   const memoryStorages = new Map<string, MemoryStorage>();
   const factory = new VariedStorageFactory(memoryStorages);
 
-  const storage = await factory.storage("ns");
+  const storage = factory.storage("ns");
   t.true(memoryStorages.has("ns"));
   await storage.put("key", { value: utf8Encode("memory") });
 
-  const storage2 = await factory.storage("ns");
+  const storage2 = factory.storage("ns");
   t.is(utf8Decode((await storage2.get("key"))?.value), "memory");
 });
 
@@ -36,7 +36,7 @@ test("VariedStorageFactory: creates redis storage", async (t) => {
   redisConnections.set("redis://mystery", redisConnection);
 
   const factory = new VariedStorageFactory(undefined, redisConnections);
-  const storage = await factory.storage("ns", redisUrl);
+  const storage = factory.storage("ns", redisUrl);
   t.is(utf8Decode((await storage.get("key", true))?.value), "redis");
 });
 
@@ -44,7 +44,7 @@ test("VariedStorageFactory: creates file storage with sanitised namespace", asyn
   const tmp = await useTmp(t);
 
   const factory = new VariedStorageFactory();
-  const storage = await factory.storage("a:b<ns>/c\\d", tmp);
+  const storage = factory.storage("a:b<ns>/c\\d", tmp);
   await storage.put("key", { value: utf8Encode("file") });
 
   t.is(

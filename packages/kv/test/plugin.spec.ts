@@ -82,7 +82,7 @@ test("KVPlugin: getNamespace: creates namespace", async (t) => {
   const factory = new MemoryStorageFactory({ ["test://map:NAMESPACE"]: map });
 
   const plugin = new KVPlugin(ctx, { kvPersist: "test://map" });
-  const namespace = await plugin.getNamespace(factory, "NAMESPACE");
+  const namespace = plugin.getNamespace(factory, "NAMESPACE");
   await namespace.put("key", "value");
   t.true(map.has("key"));
 });
@@ -97,7 +97,7 @@ test("KVPlugin: getNamespace: resolves persist path relative to rootPath", async
     { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     { kvPersist: "test" }
   );
-  const namespace = await plugin.getNamespace(factory, "NAMESPACE");
+  const namespace = plugin.getNamespace(factory, "NAMESPACE");
   await namespace.put("key", "value");
   t.true(map.has("key"));
 });

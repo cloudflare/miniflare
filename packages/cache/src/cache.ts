@@ -7,7 +7,6 @@ import {
   withStringFormDataFiles,
 } from "@miniflare/core";
 import {
-  Awaitable,
   Clock,
   SITES_NO_CACHE_PREFIX,
   Storage,
@@ -117,13 +116,13 @@ export interface InternalCacheOptions {
 }
 
 export class Cache implements CacheInterface {
-  readonly #storage: Awaitable<Storage>;
+  readonly #storage: Storage;
   readonly #formDataFiles: boolean;
   readonly #clock: Clock;
   readonly #blockGlobalAsyncIO: boolean;
 
   constructor(
-    storage: Awaitable<Storage>,
+    storage: Storage,
     {
       formDataFiles = true,
       clock = defaultClock,
@@ -175,9 +174,8 @@ export class Cache implements CacheInterface {
       status: res.status,
       headers: [...res.headers],
     };
-    const storage = await this.#storage;
     await waitForOpenOutputGate();
-    await storage.put(key, {
+    await this.#storage.put(key, {
       value: new Uint8Array(await res.arrayBuffer()),
       expiration: millisToSeconds(this.#clock() + expirationTtl),
       metadata,
@@ -199,8 +197,7 @@ export class Cache implements CacheInterface {
 
     // Check if we have the response cached
     const key = getKey(req);
-    const storage = await this.#storage;
-    const cached = await storage.get<CachedMeta>(key);
+    const cached = await this.#storage.get<CachedMeta>(key);
     await waitForOpenInputGate();
     ctx?.advanceCurrentTime();
     if (!cached) return;
@@ -243,9 +240,8 @@ export class Cache implements CacheInterface {
 
     // Delete the cached response if it exists
     const key = getKey(req);
-    const storage = await this.#storage;
     await waitForOpenOutputGate();
-    const result = storage.delete(key);
+    const result = this.#storage.delete(key);
     await waitForOpenInputGate();
     ctx?.advanceCurrentTime();
     return result;
