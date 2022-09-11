@@ -43,9 +43,16 @@ interface ProcessedDurableObject {
   scriptName?: string;
 }
 
-function getObjectKey(id: DurableObjectId) {
+function getObjectKeyFromId(id: DurableObjectId) {
   // Put each object in its own namespace/directory
   return `${id[kObjectName]}:${id.toString()}`;
+}
+function getObjectIdFromKey(key: string): DurableObjectId {
+  // Reverse of `getObjectKeyFromId()`
+  const colonIndex = key.lastIndexOf(":");
+  const objectName = key.substring(0, colonIndex);
+  const hexId = key.substring(colonIndex + 1);
+  return new DurableObjectId(objectName, hexId);
 }
 
 export class DurableObjectsPlugin
@@ -148,7 +155,7 @@ export class DurableObjectsPlugin
     // Allow access to storage without constructing the corresponding object:
     // https://github.com/cloudflare/miniflare/issues/300
 
-    const key = getObjectKey(id);
+    const key = getObjectKeyFromId(id);
     // Make sure we only create one storage instance per object to ensure
     // transactional semantics hold
     let objectStorage = this.#objectStorages.get(key);
@@ -172,7 +179,7 @@ export class DurableObjectsPlugin
     );
     await this.#contextPromise;
 
-    const key = getObjectKey(id);
+    const key = getObjectKeyFromId(id);
     // Durable Object states should be unique per key
     let state = this.#objectStates.get(key);
     if (state !== undefined) return state;
@@ -223,34 +230,20 @@ export class DurableObjectsPlugin
     // If the alarm store doesn't exist yet, create it
     await this.#alarmStore.setupStore(storage, this.#persist);
     await this.#alarmStore.setupAlarms(async (objectKey) => {
-      const index = objectKey.lastIndexOf(":");
-      const objectName = objectKey.substring(0, index);
-      const hexId = objectKey.substring(index + 1);
       // Grab the instance
-      const id = new DurableObjectId(objectName, hexId);
+      const id = getObjectIdFromKey(objectKey);
       const state = await this.getObject(storage, id);
       // Execute the alarm
       await this.#executeAlarm(state);
     });
   }
 
-  async flushAlarms(
+  flushAlarms(
     storageFactory: StorageFactory,
     ids?: DurableObjectId[]
   ): Promise<void> {
-    if (ids !== undefined) {
-      for (const id of ids) {
-        const state = await this.getObject(storageFactory, id);
-        await this.#executeAlarm(state);
-        await this.#alarmStore.deleteAlarm(getObjectKey(id));
-      }
-    } else {
-      // Otherwise, flush all alarms
-      for (const [key, state] of this.#objectStates) {
-        await this.#executeAlarm(await state);
-        await this.#alarmStore.deleteAlarm(key);
-      }
-    }
+    // Pass through to #alarmStore to make sure we only flush scheduled alarms
+    return this.#alarmStore.flushAlarms(ids?.map(getObjectKeyFromId));
   }
 
   async #executeAlarm(state: DurableObjectState): Promise<void> {

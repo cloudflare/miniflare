@@ -438,64 +438,66 @@ test("DurableObjectsPlugin: set alarm and run list filters out alarm", async (t)
   t.is(await res1.text(), "{}");
 });
 
-test("DurableObjectsPlugin: flush alarms", async (t) => {
+test("DurableObjectsPlugin: flush scheduled alarms", async (t) => {
   class TestObject implements DurableObject {
     constructor(private readonly state: DurableObjectState) {}
 
-    fetch = async () => {
+    async fetch() {
       await this.state.storage.setAlarm(Date.now() + 60 * 1000);
       return new Response("ok");
-    };
-    alarm = async () => {
+    }
+
+    async alarm() {
       await this.state.storage.put("a", 1);
-    };
+    }
   }
 
-  const map = new Map<string, StoredValue>();
-  const factory = new MemoryStorageFactory({
-    [`test://map:TEST:${testId.toString()}`]: map,
-  });
+  const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
-    durableObjectsPersist: "test://map",
     durableObjectsAlarms: true,
   });
   await plugin.setup(factory);
   plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
 
+  // Construct the object
+  const state = await plugin.getObject(factory, testId);
+  const storage = state.storage;
+  t.is(await storage.get("a"), undefined);
+
+  // Check that flushing with no scheduled alarms does nothing
+  await plugin.flushAlarms(factory);
+  t.is(await storage.get("a"), undefined);
+
+  // Schedule alarm
   const ns = plugin.getNamespace(factory, "TEST");
   const res = await ns.get(testId).fetch("/");
   t.is(await res.text(), "ok");
-  // now flush
-  await plugin.flushAlarms(factory);
-  // check storage "a" is 1
-  const state = await plugin.getObject(factory, testId);
-  t.is(await state.storage.get("a"), 1);
-});
 
-test("DurableObjectsPlugin: flush a specific alarm", async (t) => {
+  // Check that scheduled alarm flushed
+  await plugin.flushAlarms(factory);
+  t.is(await storage.get("a"), 1);
+
+  plugin.dispose();
+});
+test("DurableObjectsPlugin: flush specific scheduled alarms", async (t) => {
   class TestObject implements DurableObject {
     constructor(private readonly state: DurableObjectState) {}
 
-    fetch = async () => {
+    async fetch() {
       await this.state.storage.setAlarm(Date.now() + 60 * 1000);
       return new Response("ok");
-    };
-    alarm = async () => {
+    }
+
+    async alarm() {
       await this.state.storage.put("key", 1);
-    };
+    }
   }
 
-  const mapA = new Map<string, StoredValue>();
-  const mapB = new Map<string, StoredValue>();
-  const factory = new MemoryStorageFactory({
-    [`test://map:TEST:a`]: mapA,
-    [`test://map:TEST:b`]: mapB,
-  });
+  const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
-    durableObjectsPersist: "test://map",
     durableObjectsAlarms: true,
   });
   await plugin.setup(factory);
@@ -505,19 +507,23 @@ test("DurableObjectsPlugin: flush a specific alarm", async (t) => {
   const ns = plugin.getNamespace(factory, "TEST");
   const idA = ns.idFromName("a");
   const idB = ns.idFromName("b");
+  const idC = ns.idFromName("c");
 
+  // Schedule alarms in `a` and `c`
   const resA = await ns.get(idA).fetch("/");
   t.is(await resA.text(), "ok");
-  const resB = await ns.get(idB).fetch("/");
-  t.is(await resB.text(), "ok");
-  // now flush
-  await plugin.flushAlarms(factory, [idA]);
-  // check storage "a" is 1
-  const stateA = await plugin.getObject(factory, idA);
-  t.is(await stateA.storage.get("key"), 1);
-  // check that storage "b" is still empty
-  const stateB = await plugin.getObject(factory, idB);
-  t.is(await stateB.storage.get("key"), undefined);
-  // dispose
+  const resC = await ns.get(idC).fetch("/");
+  t.is(await resC.text(), "ok");
+
+  // Flush alarms for `a` and `b`, only `a`'s alarm should be executed, as `b`
+  // hasn't been scheduled, and `c` isn't being flushed.
+  await plugin.flushAlarms(factory, [idA, idB]);
+  const storageA = plugin.getStorage(factory, idA);
+  t.is(await storageA.get("key"), 1);
+  const storageB = plugin.getStorage(factory, idB);
+  t.is(await storageB.get("key"), undefined);
+  const storageC = plugin.getStorage(factory, idC);
+  t.is(await storageC.get("key"), undefined);
+
   plugin.dispose();
 });

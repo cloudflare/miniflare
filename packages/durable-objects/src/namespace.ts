@@ -102,10 +102,10 @@ export class DurableObjectState {
     // TODO: catch, reset object on error
     const outputGate = new OutputGate();
     return outputGate.runWith(() =>
-      this.#inputGate.runWith(() => {
-        // delete the local alarm
-        this.storage.deleteAlarm();
-        // grab the instance and call the alarm handler
+      this.#inputGate.runWith(async () => {
+        // Delete the local alarm
+        await this.storage.deleteAlarm();
+        // Grab the instance and call the alarm handler
         const instance = this[kInstance];
         if (!instance?.alarm) {
           throw new DurableObjectError(
