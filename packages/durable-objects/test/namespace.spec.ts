@@ -64,16 +64,14 @@ const throws = (): never => {
   throw new Error("Function should not be called!");
 };
 
-function getTestObjectNamespace(): [
-  DurableObjectNamespace,
-  DurableObjectsPlugin,
-  MemoryStorageFactory
-] {
+async function getTestObjectNamespace(): Promise<
+  [DurableObjectNamespace, DurableObjectsPlugin, MemoryStorageFactory]
+> {
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
   return [plugin.getNamespace(factory, "TEST"), plugin, factory];
 }
@@ -127,7 +125,7 @@ test("DurableObjectState: blockConcurrencyWhile: prevents fetch events dispatch 
       return new Response("body");
     }
   }
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
 
   const ns = plugin.getNamespace(factory, "TEST");
@@ -152,7 +150,7 @@ test("DurableObjectState: kFetch: waits for writes to be confirmed before return
 
     alarm(): void {}
   }
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
 
   const ns = plugin.getNamespace(factory, "TEST");
@@ -178,7 +176,7 @@ test("DurableObjectState: kAlarm: no alarm method; setAlarm throws while getAlar
     }
   }
   await plugin.setup(factory);
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
 
   const ns = plugin.getNamespace(factory, "TEST");
@@ -195,7 +193,7 @@ test("DurableObjectState: kAlarm: no alarm method; setAlarm throws while getAlar
   });
   const get = await storage.getAlarm();
   t.is(get, null);
-  plugin.dispose();
+  await plugin.dispose();
 });
 test("DurableObjectState: kFetch: throws clear error if missing fetch handler", async (t) => {
   // https://github.com/cloudflare/miniflare/issues/164
@@ -205,7 +203,7 @@ test("DurableObjectState: kFetch: throws clear error if missing fetch handler", 
   });
 
   class TestObject {}
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
 
   const ns = plugin.getNamespace(factory, "TEST");
@@ -217,7 +215,7 @@ test("DurableObjectState: kFetch: throws clear error if missing fetch handler", 
   });
 });
 test("DurableObjectState: hides implementation details", async (t) => {
-  const [ns, plugin, factory] = getTestObjectNamespace();
+  const [ns, plugin, factory] = await getTestObjectNamespace();
   const state = await plugin.getObject(factory, ns.newUniqueId());
   t.deepEqual(getObjectProperties(state), [
     "blockConcurrencyWhile",
@@ -235,7 +233,7 @@ test("DurableObjectStub: name: returns ID's name if defined", async (t) => {
   t.is(new DurableObjectStub(throws, testId).name, "instance");
 });
 test("DurableObjectStub: fetch: creates and dispatches request to instance", async (t) => {
-  const [ns] = getTestObjectNamespace();
+  const [ns] = await getTestObjectNamespace();
   const stub = ns.get(testId);
   let res = await stub.fetch("http://localhost:8787/", { method: "POST" });
   t.is(await res.text(), `${testId}:request1:POST:http://localhost:8787/`);
@@ -245,7 +243,7 @@ test("DurableObjectStub: fetch: creates and dispatches request to instance", asy
   t.is(await res.text(), `${testId}:request2:PUT:http://localhost:8787/path`);
 });
 test("DurableObjectStub: fetch: resolves relative urls with respect to https://fake-host by default", async (t) => {
-  const [ns] = getTestObjectNamespace();
+  const [ns] = await getTestObjectNamespace();
   const stub = ns.get(testId);
   const res = await stub.fetch("test");
   t.is(await res.text(), `${testId}:request1:GET:https://fake-host/test`);
@@ -259,7 +257,7 @@ test("DurableObjectStub: fetch: throws with relative urls if compatibility flag 
     { log, compat, rootPath, queueBroker, queueEventDispatcher },
     { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
   );
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
   const ns = plugin.getNamespace(factory, "TEST");
   const stub = ns.get(testId);
@@ -280,7 +278,7 @@ test("DurableObjectStub: fetch: throws with unknown protocols if compatibility f
     { log, compat, rootPath, queueBroker, queueEventDispatcher },
     { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
   );
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
   const ns = plugin.getNamespace(factory, "TEST");
   const stub = ns.get(testId);
@@ -303,7 +301,7 @@ test("DurableObjectStub: fetch: logs warning with unknown protocol if compatibil
     { log, compat, rootPath, queueBroker, queueEventDispatcher },
     { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
   );
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
   const ns = plugin.getNamespace(factory, "TEST");
   const stub = ns.get(testId);
@@ -338,7 +336,7 @@ test("DurableObjectStub: fetch: passes through web socket requests", async (t) =
 
     alarm(): void {}
   }
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
 
   const ns = plugin.getNamespace(factory, "TEST");
@@ -484,7 +482,7 @@ test("DurableObjectStub: fetch: advances current time", async (t) => {
     durableObjects: { TEST_OBJECT: "TestObject" },
   });
   const result = await plugin.setup(factory);
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
 
   const ns: DurableObjectNamespace = result.bindings?.TEST_OBJECT;
@@ -627,7 +625,7 @@ test("DurableObjectStub: fetch: throws if handler doesn't return Response", asyn
 
     alarm(): void {}
   }
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
 
   const ns = plugin.getNamespace(factory, "TEST");
@@ -650,7 +648,7 @@ test("DurableObjectStub: fetch: returns response with immutable headers", async 
       return new Response();
     }
   }
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
 
   const ns = plugin.getNamespace(factory, "TEST");
@@ -662,7 +660,7 @@ test("DurableObjectStub: fetch: returns response with immutable headers", async 
   });
 });
 test("DurableObjectStub: hides implementation details", async (t) => {
-  const [ns] = getTestObjectNamespace();
+  const [ns] = await getTestObjectNamespace();
   const stub = ns.get(testId);
   t.deepEqual(getObjectProperties(stub), ["fetch", "id", "name"]);
 });
@@ -772,7 +770,7 @@ test("DurableObjectNamespace: idFromString: IDs tied to generating object", (t) 
   });
 });
 test("DurableObjectNamespace: get: returns stub using namespace's factory", async (t) => {
-  const [ns] = getTestObjectNamespace();
+  const [ns] = await getTestObjectNamespace();
   const stub = ns.get(testId);
   const res = await stub.fetch("http://localhost:8787/");
   t.is(await res.text(), `${testId}:request1:GET:http://localhost:8787/`);
@@ -829,19 +827,19 @@ class ExampleDurableObject implements DurableObject {
   alarm(): void {}
 }
 
-function getExampleObjectStub(): DurableObjectStub {
+async function getExampleObjectStub(): Promise<DurableObjectStub> {
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { EXAMPLE: "ExampleDurableObject" },
   });
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { ExampleDurableObject }, new Map());
   const ns = plugin.getNamespace(factory, "EXAMPLE");
   return ns.get(ns.newUniqueId());
 }
 
 test("gets unique numbers", async (t) => {
-  const stub = getExampleObjectStub();
+  const stub = await getExampleObjectStub();
   const [res1, res2, res3] = await Promise.all([
     stub.fetch("/unique"),
     stub.fetch("/unique"),
@@ -865,7 +863,7 @@ test("gets unique numbers with fetch", async (t) => {
     await promise;
     res.end("upstream");
   });
-  const stub = getExampleObjectStub();
+  const stub = await getExampleObjectStub();
   const res = await stub.fetch("/tasks", {
     method: "POST",
     body: upstream.toString(),
@@ -880,7 +878,7 @@ test("writes are coalesced", async (t) => {
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { EXAMPLE: "ExampleDurableObject" },
   });
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { ExampleDurableObject }, new Map());
   const ns = plugin.getNamespace(storageFactory, "EXAMPLE");
 

@@ -124,6 +124,8 @@ export class DurableObjectsPlugin
   readonly #objectStates = new Map<string, DurableObjectState>();
 
   readonly #alarmStore: AlarmStore;
+  #alarmStoreCallback?: (objectKey: string) => Promise<void>;
+  #alarmStoreCallbackAttached = false;
 
   constructor(ctx: PluginContext, options?: DurableObjectsOptions) {
     super(ctx);
@@ -225,17 +227,25 @@ export class DurableObjectsPlugin
     };
   }
 
-  async #setupAlarms(storage: StorageFactory): Promise<void> {
+  async #setupAlarms(storageFactory: StorageFactory): Promise<void> {
     if (this.durableObjectsAlarms === false) return;
-    // If the alarm store doesn't exist yet, create it
-    await this.#alarmStore.setupStore(storage, this.#persist);
-    await this.#alarmStore.setupAlarms(async (objectKey) => {
+    // Load alarms from storage
+    await this.#alarmStore.setupStore(storageFactory, this.#persist);
+    // Initialise callback, which depends on `storageFactory`, but don't attach
+    // to alarm store until first `beforeReload()`.
+    //
+    // Alarms may be scheduled as soon as the callback is attached, which would
+    // call `getObject()`. However, `getObject()` needs `#contextPromise` to be
+    // initialised, which is done in `beforeReload()`.
+    //
+    // https://github.com/cloudflare/miniflare/issues/359
+    this.#alarmStoreCallback = async (objectKey) => {
       // Grab the instance
       const id = getObjectIdFromKey(objectKey);
-      const state = await this.getObject(storage, id);
+      const state = await this.getObject(storageFactory, id);
       // Execute the alarm
       await this.#executeAlarm(state);
-    });
+    };
   }
 
   flushAlarms(
@@ -257,13 +267,23 @@ export class DurableObjectsPlugin
     }).runWith(() => state[kAlarm]());
   }
 
-  beforeReload(): void {
+  async beforeReload(): Promise<void> {
     // Clear instance map, this should cause old instances to be GCed
     this.#objectStorages.clear();
     this.#objectStates.clear();
     this.#contextPromise = new Promise(
       (resolve) => (this.#contextResolve = resolve)
     );
+
+    // Setup alarm store after #contextPromise is initialised, as alarms may be
+    // scheduled immediately and try to call `getObject()`.
+    if (
+      !this.#alarmStoreCallbackAttached &&
+      this.#alarmStoreCallback !== undefined
+    ) {
+      this.#alarmStoreCallbackAttached = true;
+      await this.#alarmStore.setupAlarms(this.#alarmStoreCallback);
+    }
   }
 
   reload(
@@ -307,8 +327,10 @@ Make sure "${scriptName}" is mounted so Miniflare knows where to find it.`
     this.#contextResolve();
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
+    await this.beforeReload();
+    // Dispose `#alarmStore` after `beforeReload` as that may attach the alarm
+    // callback, and schedule alarms which we'll want to cancel here.
     this.#alarmStore.dispose();
-    return this.beforeReload();
   }
 }
