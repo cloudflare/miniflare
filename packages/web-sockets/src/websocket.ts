@@ -3,6 +3,7 @@ import {
   EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
   InputGatedEventTarget,
   RequestContext,
+  ValueOf,
   getRequestContext,
   kWrapListener,
   waitForOpenOutputGate,
@@ -73,7 +74,7 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
   static readonly READY_STATE_CLOSING = 2;
   static readonly READY_STATE_CLOSED = 3;
 
-  #sendQueue?: MessageEvent[] = [];
+  #dispatchQueue?: ValueOf<WebSocketEventMap>[] = [];
   [kPair]: WebSocket;
   [kAccepted] = false;
   [kCoupled] = false;
@@ -122,6 +123,18 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
     return WebSocket.READY_STATE_OPEN;
   }
 
+  async #queuingDispatchToPair(event: ValueOf<WebSocketEventMap>) {
+    await waitForOpenOutputGate();
+    const pair = this[kPair];
+    if (pair[kAccepted]) {
+      pair.dispatchEvent(event);
+    } else {
+      // Queue event until pair has `accept()`ed
+      assert(pair.#dispatchQueue !== undefined);
+      pair.#dispatchQueue.push(event);
+    }
+  }
+
   accept(): void {
     if (this[kCoupled]) {
       throw new TypeError(
@@ -129,13 +142,12 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
       );
     }
 
-    if (this[kAccepted]) return;
+    if (this[kAccepted]) return; // Permit double `accept()`
     this[kAccepted] = true;
 
-    const sendQueue = this.#sendQueue;
-    if (sendQueue) {
-      for (const event of sendQueue) this.dispatchEvent(event);
-      this.#sendQueue = undefined;
+    if (this.#dispatchQueue !== undefined) {
+      for (const event of this.#dispatchQueue) this.dispatchEvent(event);
+      this.#dispatchQueue = undefined;
     }
   }
 
@@ -149,24 +161,14 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
   }
 
   [kSend](message: ArrayBuffer | string): void {
+    // Split from send() we can queue messages before accept() is called when
+    // forwarding message events from the client
     if (this[kClosedOutgoing]) {
       throw new TypeError("Can't call WebSocket send() after close().");
     }
 
     const event = new MessageEvent("message", { data: message });
-    void this.#dispatchMessageEvent(event);
-  }
-
-  async #dispatchMessageEvent(event: MessageEvent): Promise<void> {
-    await waitForOpenOutputGate();
-    const pair = this[kPair];
-    if (pair[kAccepted]) {
-      pair.dispatchEvent(event);
-    } else {
-      const sendQueue = pair.#sendQueue;
-      assert(sendQueue !== undefined);
-      sendQueue.push(event);
-    }
+    void this.#queuingDispatchToPair(event);
   }
 
   close(code?: number, reason?: string): void {
@@ -198,13 +200,7 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
       );
     }
     if (this[kClosedOutgoing]) throw new TypeError("WebSocket already closed");
-    this[kClosedOutgoing] = true;
-    this[kPair][kClosedIncoming] = true;
-    void this.#dispatchCloseEvent(code, reason);
-  }
 
-  async #dispatchCloseEvent(code?: number, reason?: string): Promise<void> {
-    await waitForOpenOutputGate();
     // Send close event to pair, it should then eventually call `close()` on
     // itself which will dispatch a close event to us, completing the closing
     // handshake:
@@ -216,7 +212,19 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
     //     |     |  ... | |     | --->    3) close() ---> | out > inc | ---> 4) CloseEvent
     //     -------      | -------                         -------------
     //                  |
-    this[kPair].dispatchEvent(new CloseEvent("close", { code, reason }));
+    //                  |
+    //     -------      | -------                         -------------
+    //     |     |  ... | |     | --->    1) close() ---> | out > inc | ---> 2) CloseEvent
+    //     |     |      | |     |                         |     |     |
+    //     |     |  ... | |     | <--- 4) CloseEvent <--- | inc < out | <--- 3) close()
+    //     -------      | -------                         -------------
+    //                  |
+
+    this[kClosedOutgoing] = true;
+    this[kPair][kClosedIncoming] = true;
+
+    const event = new CloseEvent("close", { code, reason });
+    void this.#queuingDispatchToPair(event);
   }
 }
 

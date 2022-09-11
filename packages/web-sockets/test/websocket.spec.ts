@@ -92,6 +92,28 @@ test("WebSocket: queues messages if pair not accepted", async (t) => {
   t.deepEqual(messages1, ["from2_1", "from2_2"]);
   t.deepEqual(messages2, ["from1_1", "from1_2"]);
 });
+test("WebSocket: queues closes if pair not accepted", async (t) => {
+  const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
+
+  let closeEvent1: CloseEvent | undefined;
+  let closeEvent2: CloseEvent | undefined;
+  webSocket1.addEventListener("close", (e) => (closeEvent1 = e));
+  webSocket2.addEventListener("close", (e) => (closeEvent2 = e));
+
+  webSocket1.accept();
+  webSocket1.close(3001, "from1");
+  await setImmediate();
+  t.is(closeEvent1, undefined);
+  t.is(closeEvent2, undefined);
+
+  webSocket2.accept();
+  t.is(closeEvent2?.code, 3001);
+  t.is(closeEvent2?.reason, "from1");
+  webSocket2.close(3002, "from2");
+  await setImmediate();
+  t.is(closeEvent1?.code, 3002);
+  t.is(closeEvent1?.reason, "from2");
+});
 test("WebSocket: discards sent message to pair if other side closed", async (t) => {
   const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
 
