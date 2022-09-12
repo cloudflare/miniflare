@@ -162,7 +162,8 @@ async function writeResponse(
       // @ts-expect-error getAll is added to the Headers prototype by
       // importing @miniflare/core
       headers["set-cookie"] = response.headers.getAll("set-cookie");
-    } else {
+    } else if (key !== "content-length") {
+      // Content-Length has special handling below
       headers[key] = value;
     }
   }
@@ -174,7 +175,9 @@ async function writeResponse(
   const contentLength =
     _getBodyLength(response) ??
     (contentLengthHeader === null ? null : parseInt(contentLengthHeader));
-  if (contentLength !== null) headers["content-length"] = contentLength;
+  if (contentLength !== null && !isNaN(contentLength)) {
+    headers["content-length"] = contentLength;
+  }
 
   // If a Content-Encoding is set, and the user hasn't encoded the body,
   // we're responsible for doing so.

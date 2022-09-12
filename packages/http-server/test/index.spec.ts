@@ -446,6 +446,20 @@ test("createRequestListener: displays appropriately-formatted error page", async
   });
   t.is(headers["content-type"], "text/plain; charset=UTF-8");
 });
+test("createRequestListener: discards Content-Length header if invalid", async (t) => {
+  // https://github.com/honojs/hono/issues/520
+  const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {
+    const res = new globals.Response("string");
+    return new globals.Response(res.body, {
+      headers: { "Content-Length": "undefined" },
+    });
+  });
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+  const [body, headers] = await request(port);
+  t.is(body, "string");
+  t.is(headers["content-length"], undefined);
+  t.is(headers["transfer-encoding"], "chunked");
+});
 test("createRequestListener: includes live reload script in html responses if enabled", async (t) => {
   const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {
     return new globals.Response(
