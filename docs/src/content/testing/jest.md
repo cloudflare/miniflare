@@ -212,7 +212,7 @@ export default {
 ```
 
 To access Durable Object storage in tests, use the
-`getMiniflareDurableObjectStorage` global method:
+`getMiniflareDurableObjectStorage()` global function:
 
 ```js
 test("increments count", async () => {
@@ -243,3 +243,98 @@ won't be a problem, but be aware you may have issues with unique `Symbol()`s or
 `instanceof`s.
 
 </Aside>
+
+To immediately invoke _("flush")_ scheduled Durable Object alarms, use the
+`flushMiniflareDurableObjectAlarms()` global function:
+
+```js
+test("flushes alarms", async () => {
+  // Get Durable Object stub
+  const env = getMiniflareBindings();
+  const id = env.TEST_OBJECT.newUniqueId();
+  const stub = env.TEST_OBJECT.get(id);
+
+  // Schedule Durable Object alarm
+  await stub.fetch("http://localhost/");
+
+  // Flush all alarms...
+  await flushMiniflareDurableObjectAlarms();
+  // ...or specify an array of `DurableObjectId`s to flush
+  await flushMiniflareDurableObjectAlarms([id]);
+});
+```
+
+## Mocking Outbound `fetch` Requests
+
+Miniflare allows you to substitute custom `Response`s for `fetch()` calls using
+`undici`'s
+[`MockAgent` API](https://undici.nodejs.org/#/docs/api/MockAgent?id=mockagentgetorigin).
+This is useful for testing workers that make HTTP requests to other services. To
+obtain a correctly set-up
+[`MockAgent`](https://undici.nodejs.org/#/docs/api/MockAgent?id=mockagentgetorigin),
+use the `getMiniflareFetchMock()` global function.
+
+```js
+test("mocks fetch", async () => {
+  // Get correctly set up `MockAgent`
+  const fetchMock = getMiniflareFetchMock();
+
+  // Throw when no matching mocked request is found
+  // (see https://undici.nodejs.org/#/docs/api/MockAgent?id=mockagentdisablenetconnect)
+  fetchMock.disableNetConnect();
+
+  // Mock request to https://example.com/thing
+  // (see https://undici.nodejs.org/#/docs/api/MockAgent?id=mockagentgetorigin)
+  const origin = fetchMock.get("https://example.com");
+  // (see https://undici.nodejs.org/#/docs/api/MockPool?id=mockpoolinterceptoptions)
+  origin
+    .intercept({ method: "GET", path: "/thing" })
+    .reply(200, "Mocked response!");
+
+  const res = await fetch("https://example.com/thing");
+  const text = await res.text();
+  expect(text).toBe("Mocked response!");
+});
+```
+
+## Waiting for `waitUntil`ed `Promise`s
+
+To `await` the results of `waitUntil`ed `Promise`s, call the
+`getMiniflareWaitUntil()` global function on a `FetchEvent`, `ScheduledEvent` or
+`ExecutionContext`. This will return a `Promise` that resolves to an array of
+resolved `waitUntil`ed `Promise` values:
+
+```js
+---
+filename: src/index.js
+---
+export default {
+  async fetch(request, env, ctx) {
+    ctx.waitUntil(Promise.resolve(1));
+    ctx.waitUntil(Promise.resolve(2));
+    ctx.waitUntil(Promise.resolve(3));
+    return new Response("body");
+  }
+}
+```
+
+```js
+---
+filename: test/index.spec.js
+---
+import worker from "../src/index.js";
+
+test("wait until", async () => {
+  const request = new Request("http://localhost:8787/");
+  const env = getMiniflareBindings();
+  const ctx = new ExecutionContext();
+
+  // Call module worker handler
+  const response = worker.fetch(request, env, ctx);
+  expect(await response.text()).toBe("body");
+
+  // Check resolved values of waitUntil'ed Promises
+  const waitUntils = await getMiniflareWaitUntil(ctx);
+  expect(waitUntils).toEqual([1, 2, 3]);
+});
+```

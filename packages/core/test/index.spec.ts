@@ -17,9 +17,11 @@ import {
   RequestInfo,
   RequestInit,
   _deepEqual,
+  createFetchMock,
 } from "@miniflare/core";
 import { DurableObjectsPlugin } from "@miniflare/durable-objects";
 import { HTTPPlugin, createServer } from "@miniflare/http-server";
+import { QueueBroker } from "@miniflare/queues";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
   Context,
@@ -54,6 +56,7 @@ const log = new NoOpLog();
 // Only use this shared storage factory when the test doesn't care about storage
 const storageFactory = new MemoryStorageFactory();
 const scriptRunner = new VMScriptRunner();
+const queueBroker = new QueueBroker();
 
 const relative = (p: string) => path.relative("", p);
 
@@ -69,7 +72,12 @@ test("_deepEqual: checks top-level symbol property equality", (t) => {
 
 test("MiniflareCore: always loads CorePlugin first", async (t) => {
   const log = new TestLog();
-  const ctx: MiniflareCoreContext = { log, storageFactory, scriptRunner };
+  const ctx: MiniflareCoreContext = {
+    log,
+    storageFactory,
+    scriptRunner,
+    queueBroker,
+  };
   const expectedLogs: LogEntry[] = [
     [LogLevel.DEBUG, "Initialising worker..."],
     [LogLevel.DEBUG, "Options:"],
@@ -93,7 +101,12 @@ test("MiniflareCore: always loads CorePlugin first", async (t) => {
 });
 test("MiniflareCore: always loads BindingsPlugin last", async (t) => {
   const log = new TestLog();
-  const ctx: MiniflareCoreContext = { log, storageFactory, scriptRunner };
+  const ctx: MiniflareCoreContext = {
+    log,
+    storageFactory,
+    scriptRunner,
+    queueBroker,
+  };
   const expectedLogs: LogEntry[] = [
     [LogLevel.DEBUG, "Initialising worker..."],
     [LogLevel.DEBUG, "Options:"],
@@ -299,7 +312,7 @@ test("MiniflareCore: runs setup with namespaced plugin-specific storage", async 
   const storageFactory = new MemoryStorageFactory();
   const mf = new MiniflareCore(
     { CorePlugin, TestPlugin },
-    { log, storageFactory, scriptRunner }
+    { log, storageFactory, scriptRunner, queueBroker }
   );
   const globalScope = await mf.getGlobalScope();
   const STORAGE: Storage = globalScope.STORAGE;
@@ -470,6 +483,7 @@ test("MiniflareCore: #init: throws if script required but not provided", async (
     storageFactory,
     scriptRunner,
     scriptRequired: true,
+    queueBroker,
   };
 
   // Check throws if no script defined
@@ -655,6 +669,7 @@ test("MiniflareCore: #reload: only runs script if module exports needed when scr
     storageFactory,
     scriptRunner,
     scriptRunForModuleExports: true,
+    queueBroker,
   };
 
   let calledback = false;
@@ -980,11 +995,11 @@ test("MiniflareCore: getPluginStorage: gets namespaced plugin-specific storage",
   const storageFactory = new MemoryStorageFactory();
   const mf = new MiniflareCore(
     { CorePlugin },
-    { log, storageFactory, scriptRunner }
+    { log, storageFactory, scriptRunner, queueBroker }
   );
   const pluginStorageFactory = mf.getPluginStorage("CorePlugin");
   t.true(pluginStorageFactory instanceof PluginStorageFactory);
-  const NS = await pluginStorageFactory.storage("NS");
+  const NS = pluginStorageFactory.storage("NS");
   await NS.put("key", { value: utf8Encode("value") });
 
   // "core" is automatically derived from "CorePlugin"
@@ -1108,6 +1123,38 @@ test("MiniflareCore: dispatchFetch: fetching incoming request responds with upst
   // Host should be rewritten to match upstream
   const res = await mf.dispatchFetch("https://random.mf/");
   t.is(await res.text(), "upstream");
+});
+test("MiniflareCore: dispatchFetch: fetching incoming request with mocking enabled, but un-mocked upstream", async (t) => {
+  const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
+  const mockAgent = createFetchMock();
+  const mf = useMiniflareWithHandler(
+    {},
+    { upstream: upstream.toString(), fetchMock: mockAgent },
+    (globals, req) => globals.fetch(req)
+  );
+  const res = await mf.dispatchFetch("https://random.mf/");
+  t.is(await res.text(), "upstream");
+  // Disabling net connect should throw as upstream hasn't been mocked
+  mockAgent.disableNetConnect();
+  try {
+    await mf.dispatchFetch("https://random.mf/");
+    t.fail();
+  } catch (e: any) {
+    t.is(e.cause.code, "UND_MOCK_ERR_MOCK_NOT_MATCHED");
+  }
+});
+test("MiniflareCore: dispatchFetch: fetching incoming request with mocked upstream", async (t) => {
+  const mockAgent = createFetchMock();
+  mockAgent.disableNetConnect();
+  const client = mockAgent.get("https://random.mf");
+  client.intercept({ path: "/" }).reply(200, "Hello World!");
+  const mf = useMiniflareWithHandler(
+    {},
+    { fetchMock: mockAgent },
+    (globals, req) => globals.fetch(req)
+  );
+  const res = await mf.dispatchFetch("https://random.mf/");
+  t.is(await res.text(), "Hello World!");
 });
 test("MiniflareCore: dispatchFetch: request gets immutable headers", async (t) => {
   const mf = useMiniflareWithHandler({}, {}, (globals, req) => {
@@ -1259,7 +1306,7 @@ test("MiniflareCore: dispatchScheduled: dispatches scheduled event", async (t) =
 test("MiniflareCore: dispatchScheduled: creates new request context", async (t) => {
   const mf = new MiniflareCore(
     { CorePlugin, BindingsPlugin, CachePlugin },
-    { log, storageFactory, scriptRunner },
+    { log, storageFactory, scriptRunner, queueBroker },
     {
       globals: {
         assertSubrequests(expected: number) {

@@ -7,7 +7,6 @@ export * from "./event";
 export {
   _headersFromIncomingRequest,
   _kInner,
-  _isByteStream,
   Body,
   withInputGating,
   withStringFormDataFiles,
@@ -19,6 +18,7 @@ export {
   _getBodyLength,
   _kLoopHeader,
   fetch,
+  createFetchMock,
   _urlFromRequestInput,
   _buildUnknownProtocolWarning,
   createCompatFetch,
@@ -43,9 +43,11 @@ export type {
   ResponseRedirectStatus,
 } from "./http";
 export {
+  IdentityTransformStream,
   FixedLengthStream,
   CompressionStream,
   DecompressionStream,
+  _isByteStream,
 } from "./streams";
 export type { ArrayBufferViewConstructor } from "./streams";
 export * from "./navigator";

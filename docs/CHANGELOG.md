@@ -1,5 +1,245 @@
 # 🚧 Changelog
 
+## 2.8.2
+
+### Fixes
+
+- Allow WebSocket client connection errors to be caught. Closes
+  [issue #229](https://github.com/cloudflare/miniflare/issues/229), thanks
+  [@viorel-d](https://github.com/viorel-d).
+- Return `Response`s with immutable headers from `cache.match`s. Closes
+  [issue #365](https://github.com/cloudflare/miniflare/issues/365), thanks
+  [@AlCalzone](https://github.com/AlCalzone).
+- Ensure `request.cf.clientAcceptEncoding` is always a `string`. Closes
+  [issue #362](https://github.com/cloudflare/miniflare/issues/362), thanks
+  [@GregBrimble](https://github.com/GregBrimble).
+
+## 2.8.1
+
+### Fixes
+
+- Add missing `@miniflare/queues` dependencies. Closes
+  [issue #360](https://github.com/cloudflare/miniflare/issues/360), thanks
+  [@AlCalzone](https://github.com/AlCalzone) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/361).
+- Fix support for queues in Jest/Vitest testing environments
+
+## 2.8.0
+
+### Features
+
+- ⚡️ Add **custom Vitest testing environment**. This behaves almost identically
+  to the Jest environment. However, isolated storage must be installed manually
+  in each test file. Call the `setupMiniflareIsolatedStorage()` global function
+  and use the returned `describe` function instead of the regular
+  `describe`/`suite` functions imported from `vitest`. See
+  [⚡️ Vitest Environment](https://miniflare.dev/testing/vitest) for more
+  details.
+- 🌐 **Populate Workers Sites `__STATIC_CONTENT_MANIFEST`** with site files
+  instead of an empty object. Miniflare will still disable caching of Workers
+  Sites files to ensure the most up-to-date files are always returned. Closes
+  [issues #233](https://github.com/cloudflare/miniflare/issues/233),
+  [#326](https://github.com/cloudflare/miniflare/issues/326) and
+  [cloudflare/wrangler2#1632](https://github.com/cloudflare/wrangler2/issues/1632).
+  Thanks [@ItalyPaleAle](https://github.com/ItalyPaleAle),
+  [@Skye-31](https://github.com/Skye-31),
+  [@CraigglesO](https://github.com/CraigglesO),
+  [@Hexstream](https://github.com/Hexstream) and
+  [@PolariTOON](https://github.com/PolariTOON).
+- ⏱ **Add global `getMiniflareWaitUntil()` method** and `ExecutionContext` class
+  to the Jest and Vitest testing environments. This can be used to `await` the
+  results of `waitUntil`ed `Promise`s in tests. See
+  [🤹️ Jest Environment](https://miniflare.dev/testing/jest#waiting-for-waituntiled-promises)
+  and
+  [⚡️ Vitest Environment](https://miniflare.dev/testing/vitest#waiting-for-waituntiled-promises)
+  for more details. Closes
+  [issue #202](https://github.com/cloudflare/miniflare/issues/202), thanks
+  [@jamesarosen](https://github.com/jamesarosen) and
+  [@CraigglesO](https://github.com/CraigglesO) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/345).
+- ⏳ Match Web Streams implementations with Workers runtime, closes issue
+  [#168](https://github.com/cloudflare/miniflare/issues/168), thanks
+  [@leviwolfe](https://github.com/leviwolfe):
+  - Add support for the non-standard
+    [`IdentityTransformStream`](https://developers.cloudflare.com/workers/runtime-apis/streams/transformstream/#identitytransformstream)
+    class.
+  - Add support for the **`streams_enable_constructors` compatibility flag**.
+    `ReadableStream` and `WritableStream` constructors will throw unless this
+    flag is enabled. `ReadableByteStreamController`,
+    `ReadableStreamBYOBRequest`, `ReadableStreamDefaultController` and
+    `WritableStreamDefaultController` will only be included in the sandbox if
+    this flag is enabled.
+  - Add support for the **`transformstream_enable_standard_constructor`
+    compatibility flag**. `TransformStream` will behave like
+    `IdentityTransformStream` if this isn't enabled, ignoring custom
+    transformers. If `transformstream_enable_standard_constructor` is set, but
+    `streams_enable_constructors` isn't, the `TransformStream` constructor will
+    throw. `TransformStreamDefaultController` will only be included in the
+    sandbox if both flags are enabled.
+  - Add support for BYOB reads to the non-standard
+    [`FixedLengthStream`](https://developers.cloudflare.com/workers/runtime-apis/streams/transformstream/#fixedlengthstream)
+    class.
+- 🇬🇧 Add support for **Queues**. Docs coming soon™... 👀
+- 🙉 Allow calls to `addEventListener`, `removeEventListener` and
+  `dispatchEvent` in modules mode. Please note, calling `addEventListener` with
+  a special event type (e.g. `fetch`, `scheduled`) will log a warning prompting
+  you to use the `export default` syntax. Closes
+  [issue #207](https://github.com/cloudflare/miniflare/issues/207), thanks
+  [@Electroid](https://github.com/Electroid).
+- 🍟 Add experimental and highly-inaccurate request CPU time measurements. These
+  are not representative of deployed worker performance, should only be used for
+  relative comparisons, and may be removed in the future. Enable measurements
+  with the `--inaccurate-cpu`/`[miniflare] inaccurate_cpu`/`inaccurateCpu`
+  option. Closes
+  [issue #161](https://github.com/cloudflare/miniflare/issues/161). Thanks
+  [@alexandernst](https://github.com/alexandernst) and
+  [@y21](https://github.com/y21).
+- 🦄 Automatically enable watch mode when `live_reload = true` is set in
+  `wrangler.toml`.
+
+### Fixes
+
+- Return `Response`s with immutable headers from `fetch`es to Durable Objects
+  and service bindings. Closes
+  [issue #346](https://github.com/cloudflare/miniflare/issues/346), thanks
+  [@Cherry](https://github.com/Cherry).
+- Fix `CryptoKey#algorithm.name` property of `NODE-ED25519` keys. Closes
+  [issue panva/jose#446](https://github.com/panva/jose/issues/446), thanks
+  [@ItalyPaleAle](https://github.com/ItalyPaleAle).
+- Disable automatic insertion of `Sec-WebSocket-Protocol` header. Closes
+  [issue #179](https://github.com/cloudflare/miniflare/issues/179), thanks
+  [@aboodman](https://github.com/aboodman) and
+  [@grgbkr](https://github.com/grgbkr).
+- Return `Content-Length` header is custom `Content-Encoding` is specified.
+  Closes [issue #313](https://github.com/cloudflare/miniflare/issues/313),
+  thanks [@vlovich](https://github.com/vlovich).
+- Require `"automatic"` instead of `"auto"` for the `encodeBody` option when
+  constructing `Request`s. Closes
+  [issue #357](https://github.com/cloudflare/miniflare/issues/357), thanks
+  [@GregBrimble](https://github.com/GregBrimble) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/358).
+- Remove `request.cf.cacheTtl`/`request.cf.cacheTtlByStatus` support from the
+  Cache API to match the behaviour of the Workers runtime, which only supports
+  `request.cf.cacheKey`.
+
+## 2.7.1
+
+### Fixes
+
+- Ensure initialisation is complete before tear down in `Miniflare#dispose()`.
+  Closes [issue #341](https://github.com/cloudflare/miniflare/issues/341),
+  thanks [@vlovich](https://github.com/vlovich).
+- Ensure `DurableObjectTransaction` operations are executed in program order.
+  Closes [issue #344](https://github.com/cloudflare/miniflare/issues/344),
+  thanks [@vlovich](https://github.com/vlovich).
+
+## 2.7.0
+
+> ⚠️ **Miniflare's minimum supported Node.js version is now `16.13.0`.** This
+> was the first LTS release of Node.js 16.
+>
+> We recommend you use the latest Node.js version if possible, as Cloudflare
+> Workers use a very up-to-date version of V8. Consider using a Node.js version
+> manager such as https://volta.sh/ or https://github.com/nvm-sh/nvm.
+
+### Features
+
+- 🎉 Add support for easily **mocking outbound `fetch` requests**. See
+  [🕸 Web Standards](https://miniflare.dev/core/standards#mocking-outbound-fetch-requests)
+  for more details. Closes
+  [issue #162](https://github.com/cloudflare/miniflare/issues/162), thanks
+  [@william1616](https://github.com/william1616) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/293).
+
+  ```js
+  test("mocks fetch", async () => {
+    // Get correctly set up `MockAgent`
+    const fetchMock = getMiniflareFetchMock();
+    // Throw when no matching mocked request is found
+    fetchMock.disableNetConnect();
+    // Mock request to https://example.com/thing
+    const origin = fetchMock.get("https://example.com");
+    origin
+      .intercept({ method: "GET", path: "/thing" })
+      .reply(200, "Mocked response!");
+
+    const res = await fetch("https://example.com/thing");
+    const text = await res.text();
+    expect(text).toBe("Mocked response!");
+  });
+  ```
+
+- 🚽 Add support to immediately invoke _("flush")_ scheduled Durable Object
+  alarms in the [🤹 Jest Environment](https://miniflare.dev/testing/jest).
+  Closes [issue #322](https://github.com/cloudflare/miniflare/issues/322),
+  thanks [@robertcepa](https://github.com/robertcepa) and
+  [@CraigglesO](https://github.com/CraigglesO) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/324).
+
+  ```js
+  test("flushes alarms", async () => {
+    // Get Durable Object stub
+    const env = getMiniflareBindings();
+    const id = env.TEST_OBJECT.newUniqueId();
+    const stub = env.TEST_OBJECT.get(id);
+
+    // Schedule Durable Object alarm
+    await stub.fetch("http://localhost/");
+
+    // Flush all alarms...
+    await flushMiniflareDurableObjectAlarms();
+    // ...or specify an array of `DurableObjectId`s to flush
+    await flushMiniflareDurableObjectAlarms([id]);
+  });
+  ```
+
+- 🪣 Add support for R2 bucket bindings to the
+  [🤹 Jest Environment](https://miniflare.dev/testing/jest). Closes
+  [issue #305](https://github.com/cloudflare/miniflare/issues/305), thanks
+  [@Cerberus](https://github.com/Cerberus) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/306).
+- 2️⃣ Add support for Wrangler 2's `routes` property. Closes
+  [issue #254](https://github.com/cloudflare/miniflare/issues/254), thanks
+  [@jrencz](https://github.com/jrencz) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/307).
+- ⚠️ Upgrade [`undici`](https://github.com/nodejs/undici) to
+  [`5.9.1`](https://github.com/nodejs/undici/releases/tag/v5.9.1). Thanks
+  [@yusukebe](https://github.com/yusukebe) and
+  [@cameron-robey](https://github.com/cameron-robey) for
+  [the](https://github.com/cloudflare/miniflare/pull/320)
+  [PRs](https://github.com/cloudflare/miniflare/pull/333).
+
+### Fixes
+
+- Return custom `Content-Encoding`s, closes
+  [issue #312](https://github.com/cloudflare/miniflare/issues/312), thanks
+  [@vlovich](https://github.com/vlovich).
+- Fix reading symlinked files from Miniflare's file-system storage. Closes
+  [issue #318](https://github.com/cloudflare/miniflare/issues/318), thanks
+  [@CraigglesO](https://github.com/CraigglesO) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/319).
+- Display all accessible addresses when listening on host `0.0.0.0`. Closes
+  [issue cloudflare/wrangler2#1652](https://github.com/cloudflare/wrangler2/issues/1652),
+  thanks [@Skye-31](https://github.com/Skye-31) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/332).
+- Fix unbounded recursion when calling `Date.now()`/`new Date()` without
+  `--actual-time` flag. Closes
+  [issue #314](https://github.com/cloudflare/miniflare/issues/314), thanks
+  [@WalshyDev](https://github.com/WalshyDev) and
+  [@AggressivelyMeows](https://github.com/AggressivelyMeows).
+- Preserve full path in `File#name` field. Thanks
+  [@yusefnapora](https://github.com/yusefnapora) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/309).
+- Change underlying glob matching implementation to `picomatch`. Closes
+  [issue #244](https://github.com/cloudflare/miniflare/issues/244), thanks
+  [@jed](https://github.com/jed) and [@cometkim](https://github.com/cometkim)
+  for [the PR](https://github.com/cloudflare/miniflare/pull/316).
+- Fix `NotSupportedError` when using the `NODE-ED25519` algorithm in recent
+  versions of Node.js. Closes
+  [issue #310](https://github.com/cloudflare/miniflare/issues/310), thanks
+  [@yusefnapora](https://github.com/yusefnapora) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/311).
+
 ## 2.6.0
 
 ### Features

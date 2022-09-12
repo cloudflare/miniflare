@@ -1304,6 +1304,16 @@ test("transaction: waits for un-awaited writes before committing", async (t) => 
   });
   t.is(await storage.get("key"), "value");
 });
+test("transaction: performs operations in program order", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/344
+  const { storage } = t.context;
+  await storage.transaction((txn) => {
+    void txn.delete("key");
+    void txn.put("key", "value");
+    return Promise.resolve();
+  });
+  t.is(await storage.get("key"), "value"); // not `undefined`
+});
 
 test("hides implementation details", (t) => {
   const { storage } = t.context;

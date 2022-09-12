@@ -92,8 +92,35 @@ test("WebSocket: queues messages if pair not accepted", async (t) => {
   t.deepEqual(messages1, ["from2_1", "from2_2"]);
   t.deepEqual(messages2, ["from1_1", "from1_2"]);
 });
-test("WebSocket: fails to send message to pair if either side closed", (t) => {
+test("WebSocket: queues closes if pair not accepted", async (t) => {
   const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
+
+  let closeEvent1: CloseEvent | undefined;
+  let closeEvent2: CloseEvent | undefined;
+  webSocket1.addEventListener("close", (e) => (closeEvent1 = e));
+  webSocket2.addEventListener("close", (e) => (closeEvent2 = e));
+
+  webSocket1.accept();
+  webSocket1.close(3001, "from1");
+  await setImmediate();
+  t.is(closeEvent1, undefined);
+  t.is(closeEvent2, undefined);
+
+  webSocket2.accept();
+  t.is(closeEvent2?.code, 3001);
+  t.is(closeEvent2?.reason, "from1");
+  webSocket2.close(3002, "from2");
+  await setImmediate();
+  t.is(closeEvent1?.code, 3002);
+  t.is(closeEvent1?.reason, "from2");
+});
+test("WebSocket: discards sent message to pair if other side closed", async (t) => {
+  const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
+
+  const messages1: (string | ArrayBuffer)[] = [];
+  const messages2: (string | ArrayBuffer)[] = [];
+  webSocket1.addEventListener("message", (e) => messages1.push(e.data));
+  webSocket2.addEventListener("message", (e) => messages2.push(e.data));
 
   webSocket1.accept();
   webSocket2.accept();
@@ -102,10 +129,15 @@ test("WebSocket: fails to send message to pair if either side closed", (t) => {
     instanceOf: Error,
     message: "Can't call WebSocket send() after close().",
   });
-  t.throws(() => webSocket2.send("from2"), {
-    instanceOf: Error,
-    message: "Can't call WebSocket send() after close().",
-  });
+  await setImmediate();
+  t.deepEqual(messages1, []);
+  t.deepEqual(messages2, []);
+
+  // Message sent from non-close()d side received
+  webSocket2.send("from2");
+  await setImmediate();
+  t.deepEqual(messages1, ["from2"]);
+  t.deepEqual(messages2, []);
 });
 test("WebSocket: closes both sides of pair", async (t) => {
   const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
@@ -113,13 +145,49 @@ test("WebSocket: closes both sides of pair", async (t) => {
   webSocket2.accept();
 
   const closes: number[] = [];
-  webSocket1.addEventListener("close", () => closes.push(1));
-  webSocket2.addEventListener("close", () => closes.push(2));
-
+  webSocket1.addEventListener("close", () => closes.push(3));
+  webSocket2.addEventListener("close", () => {
+    closes.push(2);
+    webSocket2.close();
+  });
+  closes.push(1);
   webSocket1.close();
   await setImmediate();
+
   // Check both event listeners called once
-  t.deepEqual(closes, [1, 2]);
+  t.deepEqual(closes, [1, 2, 3]);
+});
+test("WebSocket: has correct readyStates", async (t) => {
+  // Check constants have correct values:
+  // https://websockets.spec.whatwg.org/#interface-definition
+  t.is(WebSocket.READY_STATE_CONNECTING, 0);
+  t.is(WebSocket.READY_STATE_OPEN, 1);
+  t.is(WebSocket.READY_STATE_CLOSING, 2);
+  t.is(WebSocket.READY_STATE_CLOSED, 3);
+
+  const [webSocket1, webSocket2] = Object.values(new WebSocketPair());
+  t.is(webSocket1.readyState, WebSocket.READY_STATE_OPEN);
+  t.is(webSocket2.readyState, WebSocket.READY_STATE_OPEN);
+
+  webSocket1.accept();
+  webSocket2.accept();
+
+  t.is(webSocket1.readyState, WebSocket.READY_STATE_OPEN);
+  t.is(webSocket2.readyState, WebSocket.READY_STATE_OPEN);
+
+  const [closeTrigger, closePromise] = triggerPromise<void>();
+  webSocket1.addEventListener("close", () => {
+    t.is(webSocket1.readyState, WebSocket.READY_STATE_CLOSED);
+    t.is(webSocket2.readyState, WebSocket.READY_STATE_CLOSED);
+    closeTrigger();
+  });
+  webSocket2.addEventListener("close", () => {
+    t.is(webSocket1.readyState, WebSocket.READY_STATE_CLOSING);
+    t.is(webSocket2.readyState, WebSocket.READY_STATE_CLOSING);
+    webSocket2.close();
+  });
+  webSocket1.close();
+  await closePromise;
 });
 
 test("WebSocket: waits for output gate to open before sending message", async (t) => {

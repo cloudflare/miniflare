@@ -32,7 +32,7 @@ $ npx miniflare
 
 <Aside type="warning" header="Warning">
 
-Miniflare requires at least **Node.js 16.7.0**, as it makes extensive use of
+Miniflare requires at least **Node.js 16.13.0**, as it makes extensive use of
 recently added web standards. You should use the latest Node.js version if
 possible, as Cloudflare Workers use a very up-to-date version of V8. Consider
 using a Node.js version manager such as https://volta.sh/ or
@@ -275,6 +275,7 @@ Core Options:
      --global-random     Allow secure random generation outside        [boolean]
                          handlers
      --actual-time       Always return correct time from Date methods  [boolean]
+     --inaccurate-cpu    Log inaccurate CPU time measurements          [boolean]
 
 HTTP Options:
  -H, --host              Host for HTTP(S) server to listen on           [string]
@@ -416,6 +417,8 @@ actual_time = true                 # --actual-time
 global_async_io = true             # --global-async-io
 global_timers = true               # --global-timers
 global_random = true               # --global-random
+actual_time = true                 # --actual-time
+inaccurate_cpu = true              # --inaccurate-cpu
 [miniflare.https]
 key = "./key.pem"                  # --https-key
 cert = "./cert.pem"                # --https-cert

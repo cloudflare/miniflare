@@ -5,6 +5,7 @@ import {
   Request,
   Response,
 } from "@miniflare/core";
+import { QueueBroker } from "@miniflare/queues";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
   Awaitable,
@@ -25,11 +26,12 @@ export function useMiniflare<Plugins extends PluginSignatures>(
   extraPlugins: Plugins,
   options: MiniflareCoreOptions<{ CorePlugin: typeof CorePlugin } & Plugins>,
   log: Log = new NoOpLog(),
-  storageFactory: StorageFactory = new MemoryStorageFactory()
+  storageFactory: StorageFactory = new MemoryStorageFactory(),
+  queueBroker: QueueBroker = new QueueBroker()
 ): MiniflareCore<{ CorePlugin: typeof CorePlugin } & Plugins> {
   return new MiniflareCore(
     { CorePlugin, ...extraPlugins },
-    { log, storageFactory, scriptRunner },
+    { log, storageFactory, scriptRunner, queueBroker },
     options
   );
 }

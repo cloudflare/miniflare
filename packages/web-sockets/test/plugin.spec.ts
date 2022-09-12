@@ -1,7 +1,13 @@
 import assert from "assert";
 import { Request } from "@miniflare/core";
 import type { FetchEvent } from "@miniflare/core";
-import { Compatibility, NoOpLog, PluginContext } from "@miniflare/shared";
+import { QueueBroker } from "@miniflare/queues";
+import {
+  Compatibility,
+  NoOpLog,
+  PluginContext,
+  QueueEventDispatcher,
+} from "@miniflare/shared";
 import {
   noop,
   triggerPromise,
@@ -20,8 +26,16 @@ import test from "ava";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath, globalAsyncIO: true };
-
+const queueBroker = new QueueBroker();
+const queueEventDispatcher: QueueEventDispatcher = async (_batch) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker,
+  queueEventDispatcher,
+  globalAsyncIO: true,
+};
 test("WebSocketPlugin: setup: includes WebSocket stuff in globals", (t) => {
   const plugin = new WebSocketPlugin(ctx);
   const globals = plugin.setup().globals!;
@@ -40,6 +54,8 @@ test("WebSocketPlugin: setup: fetch refuses unknown protocols if compatibility f
     compat,
     rootPath,
     globalAsyncIO: true,
+    queueBroker,
+    queueEventDispatcher,
   });
   const { globals } = await plugin.setup();
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
@@ -51,13 +67,26 @@ test("WebSocketPlugin: setup: fetch refuses unknown protocols if compatibility f
 });
 test("WebSocketPlugin: setup: fetch throws outside request handler unless globalAsyncIO set", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
-  let plugin = new WebSocketPlugin({ log, compat, rootPath });
+  let plugin = new WebSocketPlugin({
+    log,
+    compat,
+    rootPath,
+    queueBroker,
+    queueEventDispatcher,
+  });
   let { globals } = await plugin.setup();
   await t.throwsAsync(globals?.fetch(upstream), {
     instanceOf: Error,
     message: /^Some functionality, such as asynchronous I\/O/,
   });
-  plugin = new WebSocketPlugin({ log, compat, rootPath, globalAsyncIO: true });
+  plugin = new WebSocketPlugin({
+    log,
+    compat,
+    rootPath,
+    globalAsyncIO: true,
+    queueBroker,
+    queueEventDispatcher,
+  });
   globals = (await plugin.setup()).globals;
   await globals?.fetch(upstream);
 });

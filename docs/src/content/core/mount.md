@@ -108,6 +108,10 @@ filename: api/wrangler.toml
 route = "https://example.com/api/*"
 routes = ["example.com/v1/*", "example.com/v2/*"]
 
+# Miniflare supports Wrangler2 routes. Zones are ignored
+route = {pattern = "https://example.com/api/*", zone_name="<ignored>"}
+routes = [{pattern = "example.com/v1/*", zone_name="<ignored>"}, {pattern = "example.com/v2/*", zone_id = "<ignored>"}]
+
 # Only loaded if the wrangler.toml environment is set to "dev"
 [env.dev]
 route = "miniflare.test/api/*"

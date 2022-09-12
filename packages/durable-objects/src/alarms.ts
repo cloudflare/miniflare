@@ -32,7 +32,7 @@ export class AlarmStore {
   // build a map of all alarms from file storage if persist
   async setupStore(storage: StorageFactory, persist?: boolean | string) {
     // pull in the store & iterate the store for all alarms
-    this.#store = await storage.storage(ALARM_KEY, persist);
+    this.#store = storage.storage(ALARM_KEY, persist);
     const { keys } = await this.#store.list<{ scheduledTime: number }>();
     for (const { name, metadata } of keys) {
       this.#alarms.set(name, { scheduledTime: metadata?.scheduledTime || 0 });
@@ -48,7 +48,7 @@ export class AlarmStore {
     if (doAlarm.timeout) clearTimeout(doAlarm.timeout);
     // set alarm
     doAlarm.timeout = setTimeout(() => {
-      this.#deleteAlarm(objectKey, doAlarm);
+      void this.#deleteAlarm(objectKey, doAlarm);
       this.#callback?.(objectKey);
     }, Math.max(doAlarm.scheduledTime - now, 0));
   }
@@ -128,6 +128,25 @@ export class AlarmStore {
     // if persist, delete from storage
     assert(this.#store);
     await this.#store.delete(key);
+  }
+
+  async flushAlarms(keys?: string[]) {
+    if (keys === undefined) {
+      // Flush all scheduled alarms
+      for (const [key, alarm] of this.#alarms) {
+        await this.#deleteAlarm(key, alarm);
+        await this.#callback?.(key);
+      }
+    } else {
+      // Flush selected scheduled alarms
+      for (const key of keys) {
+        const alarm = this.#alarms.get(key);
+        if (alarm !== undefined) {
+          await this.#deleteAlarm(key, alarm);
+          await this.#callback?.(key);
+        }
+      }
+    }
   }
 
   dispose() {

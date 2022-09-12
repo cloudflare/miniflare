@@ -272,6 +272,8 @@ const kWriteSet = Symbol("kWriteSet");
 export const kAlarmExists = Symbol("kAlarmExists");
 
 export class DurableObjectTransaction implements DurableObjectOperator {
+  readonly #mutex = new ReadWriteMutex();
+
   readonly [kInner]: ShadowStorage;
   readonly [kStartTxnCount]: number;
   [kRolledback] = false;
@@ -325,7 +327,7 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     }
     this.#check("get");
     return runWithInputGateClosed(
-      () => get(this[kInner], keys as any),
+      () => this.#mutex.runWithRead(() => get(this[kInner], keys as any)),
       options?.allowConcurrency
     );
   }
@@ -363,7 +365,8 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     if (!options && typeof keyEntries !== "string") options = valueOptions;
     return waitUntilOnOutputGate(
       runWithInputGateClosed(
-        () => this.#put(keyEntries, valueOptions),
+        () =>
+          this.#mutex.runWithWrite(() => this.#put(keyEntries, valueOptions)),
         options?.allowConcurrency
       ),
       options?.allowUnconfirmed
@@ -394,7 +397,7 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     this.#check("delete");
     return waitUntilOnOutputGate(
       runWithInputGateClosed(
-        () => this.#delete(keys),
+        () => this.#mutex.runWithWrite(() => this.#delete(keys)),
         options?.allowConcurrency
       ),
       options?.allowUnconfirmed
@@ -410,7 +413,7 @@ export class DurableObjectTransaction implements DurableObjectOperator {
   ): Promise<Map<string, Value>> {
     this.#check("list");
     return runWithInputGateClosed(
-      () => list(this[kInner], options),
+      () => this.#mutex.runWithRead(() => list(this[kInner], options)),
       options.allowConcurrency
     );
   }
@@ -421,7 +424,7 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     this.#check("getAlarm");
     if (!this[kAlarmExists]) return null;
     return runWithInputGateClosed(
-      () => this[kInner].getAlarm(),
+      () => this.#mutex.runWithRead(() => this[kInner].getAlarm()),
       options?.allowConcurrency
     );
   }
@@ -438,7 +441,8 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     }
     return waitUntilOnOutputGate(
       runWithInputGateClosed(
-        () => this[kInner].setAlarm(scheduledTime),
+        () =>
+          this.#mutex.runWithWrite(() => this[kInner].setAlarm(scheduledTime)),
         options?.allowConcurrency
       ),
       options?.allowUnconfirmed
@@ -449,7 +453,7 @@ export class DurableObjectTransaction implements DurableObjectOperator {
     this.#check("deleteAlarm");
     return waitUntilOnOutputGate(
       runWithInputGateClosed(
-        () => this[kInner].deleteAlarm(),
+        () => this.#mutex.runWithWrite(() => this[kInner].deleteAlarm()),
         options?.allowConcurrency
       ),
       options?.allowUnconfirmed
@@ -825,7 +829,7 @@ export class DurableObjectStorage implements DurableObjectOperator {
     }
     return runWithGatesClosed(async () => {
       await this.#mutex.runWithWrite(async () => {
-        this.#shadow.setAlarm(scheduledTime);
+        await this.#shadow.setAlarm(scheduledTime);
         // "Commit" write
         this.#txnRecordWriteSet(new Set([ALARM_KEY]));
       });

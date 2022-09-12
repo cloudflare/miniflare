@@ -13,13 +13,17 @@ export interface WranglerServiceConfig {
   environment: string;
 }
 
+export type RouteType =
+  | string
+  | { pattern: string; zone_id?: string; zone_name?: string };
+
 export interface WranglerEnvironmentConfig {
   name?: string; // inherited
   zone_id?: string; // inherited
   account_id?: string; // inherited
   workers_dev?: boolean; // inherited
-  route?: string; // NOT inherited
-  routes?: string[]; // NOT inherited
+  route?: RouteType; // NOT inherited
+  routes?: RouteType[]; // NOT inherited
   webpack_config?: string; // inherited
   vars?: Record<string, any>; // NOT inherited
   kv_namespaces?: {
@@ -48,6 +52,19 @@ export interface WranglerEnvironmentConfig {
       name: string;
       class_name: string;
       script_name?: string;
+    }[];
+  }; // (probably) NOT inherited
+  queues?: {
+    producers?: {
+      binding: string;
+      queue: string;
+    }[];
+    consumers?: {
+      queue: string;
+      batch_size?: number;
+      batch_timeout?: number;
+      message_retries?: number;
+      dead_letter_queue?: string;
     }[];
   }; // (probably) NOT inherited
   triggers?: {
@@ -90,12 +107,13 @@ export interface WranglerEnvironmentConfig {
     live_reload?: boolean;
     update_check?: boolean;
     mounts?: Record<string, string>;
-    route?: string;
-    routes?: string[];
+    route?: RouteType;
+    routes?: RouteType[];
     global_async_io?: boolean;
     global_timers?: boolean;
     global_random?: boolean;
     actual_time?: boolean;
+    inaccurate_cpu?: boolean;
   }; // inherited
 }
 

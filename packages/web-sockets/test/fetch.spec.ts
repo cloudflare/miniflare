@@ -22,6 +22,7 @@ import {
   useServer,
 } from "@miniflare/shared-test";
 import {
+  CloseEvent,
   MessageEvent,
   WebSocketPlugin,
   upgradingFetch,
@@ -126,6 +127,82 @@ test("upgradingFetch: includes headers from web socket upgrade response", async 
   t.not(res.webSocket, undefined);
   t.is(res.headers.get("set-cookie"), "key=value");
 });
+test("upgradingFetch: dispatches close events on client and server close", async (t) => {
+  let clientCloses = 0;
+  let serverCloses = 0;
+  const [clientCloseTrigger, clientClosePromise] = triggerPromise<void>();
+  const [serverCloseTrigger, serverClosePromise] = triggerPromise<void>();
+
+  const server = await useServer(t, noop, (ws, req) => {
+    if (req.url?.startsWith("/client")) {
+      ws.on("close", (code, reason) => {
+        t.is(code, 3001);
+        t.is(reason.toString(), "Client Close");
+        if (req.url === "/client/event-listener") {
+          ws.close(3002, "Server Event Listener Close");
+        }
+
+        clientCloses++;
+        if (clientCloses === 2) clientCloseTrigger();
+      });
+    } else if (req.url === "/server") {
+      ws.on("message", (data) => {
+        if (data.toString() === "close") ws.close(3003, "Server Close");
+      });
+      ws.on("close", (code, reason) => {
+        t.is(code, 3003);
+        t.is(reason.toString(), "Server Close");
+
+        serverCloses++;
+        if (serverCloses === 2) serverCloseTrigger();
+      });
+    }
+  });
+
+  // Check client-side close
+  async function clientSideClose(closeInEventListener: boolean) {
+    const path = closeInEventListener ? "/client/event-listener" : "/client";
+    const res = await upgradingFetch(new URL(path, server.http), {
+      headers: { upgrade: "websocket" },
+    });
+    const webSocket = res.webSocket;
+    assert(webSocket);
+    const [closeEventTrigger, closeEventPromise] = triggerPromise<CloseEvent>();
+    webSocket.addEventListener("close", closeEventTrigger);
+    webSocket.accept();
+    webSocket.close(3001, "Client Close");
+    const closeEvent = await closeEventPromise;
+    t.is(closeEvent.code, 3001);
+    t.is(closeEvent.reason, "Client Close");
+  }
+  await clientSideClose(false);
+  await clientSideClose(true);
+  await clientClosePromise;
+
+  // Check server-side close
+  async function serverSideClose(closeInEventListener: boolean) {
+    const res = await upgradingFetch(new URL("/server", server.http), {
+      headers: { upgrade: "websocket" },
+    });
+    const webSocket = res.webSocket;
+    assert(webSocket);
+    const [closeEventTrigger, closeEventPromise] = triggerPromise<CloseEvent>();
+    webSocket.addEventListener("close", (event) => {
+      if (closeInEventListener) {
+        webSocket.close(3004, "Client Event Listener Close");
+      }
+      closeEventTrigger(event);
+    });
+    webSocket.accept();
+    webSocket.send("close");
+    const closeEvent = await closeEventPromise;
+    t.is(closeEvent.code, 3003);
+    t.is(closeEvent.reason, "Server Close");
+  }
+  await serverSideClose(false);
+  await serverSideClose(true);
+  await serverClosePromise;
+});
 test("upgradingFetch: throws on ws(s) protocols", async (t) => {
   await t.throwsAsync(
     upgradingFetch("ws://localhost/", {
@@ -198,6 +275,11 @@ test("upgradingFetch: requires GET for web socket upgrade", async (t) => {
       instanceOf: TypeError,
       message: "fetch failed",
     }
+  );
+});
+test("upgradeFetch: throws catchable error on connection failure", async (t) => {
+  await t.throwsAsync(
+    upgradingFetch("http://[100::]", { headers: { upgrade: "websocket" } })
   );
 });
 test("upgradingFetch: increments subrequest count", async (t) => {

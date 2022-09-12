@@ -11,7 +11,7 @@ guide walks you through how to upgrade your app.
 
 ### Upgrade Node.js
 
-**Node.js 16.7.0 is now the minimum required version**. You should use the
+**Node.js 16.13.0 is now the minimum required version**. You should use the
 latest Node.js version if possible, as Cloudflare Workers use a very up-to-date
 version of V8. Consider using a Node.js version manager such as
 <https://volta.sh/> or <https://github.com/nvm-sh/nvm>.

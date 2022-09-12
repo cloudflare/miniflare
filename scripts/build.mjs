@@ -92,7 +92,7 @@ async function buildPackage(name) {
   }
   const outPath = path.join(pkgRoot, "dist");
 
-  const cjsEntryPoints = [indexPath, ...testPaths];
+  const cjsEntryPoints = [...testPaths];
   // Some tests require bundled ES module fixtures (e.g. Workers Sites), so
   // build .mjs/.mts files using `format: "esm"`
   const esmEntryPoints = [];
@@ -100,6 +100,12 @@ async function buildPackage(name) {
     (/\.m[tj]s$/.test(entryPoint) ? esmEntryPoints : cjsEntryPoints).push(
       path.join(pkgRoot, entryPoint)
     );
+  }
+  // `vitest` requires custom environments to be ES modules with default exports
+  if (name === "vitest-environment-miniflare") {
+    esmEntryPoints.unshift(indexPath);
+  } else {
+    cjsEntryPoints.unshift(indexPath);
   }
 
   const pkgBuildOptions = {

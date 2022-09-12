@@ -2,13 +2,13 @@ import { URL } from "url";
 import {
   Request,
   RequestInfo,
-  RequestInitCfProperties,
   Response,
+  withImmutableHeaders,
   withStringFormDataFiles,
 } from "@miniflare/core";
 import {
-  Awaitable,
   Clock,
+  SITES_NO_CACHE_PREFIX,
   Storage,
   assertInRequest,
   defaultClock,
@@ -25,6 +25,7 @@ import {
 } from "undici";
 import { CacheError } from "./error";
 import { CacheInterface, CacheMatchOptions, CachedMeta } from "./helpers";
+import { _getRangeResponse } from "./range";
 
 function normaliseRequest(req: RequestInfo): BaseRequest | Request {
   // noinspection SuspiciousTypeOfGuard
@@ -56,36 +57,11 @@ function getKey(req: BaseRequest | Request): string {
   }
 }
 
-const cacheTtlByStatusRangeRegexp = /^(?<from>\d+)(-(?<to>\d+))?$/;
-
 function getExpirationTtl(
   clock: Clock,
   req: BaseRequest | Request,
   res: BaseResponse | Response
 ): number | undefined {
-  // Check cf property first for expiration TTL
-  // @ts-expect-error cf doesn't exist on BaseRequest, but it will just be
-  // undefined if it doesn't
-  const cf: RequestInitCfProperties | undefined = req.cf;
-  if (cf?.cacheTtl) return cf.cacheTtl * 1000;
-  if (cf?.cacheTtlByStatus) {
-    for (const [range, ttl] of Object.entries(cf.cacheTtlByStatus)) {
-      const match = cacheTtlByStatusRangeRegexp.exec(range);
-      const fromString: string | undefined = match?.groups?.from;
-      // If no match, skip to next range
-      if (!fromString) continue;
-      const from = parseInt(fromString);
-      const toString: string | undefined = match?.groups?.to;
-      // If matched "to" group, check range, otherwise, just check equal status
-      if (toString) {
-        const to = parseInt(toString);
-        if (from <= res.status && res.status <= to) return ttl * 1000;
-      } else if (res.status === from) {
-        return ttl * 1000;
-      }
-    }
-  }
-
   // Cloudflare ignores request Cache-Control
   const reqHeaders = normaliseHeaders(req.headers);
   delete reqHeaders["cache-control"];
@@ -134,6 +110,70 @@ function getExpirationTtl(
   }
 }
 
+// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag#syntax
+const etagRegexp = /^(W\/)?"(.+)"$/;
+function parseETag(value: string): string | undefined {
+  // As we only use this for `If-None-Match` handling, which always uses the
+  // weak comparison algorithm, ignore "W/" directives:
+  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match
+  return etagRegexp.exec(value.trim())?.[2] ?? undefined;
+}
+
+// https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.1.1
+const utcDateRegexp =
+  /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d\d (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d\d\d\d \d\d:\d\d:\d\d GMT$/;
+function parseUTCDate(value: string): number {
+  return utcDateRegexp.test(value) ? Date.parse(value) : NaN;
+}
+
+function getMatchResponse(
+  reqHeaders: Headers,
+  resStatus: number,
+  resHeaders: Headers,
+  resBody: Uint8Array
+): Response {
+  // If `If-None-Match` is set, perform a conditional request:
+  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match
+  const reqIfNoneMatchHeader = reqHeaders.get("If-None-Match");
+  const resETagHeader = resHeaders.get("ETag");
+  if (reqIfNoneMatchHeader !== null && resETagHeader !== null) {
+    const resETag = parseETag(resETagHeader);
+    if (resETag !== undefined) {
+      if (reqIfNoneMatchHeader.trim() === "*") {
+        return new Response(null, { status: 304, headers: resHeaders });
+      }
+      for (const reqIfNoneMatch of reqIfNoneMatchHeader.split(",")) {
+        if (resETag === parseETag(reqIfNoneMatch)) {
+          return new Response(null, { status: 304, headers: resHeaders });
+        }
+      }
+    }
+  }
+
+  // If `If-Modified-Since` is set, perform a conditional request:
+  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Modified-Since
+  const reqIfModifiedSinceHeader = reqHeaders.get("If-Modified-Since");
+  const resLastModifiedHeader = resHeaders.get("Last-Modified");
+  if (reqIfModifiedSinceHeader !== null && resLastModifiedHeader !== null) {
+    const reqIfModifiedSince = parseUTCDate(reqIfModifiedSinceHeader);
+    const resLastModified = parseUTCDate(resLastModifiedHeader);
+    // Comparison of NaN's (invalid dates), will always result in `false`
+    if (resLastModified <= reqIfModifiedSince) {
+      return new Response(null, { status: 304, headers: resHeaders });
+    }
+  }
+
+  // If `Range` is set, return a partial response:
+  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Range
+  const reqRangeHeader = reqHeaders.get("Range");
+  if (reqRangeHeader !== null) {
+    return _getRangeResponse(reqRangeHeader, resStatus, resHeaders, resBody);
+  }
+
+  // Otherwise, return the full response
+  return new Response(resBody, { status: resStatus, headers: resHeaders });
+}
+
 export interface InternalCacheOptions {
   formDataFiles?: boolean;
   clock?: Clock;
@@ -141,13 +181,13 @@ export interface InternalCacheOptions {
 }
 
 export class Cache implements CacheInterface {
-  readonly #storage: Awaitable<Storage>;
+  readonly #storage: Storage;
   readonly #formDataFiles: boolean;
   readonly #clock: Clock;
   readonly #blockGlobalAsyncIO: boolean;
 
   constructor(
-    storage: Awaitable<Storage>,
+    storage: Storage,
     {
       formDataFiles = true,
       clock = defaultClock,
@@ -184,6 +224,11 @@ export class Cache implements CacheInterface {
       throw new TypeError("Cannot cache response with 'Vary: *' header.");
     }
 
+    // Disable caching of Workers Sites files, so we always serve the latest
+    // version from disk
+    const url = new URL(req.url);
+    if (url.pathname.startsWith("/" + SITES_NO_CACHE_PREFIX)) return;
+
     // Check if response cacheable and get expiration TTL if any
     const expirationTtl = getExpirationTtl(this.#clock, req, res);
     if (expirationTtl === undefined) return;
@@ -194,9 +239,8 @@ export class Cache implements CacheInterface {
       status: res.status,
       headers: [...res.headers],
     };
-    const storage = await this.#storage;
     await waitForOpenOutputGate();
-    await storage.put(key, {
+    await this.#storage.put(key, {
       value: new Uint8Array(await res.arrayBuffer()),
       expiration: millisToSeconds(this.#clock() + expirationTtl),
       metadata,
@@ -218,8 +262,7 @@ export class Cache implements CacheInterface {
 
     // Check if we have the response cached
     const key = getKey(req);
-    const storage = await this.#storage;
-    const cached = await storage.get<CachedMeta>(key);
+    const cached = await this.#storage.get<CachedMeta>(key);
     await waitForOpenInputGate();
     ctx?.advanceCurrentTime();
     if (!cached) return;
@@ -239,14 +282,17 @@ export class Cache implements CacheInterface {
     // Build Response from cache
     const headers = new Headers(cached.metadata.headers);
     headers.set("CF-Cache-Status", "HIT");
+
     // Returning a @miniflare/core Response so we don't need to convert
     // BaseResponse to one when dispatching fetch events
-    let res = new Response(cached.value, {
-      status: cached.metadata.status,
+    let res = getMatchResponse(
+      req.headers,
+      cached.metadata.status,
       headers,
-    });
+      cached.value
+    );
     if (!this.#formDataFiles) res = withStringFormDataFiles(res);
-    return res;
+    return withImmutableHeaders(res);
   }
 
   async delete(
@@ -262,9 +308,8 @@ export class Cache implements CacheInterface {
 
     // Delete the cached response if it exists
     const key = getKey(req);
-    const storage = await this.#storage;
     await waitForOpenOutputGate();
-    const result = storage.delete(key);
+    const result = this.#storage.delete(key);
     await waitForOpenInputGate();
     ctx?.advanceCurrentTime();
     return result;

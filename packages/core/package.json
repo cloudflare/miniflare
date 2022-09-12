@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/core",
-  "version": "2.6.0",
+  "version": "2.8.2",
   "description": "Core module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -17,7 +17,7 @@
     "dist/src"
   ],
   "engines": {
-    "node": ">=16.7"
+    "node": ">=16.13"
   },
   "publishConfig": {
     "access": "public"
@@ -39,20 +39,21 @@
   ],
   "dependencies": {
     "@iarna/toml": "^2.2.5",
-    "@miniflare/shared": "2.6.0",
-    "@miniflare/watcher": "2.6.0",
+    "@miniflare/queues": "2.8.2",
+    "@miniflare/shared": "2.8.2",
+    "@miniflare/watcher": "2.8.2",
     "busboy": "^1.6.0",
     "dotenv": "^10.0.0",
     "kleur": "^4.1.4",
     "set-cookie-parser": "^2.4.8",
-    "undici": "5.5.1",
+    "undici": "5.9.1",
     "urlpattern-polyfill": "^4.0.3"
   },
   "devDependencies": {
-    "@miniflare/durable-objects": "2.6.0",
-    "@miniflare/shared-test": "2.6.0",
-    "@miniflare/watcher": "2.6.0",
-    "@miniflare/web-sockets": "2.6.0",
+    "@miniflare/durable-objects": "2.8.2",
+    "@miniflare/shared-test": "2.8.2",
+    "@miniflare/watcher": "2.8.2",
+    "@miniflare/web-sockets": "2.8.2",
     "@types/busboy": "^1.5.0",
     "@types/set-cookie-parser": "^2.4.1",
     "dequal": "^2.0.2"

@@ -41,21 +41,21 @@ export class R2Plugin extends Plugin<R2Options> implements R2Options {
     this.#persist = resolveStoragePersist(ctx.rootPath, this.r2Persist);
   }
 
-  async getBucket(
+  getBucket(
     storage: StorageFactory,
     bucket: string,
     blockGlobalAsyncIO = false
-  ): Promise<R2Bucket> {
-    return new R2Bucket(await storage.storage(bucket, this.#persist), {
+  ): R2Bucket {
+    return new R2Bucket(storage.storage(bucket, this.#persist), {
       blockGlobalAsyncIO,
     });
   }
 
-  async setup(storageFactory: StorageFactory): Promise<SetupResult> {
+  setup(storageFactory: StorageFactory): SetupResult {
     const blockGlobalAsyncIO = !this.ctx.globalAsyncIO;
     const bindings: Context = {};
     for (const bucket of this.r2Buckets ?? []) {
-      bindings[bucket] = await this.getBucket(
+      bindings[bucket] = this.getBucket(
         storageFactory,
         bucket,
         blockGlobalAsyncIO

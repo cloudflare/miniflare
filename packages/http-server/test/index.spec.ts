@@ -1,5 +1,6 @@
 // noinspection HttpUrlsUsage
 
+import { once } from "events";
 import http from "http";
 import https from "https";
 import { AddressInfo } from "net";
@@ -38,7 +39,11 @@ import {
   useTmp,
   utf8Encode,
 } from "@miniflare/shared-test";
-import { MessageEvent, WebSocketPlugin } from "@miniflare/web-sockets";
+import {
+  CloseEvent,
+  MessageEvent,
+  WebSocketPlugin,
+} from "@miniflare/web-sockets";
 import test, { ExecutionContext, Macro } from "ava";
 import StandardWebSocket, {
   Data,
@@ -282,18 +287,22 @@ test("createRequestListener: handles buffer http worker response", async (t) => 
   t.is(body, "buffer");
 });
 test("createRequestListener: handles stream http worker response", async (t) => {
-  const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {
-    return new globals.Response(
-      new globals.ReadableStream({
-        start(controller: ReadableStreamDefaultController) {
-          const encoder = new globals.TextEncoder();
-          controller.enqueue(encoder.encode("str"));
-          controller.enqueue(encoder.encode("eam"));
-          controller.close();
-        },
-      })
-    );
-  });
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin },
+    { compatibilityFlags: ["streams_enable_constructors"] },
+    (globals) => {
+      return new globals.Response(
+        new globals.ReadableStream({
+          start(controller: ReadableStreamDefaultController) {
+            const encoder = new globals.TextEncoder();
+            controller.enqueue(encoder.encode("str"));
+            controller.enqueue(encoder.encode("eam"));
+            controller.close();
+          },
+        })
+      );
+    }
+  );
   const port = await listen(t, http.createServer(createRequestListener(mf)));
   const [body] = await request(port);
   t.is(body, "stream");
@@ -437,6 +446,20 @@ test("createRequestListener: displays appropriately-formatted error page", async
   });
   t.is(headers["content-type"], "text/plain; charset=UTF-8");
 });
+test("createRequestListener: discards Content-Length header if invalid", async (t) => {
+  // https://github.com/honojs/hono/issues/520
+  const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {
+    const res = new globals.Response("string");
+    return new globals.Response(res.body, {
+      headers: { "Content-Length": "undefined" },
+    });
+  });
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+  const [body, headers] = await request(port);
+  t.is(body, "string");
+  t.is(headers["content-length"], undefined);
+  t.is(headers["transfer-encoding"], "chunked");
+});
 test("createRequestListener: includes live reload script in html responses if enabled", async (t) => {
   const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals) => {
     return new globals.Response(
@@ -519,9 +542,13 @@ const autoEncodeMacro: Macro<
   const port = await listen(t, http.createServer(createRequestListener(mf)));
   return new Promise<void>((resolve) => {
     http.get({ port }, async (res) => {
-      t.is(res.headers["content-length"], undefined);
-      t.is(res.headers["transfer-encoding"], "chunked");
-      t.is(res.headers["content-encoding"], encodes ? encoding : undefined);
+      if (encodes) {
+        t.is(res.headers["content-length"], undefined);
+        t.is(res.headers["transfer-encoding"], "chunked");
+      } else {
+        t.not(res.headers["content-length"], undefined);
+      }
+      t.is(res.headers["content-encoding"], encoding);
       const compressed = await buffer(res);
       const decompressed = decompress(compressed);
       if (encodes) t.true(compressed.byteLength < decompressed.byteLength);
@@ -542,6 +569,8 @@ test(autoEncodeMacro, "deflate, gZip", (buffer) =>
 );
 // Should skip all encoding with single unknown encoding
 test(autoEncodeMacro, "deflate, unknown, gzip", (buffer) => buffer, false);
+// Should allow custom `Content-Encoding`s: https://github.com/cloudflare/miniflare/issues/312
+test(autoEncodeMacro, "custom", (buffer) => buffer, false);
 test("createRequestListener: skips encoding already encoded data", async (t) => {
   const encoded = new Uint8Array(zlib.gzipSync(Buffer.from(longText, "utf8")));
   const mf = useMiniflareWithHandler(
@@ -607,6 +636,82 @@ test("createRequestListener: should allow connection close before stream finishe
   await setTimeout(1000);
   // This shouldn't throw a premature close
   await writer.write(utf8Encode("data: test\n\n"));
+});
+test("createRequestListener: should include Content-Length header on responses", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/313
+  const mf = useMiniflareWithHandler({ HTTPPlugin }, {}, (globals, req) => {
+    const url = new globals.URL(req.url);
+    if (url.pathname === "/content-encoding") {
+      return new globals.Response("body", {
+        headers: { "Content-Encoding": "custom", "Content-Length": "4" },
+      });
+    } else if (url.pathname === "/encode-body-manual") {
+      return new globals.Response("body", {
+        encodeBody: "manual",
+        headers: { "Content-Length": "4" },
+      });
+    } else {
+      return new globals.Response(null, { status: 404 });
+    }
+  });
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+
+  // Check with custom `Content-Encoding` (https://github.com/cloudflare/miniflare/issues/312)
+  await new Promise<void>((resolve) => {
+    http.get({ port, path: "/content-encoding" }, async (res) => {
+      t.is(res.headers["content-length"], "4");
+      t.is(res.headers["content-encoding"], "custom");
+      t.is(await text(res), "body");
+      resolve();
+    });
+  });
+  await new Promise<void>((resolve) => {
+    http.get({ port, method: "HEAD", path: "/content-encoding" }, (res) => {
+      t.is(res.headers["content-length"], "4");
+      t.is(res.headers["content-encoding"], "custom");
+      resolve();
+    });
+  });
+
+  // Check with `encodeBody: "manual"`
+  await new Promise<void>((resolve) => {
+    http.get({ port, path: "/encode-body-manual" }, async (res) => {
+      t.is(res.headers["content-length"], "4");
+      t.is(await text(res), "body");
+      resolve();
+    });
+  });
+  await new Promise<void>((resolve) => {
+    http.get({ port, method: "HEAD", path: "/encode-body-manual" }, (res) => {
+      t.is(res.headers["content-length"], "4");
+      resolve();
+    });
+  });
+});
+test("createRequestListener: logs response", async (t) => {
+  const log = new TestLog();
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin },
+    {},
+    (globals) => new globals.Response("body"),
+    log
+  );
+  const port = await listen(t, http.createServer(createRequestListener(mf)));
+
+  let [body] = await request(port);
+  t.is(body, "body");
+  let logs = log.logsAtLevel(LogLevel.NONE);
+  t.is(logs.length, 1);
+  t.regex(logs[0], /^GET \/ 200 OK \(\d+\.\d+ms\)$/);
+
+  // Check includes inaccurate CPU time if enabled
+  await mf.setOptions({ inaccurateCpu: true });
+  log.logs = [];
+  [body] = await request(port);
+  t.is(body, "body");
+  logs = log.logsAtLevel(LogLevel.NONE);
+  t.is(logs.length, 1);
+  t.regex(logs[0], /^GET \/ 200 OK \(\d+\.\d+ms\) \(CPU: ~\d+\.\d+ms\)$/);
 });
 
 test("createServer: handles regular requests", async (t) => {
@@ -677,6 +782,157 @@ test("createServer: includes headers from web socket upgrade response", async (t
   t.not(req.headers["sec-websocket-accept"], undefined);
   t.not(req.headers["sec-websocket-accept"], ":(");
   t.deepEqual(req.headers["set-cookie"], ["key=value"]);
+});
+test("createServer: handles web socket upgrade response with Sec-WebSocket-Protocol header", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/179
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin, WebSocketPlugin },
+    {},
+    async (globals) => {
+      const [client, worker] = Object.values(new globals.WebSocketPair());
+      worker.accept();
+      worker.addEventListener("message", (e: MessageEvent) => {
+        worker.send(`worker:${e.data}`);
+      });
+      return new globals.Response(null, {
+        status: 101,
+        webSocket: client,
+        headers: { "Sec-WebSocket-Protocol": "protocol2" },
+      });
+    }
+  );
+  const port = await listen(t, await createServer(mf));
+
+  const ws = new StandardWebSocket(`ws://localhost:${port}`, [
+    "protocol1",
+    "protocol2",
+    "protocol3",
+  ]);
+  ws.addListener("upgrade", (req) => {
+    t.is(req.headers["sec-websocket-protocol"], "protocol2");
+  });
+  const [eventTrigger, eventPromise] = triggerPromise<Data>();
+  ws.addEventListener("message", (e) => eventTrigger(e.data));
+  ws.addEventListener("open", () => ws.send("hello"));
+  t.is(await eventPromise, "worker:hello");
+});
+test("createServer: handles web socket upgrade immediately with waitUntil", async (t) => {
+  const [waitUntilTrigger, waitUntilPromise] = triggerPromise<void>();
+  const mf = useMiniflare(
+    { HTTPPlugin, WebSocketPlugin, BindingsPlugin },
+    {
+      globals: { waitUntilPromise },
+      script: `
+      addEventListener("fetch", (event) => {
+        const [client, worker] = Object.values(new WebSocketPair());
+        worker.accept();
+        worker.send("worker:1");
+        event.waitUntil(waitUntilPromise.then(() => worker.send("worker:2")));
+        event.respondWith(new Response(null, { status: 101, webSocket: client }));
+      })
+      `,
+    }
+  );
+  const port = await listen(t, await createServer(mf));
+  const ws = new StandardWebSocket(`ws://localhost:${port}`);
+
+  const [finishTrigger, finishPromise] = triggerPromise<void>();
+  let triggeredWaitUntil = false;
+  ws.addEventListener("message", (e) => {
+    if (!triggeredWaitUntil) {
+      // Only release waitUntil once we've received the first message, ensuring
+      // upgrade handled before waitUntil resolves
+      t.is(e.data, "worker:1");
+      waitUntilTrigger();
+      triggeredWaitUntil = true;
+    } else {
+      t.is(e.data, "worker:2");
+      finishTrigger();
+    }
+  });
+  await finishPromise;
+});
+test("createServer: dispatches close events on client and server close", async (t) => {
+  const [clientCloseTrigger, clientClosePromise] = triggerPromise<void>();
+  const [serverCloseTrigger, serverClosePromise] = triggerPromise<void>();
+  const counts = {
+    clientCloses: 0,
+    serverCloses: 0,
+    clientCloseTrigger,
+    serverCloseTrigger,
+  };
+  const mf = useMiniflareWithHandler(
+    { HTTPPlugin, WebSocketPlugin, BindingsPlugin },
+    { globals: { t, counts } },
+    async (globals, req) => {
+      const url = new globals.URL(req.url);
+      if (url.pathname.startsWith("/client")) {
+        const [client, worker] = Object.values(new globals.WebSocketPair());
+        worker.accept();
+        worker.addEventListener("close", (e: CloseEvent) => {
+          globals.t.is(e.code, 3001);
+          globals.t.is(e.reason, "Client Close");
+          if (url.pathname === "/client/event-listener") {
+            worker.close(3002, "Server Event Listener Close");
+          }
+
+          globals.counts.clientCloses++;
+          if (globals.counts.clientCloses === 2) {
+            globals.counts.clientCloseTrigger();
+          }
+        });
+        return new globals.Response(null, { status: 101, webSocket: client });
+      } else if (url.pathname === "/server") {
+        const [client, worker] = Object.values(new globals.WebSocketPair());
+        worker.accept();
+        worker.addEventListener("message", (e: MessageEvent) => {
+          if (e.data === "close") worker.close(3003, "Server Close");
+        });
+        worker.addEventListener("close", (e: CloseEvent) => {
+          globals.t.is(e.code, 3003);
+          globals.t.is(e.reason, "Server Close");
+
+          globals.counts.serverCloses++;
+          if (globals.counts.serverCloses === 2) {
+            globals.counts.serverCloseTrigger();
+          }
+        });
+        return new globals.Response(null, { status: 101, webSocket: client });
+      }
+      return new globals.Response(null, { status: 404 });
+    }
+  );
+  const port = await listen(t, await createServer(mf));
+
+  // Check client-side close
+  async function clientSideClose(closeInEventListener: boolean) {
+    const path = closeInEventListener ? "/client/event-listener" : "/client";
+    const ws = new StandardWebSocket(`ws://localhost:${port}${path}`);
+    ws.addEventListener("open", () => {
+      ws.close(3001, "Client Close");
+    });
+    const [code, reason] = await once(ws, "close");
+    t.is(code, 3001);
+    t.is(reason.toString(), "Client Close");
+  }
+  await clientSideClose(false);
+  await clientSideClose(true);
+  await clientClosePromise;
+
+  // Check server-side close
+  async function serverSideClose(closeInEventListener: boolean) {
+    const ws = new StandardWebSocket(`ws://localhost:${port}/server`);
+    ws.addEventListener("open", () => {
+      ws.send("close");
+    });
+    const [code, reason] = await once(ws, "close");
+    if (closeInEventListener) ws.close(3004, "Client Event Listener Close");
+    t.is(code, 3003);
+    t.is(reason.toString(), "Server Close");
+  }
+  await serverSideClose(false);
+  await serverSideClose(true);
+  await serverClosePromise;
 });
 test("createServer: expects status 101 and web socket response for successful upgrades", async (t) => {
   const log = new TestLog();

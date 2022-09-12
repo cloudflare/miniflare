@@ -120,6 +120,20 @@ test("Miniflare: getDurableObjectStorage: gets Durable Object storage for object
   const res = await stub.fetch("http://localhost/");
   t.is(await res.text(), "value");
 });
+test("Miniflare: getDurableObjectStorage: doesn't construct object", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/300
+  const mf = new Miniflare({
+    script: `export class TestObject {
+      constructor() { throw new Error("Constructed!"); }
+    }`,
+    modules: true,
+    durableObjects: { TEST: "TestObject" },
+  });
+  const ns = await mf.getDurableObjectNamespace("TEST");
+  const id = ns.newUniqueId();
+  await mf.getDurableObjectStorage(id);
+  t.pass();
+});
 test("Miniflare: createServer: creates HTTP server", async (t) => {
   const mf = new Miniflare({
     script: `export default { 

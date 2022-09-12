@@ -14,10 +14,7 @@ export class VariedStorageFactory implements StorageFactory {
 
   // TODO (someday): override storage for storage-kv-remote
 
-  async storage(
-    namespace: string,
-    persist?: boolean | string
-  ): Promise<Storage> {
+  storage(namespace: string, persist?: boolean | string): Storage {
     // boolean transformed by PluginStorageFactory
     assert(typeof persist !== "boolean");
 

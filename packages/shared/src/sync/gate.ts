@@ -1,5 +1,8 @@
 import assert from "assert";
 import { AsyncLocalStorage } from "async_hooks";
+// Import `setImmediate` to ensure we use an un-mocked version for I/O gates:
+// https://github.com/cloudflare/miniflare/issues/190
+import { setImmediate } from "timers";
 import { setImmediate as setImmediatePromise } from "timers/promises";
 import { TypedEventTarget, kWrapListener } from "../event";
 import { Awaitable } from "./awaitable";

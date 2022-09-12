@@ -5,6 +5,7 @@ export {
   DurableObjectState,
   DurableObjectStub,
   DurableObjectNamespace,
+  _kRunWithGates,
 } from "./namespace";
 export type {
   DurableObject,

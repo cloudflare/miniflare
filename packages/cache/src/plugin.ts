@@ -83,7 +83,7 @@ export class CacheStorage {
     // Return regular cache
     this.#maybeWarnUsage();
     return new Cache(
-      await this.#storage.storage(cacheName, cachePersist),
+      this.#storage.storage(cacheName, cachePersist),
       this.#internalOptions
     );
   }

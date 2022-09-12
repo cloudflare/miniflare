@@ -1,12 +1,14 @@
+import { once } from "events";
 import { viewToBuffer } from "@miniflare/shared";
 import StandardWebSocket from "ws";
 import {
-  ErrorEvent,
   WebSocket,
   kAccepted,
   kClose,
-  kClosed,
+  kClosedOutgoing,
   kCoupled,
+  kError,
+  kSend,
 } from "./websocket";
 
 export async function coupleWebSocket(
@@ -24,19 +26,28 @@ export async function coupleWebSocket(
     );
   }
 
-  // Forward events from client to worker
+  // Forward events from client to worker (register this before `open` to ensure
+  // events queued before other pair `accept`s to release)
   ws.on("message", (message: Buffer, isBinary: boolean) => {
-    if (isBinary) {
-      pair.send(viewToBuffer(message));
-    } else {
-      pair.send(message.toString());
+    // Silently discard messages received after close:
+    // https://www.rfc-editor.org/rfc/rfc6455#section-1.4
+    if (!pair[kClosedOutgoing]) {
+      // Note `[kSend]` skips accept check and will queue messages if other pair
+      // hasn't `accept`ed yet. Also convert binary messages to `ArrayBuffer`s.
+      pair[kSend](isBinary ? viewToBuffer(message) : message.toString());
     }
   });
   ws.on("close", (code: number, reason: Buffer) => {
-    if (!pair[kClosed]) pair[kClose](code, reason.toString());
+    // Silently discard closes received after close
+    if (!pair[kClosedOutgoing]) {
+      // Note `[kClose]` skips accept check and will queue messages if other
+      // pair hasn't `accept`ed yet. It also skips code/reason validation,
+      // allowing reserved codes (e.g. 1005 for "No Status Received").
+      pair[kClose](code, reason.toString());
+    }
   });
   ws.on("error", (error) => {
-    pair.dispatchEvent(new ErrorEvent("error", { error }));
+    pair[kError](error);
   });
 
   // Forward events from worker to client
@@ -44,37 +55,21 @@ export async function coupleWebSocket(
     ws.send(e.data);
   });
   pair.addEventListener("close", (e) => {
-    if (ws.readyState < StandardWebSocket.CLOSING) {
-      if (e.code === 1005 /* No Status Received */) {
-        ws.close();
-      } else {
-        ws.close(e.code, e.reason);
-      }
+    if (e.code === 1005 /* No Status Received */) {
+      ws.close();
+    } else {
+      ws.close(e.code, e.reason);
     }
   });
 
   if (ws.readyState === StandardWebSocket.CONNECTING) {
     // Wait for client to be open before accepting worker pair (which would
-    // release buffered messages)
-    await new Promise<void>((resolve, reject) => {
-      ws.once("open", () => {
-        pair.accept();
-        pair[kCoupled] = true;
-
-        ws.off("close", reject);
-        ws.off("error", reject);
-        resolve();
-      });
-      ws.once("close", reject);
-      ws.once("error", reject);
-    });
-  } else {
-    // Accept worker pair immediately
-    pair.accept();
-    pair[kCoupled] = true;
-    // Throw error if socket is already closing/closed
-    if (ws.readyState >= StandardWebSocket.CLOSING) {
-      throw new TypeError("Incoming WebSocket connection already closed.");
-    }
+    // release buffered messages). Note this will throw if an "error" event is
+    // dispatched (https://github.com/cloudflare/miniflare/issues/229).
+    await once(ws, "open");
+  } else if (ws.readyState >= StandardWebSocket.CLOSING) {
+    throw new TypeError("Incoming WebSocket connection already closed.");
   }
+  pair.accept();
+  pair[kCoupled] = true;
 }

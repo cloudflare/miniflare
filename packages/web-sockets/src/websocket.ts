@@ -3,6 +3,7 @@ import {
   EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
   InputGatedEventTarget,
   RequestContext,
+  ValueOf,
   getRequestContext,
   kWrapListener,
   waitForOpenOutputGate,
@@ -49,9 +50,18 @@ const kPair = Symbol("kPair");
 
 export const kAccepted = Symbol("kAccepted");
 export const kCoupled = Symbol("kCoupled");
-export const kClosed = Symbol("kClosed");
+
+// Whether close() has been called on the socket
+export const kClosedOutgoing = Symbol("kClosedOutgoing");
+// Whether a close event has been dispatched on the socket
+export const kClosedIncoming = Symbol("kClosedIncoming");
+
+// Internal send method exposed to bypass accept checking
+export const kSend = Symbol("kSend");
 // Internal close method exposed to bypass close code checking
 export const kClose = Symbol("kClose");
+// Internal error method exposed to dispatch error events to pair
+export const kError = Symbol("kError");
 
 export type WebSocketEventMap = {
   message: MessageEvent;
@@ -59,11 +69,19 @@ export type WebSocketEventMap = {
   error: ErrorEvent;
 };
 export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
-  #sendQueue?: MessageEvent[] = [];
+  // The Workers runtime prefixes these constants with `READY_STATE_`, unlike
+  // those in the spec: https://websockets.spec.whatwg.org/#interface-definition
+  static readonly READY_STATE_CONNECTING = 0;
+  static readonly READY_STATE_OPEN = 1;
+  static readonly READY_STATE_CLOSING = 2;
+  static readonly READY_STATE_CLOSED = 3;
+
+  #dispatchQueue?: ValueOf<WebSocketEventMap>[] = [];
   [kPair]: WebSocket;
   [kAccepted] = false;
   [kCoupled] = false;
-  [kClosed] = false;
+  [kClosedOutgoing] = false;
+  [kClosedIncoming] = false;
 
   protected [kWrapListener]<Type extends keyof WebSocketEventMap>(
     listener: (event: WebSocketEventMap[Type]) => void
@@ -98,6 +116,27 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
     };
   }
 
+  get readyState(): number {
+    if (this[kClosedOutgoing] && this[kClosedIncoming]) {
+      return WebSocket.READY_STATE_CLOSED;
+    } else if (this[kClosedOutgoing] || this[kClosedIncoming]) {
+      return WebSocket.READY_STATE_CLOSING;
+    }
+    return WebSocket.READY_STATE_OPEN;
+  }
+
+  async #queuingDispatchToPair(event: ValueOf<WebSocketEventMap>) {
+    await waitForOpenOutputGate();
+    const pair = this[kPair];
+    if (pair[kAccepted]) {
+      pair.dispatchEvent(event);
+    } else {
+      // Queue event until pair has `accept()`ed
+      assert(pair.#dispatchQueue !== undefined);
+      pair.#dispatchQueue.push(event);
+    }
+  }
+
   accept(): void {
     if (this[kCoupled]) {
       throw new TypeError(
@@ -105,13 +144,12 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
       );
     }
 
-    if (this[kAccepted]) return;
+    if (this[kAccepted]) return; // Permit double `accept()`
     this[kAccepted] = true;
 
-    const sendQueue = this.#sendQueue;
-    if (sendQueue) {
-      for (const event of sendQueue) this.dispatchEvent(event);
-      this.#sendQueue = undefined;
+    if (this.#dispatchQueue !== undefined) {
+      for (const event of this.#dispatchQueue) this.dispatchEvent(event);
+      this.#dispatchQueue = undefined;
     }
   }
 
@@ -121,24 +159,18 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
         "You must call accept() on this WebSocket before sending messages."
       );
     }
-    if (this[kClosed]) {
+    this[kSend](message);
+  }
+
+  [kSend](message: ArrayBuffer | string): void {
+    // Split from send() so we can queue messages before accept() is called when
+    // forwarding message events from the client
+    if (this[kClosedOutgoing]) {
       throw new TypeError("Can't call WebSocket send() after close().");
     }
 
     const event = new MessageEvent("message", { data: message });
-    void this.#dispatchMessageEvent(event);
-  }
-
-  async #dispatchMessageEvent(event: MessageEvent): Promise<void> {
-    await waitForOpenOutputGate();
-    const pair = this[kPair];
-    if (pair[kAccepted]) {
-      pair.dispatchEvent(event);
-    } else {
-      const sendQueue = pair.#sendQueue;
-      assert(sendQueue !== undefined);
-      sendQueue.push(event);
-    }
+    void this.#queuingDispatchToPair(event);
   }
 
   close(code?: number, reason?: string): void {
@@ -158,28 +190,48 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
         "If you specify a WebSocket close reason, you must also specify a code."
       );
     }
-    this[kClose](code, reason);
-  }
-
-  [kClose](code?: number, reason?: string): void {
-    // Split from close() so we don't check the close code when forwarding close
-    // events from the client
     if (!this[kAccepted]) {
       throw new TypeError(
         "You must call accept() on this WebSocket before sending messages."
       );
     }
-    if (this[kClosed]) throw new TypeError("WebSocket already closed");
-    this[kClosed] = true;
-    this[kPair][kClosed] = true;
-    void this.#dispatchCloseEvent(code, reason);
+    this[kClose](code, reason);
   }
 
-  async #dispatchCloseEvent(code?: number, reason?: string): Promise<void> {
-    await waitForOpenOutputGate();
-    // See https://github.com/nodejs/node/pull/39772
-    this.dispatchEvent(new CloseEvent("close", { code, reason }));
-    this[kPair].dispatchEvent(new CloseEvent("close", { code, reason }));
+  [kClose](code?: number, reason?: string): void {
+    // Split from close() so we can queue closes before accept() is called, and
+    // skip close code checks when forwarding close events from the client.
+    if (this[kClosedOutgoing]) throw new TypeError("WebSocket already closed");
+
+    // Send close event to pair, it should then eventually call `close()` on
+    // itself which will dispatch a close event to us, completing the closing
+    // handshake:
+    //               Network
+    //  Browser/Server  |   ws                            WebSocketPair
+    //     -------      | -------                         -------------
+    //     |     |  ... | |     | <--- 2) CloseEvent <--- | inc < out | <--- 1) close()
+    //     |     |      | |     |                         |     |     |
+    //     |     |  ... | |     | --->    3) close() ---> | out > inc | ---> 4) CloseEvent
+    //     -------      | -------                         -------------
+    //                  |
+    //                  |
+    //     -------      | -------                         -------------
+    //     |     |  ... | |     | --->    1) close() ---> | out > inc | ---> 2) CloseEvent
+    //     |     |      | |     |                         |     |     |
+    //     |     |  ... | |     | <--- 4) CloseEvent <--- | inc < out | <--- 3) close()
+    //     -------      | -------                         -------------
+    //                  |
+
+    this[kClosedOutgoing] = true;
+    this[kPair][kClosedIncoming] = true;
+
+    const event = new CloseEvent("close", { code, reason });
+    void this.#queuingDispatchToPair(event);
+  }
+
+  [kError](error?: Error): void {
+    const event = new ErrorEvent("error", { error });
+    void this.#queuingDispatchToPair(event);
   }
 }
 

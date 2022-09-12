@@ -106,6 +106,7 @@ Core Options:
      --global-timers     Allow setting timers outside handlers                       [boolean]
      --global-random     Allow secure random generation outside handlers             [boolean]
      --actual-time       Always return correct time from Date methods                [boolean]
+     --inaccurate-cpu    Log inaccurate CPU time measurements                        [boolean]
 
 HTTP Options:
  -H, --host              Host for HTTP(S) server to listen on                         [string]

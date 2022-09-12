@@ -1,5 +1,11 @@
+import { QueueBroker } from "@miniflare/queues";
 import { SchedulerError, SchedulerPlugin } from "@miniflare/scheduler";
-import { Compatibility, NoOpLog, PluginContext } from "@miniflare/shared";
+import {
+  Compatibility,
+  NoOpLog,
+  PluginContext,
+  QueueEventDispatcher,
+} from "@miniflare/shared";
 import {
   logPluginOptions,
   parsePluginArgv,
@@ -10,7 +16,15 @@ import test from "ava";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath };
+const queueBroker = new QueueBroker();
+const queueEventDispatcher: QueueEventDispatcher = async (_batch) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker,
+  queueEventDispatcher,
+};
 
 test("SchedulerPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(SchedulerPlugin, [

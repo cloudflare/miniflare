@@ -43,6 +43,18 @@ interface ProcessedDurableObject {
   scriptName?: string;
 }
 
+function getObjectKeyFromId(id: DurableObjectId) {
+  // Put each object in its own namespace/directory
+  return `${id[kObjectName]}:${id.toString()}`;
+}
+function getObjectIdFromKey(key: string): DurableObjectId {
+  // Reverse of `getObjectKeyFromId()`
+  const colonIndex = key.lastIndexOf(":");
+  const objectName = key.substring(0, colonIndex);
+  const hexId = key.substring(colonIndex + 1);
+  return new DurableObjectId(objectName, hexId);
+}
+
 export class DurableObjectsPlugin
   extends Plugin<DurableObjectsOptions>
   implements DurableObjectsOptions
@@ -108,9 +120,12 @@ export class DurableObjectsPlugin
   #constructors = new Map<string, DurableObjectConstructor>();
   #bindings: Context = {};
 
-  readonly #objects = new Map<string, Promise<DurableObjectState>>();
+  readonly #objectStorages = new Map<string, DurableObjectStorage>();
+  readonly #objectStates = new Map<string, DurableObjectState>();
 
   readonly #alarmStore: AlarmStore;
+  #alarmStoreCallback?: (objectKey: string) => Promise<void>;
+  #alarmStoreCallbackAttached = false;
 
   constructor(ctx: PluginContext, options?: DurableObjectsOptions) {
     super(ctx);
@@ -135,6 +150,26 @@ export class DurableObjectsPlugin
     );
   }
 
+  getStorage(
+    storage: StorageFactory,
+    id: DurableObjectId
+  ): DurableObjectStorage {
+    // Allow access to storage without constructing the corresponding object:
+    // https://github.com/cloudflare/miniflare/issues/300
+
+    const key = getObjectKeyFromId(id);
+    // Make sure we only create one storage instance per object to ensure
+    // transactional semantics hold
+    let objectStorage = this.#objectStorages.get(key);
+    if (objectStorage !== undefined) return objectStorage;
+    objectStorage = new DurableObjectStorage(
+      storage.storage(key, this.#persist),
+      this.#alarmStore.buildBridge(key)
+    );
+    this.#objectStorages.set(key, objectStorage);
+    return objectStorage;
+  }
+
   async getObject(
     storage: StorageFactory,
     id: DurableObjectId
@@ -146,40 +181,30 @@ export class DurableObjectsPlugin
     );
     await this.#contextPromise;
 
-    // Reuse existing instances
+    const key = getObjectKeyFromId(id);
+    // Durable Object states should be unique per key
+    let state = this.#objectStates.get(key);
+    if (state !== undefined) return state;
+
     const objectName = id[kObjectName];
-    // Put each object in its own namespace/directory
-    const key = `${objectName}:${id.toString()}`;
-    let statePromise = this.#objects.get(key);
-    if (statePromise) return statePromise;
+    // `name` should not be passed to the constructed `state`:
+    // https://github.com/cloudflare/miniflare/issues/219
+    const unnamedId = new DurableObjectId(objectName, id.toString());
+    const objectStorage = this.getStorage(storage, id);
 
-    // We store Promise<DurableObjectState> for map values instead of
-    // DurableObjectState as we only ever want to create one
-    // DurableObjectStorage for a Durable Object, and getting storage is an
-    // asynchronous operation. The alternative would be to make this a critical
-    // section protected with a mutex.
-    statePromise = (async () => {
-      const objectStorage = new DurableObjectStorage(
-        await storage.storage(key, this.#persist),
-        this.#alarmStore.buildBridge(key)
-      );
-      // `name` should not be passed to the constructed `state`:
-      // https://github.com/cloudflare/miniflare/issues/219
-      const unnamedId = new DurableObjectId(objectName, id.toString());
-      const state = new DurableObjectState(unnamedId, objectStorage);
+    state = new DurableObjectState(unnamedId, objectStorage);
+    this.#objectStates.set(key, state);
 
-      // Create and store new instance if none found
-      const constructor = this.#constructors.get(objectName);
-      // Should've thrown error earlier in reload if class not found
-      assert(constructor);
+    // Create and store new instance if none found
+    const constructor = this.#constructors.get(objectName);
+    // Should've thrown error earlier in reload if class not found
+    assert(constructor);
 
-      state[kInstance] = new constructor(state, this.#bindings);
-      // we need to throw an error on "setAlarm" if the "alarm" method does not exist
-      if (!state[kInstance]?.alarm) objectStorage[kAlarmExists] = false;
-      return state;
-    })();
-    this.#objects.set(key, statePromise);
-    return statePromise;
+    state[kInstance] = new constructor(state, this.#bindings);
+    // We need to throw an error on "setAlarm" if the "alarm" method does not exist
+    if (!state[kInstance]?.alarm) objectStorage[kAlarmExists] = false;
+
+    return state;
   }
 
   getNamespace(
@@ -202,35 +227,63 @@ export class DurableObjectsPlugin
     };
   }
 
-  async #setupAlarms(storage: StorageFactory): Promise<void> {
+  async #setupAlarms(storageFactory: StorageFactory): Promise<void> {
     if (this.durableObjectsAlarms === false) return;
-    // if the alarm store doesn't exist yet, create
-    await this.#alarmStore.setupStore(storage, this.#persist);
-    await this.#alarmStore.setupAlarms(async (objectKey: string) => {
-      const index = objectKey.lastIndexOf(":");
-      const objectName = objectKey.substring(0, index);
-      const hexId = objectKey.substring(index + 1);
-      // grab the instance
-      const id = new DurableObjectId(objectName, hexId);
-      const state = await this.getObject(storage, id);
-      // execute the alarm
-      await new RequestContext({
-        requestDepth: 1,
-        pipelineDepth: 1,
-        durableObject: true,
-        externalSubrequestLimit: usageModelExternalSubrequestLimit(
-          this.ctx.usageModel
-        ),
-      }).runWith(() => state[kAlarm]());
-    });
+    // Load alarms from storage
+    await this.#alarmStore.setupStore(storageFactory, this.#persist);
+    // Initialise callback, which depends on `storageFactory`, but don't attach
+    // to alarm store until first `beforeReload()`.
+    //
+    // Alarms may be scheduled as soon as the callback is attached, which would
+    // call `getObject()`. However, `getObject()` needs `#contextPromise` to be
+    // initialised, which is done in `beforeReload()`.
+    //
+    // https://github.com/cloudflare/miniflare/issues/359
+    this.#alarmStoreCallback = async (objectKey) => {
+      // Grab the instance
+      const id = getObjectIdFromKey(objectKey);
+      const state = await this.getObject(storageFactory, id);
+      // Execute the alarm
+      await this.#executeAlarm(state);
+    };
   }
 
-  beforeReload(): void {
+  flushAlarms(
+    storageFactory: StorageFactory,
+    ids?: DurableObjectId[]
+  ): Promise<void> {
+    // Pass through to #alarmStore to make sure we only flush scheduled alarms
+    return this.#alarmStore.flushAlarms(ids?.map(getObjectKeyFromId));
+  }
+
+  async #executeAlarm(state: DurableObjectState): Promise<void> {
+    await new RequestContext({
+      requestDepth: 1,
+      pipelineDepth: 1,
+      durableObject: true,
+      externalSubrequestLimit: usageModelExternalSubrequestLimit(
+        this.ctx.usageModel
+      ),
+    }).runWith(() => state[kAlarm]());
+  }
+
+  async beforeReload(): Promise<void> {
     // Clear instance map, this should cause old instances to be GCed
-    this.#objects.clear();
+    this.#objectStorages.clear();
+    this.#objectStates.clear();
     this.#contextPromise = new Promise(
       (resolve) => (this.#contextResolve = resolve)
     );
+
+    // Setup alarm store after #contextPromise is initialised, as alarms may be
+    // scheduled immediately and try to call `getObject()`.
+    if (
+      !this.#alarmStoreCallbackAttached &&
+      this.#alarmStoreCallback !== undefined
+    ) {
+      this.#alarmStoreCallbackAttached = true;
+      await this.#alarmStore.setupAlarms(this.#alarmStoreCallback);
+    }
   }
 
   reload(
@@ -274,8 +327,10 @@ Make sure "${scriptName}" is mounted so Miniflare knows where to find it.`
     this.#contextResolve();
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
+    await this.beforeReload();
+    // Dispose `#alarmStore` after `beforeReload` as that may attach the alarm
+    // callback, and schedule alarms which we'll want to cancel here.
     this.#alarmStore.dispose();
-    return this.beforeReload();
   }
 }

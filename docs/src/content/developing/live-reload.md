@@ -35,8 +35,8 @@ const mf = new Miniflare({
 
 <Aside header="Tip">
 
-When using the CLI, if `--live-reload` is set, `--watch` is automatically
-assumed.
+When using the CLI, if either `--live-reload` or `[miniflare] live_reload` is
+set, `--watch` is automatically assumed.
 
 </Aside>
 

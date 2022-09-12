@@ -5,7 +5,7 @@ import {
   testClock,
   utf8Encode,
 } from "@miniflare/shared-test";
-import { FilteredKVNamespace } from "@miniflare/sites";
+import { FilteredKVNamespace, KeyMapper } from "@miniflare/sites";
 import { MemoryStorage } from "@miniflare/storage-memory";
 import anyTest, { TestInterface } from "ava";
 
@@ -16,6 +16,15 @@ interface Context {
 const test = anyTest as TestInterface<Context>;
 
 const opts: InternalKVNamespaceOptions = { clock: testClock };
+
+const keyMapper: KeyMapper = {
+  lookup(key: string): string {
+    return key.substring("prefix:".length);
+  },
+  reverseLookup(key: string): string {
+    return `prefix:${key}`;
+  },
+};
 
 test.beforeEach(async (t) => {
   const storage = new MemoryStorage(undefined, testClock);
@@ -42,7 +51,6 @@ test("get: includes included values", async (t) => {
   t.is(await ns.get("section2key1"), "value21");
   t.is(await ns.get("section2key2"), "value22");
 });
-
 test("get: excludes non-included values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
@@ -52,7 +60,6 @@ test("get: excludes non-included values", async (t) => {
   t.is(await ns.get("section3key1"), null);
   t.is(await ns.get("section3key2"), null);
 });
-
 test("get: includes non-excluded values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
@@ -62,7 +69,6 @@ test("get: includes non-excluded values", async (t) => {
   t.is(await ns.get("section3key1"), "value31");
   t.is(await ns.get("section3key2"), "value32");
 });
-
 test("get: excludes excluded values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
@@ -74,7 +80,6 @@ test("get: excludes excluded values", async (t) => {
   t.is(await ns.get("section2key1"), null);
   t.is(await ns.get("section2key2"), null);
 });
-
 test("get: ignores exclude if include set", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
@@ -87,6 +92,14 @@ test("get: ignores exclude if include set", async (t) => {
   t.is(await ns.get("section2key2"), "value22");
   t.is(await ns.get("section3key1"), null);
   t.is(await ns.get("section3key2"), null);
+});
+test("get: respects mapper", async (t) => {
+  const ns = new FilteredKVNamespace(
+    t.context.storage,
+    { map: keyMapper },
+    opts
+  );
+  t.is(await ns.get("prefix:section1key1"), "value11");
 });
 
 test("getWithMetadata: includes included values", async (t) => {
@@ -112,7 +125,6 @@ test("getWithMetadata: includes included values", async (t) => {
     metadata: { testing: 2 },
   });
 });
-
 test("getWithMetadata: excludes non-included values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
@@ -128,7 +140,6 @@ test("getWithMetadata: excludes non-included values", async (t) => {
     metadata: null,
   });
 });
-
 test("getWithMetadata: includes non-excluded values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
@@ -144,7 +155,6 @@ test("getWithMetadata: includes non-excluded values", async (t) => {
     metadata: { testing: 3 },
   });
 });
-
 test("getWithMetadata: excludes excluded values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
@@ -168,7 +178,6 @@ test("getWithMetadata: excludes excluded values", async (t) => {
     metadata: null,
   });
 });
-
 test("getWithMetadata: ignores exclude if include set", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
@@ -200,6 +209,17 @@ test("getWithMetadata: ignores exclude if include set", async (t) => {
     metadata: null,
   });
 });
+test("getWithMetadata: respects mapper", async (t) => {
+  const ns = new FilteredKVNamespace(
+    t.context.storage,
+    { map: keyMapper },
+    opts
+  );
+  t.deepEqual(await ns.getWithMetadata("prefix:section1key1"), {
+    value: "value11",
+    metadata: { testing: 1 },
+  });
+});
 
 test("put: allowed if not read-only", async (t) => {
   const { storage } = t.context;
@@ -214,7 +234,6 @@ test("put: allowed if not read-only", async (t) => {
     metadata: { testing: true },
   });
 });
-
 test("put: throws if read-only", async (t) => {
   const { storage } = t.context;
   const ns = new FilteredKVNamespace(storage, { readOnly: true }, opts);
@@ -229,6 +248,16 @@ test("put: throws if read-only", async (t) => {
   );
   t.is(await storage.get("key"), undefined);
 });
+test("put: respects mapper", async (t) => {
+  const { storage } = t.context;
+  const ns = new FilteredKVNamespace(storage, { map: keyMapper }, opts);
+  await ns.put("prefix:key", "value");
+  t.deepEqual(await storage.get("key"), {
+    value: utf8Encode("value"),
+    expiration: undefined,
+    metadata: undefined,
+  });
+});
 
 test("delete: allowed if not read-only", async (t) => {
   const { storage } = t.context;
@@ -237,7 +266,6 @@ test("delete: allowed if not read-only", async (t) => {
   await ns.delete("section1key1");
   t.is(await storage.get("section1key1"), undefined);
 });
-
 test("delete: throws if read-only", async (t) => {
   const { storage } = t.context;
   const ns = new FilteredKVNamespace(storage, { readOnly: true }, opts);
@@ -247,6 +275,13 @@ test("delete: throws if read-only", async (t) => {
     message: "Unable to delete from read-only namespace",
   });
   t.not(await storage.get("section1key1"), undefined);
+});
+test("delete: respects mapper", async (t) => {
+  const { storage } = t.context;
+  const ns = new FilteredKVNamespace(storage, { map: keyMapper }, opts);
+  t.not(await storage.get("section1key1"), undefined);
+  await ns.delete("prefix:section1key1");
+  t.is(await storage.get("section1key1"), undefined);
 });
 
 test("list: includes included values and excludes non-included values", async (t) => {
@@ -266,7 +301,6 @@ test("list: includes included values and excludes non-included values", async (t
     cursor: "",
   });
 });
-
 test("list: includes non-excluded values and excludes excluded values", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
@@ -282,7 +316,6 @@ test("list: includes non-excluded values and excludes excluded values", async (t
     cursor: "",
   });
 });
-
 test("list: ignores exclude if include set", async (t) => {
   const ns = new FilteredKVNamespace(
     t.context.storage,
@@ -299,6 +332,22 @@ test("list: ignores exclude if include set", async (t) => {
     list_complete: true,
     cursor: "",
   });
+});
+test("list: respects mapper", async (t) => {
+  const ns = new FilteredKVNamespace(
+    t.context.storage,
+    { map: keyMapper },
+    opts
+  );
+  const keys = (await ns.list()).keys.map(({ name }) => name);
+  t.deepEqual(keys, [
+    "prefix:section1key1",
+    "prefix:section1key2",
+    "prefix:section2key1",
+    "prefix:section2key2",
+    "prefix:section3key1",
+    "prefix:section3key2",
+  ]);
 });
 
 test("hides implementation details", (t) => {

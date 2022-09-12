@@ -1,25 +1,31 @@
+import assert from "assert";
 import path from "path";
-import { setImmediate } from "timers/promises";
+import { setImmediate, setTimeout } from "timers/promises";
 import { Response } from "@miniflare/core";
 import {
   DurableObject,
   DurableObjectError,
+  DurableObjectId,
   DurableObjectNamespace,
   DurableObjectState,
   DurableObjectsPlugin,
 } from "@miniflare/durable-objects";
+import { QueueBroker } from "@miniflare/queues";
 import {
   Compatibility,
   Mount,
   NoOpLog,
   PluginContext,
+  QueueEventDispatcher,
   StoredValue,
+  StoredValueMeta,
 } from "@miniflare/shared";
 import {
   MemoryStorageFactory,
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  triggerPromise,
   useTmp,
 } from "@miniflare/shared-test";
 import test from "ava";
@@ -28,8 +34,15 @@ import { TestObject, testId } from "./object";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath };
-
+const queueBroker = new QueueBroker();
+const queueEventDispatcher: QueueEventDispatcher = async (_batch) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker,
+  queueEventDispatcher,
+};
 test("DurableObjectsPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(DurableObjectsPlugin, [
     "--do",
@@ -98,12 +111,74 @@ test("DurableObjectsPlugin: logs options", (t) => {
   ]);
 });
 
+test("DurableObjectPlugin: getStorage: reuses single instance of storage", async (t) => {
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: "TestObject" },
+  });
+  await plugin.beforeReload();
+  const storage1 = plugin.getStorage(factory, testId);
+  const storage2 = plugin.getStorage(factory, testId);
+  t.is(storage1, storage2);
+  await storage1.put("count", 5);
+
+  // Check getObject() reuses the same instance
+  plugin.reload({}, { TestObject }, new Map());
+  const state = await plugin.getObject(factory, testId);
+  t.is(state.storage, storage1);
+
+  const ns = plugin.getNamespace(factory, "TEST");
+  const res = await ns.get(testId).fetch("http://localhost/");
+  // 6 is previously stored value + 1
+  t.is(await res.text(), `${testId.toString()}:request6:GET:http://localhost/`);
+});
+test("DurableObjectPlugin: getStorage: doesn't construct Durable Object", async (t) => {
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: "TestObject" },
+  });
+  class TestObject implements DurableObject {
+    constructor() {
+      t.fail();
+    }
+    fetch() {
+      return assert.fail();
+    }
+  }
+  await plugin.beforeReload();
+  plugin.reload({}, { TestObject }, new Map());
+  plugin.getStorage(factory, testId);
+  t.pass();
+});
+test("DurableObjectPlugin: getStorage: allows setting alarms", async (t) => {
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: "TestObject" },
+  });
+  const [alarmTrigger, alarmPromise] = triggerPromise<DurableObjectId>();
+  class TestObject implements DurableObject {
+    constructor(private readonly state: DurableObjectState) {}
+    fetch() {
+      return assert.fail();
+    }
+    alarm() {
+      alarmTrigger(this.state.id);
+    }
+  }
+  await plugin.setup(factory);
+  await plugin.beforeReload();
+  plugin.reload({}, { TestObject }, new Map());
+  const storage = plugin.getStorage(factory, testId);
+  await storage.setAlarm(Date.now());
+  t.is((await alarmPromise).toString(), testId.toString());
+});
+
 test("DurableObjectsPlugin: getObject: waits for constructors and bindings", async (t) => {
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
-  plugin.beforeReload();
+  await plugin.beforeReload();
   const promise = plugin.getObject(factory, testId);
   await setImmediate();
   t.is(factory.storages.size, 0);
@@ -120,7 +195,7 @@ test("DurableObjectsPlugin: getObject: object storage is namespaced by object na
     durableObjects: { TEST: "TestObject" },
     durableObjectsPersist: "test://map",
   });
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
   const state = await plugin.getObject(factory, testId);
   await state.storage.put("key", "value");
@@ -133,13 +208,13 @@ test("DurableObjectsPlugin: getObject: reresolves persist path relative to rootP
     [`${tmp}${path.sep}test:TEST:${testId.toString()}`]: map,
   });
   const plugin = new DurableObjectsPlugin(
-    { log, compat, rootPath: tmp },
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     {
       durableObjects: { TEST: "TestObject" },
       durableObjectsPersist: "test",
     }
   );
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
   const state = await plugin.getObject(factory, testId);
   await state.storage.put("key", "value");
@@ -150,7 +225,7 @@ test("DurableObjectsPlugin: getObject: reuses single instance of object", async 
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
   const [object1, object2] = await Promise.all([
     plugin.getObject(factory, testId),
@@ -164,7 +239,7 @@ test("DurableObjectsPlugin: getNamespace: creates namespace for object, creating
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({ KEY: "value" }, { TestObject }, new Map());
   const ns = plugin.getNamespace(factory, "TEST");
   const res = await ns.get(testId).fetch("http://localhost/");
@@ -178,7 +253,7 @@ test("DurableObjectsPlugin: getNamespace: creates namespace for object in mounte
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: { className: "TestObject", scriptName: "test" } },
   });
-  plugin.beforeReload();
+  await plugin.beforeReload();
   const mounts = new Map<string, Mount>([
     ["test", { moduleExports: { TestObject }, usageModel: "bundled" }],
   ]);
@@ -192,7 +267,7 @@ test("DurableObjectsPlugin: getNamespace: reuses single instance of object", asy
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({ KEY: "value" }, { TestObject }, new Map());
   const ns = plugin.getNamespace(factory, "TEST");
   const [res1, res2] = await Promise.all([
@@ -217,7 +292,7 @@ test("DurableObjectsPlugin: setup: includes namespaces for all objects", async (
   });
 
   const result = await plugin.setup(factory);
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { Object1, Object2 }, new Map());
 
   const ns1: DurableObjectNamespace = result.bindings?.OBJECT1;
@@ -240,7 +315,7 @@ test("DurableObjectsPlugin: setup: name removed from id passed to object constru
   });
 
   const result = await plugin.setup(factory);
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
 
   const ns: DurableObjectNamespace = result.bindings?.TEST_OBJECT;
@@ -257,12 +332,12 @@ test("DurableObjectsPlugin: beforeReload: deletes all instances", async (t) => {
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
   let ns = plugin.getNamespace(factory, "TEST");
   const res1 = await ns.get(testId).fetch("http://localhost:8787/instance");
 
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
   ns = plugin.getNamespace(factory, "TEST");
   const res2 = await ns.get(testId).fetch("http://localhost:8787/instance");
@@ -313,12 +388,12 @@ test("DurableObjectsPlugin: dispose: deletes all instances", async (t) => {
   const plugin = new DurableObjectsPlugin(ctx, {
     durableObjects: { TEST: "TestObject" },
   });
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { TestObject }, new Map());
   let ns = plugin.getNamespace(factory, "TEST");
   const res1 = await ns.get(testId).fetch("http://localhost:8787/instance");
 
-  plugin.dispose();
+  await plugin.dispose();
   plugin.reload({}, { TestObject }, new Map());
   ns = plugin.getNamespace(factory, "TEST");
   const res2 = await ns.get(testId).fetch("http://localhost:8787/instance");
@@ -334,7 +409,7 @@ test("DurableObjectsPlugin: setup alarms and dispose alarms", async (t) => {
     durableObjectsAlarms: false,
   });
   await plugin.setup(factory);
-  plugin.dispose();
+  await plugin.dispose();
   t.false(plugin.durableObjectsAlarms);
 });
 
@@ -356,10 +431,139 @@ test("DurableObjectsPlugin: set alarm and run list filters out alarm", async (t)
   });
 
   const result = await plugin.setup(factory);
-  plugin.beforeReload();
+  await plugin.beforeReload();
   plugin.reload({}, { Object1 }, new Map());
 
   const ns1: DurableObjectNamespace = result.bindings?.OBJECT1;
   const res1 = await ns1.get(ns1.newUniqueId()).fetch("/");
   t.is(await res1.text(), "{}");
+});
+
+test("DurableObjectsPlugin: flush scheduled alarms", async (t) => {
+  class TestObject implements DurableObject {
+    constructor(private readonly state: DurableObjectState) {}
+
+    async fetch() {
+      await this.state.storage.setAlarm(Date.now() + 60 * 1000);
+      return new Response("ok");
+    }
+
+    async alarm() {
+      await this.state.storage.put("a", 1);
+    }
+  }
+
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: "TestObject" },
+    durableObjectsAlarms: true,
+  });
+  await plugin.setup(factory);
+  await plugin.beforeReload();
+  plugin.reload({}, { TestObject }, new Map());
+
+  // Construct the object
+  const state = await plugin.getObject(factory, testId);
+  const storage = state.storage;
+  t.is(await storage.get("a"), undefined);
+
+  // Check that flushing with no scheduled alarms does nothing
+  await plugin.flushAlarms(factory);
+  t.is(await storage.get("a"), undefined);
+
+  // Schedule alarm
+  const ns = plugin.getNamespace(factory, "TEST");
+  const res = await ns.get(testId).fetch("/");
+  t.is(await res.text(), "ok");
+
+  // Check that scheduled alarm flushed
+  await plugin.flushAlarms(factory);
+  t.is(await storage.get("a"), 1);
+
+  await plugin.dispose();
+});
+test("DurableObjectsPlugin: flush specific scheduled alarms", async (t) => {
+  class TestObject implements DurableObject {
+    constructor(private readonly state: DurableObjectState) {}
+
+    async fetch() {
+      await this.state.storage.setAlarm(Date.now() + 60 * 1000);
+      return new Response("ok");
+    }
+
+    async alarm() {
+      await this.state.storage.put("key", 1);
+    }
+  }
+
+  const factory = new MemoryStorageFactory();
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: "TestObject" },
+    durableObjectsAlarms: true,
+  });
+  await plugin.setup(factory);
+  await plugin.beforeReload();
+  plugin.reload({}, { TestObject }, new Map());
+
+  const ns = plugin.getNamespace(factory, "TEST");
+  const idA = ns.idFromName("a");
+  const idB = ns.idFromName("b");
+  const idC = ns.idFromName("c");
+
+  // Schedule alarms in `a` and `c`
+  const resA = await ns.get(idA).fetch("/");
+  t.is(await resA.text(), "ok");
+  const resC = await ns.get(idC).fetch("/");
+  t.is(await resC.text(), "ok");
+
+  // Flush alarms for `a` and `b`, only `a`'s alarm should be executed, as `b`
+  // hasn't been scheduled, and `c` isn't being flushed.
+  await plugin.flushAlarms(factory, [idA, idB]);
+  const storageA = plugin.getStorage(factory, idA);
+  t.is(await storageA.get("key"), 1);
+  const storageB = plugin.getStorage(factory, idB);
+  t.is(await storageB.get("key"), undefined);
+  const storageC = plugin.getStorage(factory, idC);
+  t.is(await storageC.get("key"), undefined);
+
+  await plugin.dispose();
+});
+
+test("DurableObjectsPlugin: immediately schedules persisted alarm", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/359
+
+  // Create storage with alarm scheduled a second ago
+  const alarmValue: StoredValueMeta = {
+    value: new Uint8Array(),
+    metadata: { scheduledTime: Date.now() - 1000 },
+  };
+  const alarmsMap = new Map<string, StoredValueMeta>();
+  const objectMap = new Map<string, StoredValueMeta>();
+  alarmsMap.set(`TEST:${testId.toString()}`, alarmValue);
+  objectMap.set("__MINIFLARE_ALARMS__", alarmValue);
+  const factory = new MemoryStorageFactory({
+    [`test://map:__MINIFLARE_ALARMS__`]: alarmsMap,
+    [`test://map:TEST:${testId.toString()}`]: objectMap,
+  });
+
+  // Check alarm scheduled in past executed immediately on plugin creation
+  const [alarmTrigger, alarmPromise] = triggerPromise<void>();
+  class TestObject {
+    alarm() {
+      alarmTrigger();
+    }
+  }
+  const plugin = new DurableObjectsPlugin(ctx, {
+    durableObjects: { TEST: "TestObject" },
+    durableObjectsPersist: "test://map",
+  });
+  await plugin.setup(factory);
+  // Wait enough time for alarm to be executed (alarm shouldn't actually be
+  // executed until `beforeReload()` is called)
+  await setTimeout(500);
+  await plugin.beforeReload();
+  plugin.reload({}, { TestObject }, new Map());
+  await alarmPromise;
+
+  t.pass();
 });

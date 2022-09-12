@@ -20,7 +20,13 @@ import {
 } from "@miniflare/shared";
 import dotenv from "dotenv";
 import { MiniflareCoreError } from "../error";
-import { Request, RequestInfo, RequestInit, Response } from "../standards";
+import {
+  Request,
+  RequestInfo,
+  RequestInit,
+  Response,
+  withImmutableHeaders,
+} from "../standards";
 
 const kWranglerBindings = Symbol("kWranglerBindings");
 
@@ -81,6 +87,10 @@ export class Fetcher {
   }
 
   async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
+    if (!(this instanceof Fetcher)) {
+      throw new TypeError("Illegal invocation");
+    }
+
     // Always create new Request instance, so clean object passed to services
     const req = new Request(input, init);
 
@@ -117,7 +127,8 @@ export class Fetcher {
     // Durable Objects. If user's want this behaviour, they can explicitly catch
     // the error in their service.
     // TODO: maybe add (debug/verbose) logging here?
-    return ctx.runWith(() => fetch(req));
+    const res = await ctx.runWith(() => fetch(req));
+    return withImmutableHeaders(res);
   }
 }
 

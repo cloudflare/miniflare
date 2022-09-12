@@ -163,6 +163,20 @@ test("FileStorage: getRangeMaybeExpired: suffix: returns partial values", async 
   t.is(utf8Decode(getAll?.value), "123456789");
   t.deepEqual(getAll?.range, { offset: 0, length: 9 });
 });
+test("FileStorage: getRangeMaybeExpired: check that symbolic links are resolved appropriately", async (t) => {
+  const storage = await storageFactory.factory(t, {});
+  await storage.put("inner/key", { value: utf8Encode("value") });
+  // create the symbolic link
+  await fs.symlink(
+    // @ts-ignore
+    path.join(storage.root, "inner/key"),
+    // @ts-ignore
+    path.join(storage.root, "key")
+  );
+  const getResult = await storage.getRangeMaybeExpired("key", { offset: 0 });
+  t.is(utf8Decode(getResult?.value), "value");
+  t.deepEqual(getResult?.range, { offset: 0, length: 5 });
+});
 
 async function unsanitisedStorageFactory(
   t: ExecutionContext

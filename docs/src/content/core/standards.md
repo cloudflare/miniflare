@@ -33,11 +33,60 @@ Miniflare supports the following Web Standards in its sandbox:
   `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`,
   `TransformStream`, `TransformStreamDefaultController`, `WritableStream`,
   `WritableStreamDefaultController`, `WritableStreamDefaultWriter`,
-  `FixedLengthStream`, `CompressionStream`, `DecompressionStream`
+  `IdentityTransformStream`, `FixedLengthStream`, `CompressionStream`,
+  `DecompressionStream`
 - **Events:** `Event`, `EventTarget`, `AbortController`, `AbortSignal`
 - **Event Types:** `fetch`, `scheduled`, `unhandledrejection`,
   `rejectionhandled`
 - **Misc:** `structuredClone`, `navigator`
+
+## Mocking Outbound `fetch` Requests
+
+When using the API, Miniflare allows you to substitute custom `Response`s for
+`fetch()` calls using `undici`'s
+[`MockAgent` API](https://undici.nodejs.org/#/docs/api/MockAgent?id=mockagentgetorigin).
+This is useful for testing workers that make HTTP requests to other services. To
+enable `fetch` mocking, create a
+[`MockAgent`](https://undici.nodejs.org/#/docs/api/MockAgent?id=mockagentgetorigin)
+using the `createFetchMock()` function, then set this using the `fetchMock`
+option. If you're using the
+[🤹 Jest Environment](/testing/jest#mocking-outbound-fetch-requests), use the
+global `getMiniflareFetchMock()` function to obtain a correctly set-up
+[`MockAgent`](https://undici.nodejs.org/#/docs/api/MockAgent?id=mockagentgetorigin).
+
+```js
+import { Miniflare } from "miniflare";
+import { createFetchMock } from "@miniflare/core";
+
+// Create `MockAgent` and connect it to the `Miniflare` instance
+const fetchMock = createFetchMock();
+const mf = new Miniflare({
+  script: `export default {
+    async fetch(request, env, ctx) {
+      const res = await fetch("https://example.com/thing");
+      const text = await res.text();
+      return new Response(\`response:\${text}\`);
+    }
+  }`,
+  modules: true,
+  fetchMock,
+});
+
+// Throw when no matching mocked request is found
+// (see https://undici.nodejs.org/#/docs/api/MockAgent?id=mockagentdisablenetconnect)
+fetchMock.disableNetConnect();
+
+// Mock request to https://example.com/thing
+// (see https://undici.nodejs.org/#/docs/api/MockAgent?id=mockagentgetorigin)
+const origin = fetchMock.get("https://example.com");
+// (see https://undici.nodejs.org/#/docs/api/MockPool?id=mockpoolinterceptoptions)
+origin
+  .intercept({ method: "GET", path: "/thing" })
+  .reply(200, "Mocked response!");
+
+const res = await mf.dispatchFetch("http://localhost:8787/");
+console.log(await res.text()); // "response:Mocked response!"
+```
 
 ## Subrequests
 

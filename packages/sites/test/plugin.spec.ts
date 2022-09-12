@@ -1,8 +1,15 @@
+import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
 import { CachePlugin } from "@miniflare/cache";
 import { Request } from "@miniflare/core";
-import { Compatibility, NoOpLog, PluginContext } from "@miniflare/shared";
+import { QueueBroker } from "@miniflare/queues";
+import {
+  Compatibility,
+  NoOpLog,
+  PluginContext,
+  QueueEventDispatcher,
+} from "@miniflare/shared";
 import {
   logPluginOptions,
   parsePluginArgv,
@@ -16,7 +23,15 @@ import test, { Macro } from "ava";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath };
+const queueBroker = new QueueBroker();
+const queueEventDispatcher: QueueEventDispatcher = async (_batch) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker,
+  queueEventDispatcher,
+};
 
 test("SitesPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(SitesPlugin, [
@@ -71,7 +86,7 @@ test("SitesPlugin: setup: returns empty result if no site", async (t) => {
 test("SitesPlugin: setup: includes read-only content namespace and watches files", async (t) => {
   const tmp = await useTmp(t);
   const plugin = new SitesPlugin(
-    { log, compat, rootPath: tmp },
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     { sitePath: "site" }
   );
   const result = await plugin.setup();
@@ -89,9 +104,43 @@ test("SitesPlugin: setup: includes read-only content namespace and watches files
 
   // Check files watched
   t.deepEqual(result.watch, [path.join(tmp, "site")]);
+});
+test("SitesPlugin: setup: includes populated manifest", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/233
+  const tmp = await useTmp(t);
+  const dir = path.join(tmp, "a", "b", "c");
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, "1.txt"), "test1", "utf8");
+  await fs.writeFile(path.join(tmp, "2.txt"), "test2", "utf8");
+  await fs.writeFile(path.join(tmp, "3.txt"), "test3", "utf8");
+  await fs.writeFile(path.join(tmp, "4.jsx"), "test4", "utf8");
 
-  // Check same setup result is always returned
-  t.is(await plugin.setup(), result);
+  const plugin = new SitesPlugin(
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
+    { sitePath: tmp, siteInclude: ["*.txt"], siteExclude: ["3.txt"] }
+  );
+  let result = await plugin.setup();
+
+  // Check manifest includes subdirectories, and respects include/exclude
+  let manifestJSON = result.bindings?.__STATIC_CONTENT_MANIFEST;
+  assert(typeof manifestJSON === "string");
+  let manifest = JSON.parse(manifestJSON);
+  t.deepEqual(manifest, {
+    "2.txt": "$__MINIFLARE_SITES__$/2.txt",
+    "a/b/c/1.txt": "$__MINIFLARE_SITES__$/a%2Fb%2Fc%2F1.txt",
+  });
+
+  // Check manifest rebuilt on new file
+  await fs.writeFile(path.join(tmp, "5.txt"), "test5", "utf8");
+  result = await plugin.setup();
+  manifestJSON = result.bindings?.__STATIC_CONTENT_MANIFEST;
+  assert(typeof manifestJSON === "string");
+  manifest = JSON.parse(manifestJSON);
+  t.deepEqual(manifest, {
+    "2.txt": "$__MINIFLARE_SITES__$/2.txt",
+    "5.txt": "$__MINIFLARE_SITES__$/5.txt",
+    "a/b/c/1.txt": "$__MINIFLARE_SITES__$/a%2Fb%2Fc%2F1.txt",
+  });
 });
 
 // Path to worker script with @cloudflare/kv-asset-handler bundled
@@ -193,23 +242,24 @@ test("matches wildcard directory patterns", matchMacro, "a/*/c/*.txt");
 test("MiniflareCore: doesn't cache files", async (t) => {
   const tmp = await useTmp(t);
   const testPath = path.join(tmp, "test.txt");
+  await fs.writeFile(testPath, "1", "utf8");
+
   const mf = useMiniflare(
     { SitesPlugin, CachePlugin },
     { scriptPath: sitesScriptPath, sitePath: tmp }
   );
 
-  await fs.writeFile(testPath, "1", "utf8");
   const res1 = await mf.dispatchFetch(
     new Request("http://localhost:8787/test.txt")
   );
-  t.false(res1.headers.has("CF-Cache-Status"));
+  t.is(res1.headers.get("CF-Cache-Status"), "MISS");
   t.is(await res1.text(), "1");
 
   await fs.writeFile(testPath, "2", "utf8");
   const res2 = await mf.dispatchFetch(
     new Request("http://localhost:8787/test.txt")
   );
-  t.false(res2.headers.has("CF-Cache-Status"));
+  t.is(res2.headers.get("CF-Cache-Status"), "MISS");
   t.is(await res2.text(), "2");
 });
 
@@ -222,5 +272,18 @@ test("MiniflareCore: gets assets with module worker", async (t) => {
     { modules: true, scriptPath: sitesModulesScriptPath, sitePath: tmp }
   );
   const res = await mf.dispatchFetch("http://localhost:8787/test.txt");
+  t.is(await res.text(), "test");
+});
+
+test("MiniflareCore: gets assets with percent-encoded paths", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/326
+  const tmp = await useTmp(t);
+  const testPath = path.join(tmp, "ń.txt");
+  await fs.writeFile(testPath, "test", "utf8");
+  const mf = useMiniflare(
+    { SitesPlugin, CachePlugin },
+    { scriptPath: sitesScriptPath, sitePath: tmp }
+  );
+  const res = await mf.dispatchFetch("http://localhost:8787/ń.txt");
   t.is(await res.text(), "test");
 });

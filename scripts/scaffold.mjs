@@ -41,7 +41,7 @@ async function scaffoldPackage(unscopedPkgName) {
     types: "./dist/src/index.d.ts",
     files: ["dist/src"],
     engines: {
-      node: ">=16.7",
+      node: ">=16.13",
     },
     publishConfig: { access: "public" },
     repository: {

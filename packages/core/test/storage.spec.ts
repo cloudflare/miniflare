@@ -14,8 +14,8 @@ test("PluginStorageFactory: namespaces memory storage", async (t) => {
   const factory1 = new PluginStorageFactory(inner, "Test1Plugin");
   const factory2 = new PluginStorageFactory(inner, "Test2Plugin");
   // Get storages from each factory using the same namespace
-  const storage1 = await factory1.storage("ns");
-  const storage2 = await factory2.storage("ns");
+  const storage1 = factory1.storage("ns");
+  const storage2 = factory2.storage("ns");
   // Check storages have distinct storage
   await storage1.put("key", { value: utf8Encode("value1") });
   await storage2.put("key", { value: utf8Encode("value2") });
@@ -36,7 +36,7 @@ test("PluginStorageFactory: uses default file storage location", async (t) => {
     "TestPlugin",
     defaultPersistRoot
   );
-  const storage = await factory.storage("ns", true);
+  const storage = factory.storage("ns", true);
   await storage.put("key", { value: utf8Encode("value") });
   t.is(utf8Decode(map.get("key")?.value), "value");
 });
@@ -46,7 +46,7 @@ test("PluginStorageFactory: uses custom location/database", async (t) => {
     ["custom:test:ns"]: map,
   });
   const factory = new PluginStorageFactory(inner, "TestPlugin");
-  const storage = await factory.storage("ns", "custom:test");
+  const storage = factory.storage("ns", "custom:test");
   await storage.put("key", { value: utf8Encode("value") });
   t.is(utf8Decode(map.get("key")?.value), "value");
 });

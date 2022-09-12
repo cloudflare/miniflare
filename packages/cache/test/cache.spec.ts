@@ -1,7 +1,7 @@
 import assert from "assert";
 import { URL } from "url";
 import { Cache, CacheError, CachedMeta } from "@miniflare/cache";
-import { Request, RequestInitCfProperties, Response } from "@miniflare/core";
+import { Request, Response } from "@miniflare/core";
 import {
   EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
   RequestContext,
@@ -147,59 +147,6 @@ test("Cache: respects cache key", async (t) => {
   t.is(await match1?.text(), "value1");
   t.is(await match2?.text(), "value2");
 });
-test("Cache: put respects cf cacheTtl", async (t) => {
-  const { clock, cache } = t.context;
-  await cache.put(
-    new Request("http://localhost/test", { cf: { cacheTtl: 1 } }),
-    new BaseResponse("value")
-  );
-  t.not(await cache.match("http://localhost/test"), undefined);
-  clock.timestamp += 500;
-  t.not(await cache.match("http://localhost/test"), undefined);
-  clock.timestamp += 500;
-  t.is(await cache.match("http://localhost/test"), undefined);
-});
-test("Cache: put respects cf cacheTtlByStatus", async (t) => {
-  const { clock, cache } = t.context;
-  const cf: RequestInitCfProperties = {
-    cacheTtlByStatus: { "200-299": 2, "? :D": 99, "404": 1, "500-599": 0 },
-  };
-  const headers = { "Cache-Control": "max-age=5" };
-  const req200 = new Request("http://localhost/200", { cf });
-  const req201 = new Request("http://localhost/201", { cf });
-  const req302 = new Request("http://localhost/302", { cf });
-  const req404 = new Request("http://localhost/404", { cf });
-  const req599 = new Request("http://localhost/599", { cf });
-  await cache.put(req200, new BaseResponse(null, { status: 200, headers }));
-  await cache.put(req201, new BaseResponse(null, { status: 201, headers }));
-  await cache.put(req302, new BaseResponse(null, { status: 302, headers }));
-  await cache.put(req404, new BaseResponse(null, { status: 404, headers }));
-  await cache.put(req599, new BaseResponse(null, { status: 599, headers }));
-
-  // Check all but 5xx responses cached
-  t.not(await cache.match("http://localhost/200"), undefined);
-  t.not(await cache.match("http://localhost/201"), undefined);
-  t.not(await cache.match("http://localhost/302"), undefined);
-  t.not(await cache.match("http://localhost/404"), undefined);
-  t.is(await cache.match("http://localhost/599"), undefined);
-
-  // Check 404 response expires after 1 second
-  clock.timestamp += 1000;
-  t.not(await cache.match("http://localhost/200"), undefined);
-  t.not(await cache.match("http://localhost/201"), undefined);
-  t.not(await cache.match("http://localhost/302"), undefined);
-  t.is(await cache.match("http://localhost/404"), undefined);
-
-  // Check 2xx responses expire after 2 seconds
-  clock.timestamp += 1000;
-  t.is(await cache.match("http://localhost/200"), undefined);
-  t.is(await cache.match("http://localhost/201"), undefined);
-  t.not(await cache.match("http://localhost/302"), undefined);
-
-  // Check 302 response expires after 5 seconds
-  clock.timestamp += 3000;
-  t.is(await cache.match("http://localhost/302"), undefined);
-});
 
 test("Cache: put increments subrequest count", async (t) => {
   const { cache } = t.context;
@@ -289,6 +236,91 @@ test("Cache: match throws if attempting to load cached response created with Min
       "Unable to deserialize stored cached data due to missing metadata.\n" +
       "The cached data storage format changed in Miniflare 2. You cannot " +
       "load cached data created with Miniflare 1 and must delete it.",
+  });
+});
+test("Cache: match respects If-None-Match header", async (t) => {
+  const { cache } = t.context;
+  const res = new Response("value", {
+    headers: {
+      ETag: '"thing"',
+      "Cache-Control": "max-age=3600",
+    },
+  });
+  await cache.put("http://localhost:8787/test", res);
+
+  const ifNoneMatch = (value: string) =>
+    new BaseRequest("http://localhost:8787/test", {
+      headers: { "If-None-Match": value },
+    });
+
+  // Check returns 304 only if an ETag in `If-Modified-Since` matches
+  let cacheRes = await cache.match(ifNoneMatch('"thing"'));
+  t.is(cacheRes?.status, 304);
+  cacheRes = await cache.match(ifNoneMatch('   W/"thing"      '));
+  t.is(cacheRes?.status, 304);
+  cacheRes = await cache.match(ifNoneMatch('"not the thing"'));
+  t.is(cacheRes?.status, 200);
+  cacheRes = await cache.match(
+    ifNoneMatch('"not the thing",    "thing"    , W/"still not the thing"')
+  );
+  t.is(cacheRes?.status, 304);
+  cacheRes = await cache.match(ifNoneMatch("*"));
+  t.is(cacheRes?.status, 304);
+  cacheRes = await cache.match(ifNoneMatch("    *   "));
+  t.is(cacheRes?.status, 304);
+});
+test("Cache: match respects If-Modified-Since header", async (t) => {
+  const { cache } = t.context;
+  const res = new Response("value", {
+    headers: {
+      "Last-Modified": "Tue, 13 Sep 2022 12:00:00 GMT",
+      "Cache-Control": "max-age=3600",
+    },
+  });
+  await cache.put("http://localhost:8787/test", res);
+
+  const ifModifiedSince = (value: string) =>
+    new BaseRequest("http://localhost:8787/test", {
+      headers: { "If-Modified-Since": value },
+    });
+
+  // Check returns 200 if modified after `If-Modified-Since`
+  let cacheRes = await cache.match(
+    ifModifiedSince("Tue, 13 Sep 2022 11:00:00 GMT")
+  );
+  t.is(cacheRes?.status, 200);
+  // Check returns 304 if modified on `If-Modified-Since`
+  cacheRes = await cache.match(
+    ifModifiedSince("Tue, 13 Sep 2022 12:00:00 GMT")
+  );
+  t.is(cacheRes?.status, 304);
+  // Check returns 304 if modified before `If-Modified-Since`
+  cacheRes = await cache.match(
+    ifModifiedSince("Tue, 13 Sep 2022 13:00:00 GMT")
+  );
+  t.is(cacheRes?.status, 304);
+  // Check returns 200 if `If-Modified-Since` is not a "valid" UTC date
+  cacheRes = await cache.match(ifModifiedSince("13 Sep 2022 13:00:00 GMT"));
+  t.is(cacheRes?.status, 200);
+});
+test("Cache: match respects Range header", async (t) => {
+  const { cache } = t.context;
+  await cache.put("http://localhost:8787/test", testResponse("0123456789"));
+  const req = new BaseRequest("http://localhost:8787/test", {
+    headers: { Range: "bytes=2-4" },
+  });
+  const res = await cache.match(req);
+  t.is(res?.status, 206);
+  t.is(await res?.text(), "234");
+});
+test("Cache: match returns Response with immutable headers", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/365
+  const { cache } = t.context;
+  await cache.put("http://localhost:8787/", testResponse());
+  const cached = await cache.match("http://localhost:8787/");
+  t.throws(() => cached?.headers.set("X-Key", "value"), {
+    instanceOf: TypeError,
+    message: "immutable",
   });
 });
 

@@ -15,7 +15,7 @@ const supportedDigests = ["sha-1", "sha-256", "sha-384", "sha-512", "md5"];
 export class DigestStream extends WritableStream<BufferSource> {
   readonly digest: Promise<ArrayBuffer>;
 
-  constructor(algorithm: AlgorithmIdentifier) {
+  constructor(algorithm: webcrypto.AlgorithmIdentifier) {
     // Check algorithm supported by Cloudflare Workers
     let name = typeof algorithm === "string" ? algorithm : algorithm?.name;
     if (!(name && supportedDigests.includes(name.toLowerCase()))) {
@@ -47,11 +47,61 @@ export class DigestStream extends WritableStream<BufferSource> {
   }
 }
 
-// Workers support non-standard MD5 digests
-function digest(
-  algorithm: AlgorithmIdentifier,
-  data: BufferSource
-): Promise<ArrayBuffer> {
+const usesModernEd25519 = (async () => {
+  try {
+    // Modern versions of Node.js expect `Ed25519` instead of `NODE-ED25519`.
+    // This will throw a `DOMException` if `NODE-ED25519` should be used
+    // instead. See https://github.com/nodejs/node/pull/42507.
+    await webcrypto.subtle.generateKey(
+      { name: "Ed25519", namedCurve: "Ed25519" },
+      false,
+      ["sign", "verify"]
+    );
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
+async function ensureValidNodeAlgorithm(
+  algorithm: webcrypto.AlgorithmIdentifier | webcrypto.EcKeyAlgorithm
+): Promise<webcrypto.AlgorithmIdentifier | webcrypto.EcKeyAlgorithm> {
+  if (
+    typeof algorithm === "object" &&
+    algorithm.name === "NODE-ED25519" &&
+    "namedCurve" in algorithm &&
+    algorithm.namedCurve === "NODE-ED25519" &&
+    (await usesModernEd25519)
+  ) {
+    return { name: "Ed25519", namedCurve: "Ed25519" };
+  }
+  return algorithm;
+}
+
+function ensureValidWorkerKey(key: webcrypto.CryptoKey): webcrypto.CryptoKey {
+  // Users' workers will expect to see the `NODE-ED25519` algorithm, even if
+  // we're using "Ed25519" internally (https://github.com/panva/jose/issues/446)
+  if (key.algorithm.name === "Ed25519") key.algorithm.name = "NODE-ED25519";
+  return key;
+}
+
+async function ensureValidNodeKey(
+  key: webcrypto.CryptoKey
+): Promise<webcrypto.CryptoKey> {
+  if (key.algorithm.name === "NODE-ED25519" && (await usesModernEd25519)) {
+    return new Proxy(key, {
+      get(target, property, receiver) {
+        if (property === "algorithm") return { name: "Ed25519" };
+        return Reflect.get(target, property, receiver);
+      },
+    });
+  }
+  return key;
+}
+
+// Workers support non-standard MD5 digests, see
+// https://developers.cloudflare.com/workers/runtime-apis/web-crypto/#supported-algorithms
+const digest: typeof webcrypto.subtle.digest = function (algorithm, data) {
   const name = typeof algorithm === "string" ? algorithm : algorithm?.name;
   if (name?.toLowerCase() == "md5") {
     if (data instanceof ArrayBuffer) data = new Uint8Array(data);
@@ -61,22 +111,107 @@ function digest(
 
   // If the algorithm isn't MD5, defer to the original function
   return webcrypto.subtle.digest(algorithm, data);
-}
+};
 
-export function createCrypto(blockGlobalRandom = false): typeof webcrypto {
-  const getRandomValues = assertsInRequest(
+// Workers support the NODE-ED25519 algorithm, unlike modern Node versions, see
+// https://developers.cloudflare.com/workers/runtime-apis/web-crypto/#supported-algorithms
+const generateKey: typeof webcrypto.subtle.generateKey = async function (
+  algorithm,
+  extractable,
+  keyUsages
+) {
+  algorithm = await ensureValidNodeAlgorithm(algorithm);
+  const key: webcrypto.CryptoKey | webcrypto.CryptoKeyPair =
+    // @ts-expect-error TypeScript cannot infer the correct overload here
+    await webcrypto.subtle.generateKey(algorithm, extractable, keyUsages);
+  // noinspection SuspiciousTypeOfGuard
+  if (key instanceof webcrypto.CryptoKey) {
+    return ensureValidWorkerKey(key);
+  } else {
+    key.publicKey = ensureValidWorkerKey(key.publicKey);
+    key.privateKey = ensureValidWorkerKey(key.privateKey);
+    return key as any;
+  }
+};
+const importKey: typeof webcrypto.subtle.importKey = async function (
+  format,
+  keyData,
+  algorithm,
+  extractable,
+  keyUsages
+) {
+  // Cloudflare Workers only allow importing *public* raw Ed25519 keys, see
+  // https://developers.cloudflare.com/workers/runtime-apis/web-crypto/#supported-algorithms
+  const forcePublic =
+    format === "raw" &&
+    typeof algorithm === "object" &&
+    algorithm.name === "NODE-ED25519" &&
+    "namedCurve" in algorithm &&
+    algorithm.namedCurve === "NODE-ED25519";
+
+  algorithm = await ensureValidNodeAlgorithm(algorithm);
+
+  // @ts-expect-error `public` isn't included in the definitions, but required
+  // for marking `keyData` as public key material
+  if (forcePublic) algorithm.public = true;
+
+  const key = await webcrypto.subtle.importKey(
+    // @ts-expect-error TypeScript cannot infer the correct overload here
+    format,
+    keyData,
+    algorithm,
+    extractable,
+    keyUsages
+  );
+  return ensureValidWorkerKey(key);
+};
+const exportKey: typeof webcrypto.subtle.exportKey = async function (
+  format,
+  key
+) {
+  key = await ensureValidNodeKey(key);
+  // @ts-expect-error TypeScript cannot infer the correct overload here
+  return webcrypto.subtle.exportKey(format, key);
+};
+const sign: typeof webcrypto.subtle.sign = async function (
+  algorithm,
+  key,
+  data
+) {
+  algorithm = await ensureValidNodeAlgorithm(algorithm);
+  key = await ensureValidNodeKey(key);
+  return webcrypto.subtle.sign(algorithm, key, data);
+};
+const verify: typeof webcrypto.subtle.verify = async function (
+  algorithm,
+  key,
+  signature,
+  data
+) {
+  algorithm = await ensureValidNodeAlgorithm(algorithm);
+  key = await ensureValidNodeKey(key);
+  return webcrypto.subtle.verify(algorithm, key, signature, data);
+};
+
+export type WorkerCrypto = typeof webcrypto & {
+  DigestStream: typeof DigestStream;
+};
+
+export function createCrypto(blockGlobalRandom = false): WorkerCrypto {
+  const assertingGetRandomValues = assertsInRequest(
     webcrypto.getRandomValues.bind(webcrypto),
     blockGlobalRandom
   );
-  const generateKey = assertsInRequest(
-    webcrypto.subtle.generateKey.bind(webcrypto.subtle),
-    blockGlobalRandom
-  );
+  const assertingGenerateKey = assertsInRequest(generateKey, blockGlobalRandom);
 
   const subtle = new Proxy(webcrypto.subtle, {
     get(target, propertyKey, receiver) {
       if (propertyKey === "digest") return digest;
-      if (propertyKey === "generateKey") return generateKey;
+      if (propertyKey === "generateKey") return assertingGenerateKey;
+      if (propertyKey === "importKey") return importKey;
+      if (propertyKey === "exportKey") return exportKey;
+      if (propertyKey === "sign") return sign;
+      if (propertyKey === "verify") return verify;
 
       let result = Reflect.get(target, propertyKey, receiver);
       if (typeof result === "function") result = result.bind(webcrypto.subtle);
@@ -84,9 +219,9 @@ export function createCrypto(blockGlobalRandom = false): typeof webcrypto {
     },
   });
 
-  return new Proxy(webcrypto, {
+  return new Proxy(webcrypto as WorkerCrypto, {
     get(target, propertyKey, receiver) {
-      if (propertyKey === "getRandomValues") return getRandomValues;
+      if (propertyKey === "getRandomValues") return assertingGetRandomValues;
       if (propertyKey === "subtle") return subtle;
       if (propertyKey === "DigestStream") return DigestStream;
 

@@ -11,7 +11,7 @@ import {
   MessageEvent,
   WebSocket,
   WebSocketPair,
-  kClosed,
+  kClosedOutgoing,
 } from "./websocket";
 
 const constructError =
@@ -23,7 +23,10 @@ export class WebSocketPlugin extends Plugin {
 
   constructor(ctx: PluginContext) {
     super(ctx);
-    this.#upgradingFetch = createCompatFetch(ctx, upgradingFetch);
+    this.#upgradingFetch = createCompatFetch(
+      ctx,
+      upgradingFetch.bind(ctx.fetchMock)
+    );
   }
 
   setup(): SetupResult {
@@ -48,6 +51,7 @@ export class WebSocketPlugin extends Plugin {
   }
 
   fetch = async (input: RequestInfo, init?: RequestInit): Promise<Response> => {
+    // @ts-expect-error `this` is correctly bound in the plugin constructor
     const response = await this.#upgradingFetch(input, init);
     if (response.webSocket) this.#webSockets.add(response.webSocket);
     return response;
@@ -56,7 +60,7 @@ export class WebSocketPlugin extends Plugin {
   reload(): void {
     // Ensure all fetched web sockets are closed
     for (const ws of this.#webSockets) {
-      if (!ws[kClosed]) ws.close(1012, "Service Restart");
+      if (!ws[kClosedOutgoing]) ws.close(1012, "Service Restart");
     }
     this.#webSockets.clear();
   }

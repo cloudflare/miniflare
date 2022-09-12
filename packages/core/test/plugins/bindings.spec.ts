@@ -11,11 +11,13 @@ import {
   Response,
   _CoreMount,
 } from "@miniflare/core";
+import { QueueBroker } from "@miniflare/queues";
 import {
   Compatibility,
   LogLevel,
   NoOpLog,
   PluginContext,
+  QueueEventDispatcher,
   getRequestContext,
   viewToBuffer,
 } from "@miniflare/shared";
@@ -34,7 +36,15 @@ import test from "ava";
 const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
-const ctx: PluginContext = { log, compat, rootPath };
+const queueBroker = new QueueBroker();
+const queueEventDispatcher: QueueEventDispatcher = async (_batch) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker,
+  queueEventDispatcher,
+};
 
 const fixturesPath = path.join(__dirname, "..", "..", "..", "test", "fixtures");
 // add.wasm is a WebAssembly module with a single export "add" that adds
@@ -331,7 +341,7 @@ test("BindingsPlugin: setup: loads .env bindings from default location", async (
   const defaultEnvPath = path.join(tmp, ".env");
 
   let plugin = new BindingsPlugin(
-    { log, compat, rootPath: tmp },
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     { envPath: true }
   );
   // Shouldn't throw if file doesn't exist...
@@ -353,7 +363,10 @@ test("BindingsPlugin: setup: loads .env bindings from default location", async (
   });
 
   // Check default .env only loaded when envPath set to true
-  plugin = new BindingsPlugin({ log, compat, rootPath: tmp }, {});
+  plugin = new BindingsPlugin(
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
+    {}
+  );
   result = await plugin.setup();
   t.deepEqual(result, { globals: undefined, bindings: {}, watch: [] });
 });
@@ -364,7 +377,7 @@ test("BindingsPlugin: setup: loads .env bindings from custom location", async (t
   await fs.writeFile(defaultEnvPath, "KEY=default");
 
   const plugin = new BindingsPlugin(
-    { log, compat, rootPath: tmp },
+    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
     // Should resolve envPath relative to rootPath
     { envPath: ".env.custom" }
   );
@@ -403,7 +416,13 @@ test("BindingsPlugin: setup: loads WebAssembly bindings", async (t) => {
 
   // Check resolves wasmBindings path relative to rootPath
   plugin = new BindingsPlugin(
-    { log, compat, rootPath: path.dirname(addModulePath) },
+    {
+      log,
+      compat,
+      rootPath: path.dirname(addModulePath),
+      queueBroker,
+      queueEventDispatcher,
+    },
     { wasmBindings: { ADD: path.basename(addModulePath) } }
   );
   result = await plugin.setup();
@@ -419,7 +438,13 @@ test("BindingsPlugin: setup: loads text blob bindings", async (t) => {
 
   // Check resolves text blob bindings path relative to rootPath
   plugin = new BindingsPlugin(
-    { log, compat, rootPath: path.dirname(loremIpsumPath) },
+    {
+      log,
+      compat,
+      rootPath: path.dirname(loremIpsumPath),
+      queueBroker,
+      queueEventDispatcher,
+    },
     { textBlobBindings: { LOREM_IPSUM: "lorem-ipsum.txt" } }
   );
   result = await plugin.setup();
@@ -435,7 +460,13 @@ test("BindingsPlugin: setup: loads data blob bindings", async (t) => {
 
   // Check resolves data blob bindings path relative to rootPath
   plugin = new BindingsPlugin(
-    { log, compat, rootPath: path.dirname(loremIpsumPath) },
+    {
+      log,
+      compat,
+      rootPath: path.dirname(loremIpsumPath),
+      queueBroker,
+      queueEventDispatcher,
+    },
     { dataBlobBindings: { BINARY_DATA: "lorem-ipsum.txt" } }
   );
   result = await plugin.setup();
@@ -508,6 +539,18 @@ test("Fetcher: hides implementation details", (t) => {
   };
   const fetcher = new Fetcher(throws, throws);
   t.deepEqual(getObjectProperties(fetcher), ["fetch"]);
+});
+test("Fetcher: fetch: throws on illegal invocation", async (t) => {
+  const throws = () => {
+    throw new Error("Should not be called");
+  };
+  const fetcher = new Fetcher(throws, throws);
+  // @ts-expect-error using comma expression to unbind this
+  // noinspection CommaExpressionJS
+  await t.throwsAsync(() => (0, fetcher.fetch)("http://localhost"), {
+    instanceOf: TypeError,
+    message: "Illegal invocation",
+  });
 });
 test("BindingsPlugin: dispatches fetch to mounted service", async (t) => {
   const mf = useMiniflare(
@@ -899,5 +942,31 @@ test("BindingsPlugin: service fetch increases pipeline depth", async (t) => {
     instanceOf: Error,
     message:
       /^Subrequest depth limit exceeded.+\nService bindings can recurse up to 32 times\./,
+  });
+});
+test("BindingsPlugin: service fetch returns response with immutable headers", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/346
+  const mf = useMiniflare(
+    { BindingsPlugin },
+    {
+      modules: true,
+      serviceBindings: {
+        SERVICE() {
+          return new Response();
+        },
+      },
+      script: `export default {
+        async fetch(request, env) {
+          const res = await env.SERVICE.fetch(request);
+          res.headers.set("X-Key", "value");
+          return res;
+        }
+      }`,
+    }
+  );
+
+  await t.throwsAsync(mf.dispatchFetch("http://localhost"), {
+    instanceOf: TypeError,
+    message: "immutable",
   });
 });

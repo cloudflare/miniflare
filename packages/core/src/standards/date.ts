@@ -1,8 +1,13 @@
 import { getRequestContext } from "@miniflare/shared";
 
+// `Date.now` may be overridden in user code. If this calls `new Date()`, we'll
+// end up with unbounded recursion, so store a reference to the original.
+// See https://github.com/cloudflare/miniflare/issues/314.
+const originalDateNow = Date.now;
+
 function requestContextNow() {
   // If there's no request context, just fallback to actual time
-  return getRequestContext()?.currentTime ?? Date.now();
+  return getRequestContext()?.currentTime ?? originalDateNow();
 }
 
 export function createDate(actualTime = false): typeof Date {

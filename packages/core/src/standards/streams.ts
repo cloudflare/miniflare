@@ -1,8 +1,12 @@
 import type { Transform } from "stream";
 import {
+  ReadableByteStreamController,
+  ReadableStream,
   ReadableStreamBYOBReadResult,
   ReadableStreamBYOBReader,
+  ReadableStreamDefaultReader,
   TransformStream,
+  TransformStreamDefaultController,
   Transformer,
 } from "stream/web";
 import zlib from "zlib";
@@ -11,6 +15,57 @@ import {
   buildNotBufferSourceError,
   isBufferSource,
 } from "./helpers";
+
+/** @internal */
+export function _isByteStream(
+  stream: ReadableStream
+): stream is ReadableStream<Uint8Array> {
+  // Try to determine if stream is a byte stream by inspecting its state.
+  // It doesn't matter too much if the internal representation changes in the
+  // future: this code shouldn't throw. Currently we only use this as an
+  // optimisation to avoid creating a byte stream if it's already one.
+  for (const symbol of Object.getOwnPropertySymbols(stream)) {
+    if (symbol.description === "kState") {
+      // @ts-expect-error symbol properties are not included in type definitions
+      const controller = stream[symbol].controller;
+      return controller instanceof ReadableByteStreamController;
+    }
+  }
+  return false;
+}
+
+function convertToByteStream(
+  stream: ReadableStream<Uint8Array>,
+  clone = false
+) {
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
+  return new ReadableStream({
+    type: "bytes",
+    start() {
+      reader = stream.getReader();
+    },
+    async pull(controller) {
+      let result = await reader.read();
+      while (!result.done && result.value.byteLength === 0) {
+        result = await reader.read();
+      }
+      if (result.done) {
+        queueMicrotask(() => {
+          controller.close();
+          // Not documented in MDN but if there's an ongoing request that's
+          // waiting, we need to tell it that there were 0 bytes delivered so
+          // that it unblocks and notices the end of stream.
+          // @ts-expect-error `byobRequest` has type `undefined` in `@types/node`
+          controller.byobRequest?.respond(0);
+        });
+      } else if (result.value.byteLength > 0) {
+        if (clone) result.value = result.value.slice();
+        controller.enqueue(result.value);
+      }
+    },
+    cancel: (reason) => reader.cancel(reason),
+  });
+}
 
 export type ArrayBufferViewConstructor =
   | typeof Int8Array
@@ -80,56 +135,119 @@ ReadableStreamBYOBReader.prototype.readAtLeast = async function <
   return { value: value as any, done };
 };
 
+// See comment above about manipulating the prototype.
+// Rewrite tee() to return byte streams when tee()ing byte streams:
+// https://github.com/cloudflare/miniflare/issues/317
+const originalTee = ReadableStream.prototype.tee;
+ReadableStream.prototype.tee = function () {
+  if (!(this instanceof ReadableStream)) {
+    throw new TypeError("Illegal invocation");
+  }
+  if (_isByteStream(this)) {
+    const [stream1, stream2] = originalTee.call(this);
+    // We need to clone chunks here, as either of the tee()ed streams might be
+    // passed to `new Response()`, which will detach array buffers when reading:
+    // https://github.com/cloudflare/miniflare/issues/375
+    return [
+      convertToByteStream(stream1, true /* clone */),
+      convertToByteStream(stream2, true /* clone */),
+    ];
+  } else {
+    return originalTee.call(this);
+  }
+};
+
+const kTransformHook = Symbol("kTransformHook");
+const kFlushHook = Symbol("kFlushHook");
+
+export class IdentityTransformStream extends TransformStream<
+  Uint8Array,
+  Uint8Array
+> {
+  #readableByteStream?: ReadableStream<Uint8Array>;
+
+  // Hooks for FixedLengthStream
+  [kTransformHook]?: (
+    chunk: Uint8Array,
+    controller: TransformStreamDefaultController<Uint8Array>
+  ) => boolean;
+  [kFlushHook]?: (
+    controller: TransformStreamDefaultController<Uint8Array>
+  ) => void;
+
+  constructor() {
+    super({
+      transform: (chunk, controller) => {
+        // Make sure this chunk is an ArrayBuffer(View)
+        if (isBufferSource(chunk)) {
+          const array = bufferSourceToArray(chunk);
+          if (this[kTransformHook]?.(array, controller) === false) return;
+          controller.enqueue(array);
+        } else {
+          controller.error(new TypeError(buildNotBufferSourceError(chunk)));
+        }
+      },
+      flush: (controller) => this[kFlushHook]?.(controller),
+    });
+  }
+
+  get readable() {
+    if (this.#readableByteStream !== undefined) return this.#readableByteStream;
+    return (this.#readableByteStream = convertToByteStream(super.readable));
+  }
+}
+
 export const kContentLength = Symbol("kContentLength");
 
-export class FixedLengthStream extends TransformStream<Uint8Array, Uint8Array> {
+export class FixedLengthStream extends IdentityTransformStream {
+  readonly #expectedLength: number;
+  #bytesWritten = 0;
+
   constructor(expectedLength: number) {
+    super();
+
     // noinspection SuspiciousTypeOfGuard
     if (typeof expectedLength !== "number" || expectedLength < 0) {
       throw new TypeError(
         "FixedLengthStream requires a non-negative integer expected length."
       );
     }
-
-    // Keep track of the number of bytes written
-    let written = 0;
-    super({
-      transform(chunk, controller) {
-        // Make sure this chunk is an ArrayBuffer(View)
-        if (isBufferSource(chunk)) {
-          const array = bufferSourceToArray(chunk);
-
-          // Throw if written too many bytes
-          written += array.byteLength;
-          if (written > expectedLength) {
-            return controller.error(
-              new TypeError(
-                "Attempt to write too many bytes through a FixedLengthStream."
-              )
-            );
-          }
-
-          controller.enqueue(array);
-        } else {
-          controller.error(new TypeError(buildNotBufferSourceError(chunk)));
-        }
-      },
-      flush(controller) {
-        // Throw if not written enough bytes on close
-        if (written < expectedLength) {
-          controller.error(
-            new TypeError(
-              "FixedLengthStream did not see all expected bytes before close()."
-            )
-          );
-        }
-      },
-    });
+    this.#expectedLength = expectedLength;
 
     // When used as Request/Response body, override the Content-Length header
     // with the expectedLength
-    (this.readable as any)[kContentLength] = expectedLength;
+    Object.defineProperty(this.readable, kContentLength, {
+      value: expectedLength,
+    });
   }
+
+  [kTransformHook] = (
+    chunk: Uint8Array,
+    controller: TransformStreamDefaultController<Uint8Array>
+  ) => {
+    // Throw if written too many bytes
+    this.#bytesWritten += chunk.byteLength;
+    if (this.#bytesWritten > this.#expectedLength) {
+      controller.error(
+        new TypeError(
+          "Attempt to write too many bytes through a FixedLengthStream."
+        )
+      );
+      return false;
+    }
+    return true;
+  };
+
+  [kFlushHook] = (controller: TransformStreamDefaultController<Uint8Array>) => {
+    // Throw if not written enough bytes on close
+    if (this.#bytesWritten < this.#expectedLength) {
+      controller.error(
+        new TypeError(
+          "FixedLengthStream did not see all expected bytes before close()."
+        )
+      );
+    }
+  };
 }
 
 function createTransformerFromTransform(transform: Transform): Transformer {
@@ -159,7 +277,7 @@ function createTransformerFromTransform(transform: Transform): Transformer {
 }
 
 // `(De)CompressionStream`s were added in Node.js 17.0.0. Our minimum supported
-// version is 16.7.0, so we implement basic versions ourselves, preferring to
+// version is 16.13.0, so we implement basic versions ourselves, preferring to
 // use Node's if available.
 
 export class CompressionStream extends TransformStream<Uint8Array, Uint8Array> {

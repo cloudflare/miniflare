@@ -114,9 +114,12 @@ export async function convertNodeRequest(
   req.headers["cf-visitor"] ??= `{"scheme":"${proto}"}`;
   req.headers["host"] = url.host;
 
-  // Keep it to use later
+  // Store original `Accept-Encoding` for `request.cf.clientAcceptEncoding`
   const clientAcceptEncoding = req.headers["accept-encoding"];
-  // This should be fixed
+  // Only the `Set-Cookie` header is an array: https://nodejs.org/api/http.html#messageheaders
+  assert(!Array.isArray(clientAcceptEncoding));
+  // The Workers runtime will always set `Accept-Encoding` to `gzip`:
+  // https://github.com/cloudflare/miniflare/issues/180
   req.headers["accept-encoding"] = "gzip";
 
   // Build Headers object from request
@@ -159,7 +162,8 @@ async function writeResponse(
       // @ts-expect-error getAll is added to the Headers prototype by
       // importing @miniflare/core
       headers["set-cookie"] = response.headers.getAll("set-cookie");
-    } else {
+    } else if (key !== "content-length") {
+      // Content-Length has special handling below
       headers[key] = value;
     }
   }
@@ -171,14 +175,14 @@ async function writeResponse(
   const contentLength =
     _getBodyLength(response) ??
     (contentLengthHeader === null ? null : parseInt(contentLengthHeader));
-  if (contentLength !== null) headers["content-length"] = contentLength;
+  if (contentLength !== null && !isNaN(contentLength)) {
+    headers["content-length"] = contentLength;
+  }
 
   // If a Content-Encoding is set, and the user hasn't encoded the body,
   // we're responsible for doing so.
   const encoders: Transform[] = [];
-  if (headers["content-encoding"] && response.encodeBody === "auto") {
-    // Content-Length will be wrong as it's for the decoded length
-    delete headers["content-length"];
+  if (headers["content-encoding"] && response.encodeBody === "automatic") {
     // Reverse of https://github.com/nodejs/undici/blob/48d9578f431cbbd6e74f77455ba92184f57096cf/lib/fetch/index.js#L1660
     const codings = headers["content-encoding"]
       .toString()
@@ -195,10 +199,13 @@ async function writeResponse(
       } else {
         // Unknown encoding, don't do any encoding at all
         log?.warn(`Unknown encoding \"${coding}\", sending plain response...`);
-        delete headers["content-encoding"];
         encoders.length = 0;
         break;
       }
+    }
+    if (encoders.length > 0) {
+      // Content-Length will be wrong as it's for the decoded length
+      delete headers["content-length"];
     }
   }
 
@@ -206,7 +213,7 @@ async function writeResponse(
   // response, and it's HTML
   const liveReloadEnabled =
     liveReload &&
-    response.encodeBody === "auto" &&
+    response.encodeBody === "automatic" &&
     response.headers.get("content-type")?.toLowerCase().includes("text/html");
 
   // If Content-Length is specified, and we're live-reloading, we'll
@@ -253,8 +260,9 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
   mf: MiniflareCore<Plugins>
 ): RequestListener {
   return async (req, res) => {
-    const { HTTPPlugin } = await mf.getPlugins();
+    const { CorePlugin, HTTPPlugin } = await mf.getPlugins();
     const start = process.hrtime();
+    const startCpu = CorePlugin.inaccurateCpu ? process.cpuUsage() : undefined;
     const { request, url } = await convertNodeRequest(
       req,
       await HTTPPlugin.getRequestMeta(req)
@@ -331,13 +339,19 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
     }
 
     assert(req.method && req.url);
-    await logResponse(mf.log, {
+    const logPromise = logResponse(mf.log, {
       start,
+      startCpu,
       method: req.method,
       url: req.url,
       status,
       waitUntil,
     });
+    // `res` will be undefined if we're calling this function in response to a
+    // WebSocket upgrade. In that case, we don't want to wait for `waitUntil`s
+    // to resolve, before we can use the returned `response`. So, only `await`
+    // if we've already written the `response` somewhere.
+    if (res !== undefined) await logPromise;
     return response;
   };
 }
@@ -368,7 +382,13 @@ export async function createServer<Plugins extends HTTPPluginSignatures>(
   const { WebSocketServer }: typeof import("ws") = require("ws");
 
   // Setup WebSocket servers
-  const webSocketServer = new WebSocketServer({ noServer: true });
+  const webSocketServer = new WebSocketServer({
+    noServer: true,
+    // Disable automatic handling of `Sec-WebSocket-Protocol` header, Cloudflare
+    // Workers require users to include this header themselves in `Response`s:
+    // https://github.com/cloudflare/miniflare/issues/179
+    handleProtocols: () => false,
+  });
   const liveReloadServer = new WebSocketServer({ noServer: true });
 
   // Add custom headers included in response to WebSocket upgrade requests
@@ -460,7 +480,8 @@ export async function startServer<Plugins extends HTTPPluginSignatures>(
     server.listen(port, host, () => {
       const log = mf.log;
       const protocol = httpsEnabled ? "https" : "http";
-      const accessibleHosts = host ? [host] : getAccessibleHosts(true);
+      const accessibleHosts =
+        host && host !== "0.0.0.0" ? [host] : getAccessibleHosts(true);
       log.info(`Listening on ${host ?? ""}:${port}`);
       for (const accessibleHost of accessibleHosts) {
         log.info(`- ${protocol}://${accessibleHost}:${port}`);

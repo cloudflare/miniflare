@@ -1,5 +1,6 @@
 import path from "path";
-import ignore from "ignore";
+import { deserialize, serialize } from "v8";
+import picomatch from "picomatch";
 
 export const numericCompare = new Intl.Collator(undefined, { numeric: true })
   .compare;
@@ -12,6 +13,10 @@ export function lexicographicCompare(x: string, y: string): number {
 
 export function nonCircularClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
+}
+// Approximation of structuredClone for Node < 17.0.0
+export function structuredCloneBuffer<T>(value: T): T {
+  return deserialize(serialize(value));
 }
 
 export function addAll<T>(set: Set<T>, values: Iterable<T>): void {
@@ -38,18 +43,33 @@ export function randomHex(digits = 8): string {
     .join("");
 }
 
+export const SITES_NO_CACHE_PREFIX = "$__MINIFLARE_SITES__$/";
+
 // Arbitrary string matcher, note RegExp adheres to this interface
 export interface Matcher {
   test(string: string): boolean;
   toString(): string;
 }
 
-export function globsToMatcher(globs?: string[]): Matcher {
-  const ign = ignore();
-  if (globs) ign.add(globs);
+export function globsToMatcher(globs: string[] = []): Matcher {
+  const matchGlobs: string[] = [];
+  const ignoreGlobs: string[] = [];
+  for (const glob of globs) {
+    if (glob.startsWith("!")) {
+      ignoreGlobs.push(glob.slice(1));
+    } else {
+      matchGlobs.push(glob);
+    }
+  }
+  const isMatch = picomatch(matchGlobs, {
+    dot: true,
+    bash: true,
+    contains: true,
+    ignore: ignoreGlobs,
+  });
   return {
-    test: (string) => ign.ignores(string),
-    toString: () => globs?.join(", ") ?? "",
+    test: (string) => isMatch(string),
+    toString: () => globs.join(", "),
   };
 }
 

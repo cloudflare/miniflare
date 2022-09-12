@@ -13,7 +13,7 @@ import {
   kDispatchFetch,
   kDispatchScheduled,
 } from "@miniflare/core";
-import { NoOpLog } from "@miniflare/shared";
+import { LogLevel, NoOpLog } from "@miniflare/shared";
 import {
   TestLog,
   getObjectProperties,
@@ -66,42 +66,38 @@ test("ServiceWorkerGlobalScope: includes environment in globals if modules disab
       /^env is not defined\.\nAttempted to access binding using global in modules/,
   });
 });
-test("ServiceWorkerGlobalScope: addEventListener: disabled if modules enabled", (t) => {
-  const globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
-  t.throws(() => globalScope.addEventListener("fetch", () => {}), {
-    instanceOf: TypeError,
-    message:
-      "Global addEventListener() cannot be used in modules. Instead, event " +
-      "handlers should be declared as exports on the root module.",
-  });
-});
-test("ServiceWorkerGlobalScope: removeEventListener: disabled if modules enabled", (t) => {
-  const globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
-  t.throws(() => globalScope.removeEventListener("fetch", () => {}), {
-    instanceOf: TypeError,
-    message:
-      "Global removeEventListener() cannot be used in modules. Instead, event " +
-      "handlers should be declared as exports on the root module.",
-  });
-});
-test("ServiceWorkerGlobalScope: dispatchEvent: disabled if modules enabled", (t) => {
-  const globalScope = new ServiceWorkerGlobalScope(new NoOpLog(), {}, {}, true);
-  const event = new FetchEvent("fetch", {
-    request: new Request("http://localhost"),
-  });
-  t.throws(() => globalScope.dispatchEvent(event), {
-    instanceOf: TypeError,
-    message:
-      "Global dispatchEvent() cannot be used in modules. Instead, event " +
-      "handlers should be declared as exports on the root module.",
-  });
+test("ServiceWorkerGlobalScope: addEventListener: warns for special events if modules enabled", async (t) => {
+  let customEvents = 0;
+  const customEventListener = () => customEvents++;
+
+  const log = new TestLog();
+  const globalScope = new ServiceWorkerGlobalScope(log, {}, {}, true);
+
+  globalScope.addEventListener("fetch", () => {});
+  globalScope.addEventListener("scheduled", () => {});
+  globalScope.addEventListener("trace" as any, () => {});
+  globalScope.addEventListener("queue" as any, () => {});
+  globalScope.addEventListener("custom" as any, customEventListener);
+  const warningMessage = (type: string) =>
+    `When using module syntax, the '${type}' event handler should be declared as an exported function on the root module as opposed to using the global addEventListener().`;
+  t.deepEqual(log.logsAtLevel(LogLevel.WARN), [
+    warningMessage("fetch"),
+    warningMessage("scheduled"),
+    warningMessage("trace"),
+    warningMessage("queue"),
+  ]);
+
+  globalScope.dispatchEvent(new Event("custom") as any);
+  t.is(customEvents, 1);
+  globalScope.removeEventListener("custom" as any, customEventListener);
+  globalScope.dispatchEvent(new Event("custom") as any);
+  t.is(customEvents, 1);
 });
 test("ServiceWorkerGlobalScope: hides implementation details", (t) => {
   const { globalScope } = t.context;
   t.deepEqual(getObjectProperties(globalScope), [
     "KEY", // binding
     "addEventListener",
-    "dispatchEvent",
     "global",
     "removeEventListener",
     "self",
