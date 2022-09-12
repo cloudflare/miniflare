@@ -285,6 +285,17 @@ test(
   identityNonArrayChunkMacro,
   new IdentityTransformStream()
 );
+test("IdentityTransformStream: doesn't throw on empty chunk write", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/374
+  const { readable, writable } = new IdentityTransformStream();
+  const writer = writable.getWriter();
+  // noinspection ES6MissingAwait
+  void writer.write(new Uint8Array());
+  // noinspection ES6MissingAwait
+  void writer.close();
+  const array = new Uint8Array(await arrayBuffer(readable as any));
+  t.deepEqual(array, new Uint8Array());
+});
 
 test("FixedLengthStream: requires non-negative integer expected length", (t) => {
   const expectations: ThrowsExpectation = {

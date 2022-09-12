@@ -127,7 +127,14 @@ export class IdentityTransformStream extends TransformStream<
         reader = readable.getReader();
       },
       async pull(controller) {
-        const { done, value } = await reader.read();
+        let { done, value } = await reader.read();
+        // Make sure we eventually call a `controller` method, either because
+        // we're done, or there's data to enqueue
+        while (!done && value.byteLength === 0) {
+          const result = await reader.read();
+          done = result.done;
+          value = result.value;
+        }
         if (done) {
           queueMicrotask(() => {
             controller.close();
@@ -137,7 +144,9 @@ export class IdentityTransformStream extends TransformStream<
             // @ts-expect-error `byobRequest` has type `undefined` in `@types/node`
             controller.byobRequest?.respond(0);
           });
-        } else {
+        } else if (value.byteLength > 0) {
+          // Ensure chunk if non-empty before enqueuing:
+          // https://github.com/cloudflare/miniflare/issues/374
           controller.enqueue(value);
         }
       },
