@@ -5,5 +5,10 @@ declare namespace NodeJS {
     MINIFLARE_SUBREQUEST_LIMIT?: string;
     MINIFLARE_INTERNAL_SUBREQUEST_LIMIT?: string;
     MINIFLARE_TEST_REDIS_URL?: string;
+
+    // REPL options: https://nodejs.org/api/repl.html#environment-variable-options
+    MINIFLARE_REPL_HISTORY?: string;
+    MINIFLARE_REPL_HISTORY_SIZE?: string;
+    MINIFLARE_REPL_MODE?: "sloppy" | "strict" | string;
   }
 }
