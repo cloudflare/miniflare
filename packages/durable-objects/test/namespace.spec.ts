@@ -44,6 +44,7 @@ import {
 import { MemoryStorage } from "@miniflare/storage-memory";
 import { WebSocketPair } from "@miniflare/web-sockets";
 import test, { ThrowsExpectation } from "ava";
+import sinon from "sinon";
 import { Request as BaseRequest } from "undici";
 import { TestObject, alarmStore, testId, testIdHex, testKey } from "./object";
 
@@ -659,6 +660,41 @@ test("DurableObjectStub: fetch: returns response with immutable headers", async 
     message: "immutable",
   });
 });
+test.serial(
+  "DurableObjectStub: fetch: returns responses with fake timers installed",
+  async (t) => {
+    // https://github.com/cloudflare/miniflare/issues/190
+    // Install fake timers (this test is `.serial` so will run before others)
+    const clock = sinon.useFakeTimers();
+    t.teardown(() => clock.restore());
+
+    const factory = new MemoryStorageFactory();
+    const plugin = new DurableObjectsPlugin(ctx, {
+      durableObjects: { TEST: "TestObject" },
+    });
+
+    class TestObject implements DurableObject {
+      constructor(private readonly state: DurableObjectState) {}
+
+      async fetch() {
+        const count = (await this.state.storage.get<number>("count")) ?? 0;
+        // noinspection ES6MissingAwait
+        void this.state.storage.put("count", count + 1);
+        return new Response(String(count));
+      }
+    }
+    await plugin.beforeReload();
+    plugin.reload({}, { TestObject }, new Map());
+
+    const ns = plugin.getNamespace(factory, "TEST");
+    const stub = ns.get(testId);
+    let res = await stub.fetch("http://localhost");
+    t.is(await res.text(), "0");
+    res = await stub.fetch("http://localhost");
+    t.is(await res.text(), "1");
+  }
+);
+
 test("DurableObjectStub: hides implementation details", async (t) => {
   const [ns] = await getTestObjectNamespace();
   const stub = ns.get(testId);
