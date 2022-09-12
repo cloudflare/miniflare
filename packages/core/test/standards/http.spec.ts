@@ -38,7 +38,7 @@ import {
   waitsForOutputGate,
 } from "@miniflare/shared-test";
 import { WebSocketPair } from "@miniflare/web-sockets";
-import test, { Macro } from "ava";
+import test, { Macro, ThrowsExpectation } from "ava";
 import {
   Request as BaseRequest,
   Response as BaseResponse,
@@ -57,6 +57,18 @@ async function byobReadFirstChunk(body: ReadableStream<Uint8Array> | null) {
   const reader = body.getReader({ mode: "byob" });
   const result = await reader.read(new Uint8Array(32));
   return utf8Decode(result.value);
+}
+
+function unimplementedExpectation(
+  klass: "Request" | "Response",
+  property: keyof Request | keyof Response
+): ThrowsExpectation {
+  return {
+    instanceOf: Error,
+    message: `Failed to get the '${String(
+      property
+    )}' property on '${klass}': the property is not implemented.`,
+  };
 }
 
 test('Headers: getAll: throws if key not "Set-Cookie"', (t) => {
@@ -416,18 +428,9 @@ test("Request: constructing from BaseRequest doesn't create new BaseRequest unle
   // Bodies are different, as we create a readable byte stream for each Request
   t.not(req.body, base.body);
 
-  t.is(req.cache, base.cache);
-  t.is(req.credentials, base.credentials);
-  t.is(req.destination, base.destination);
-  t.is(req.integrity, base.integrity);
   t.is(req.method, base.method);
-  t.is(req.cache, base.cache);
-  t.is(req.mode, base.mode);
   t.is(req.redirect, base.redirect);
-  t.is(req.cache, base.cache);
-  t.is(req.referrerPolicy, base.referrerPolicy);
   t.is(req.url, base.url);
-  t.is(req.keepalive, base.keepalive);
   t.is(req.signal, base.signal);
 
   // Check new BaseRequest created if RequestInit passed
@@ -604,6 +607,20 @@ test("Request: can use byob reader when cloning", async (t) => {
   clone = req.clone();
   t.is(await byobReadFirstChunk(clone.body), "body");
   t.is(await byobReadFirstChunk(req.body), "body");
+});
+test("Request: access to unimplemented properties throws error", async (t) => {
+  const req = new Request("https://a");
+  t.throws(() => req.context, unimplementedExpectation("Request", "context"));
+  t.throws(() => req.mode, unimplementedExpectation("Request", "mode"));
+  t.throws(
+    () => req.credentials,
+    unimplementedExpectation("Request", "credentials")
+  );
+  t.throws(
+    () => req.integrity,
+    unimplementedExpectation("Request", "integrity")
+  );
+  t.throws(() => req.cache, unimplementedExpectation("Request", "cache"));
 });
 
 test("withImmutableHeaders: makes Request's headers immutable", (t) => {
@@ -816,13 +833,12 @@ test("Response: Object.keys() returns getters", async (t) => {
     "body",
     "bodyUsed",
     "headers",
-    "encodeBody",
-    "webSocket",
-    "url",
-    "redirected",
     "ok",
-    "statusText",
+    "redirected",
     "status",
+    "statusText",
+    "url",
+    "webSocket",
   ];
   t.deepEqual(keys.sort(), expectedKeys.sort());
 });
@@ -863,13 +879,13 @@ test("Response: can use byob reader when cloning", async (t) => {
   t.is(await byobReadFirstChunk(clone.body), "body");
   t.is(await byobReadFirstChunk(res.body), "body");
 });
-test("Response: type throws with unimplemented error", async (t) => {
+test("Response: access to unimplemented properties throws error", async (t) => {
   const res = new Response();
-  t.throws(() => res.type, {
-    instanceOf: Error,
-    message:
-      "Failed to get the 'type' property on 'Response': the property is not implemented.",
-  });
+  t.throws(() => res.type, unimplementedExpectation("Response", "type"));
+  t.throws(
+    () => res.useFinalUrl,
+    unimplementedExpectation("Response", "useFinalUrl")
+  );
 });
 
 test("withWaitUntil: adds wait until to (Base)Response", async (t) => {

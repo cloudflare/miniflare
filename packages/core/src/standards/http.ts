@@ -44,14 +44,8 @@ import {
   FormData,
   Headers,
   MockAgent,
-  ReferrerPolicy,
-  RequestCache,
-  RequestCredentials,
-  RequestDestination,
-  RequestMode,
   RequestRedirect,
   ResponseRedirectStatus,
-  ResponseType,
   fetch as baseFetch,
   getGlobalDispatcher,
 } from "undici";
@@ -92,6 +86,12 @@ function makeEnumerable<T>(prototype: any, instance: T, keys: (keyof T)[]) {
     descriptor.enumerable = true;
     Object.defineProperty(instance, key, descriptor);
   }
+}
+
+function unimplemented(klass: string, property: string): never {
+  throw new Error(
+    `Failed to get the '${property}' property on '${klass}': the property is not implemented.`
+  );
 }
 
 // Manipulating the prototype like this isn't very nice. However, this is a
@@ -403,6 +403,7 @@ export class Request extends Body<BaseRequest> {
     } else {
       // Don't pass our strange hybrid Request to undici
       if (input instanceof Request) input = input[_kInner];
+      if (init instanceof Request) init = init[_kInner] as RequestInit;
       // If body is an ArrayBuffer, clone it, so it doesn't get detached when
       // enqueuing the chunk to the body stream
       if (init?.body instanceof ArrayBuffer) {
@@ -440,43 +441,38 @@ export class Request extends Body<BaseRequest> {
     return clone;
   }
 
-  get cf(): IncomingRequestCfProperties | RequestInitCfProperties | undefined {
-    return this.#cf;
-  }
-
   // Pass-through standard properties
-  get cache(): RequestCache {
-    return this[_kInner].cache;
-  }
-  get credentials(): RequestCredentials {
-    return this[_kInner].credentials;
-  }
-  get destination(): RequestDestination {
-    return this[_kInner].destination;
-  }
-  get integrity(): string {
-    return this[_kInner].integrity;
-  }
   get method(): string {
     return this[_kInner].method;
-  }
-  get mode(): RequestMode {
-    return this[_kInner].mode;
-  }
-  get redirect(): RequestRedirect {
-    return this[_kInner].redirect;
-  }
-  get referrerPolicy(): ReferrerPolicy {
-    return this[_kInner].referrerPolicy as ReferrerPolicy;
   }
   get url(): string {
     return this[_kInner].url;
   }
-  get keepalive(): boolean {
-    return this[_kInner].keepalive;
+  get redirect(): RequestRedirect {
+    return this[_kInner].redirect;
   }
   get signal(): AbortSignal {
     return this[_kInner].signal;
+  }
+  get cf(): IncomingRequestCfProperties | RequestInitCfProperties | undefined {
+    return this.#cf;
+  }
+
+  // Unimplemented properties
+  get context(): never {
+    return unimplemented("Request", "context");
+  }
+  get mode(): never {
+    return unimplemented("Request", "mode");
+  }
+  get credentials(): never {
+    return unimplemented("Request", "credentials");
+  }
+  get integrity(): never {
+    return unimplemented("Request", "integrity");
+  }
+  get cache(): never {
+    return unimplemented("Request", "cache");
   }
 }
 
@@ -500,7 +496,6 @@ const kWaitUntil = Symbol("kWaitUntil");
 const nullBodyStatus: (number | undefined)[] = [101, 204, 205, 304];
 
 const enumerableResponseKeys: (keyof Response)[] = [
-  "encodeBody",
   "webSocket",
   "url",
   "redirected",
@@ -628,7 +623,6 @@ export class Response<
   get encodeBody(): "automatic" | "manual" {
     return this.#encodeBody;
   }
-
   get webSocket(): WebSocket | undefined {
     return this.#webSocket;
   }
@@ -637,27 +631,29 @@ export class Response<
     return this[kWaitUntil] ?? Promise.resolve([] as unknown as WaitUntil);
   }
 
+  // Pass-through standard properties
   get status(): number {
     return this.#status ?? this[_kInner].status;
-  }
-
-  // Pass-through standard properties
-  get ok(): boolean {
-    return this[_kInner].ok;
   }
   get statusText(): string {
     return this[_kInner].statusText;
   }
-  get type(): ResponseType {
-    throw new Error(
-      "Failed to get the 'type' property on 'Response': the property is not implemented."
-    );
+  get ok(): boolean {
+    return this[_kInner].ok;
+  }
+  get redirected(): boolean {
+    return this[_kInner].redirected;
   }
   get url(): string {
     return this[_kInner].url;
   }
-  get redirected(): boolean {
-    return this[_kInner].redirected;
+
+  // Unimplemented properties
+  get type(): never {
+    return unimplemented("Response", "type");
+  }
+  get useFinalUrl(): never {
+    return unimplemented("Response", "useFinalUrl");
   }
 }
 
@@ -777,6 +773,7 @@ export async function fetch(
 
   // Don't pass our strange hybrid Request to undici
   if (input instanceof Request) input = input[_kInner];
+  if (init instanceof Request) init = init[_kInner] as RequestInit;
 
   // Set the headers guard to "none" so we can delete the "Host" header
   const req = new BaseRequest(input, init);
