@@ -43,7 +43,8 @@
     "kleur": "^4.1.5",
     "stoppable": "^1.1.0",
     "ws": "^8.8.1",
-    "zod": "^3.18.0"
+    "zod": "^3.18.0",
+    "undici": "^5.10.0"
   },
   "devDependencies": {
     "@types/debug": "^4.1.7",

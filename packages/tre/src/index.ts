@@ -124,7 +124,7 @@ export class Miniflare {
 
   #updatePromise?: Promise<void>;
 
-  #proxyServer?: ProxyServer;
+  #proxyServer: ProxyServer;
 
   constructor(opts: MiniflareOptions) {
     // Initialise plugin gateway factories and routers
@@ -170,19 +170,19 @@ export class Miniflare {
   // Initialise a proxy server that adds the `CF-Blob` header to runtime requests
   async createServer() {
     await this.#initPromise;
-    return this.#proxyServer!.createServer();
+    return this.#proxyServer.createServer();
   }
 
   async startServer() {
     await this.#initPromise;
-    return this.#proxyServer!.startServer();
+    return this.#proxyServer.startServer();
   }
   async dispatchFetch(
     input: RequestInfo,
     init?: RequestInit
   ): Promise<Response> {
     await this.#initPromise;
-    return this.#proxyServer!.dispatchFetch(input, init);
+    return this.#proxyServer.dispatchFetch(input, init);
   }
   async #init() {
     // Start loopback server (how the runtime accesses with Miniflare's storage)
@@ -212,8 +212,8 @@ export class Miniflare {
 
     // Wait for runtime to start
     await this.#waitForRuntime();
-    this.#proxyServer!.runtimeURL = this.#runtimeEntryURL;
-    await this.#proxyServer!.ready;
+    this.#proxyServer.runtimeURL = this.#runtimeEntryURL;
+    await this.#proxyServer.ready;
   }
 
   async #handleLoopbackCustomService(
@@ -434,7 +434,7 @@ export class Miniflare {
     await this.#updatePromise;
     this.#runtime?.dispose();
     await this.#stopLoopbackServer();
-    await this.#proxyServer?.stop();
+    await this.#proxyServer.stop();
   }
 }
 

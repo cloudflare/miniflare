@@ -1,13 +1,4 @@
-import assert from "assert";
-import { IncomingHttpHeaders } from "http";
-import path from "path";
-import {
-  Headers,
-  HeadersInit,
-  IncomingRequestCfProperties,
-} from "@miniflare/core";
 import { z } from "zod";
-import { CfHeader } from "./plugins/shared/constants";
 
 export type Awaitable<T> = T | Promise<T>;
 

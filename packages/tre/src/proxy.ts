@@ -1,6 +1,4 @@
-import assert from "assert";
 import { mkdir, readFile, stat, writeFile } from "fs/promises";
-import { IncomingHttpHeaders } from "http";
 import http from "http";
 import path from "path";
 import { IncomingRequestCfProperties, fetch } from "@miniflare/core";
@@ -117,11 +115,11 @@ ${dim(e.cause ? e.cause.stack : e.stack)}`)
       delete request.headers["sec-websocket-key"];
       delete request.headers["sec-websocket-extensions"];
       request.headers[CfHeader.Blob] = JSON.stringify(this.#cf);
-      console.log(request.url);
 
-      const url = new URL(request.url!);
-      url.host = this.runtimeURL!.host;
-      const runtime = new WebSocket(url, {
+      const wsRuntimeEntryURL = new URL(this.runtimeURL!.href);
+      wsRuntimeEntryURL.protocol = "ws";
+
+      const runtime = new WebSocket(new URL(request.url!, wsRuntimeEntryURL), {
         headers: request.headers,
       });
 
@@ -190,15 +188,12 @@ ${dim(e.cause ? e.cause.stack : e.stack)}`)
     });
     console.log(bold(green(`Ready on http://${host}:${port}! 🎉`)));
   }
-  async dispatchFetch(
-    input: RequestInfo,
-    init?: RequestInit
-  ): Promise<Response> {
+  dispatchFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
     const forward = new Request(input, init);
     forward.headers.set(CfHeader.Blob, JSON.stringify(this.#cf));
     const url = new URL(forward.url);
     url.host = this.runtimeURL!.host;
-    return await fetch(url, forward as RequestInit);
+    return fetch(url, forward as RequestInit);
   }
   stop(): Promise<void> {
     return new Promise((resolve, reject) => {

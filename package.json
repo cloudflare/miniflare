@@ -54,8 +54,5 @@
   },
   "volta": {
     "node": "18.2.0"
-  },
-  "dependencies": {
-    "undici": "^5.10.0"
   }
 }
