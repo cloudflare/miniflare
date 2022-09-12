@@ -145,7 +145,7 @@ export class IdentityTransformStream extends TransformStream<
             controller.byobRequest?.respond(0);
           });
         } else if (value.byteLength > 0) {
-          // Ensure chunk if non-empty before enqueuing:
+          // Ensure chunk is non-empty before enqueuing:
           // https://github.com/cloudflare/miniflare/issues/374
           controller.enqueue(value);
         }
