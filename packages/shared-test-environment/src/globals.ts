@@ -6,6 +6,7 @@ import {
 } from "@miniflare/core";
 import {
   DurableObjectId,
+  DurableObjectState,
   DurableObjectStorage,
 } from "@miniflare/durable-objects";
 import { Context } from "@miniflare/shared";
@@ -27,6 +28,9 @@ declare global {
   function getMiniflareDurableObjectStorage(
     id: DurableObjectId
   ): Promise<DurableObjectStorage>;
+  function getMiniflareDurableObjectState(
+    id: DurableObjectId
+  ): Promise<DurableObjectState>;
   function getMiniflareFetchMock(): MockAgent;
   function getMiniflareWaitUntil<WaitUntil extends any[] = unknown[]>(
     event: FetchEvent | ScheduledEvent | ExecutionContext
@@ -41,6 +45,9 @@ export interface MiniflareEnvironmentUtilities {
   getMiniflareDurableObjectStorage(
     id: DurableObjectId
   ): Promise<DurableObjectStorage>;
+  getMiniflareDurableObjectState(
+    id: DurableObjectId
+  ): Promise<DurableObjectState>;
   getMiniflareFetchMock(): MockAgent;
   getMiniflareWaitUntil<WaitUntil extends any[] = unknown[]>(
     event: FetchEvent | ScheduledEvent | ExecutionContext
@@ -62,8 +69,14 @@ export async function createMiniflareEnvironmentUtilities(
     },
     async getMiniflareDurableObjectStorage(id: DurableObjectId) {
       const plugin = (await mf.getPlugins()).DurableObjectsPlugin;
-      const storage = mf.getPluginStorage("DurableObjectsPlugin");
-      return plugin.getStorage(storage, id);
+      const factory = mf.getPluginStorage("DurableObjectsPlugin");
+      return plugin.getStorage(factory, id);
+    },
+    async getMiniflareDurableObjectState(id: DurableObjectId) {
+      const plugin = (await mf.getPlugins()).DurableObjectsPlugin;
+      const factory = mf.getPluginStorage("DurableObjectsPlugin");
+      const storage = plugin.getStorage(factory, id);
+      return new DurableObjectState(id, storage);
     },
     getMiniflareFetchMock() {
       return fetchMock;
@@ -75,8 +88,8 @@ export async function createMiniflareEnvironmentUtilities(
     },
     async flushMiniflareDurableObjectAlarms(ids?: DurableObjectId[]) {
       const plugin = (await mf.getPlugins()).DurableObjectsPlugin;
-      const storage = mf.getPluginStorage("DurableObjectsPlugin");
-      return plugin.flushAlarms(storage, ids);
+      const factory = mf.getPluginStorage("DurableObjectsPlugin");
+      return plugin.flushAlarms(factory, ids);
     },
   };
 }
