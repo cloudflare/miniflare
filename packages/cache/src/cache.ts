@@ -110,6 +110,44 @@ function getExpirationTtl(
   }
 }
 
+// https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.1.1
+const utcDateRegexp =
+  /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d\d (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d\d\d\d \d\d:\d\d:\d\d GMT$/;
+function parseUTCDate(value: string): number {
+  return utcDateRegexp.test(value) ? Date.parse(value) : NaN;
+}
+
+function getMatchResponse(
+  reqHeaders: Headers,
+  resStatus: number,
+  resHeaders: Headers,
+  resBody: Uint8Array
+): Response {
+  // If `If-Modified-Since` is set, perform a conditional request
+  const reqIfModifiedSinceHeader = reqHeaders.get("If-Modified-Since");
+  const resLastModifiedHeader = resHeaders.get("Last-Modified");
+  if (reqIfModifiedSinceHeader !== null && resLastModifiedHeader !== null) {
+    const reqIfModifiedSince = parseUTCDate(reqIfModifiedSinceHeader);
+    const resLastModified = parseUTCDate(resLastModifiedHeader);
+    // Comparison of NaN's (invalid dates), will always result in `false`
+    if (resLastModified <= reqIfModifiedSince) {
+      return new Response(null, {
+        status: 304, // Not Modified
+        headers: resHeaders,
+      });
+    }
+  }
+
+  // If `Range` is set, return a partial response
+  const reqRangeHeader = reqHeaders.get("Range");
+  if (reqRangeHeader !== null) {
+    return _getRangeResponse(reqRangeHeader, resStatus, resHeaders, resBody);
+  }
+
+  // Otherwise, return the full response
+  return new Response(resBody, { status: resStatus, headers: resHeaders });
+}
+
 export interface InternalCacheOptions {
   formDataFiles?: boolean;
   clock?: Clock;
@@ -221,24 +259,12 @@ export class Cache implements CacheInterface {
 
     // Returning a @miniflare/core Response so we don't need to convert
     // BaseResponse to one when dispatching fetch events
-    let res: Response;
-    const rangeHeader = req.headers.get("Range");
-    if (rangeHeader === null) {
-      // If this wasn't a `Range` request, return the full response...
-      res = new Response(cached.value, {
-        status: cached.metadata.status,
-        headers,
-      });
-    } else {
-      // ...otherwise, return a partial response
-      res = _getRangeResponse(
-        rangeHeader,
-        cached.metadata.status,
-        headers,
-        cached.value
-      );
-    }
-
+    let res = getMatchResponse(
+      req.headers,
+      cached.metadata.status,
+      headers,
+      cached.value
+    );
     if (!this.#formDataFiles) res = withStringFormDataFiles(res);
     return withImmutableHeaders(res);
   }

@@ -238,7 +238,41 @@ test("Cache: match throws if attempting to load cached response created with Min
       "load cached data created with Miniflare 1 and must delete it.",
   });
 });
-test("Cache: match returns 206 Response with Range header", async (t) => {
+test("Cache: match respects If-Modified-Since header", async (t) => {
+  const { cache } = t.context;
+  const res = new Response("value", {
+    headers: {
+      "Last-Modified": "Tue, 13 Sep 2022 12:00:00 GMT",
+      "Cache-Control": "max-age=3600",
+    },
+  });
+  await cache.put("http://localhost:8787/test", res);
+
+  const ifModifiedSince = (value: string) =>
+    new BaseRequest("http://localhost:8787/test", {
+      headers: { "If-Modified-Since": value },
+    });
+
+  // Check returns 200 if modified after `If-Modified-Since`
+  let cacheRes = await cache.match(
+    ifModifiedSince("Tue, 13 Sep 2022 11:00:00 GMT")
+  );
+  t.is(cacheRes?.status, 200);
+  // Check returns 304 if modified on `If-Modified-Since`
+  cacheRes = await cache.match(
+    ifModifiedSince("Tue, 13 Sep 2022 12:00:00 GMT")
+  );
+  t.is(cacheRes?.status, 304);
+  // Check returns 304 if modified before `If-Modified-Since`
+  cacheRes = await cache.match(
+    ifModifiedSince("Tue, 13 Sep 2022 13:00:00 GMT")
+  );
+  t.is(cacheRes?.status, 304);
+  // Check returns 200 if `If-Modified-Since` is not a "valid" UTC date
+  cacheRes = await cache.match(ifModifiedSince("13 Sep 2022 13:00:00 GMT"));
+  t.is(cacheRes?.status, 200);
+});
+test("Cache: match respects Range header", async (t) => {
   const { cache } = t.context;
   await cache.put("http://localhost:8787/test", testResponse("0123456789"));
   const req = new BaseRequest("http://localhost:8787/test", {
