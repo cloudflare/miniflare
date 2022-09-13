@@ -25,6 +25,7 @@ import {
 } from "undici";
 import { CacheError } from "./error";
 import { CacheInterface, CacheMatchOptions, CachedMeta } from "./helpers";
+import { _getRangeResponse } from "./range";
 
 function normaliseRequest(req: RequestInfo): BaseRequest | Request {
   // noinspection SuspiciousTypeOfGuard
@@ -217,12 +218,27 @@ export class Cache implements CacheInterface {
     // Build Response from cache
     const headers = new Headers(cached.metadata.headers);
     headers.set("CF-Cache-Status", "HIT");
+
     // Returning a @miniflare/core Response so we don't need to convert
     // BaseResponse to one when dispatching fetch events
-    let res = new Response(cached.value, {
-      status: cached.metadata.status,
-      headers,
-    });
+    let res: Response;
+    const rangeHeader = req.headers.get("Range");
+    if (rangeHeader === null) {
+      // If this wasn't a `Range` request, return the full response...
+      res = new Response(cached.value, {
+        status: cached.metadata.status,
+        headers,
+      });
+    } else {
+      // ...otherwise, return a partial response
+      res = _getRangeResponse(
+        rangeHeader,
+        cached.metadata.status,
+        headers,
+        cached.value
+      );
+    }
+
     if (!this.#formDataFiles) res = withStringFormDataFiles(res);
     return withImmutableHeaders(res);
   }

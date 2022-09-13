@@ -238,6 +238,16 @@ test("Cache: match throws if attempting to load cached response created with Min
       "load cached data created with Miniflare 1 and must delete it.",
   });
 });
+test("Cache: match returns 206 Response with Range header", async (t) => {
+  const { cache } = t.context;
+  await cache.put("http://localhost:8787/test", testResponse("0123456789"));
+  const req = new BaseRequest("http://localhost:8787/test", {
+    headers: { Range: "bytes=2-4" },
+  });
+  const res = await cache.match(req);
+  t.is(res?.status, 206);
+  t.is(await res?.text(), "234");
+});
 test("Cache: match returns Response with immutable headers", async (t) => {
   // https://github.com/cloudflare/miniflare/issues/365
   const { cache } = t.context;
