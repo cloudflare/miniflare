@@ -112,9 +112,9 @@ function getExpirationTtl(
 
 // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag#syntax
 const etagRegexp = /^(W\/)?"(.+)"$/;
-export function parseETag(value: string): string | undefined {
-  // As we only use this for `If-None-Match` handling, which always use the weak
-  // comparison algorithm, ignore "W/" directives:
+function parseETag(value: string): string | undefined {
+  // As we only use this for `If-None-Match` handling, which always uses the
+  // weak comparison algorithm, ignore "W/" directives:
   // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match
   return etagRegexp.exec(value.trim())?.[2] ?? undefined;
 }
