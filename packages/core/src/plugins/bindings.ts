@@ -87,6 +87,10 @@ export class Fetcher {
   }
 
   async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
+    if (!(this instanceof Fetcher)) {
+      throw new TypeError("Illegal invocation");
+    }
+
     // Always create new Request instance, so clean object passed to services
     const req = new Request(input, init);
 

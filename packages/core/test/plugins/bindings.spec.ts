@@ -540,6 +540,18 @@ test("Fetcher: hides implementation details", (t) => {
   const fetcher = new Fetcher(throws, throws);
   t.deepEqual(getObjectProperties(fetcher), ["fetch"]);
 });
+test("Fetcher: fetch: throws on illegal invocation", async (t) => {
+  const throws = () => {
+    throw new Error("Should not be called");
+  };
+  const fetcher = new Fetcher(throws, throws);
+  // @ts-expect-error using comma expression to unbind this
+  // noinspection CommaExpressionJS
+  await t.throwsAsync(() => (0, fetcher.fetch)("http://localhost"), {
+    instanceOf: TypeError,
+    message: "Illegal invocation",
+  });
+});
 test("BindingsPlugin: dispatches fetch to mounted service", async (t) => {
   const mf = useMiniflare(
     { BindingsPlugin },
