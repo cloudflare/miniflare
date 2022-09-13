@@ -1,3 +1,4 @@
+import { ReadableStream } from "stream/web";
 import { TextEncoder } from "util";
 import { Response } from "@miniflare/core";
 import { Headers } from "undici";
@@ -107,19 +108,27 @@ export function _getRangeResponse(
       Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
         .toString()
         .padStart(16, "0");
-    const arrays: Uint8Array[] = [];
-    for (const [start, end] of ranges) {
-      const header = `--${boundary}\r\nContent-Type: ${contentType}\r\nContent-Range: bytes ${start}-${end}/${responseBody.byteLength}\r\n\r\n`;
-      arrays.push(encoder.encode(header));
-      arrays.push(responseBody.slice(start, end + 1));
-      arrays.push(encoder.encode("\r\n"));
-    }
-    arrays.push(encoder.encode(`--${boundary}--`));
+    const stream = new ReadableStream({
+      type: "bytes",
+      pull(controller) {
+        const range = ranges.shift();
+        if (range === undefined) {
+          controller.enqueue(encoder.encode(`--${boundary}--`));
+          return controller.close();
+        }
+
+        const [start, end] = range;
+        const header = `--${boundary}\r\nContent-Type: ${contentType}\r\nContent-Range: bytes ${start}-${end}/${responseBody.byteLength}\r\n\r\n`;
+        controller.enqueue(encoder.encode(header));
+        controller.enqueue(responseBody.slice(start, end + 1));
+        controller.enqueue(encoder.encode("\r\n"));
+      },
+    });
     responseHeaders.set(
       "Content-Type",
       `multipart/byteranges; boundary=${boundary}`
     );
-    return new Response(Buffer.concat(arrays), {
+    return new Response(stream, {
       status: 206, // Partial Content
       headers: responseHeaders,
     });
