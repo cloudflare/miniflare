@@ -238,6 +238,37 @@ test("Cache: match throws if attempting to load cached response created with Min
       "load cached data created with Miniflare 1 and must delete it.",
   });
 });
+test("Cache: match respects If-None-Match header", async (t) => {
+  const { cache } = t.context;
+  const res = new Response("value", {
+    headers: {
+      ETag: '"thing"',
+      "Cache-Control": "max-age=3600",
+    },
+  });
+  await cache.put("http://localhost:8787/test", res);
+
+  const ifNoneMatch = (value: string) =>
+    new BaseRequest("http://localhost:8787/test", {
+      headers: { "If-None-Match": value },
+    });
+
+  // Check returns 304 only if an ETag in `If-Modified-Since` matches
+  let cacheRes = await cache.match(ifNoneMatch('"thing"'));
+  t.is(cacheRes?.status, 304);
+  cacheRes = await cache.match(ifNoneMatch('   W/"thing"      '));
+  t.is(cacheRes?.status, 304);
+  cacheRes = await cache.match(ifNoneMatch('"not the thing"'));
+  t.is(cacheRes?.status, 200);
+  cacheRes = await cache.match(
+    ifNoneMatch('"not the thing",    "thing"    , W/"still not the thing"')
+  );
+  t.is(cacheRes?.status, 304);
+  cacheRes = await cache.match(ifNoneMatch("*"));
+  t.is(cacheRes?.status, 304);
+  cacheRes = await cache.match(ifNoneMatch("    *   "));
+  t.is(cacheRes?.status, 304);
+});
 test("Cache: match respects If-Modified-Since header", async (t) => {
   const { cache } = t.context;
   const res = new Response("value", {

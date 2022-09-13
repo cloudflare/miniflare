@@ -110,6 +110,15 @@ function getExpirationTtl(
   }
 }
 
+// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag#syntax
+const etagRegexp = /^(W\/)?"(.+)"$/;
+export function parseETag(value: string): string | undefined {
+  // As we only use this for `If-None-Match` handling, which always use the weak
+  // comparison algorithm, ignore "W/" directives:
+  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match
+  return etagRegexp.exec(value.trim())?.[2] ?? undefined;
+}
+
 // https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.1.1
 const utcDateRegexp =
   /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d\d (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d\d\d\d \d\d:\d\d:\d\d GMT$/;
@@ -123,7 +132,26 @@ function getMatchResponse(
   resHeaders: Headers,
   resBody: Uint8Array
 ): Response {
-  // If `If-Modified-Since` is set, perform a conditional request
+  // If `If-None-Match` is set, perform a conditional request:
+  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match
+  const reqIfNoneMatchHeader = reqHeaders.get("If-None-Match");
+  const resETagHeader = resHeaders.get("ETag");
+  if (reqIfNoneMatchHeader !== null && resETagHeader !== null) {
+    const resETag = parseETag(resETagHeader);
+    if (resETag !== undefined) {
+      if (reqIfNoneMatchHeader.trim() === "*") {
+        return new Response(null, { status: 304, headers: resHeaders });
+      }
+      for (const reqIfNoneMatch of reqIfNoneMatchHeader.split(",")) {
+        if (resETag === parseETag(reqIfNoneMatch)) {
+          return new Response(null, { status: 304, headers: resHeaders });
+        }
+      }
+    }
+  }
+
+  // If `If-Modified-Since` is set, perform a conditional request:
+  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Modified-Since
   const reqIfModifiedSinceHeader = reqHeaders.get("If-Modified-Since");
   const resLastModifiedHeader = resHeaders.get("Last-Modified");
   if (reqIfModifiedSinceHeader !== null && resLastModifiedHeader !== null) {
@@ -131,14 +159,12 @@ function getMatchResponse(
     const resLastModified = parseUTCDate(resLastModifiedHeader);
     // Comparison of NaN's (invalid dates), will always result in `false`
     if (resLastModified <= reqIfModifiedSince) {
-      return new Response(null, {
-        status: 304, // Not Modified
-        headers: resHeaders,
-      });
+      return new Response(null, { status: 304, headers: resHeaders });
     }
   }
 
-  // If `Range` is set, return a partial response
+  // If `Range` is set, return a partial response:
+  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Range
   const reqRangeHeader = reqHeaders.get("Range");
   if (reqRangeHeader !== null) {
     return _getRangeResponse(reqRangeHeader, resStatus, resHeaders, resBody);
