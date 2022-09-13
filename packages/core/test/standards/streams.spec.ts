@@ -1,5 +1,5 @@
 import assert from "assert";
-import { arrayBuffer } from "stream/consumers";
+import { arrayBuffer, text } from "stream/consumers";
 import {
   ReadableStream,
   ReadableStreamBYOBReadResult,
@@ -13,6 +13,7 @@ import {
   IdentityTransformStream,
   Request,
   Response,
+  _isByteStream,
 } from "@miniflare/core";
 import { utf8Decode, utf8Encode } from "@miniflare/shared-test";
 import test, { Macro, ThrowsExpectation } from "ava";
@@ -55,6 +56,24 @@ async function* byobReadAtLeast<Ctor extends ArrayBufferViewConstructor>(
     // if (result.done) break;
   }
 }
+
+test("_isByteStream: determines if a ReadableStream is a byte stream", (t) => {
+  const regularStream = new ReadableStream({
+    pull(controller) {
+      controller.enqueue(new Uint8Array([1, 2, 3]));
+      controller.close();
+    },
+  });
+  const byteStream = new ReadableStream({
+    type: "bytes",
+    pull(controller) {
+      controller.enqueue(new Uint8Array([1, 2, 3]));
+      controller.close();
+    },
+  });
+  t.false(_isByteStream(regularStream));
+  t.true(_isByteStream(byteStream));
+});
 
 test("ReadableStreamBYOBReader: readAtLeast: reads at least n bytes", async (t) => {
   const stream = chunkedStream([[1, 2, 3], [4], [5, 6]]);
@@ -186,6 +205,50 @@ test("ReadableStreamBYOBReader: readAtLeast: throws if minimum number of bytes e
   await t.throwsAsync(reader.readAtLeast(4, new Uint8Array(buffer, 0, 3)), {
     instanceOf: TypeError,
     message: "Minimum bytes to read (4) exceeds size of buffer (3).",
+  });
+});
+
+test("ReadableStream: tee: returns byte streams when teeing byte stream", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/317
+  const stream = chunkedStream([[1, 2, 3]]);
+  t.true(_isByteStream(stream));
+  const [stream1, stream2] = stream.tee();
+  t.true(_isByteStream(stream1));
+  t.true(_isByteStream(stream2));
+
+  // Check detaching array buffers on one stream doesn't affect the other
+  // (note Response#body will detach chunks as reading)
+  // https://github.com/cloudflare/miniflare/issues/375
+  const body1 = await arrayBuffer(new Response(stream1).body as any);
+  const body2 = await arrayBuffer(new Response(stream2).body as any);
+  t.deepEqual(new Uint8Array(body1), new Uint8Array([1, 2, 3]));
+  t.deepEqual(new Uint8Array(body2), new Uint8Array([1, 2, 3]));
+});
+test("ReadableStream: tee: returns regular stream when teeing regular stream", async (t) => {
+  const stream = new ReadableStream<string>({
+    start(controller) {
+      controller.enqueue("value");
+      controller.close();
+    },
+  });
+  t.false(_isByteStream(stream));
+  const [stream1, stream2] = stream.tee();
+  t.false(_isByteStream(stream1));
+  t.false(_isByteStream(stream2));
+  t.is(await text(stream1 as any), "value");
+  t.is(await text(stream2 as any), "value");
+});
+test("ReadableStream: tee: throws on illegal invocation", (t) => {
+  const stream = new ReadableStream<string>({
+    start(controller) {
+      controller.close();
+    },
+  });
+  // @ts-expect-error using comma expression to unbind this
+  // noinspection CommaExpressionJS
+  t.throws(() => (0, stream.tee)(), {
+    instanceOf: TypeError,
+    message: "Illegal invocation",
   });
 });
 

@@ -5,7 +5,6 @@ import { Blob } from "buffer";
 import type EventEmitter from "events";
 import http from "http";
 import {
-  ReadableByteStreamController,
   ReadableStream,
   ReadableStreamDefaultReader,
   UnderlyingByteSource,
@@ -55,7 +54,7 @@ import {
   buildNotBufferSourceError,
   isBufferSource,
 } from "./helpers";
-import { kContentLength } from "./streams";
+import { _isByteStream, kContentLength } from "./streams";
 
 // We need these for making Request's Headers immutable
 const fetchSymbols: {
@@ -161,24 +160,6 @@ export const _kInner = Symbol("kInner");
 const kInputGated = Symbol("kInputGated");
 const kFormDataFiles = Symbol("kFormDataFiles");
 const kCloned = Symbol("kCloned");
-
-/** @internal */
-export function _isByteStream(
-  stream: ReadableStream
-): stream is ReadableStream<Uint8Array> {
-  // Try to determine if stream is a byte stream by inspecting its state.
-  // It doesn't matter too much if the internal representation changes in the
-  // future: this code shouldn't throw. Currently we only use this as an
-  // optimisation to avoid creating a byte stream if it's already one.
-  for (const symbol of Object.getOwnPropertySymbols(stream)) {
-    if (symbol.description === "kState") {
-      // @ts-expect-error symbol properties are not included in type definitions
-      const controller = stream[symbol].controller;
-      return controller instanceof ReadableByteStreamController;
-    }
-  }
-  return false;
-}
 
 const enumerableBodyKeys: (keyof Body<any>)[] = ["body", "bodyUsed", "headers"];
 export class Body<Inner extends BaseRequest | BaseResponse> {

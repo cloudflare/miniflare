@@ -1,5 +1,6 @@
 import type { Transform } from "stream";
 import {
+  ReadableByteStreamController,
   ReadableStream,
   ReadableStreamBYOBReadResult,
   ReadableStreamBYOBReader,
@@ -14,6 +15,57 @@ import {
   buildNotBufferSourceError,
   isBufferSource,
 } from "./helpers";
+
+/** @internal */
+export function _isByteStream(
+  stream: ReadableStream
+): stream is ReadableStream<Uint8Array> {
+  // Try to determine if stream is a byte stream by inspecting its state.
+  // It doesn't matter too much if the internal representation changes in the
+  // future: this code shouldn't throw. Currently we only use this as an
+  // optimisation to avoid creating a byte stream if it's already one.
+  for (const symbol of Object.getOwnPropertySymbols(stream)) {
+    if (symbol.description === "kState") {
+      // @ts-expect-error symbol properties are not included in type definitions
+      const controller = stream[symbol].controller;
+      return controller instanceof ReadableByteStreamController;
+    }
+  }
+  return false;
+}
+
+function convertToByteStream(
+  stream: ReadableStream<Uint8Array>,
+  clone = false
+) {
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
+  return new ReadableStream({
+    type: "bytes",
+    start() {
+      reader = stream.getReader();
+    },
+    async pull(controller) {
+      let result = await reader.read();
+      while (!result.done && result.value.byteLength === 0) {
+        result = await reader.read();
+      }
+      if (result.done) {
+        queueMicrotask(() => {
+          controller.close();
+          // Not documented in MDN but if there's an ongoing request that's
+          // waiting, we need to tell it that there were 0 bytes delivered so
+          // that it unblocks and notices the end of stream.
+          // @ts-expect-error `byobRequest` has type `undefined` in `@types/node`
+          controller.byobRequest?.respond(0);
+        });
+      } else if (result.value.byteLength > 0) {
+        if (clone) result.value = result.value.slice();
+        controller.enqueue(result.value);
+      }
+    },
+    cancel: (reason) => reader.cancel(reason),
+  });
+}
 
 export type ArrayBufferViewConstructor =
   | typeof Int8Array
@@ -83,6 +135,28 @@ ReadableStreamBYOBReader.prototype.readAtLeast = async function <
   return { value: value as any, done };
 };
 
+// See comment above about manipulating the prototype.
+// Rewrite tee() to return byte streams when tee()ing byte streams:
+// https://github.com/cloudflare/miniflare/issues/317
+const originalTee = ReadableStream.prototype.tee;
+ReadableStream.prototype.tee = function () {
+  if (!(this instanceof ReadableStream)) {
+    throw new TypeError("Illegal invocation");
+  }
+  if (_isByteStream(this)) {
+    const [stream1, stream2] = originalTee.call(this);
+    // We need to clone chunks here, as either of the tee()ed streams might be
+    // passed to `new Response()`, which will detach array buffers when reading:
+    // https://github.com/cloudflare/miniflare/issues/375
+    return [
+      convertToByteStream(stream1, true /* clone */),
+      convertToByteStream(stream2, true /* clone */),
+    ];
+  } else {
+    return originalTee.call(this);
+  }
+};
+
 const kTransformHook = Symbol("kTransformHook");
 const kFlushHook = Symbol("kFlushHook");
 
@@ -119,41 +193,7 @@ export class IdentityTransformStream extends TransformStream<
 
   get readable() {
     if (this.#readableByteStream !== undefined) return this.#readableByteStream;
-    const readable = super.readable;
-    let reader: ReadableStreamDefaultReader;
-    return (this.#readableByteStream = new ReadableStream({
-      type: "bytes",
-      start() {
-        reader = readable.getReader();
-      },
-      async pull(controller) {
-        let { done, value } = await reader.read();
-        // Make sure we eventually call a `controller` method, either because
-        // we're done, or there's data to enqueue
-        while (!done && value.byteLength === 0) {
-          const result = await reader.read();
-          done = result.done;
-          value = result.value;
-        }
-        if (done) {
-          queueMicrotask(() => {
-            controller.close();
-            // Not documented in MDN but if there's an ongoing request that's waiting,
-            // we need to tell it that there were 0 bytes delivered so that it unblocks
-            // and notices the end of stream.
-            // @ts-expect-error `byobRequest` has type `undefined` in `@types/node`
-            controller.byobRequest?.respond(0);
-          });
-        } else if (value.byteLength > 0) {
-          // Ensure chunk is non-empty before enqueuing:
-          // https://github.com/cloudflare/miniflare/issues/374
-          controller.enqueue(value);
-        }
-      },
-      cancel() {
-        return reader.cancel();
-      },
-    }));
+    return (this.#readableByteStream = convertToByteStream(super.readable));
   }
 }
 

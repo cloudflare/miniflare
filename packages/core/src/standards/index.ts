@@ -7,7 +7,6 @@ export * from "./event";
 export {
   _headersFromIncomingRequest,
   _kInner,
-  _isByteStream,
   Body,
   withInputGating,
   withStringFormDataFiles,
@@ -48,6 +47,7 @@ export {
   FixedLengthStream,
   CompressionStream,
   DecompressionStream,
+  _isByteStream,
 } from "./streams";
 export type { ArrayBufferViewConstructor } from "./streams";
 export * from "./navigator";

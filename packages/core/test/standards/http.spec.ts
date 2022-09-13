@@ -10,7 +10,6 @@ import {
   Response,
   _getBodyLength,
   _getURLList,
-  _isByteStream,
   createCompatFetch,
   fetch,
   logResponse,
@@ -98,24 +97,6 @@ test("Headers: getAll: returns separated Set-Cookie values", (t) => {
   // @ts-expect-error getAll is added to the Headers prototype by importing
   // @miniflare/core
   t.deepEqual(headers.getAll("set-CoOkiE"), [cookie1, cookie2, cookie3]);
-});
-
-test("_isByteStream: determines if a ReadableStream is a byte stream", (t) => {
-  const regularStream = new ReadableStream({
-    pull(controller) {
-      controller.enqueue(new Uint8Array([1, 2, 3]));
-      controller.close();
-    },
-  });
-  const byteStream = new ReadableStream({
-    type: "bytes",
-    pull(controller) {
-      controller.enqueue(new Uint8Array([1, 2, 3]));
-      controller.close();
-    },
-  });
-  t.false(_isByteStream(regularStream));
-  t.true(_isByteStream(byteStream));
 });
 
 // These tests also implicitly test withInputGating
