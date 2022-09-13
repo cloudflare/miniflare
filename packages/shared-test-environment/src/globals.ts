@@ -8,8 +8,9 @@ import {
   DurableObjectId,
   DurableObjectState,
   DurableObjectStorage,
+  _kRunWithGates,
 } from "@miniflare/durable-objects";
-import { Context } from "@miniflare/shared";
+import { Awaitable, Context } from "@miniflare/shared";
 import { MockAgent } from "undici";
 import { PLUGINS } from "./plugins";
 
@@ -31,6 +32,10 @@ declare global {
   function getMiniflareDurableObjectState(
     id: DurableObjectId
   ): Promise<DurableObjectState>;
+  function runWithMiniflareDurableObjectGates<T>(
+    state: DurableObjectState,
+    closure: () => Awaitable<T>
+  ): Promise<T>;
   function getMiniflareFetchMock(): MockAgent;
   function getMiniflareWaitUntil<WaitUntil extends any[] = unknown[]>(
     event: FetchEvent | ScheduledEvent | ExecutionContext
@@ -48,6 +53,10 @@ export interface MiniflareEnvironmentUtilities {
   getMiniflareDurableObjectState(
     id: DurableObjectId
   ): Promise<DurableObjectState>;
+  runWithMiniflareDurableObjectGates<T>(
+    state: DurableObjectState,
+    closure: () => Awaitable<T>
+  ): Promise<T>;
   getMiniflareFetchMock(): MockAgent;
   getMiniflareWaitUntil<WaitUntil extends any[] = unknown[]>(
     event: FetchEvent | ScheduledEvent | ExecutionContext
@@ -77,6 +86,12 @@ export async function createMiniflareEnvironmentUtilities(
       const factory = mf.getPluginStorage("DurableObjectsPlugin");
       const storage = plugin.getStorage(factory, id);
       return new DurableObjectState(id, storage);
+    },
+    runWithMiniflareDurableObjectGates<T>(
+      state: DurableObjectState,
+      closure: () => Awaitable<T>
+    ) {
+      return state[_kRunWithGates](closure);
     },
     getMiniflareFetchMock() {
       return fetchMock;

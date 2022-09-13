@@ -62,6 +62,8 @@ export interface DurableObject {
 }
 
 export const kInstance = Symbol("kInstance");
+/** @internal */
+export const _kRunWithGates = Symbol("kRunWithGates");
 export const kAlarm = Symbol("kAlarm");
 const kFetch = Symbol("kFetch");
 
@@ -81,41 +83,39 @@ export class DurableObjectState {
     return this.#inputGate.runWithClosed(closure);
   }
 
-  [kFetch](request: Request): Promise<Response> {
+  [_kRunWithGates]<T>(closure: () => Awaitable<T>): Promise<T> {
     // TODO: catch, reset object on error
     const outputGate = new OutputGate();
-    return outputGate.runWith(() =>
-      this.#inputGate.runWith(() => {
-        const instance = this[kInstance];
-        if (!instance?.fetch) {
-          throw new DurableObjectError(
-            "ERR_NO_HANDLER",
-            "No fetch handler defined in Durable Object"
-          );
-        }
-        return instance.fetch(request);
-      })
-    );
+    return outputGate.runWith(() => this.#inputGate.runWith(closure));
+  }
+
+  [kFetch](request: Request): Promise<Response> {
+    return this[_kRunWithGates](() => {
+      const instance = this[kInstance];
+      if (!instance?.fetch) {
+        throw new DurableObjectError(
+          "ERR_NO_HANDLER",
+          "No fetch handler defined in Durable Object"
+        );
+      }
+      return instance.fetch(request);
+    });
   }
 
   [kAlarm](): Promise<void> {
-    // TODO: catch, reset object on error
-    const outputGate = new OutputGate();
-    return outputGate.runWith(() =>
-      this.#inputGate.runWith(async () => {
-        // Delete the local alarm
-        await this.storage.deleteAlarm();
-        // Grab the instance and call the alarm handler
-        const instance = this[kInstance];
-        if (!instance?.alarm) {
-          throw new DurableObjectError(
-            "ERR_NO_HANDLER",
-            "No alarm handler defined in Durable Object"
-          );
-        }
-        return instance.alarm();
-      })
-    );
+    return this[_kRunWithGates](async () => {
+      // Delete the local alarm
+      await this.storage.deleteAlarm();
+      // Grab the instance and call the alarm handler
+      const instance = this[kInstance];
+      if (!instance?.alarm) {
+        throw new DurableObjectError(
+          "ERR_NO_HANDLER",
+          "No alarm handler defined in Durable Object"
+        );
+      }
+      return instance.alarm();
+    });
   }
 }
 
