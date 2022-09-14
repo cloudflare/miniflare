@@ -84,7 +84,7 @@ class NativeRuntime extends Runtime {
     // TODO: what happens if runtime crashes?
 
     // 2. Start new process
-    const runtimeProcess = await childProcess.spawn(this.#command, this.#args, {
+    const runtimeProcess = childProcess.spawn(this.#command, this.#args, {
       stdio: "pipe",
       shell: true,
     });
@@ -158,7 +158,7 @@ class DockerRuntime extends Runtime {
     }
 
     // 3. Otherwise, start new process
-    const runtimeProcess = await childProcess.spawn(
+    const runtimeProcess = childProcess.spawn(
       "docker",
       [
         "run",
