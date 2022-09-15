@@ -1,15 +1,13 @@
 import { mkdir, readFile, stat, writeFile } from "fs/promises";
-import http from "http";
+import net, { Server } from "net";
 import path from "path";
+import { compose } from "stream";
 import { IncomingRequestCfProperties, fetch } from "@miniflare/core";
 import getPort from "get-port";
 import { bold, dim, green, grey, red } from "kleur/colors";
-import stoppable, { StoppableServer } from "stoppable";
 import { Request, RequestInfo, RequestInit, Response } from "undici";
-import { MessageEvent, WebSocket, WebSocketServer } from "ws";
 import { OptionalZodTypeOf } from "./helpers";
 import { CfHeader, Plugins } from "./plugins";
-
 const defaultCfPath = path.resolve("node_modules", ".mf", "cf.json");
 const defaultCfFetch = process.env.NODE_ENV !== "test";
 const defaultCfFetchEndpoint = "https://workers.cloudflare.com/cf.json";
@@ -52,7 +50,7 @@ export const CF_DAYS = 30;
 type CoreOptions = OptionalZodTypeOf<Plugins["core"]["sharedOptions"]>;
 export class ProxyServer {
   #options: CoreOptions;
-  #server?: StoppableServer;
+  #server?: Server;
   #cf = fallbackCf;
 
   runtimeURL?: URL;
@@ -107,84 +105,58 @@ ${dim(e.cause ? e.cause.stack : e.stack)}`)
     }
   }
   // Initialise a proxy server that adds the `CF-Blob` header to runtime requests
-  createServer() {
-    const proxyWebSocketServer = new WebSocketServer({ noServer: true });
-    proxyWebSocketServer.on("connection", (client, request) => {
-      // Filter out browser WebSocket headers, since `ws` injects some. Leaving browser ones in causes key mismatches, especially with `Sec-WebSocket-Accept`
-      delete request.headers["sec-websocket-version"];
-      delete request.headers["sec-websocket-key"];
-      delete request.headers["sec-websocket-extensions"];
-      request.headers[CfHeader.Blob] = JSON.stringify(this.#cf);
+  createServer(): Server {
+    function injectHeader(name: string, value: string) {
+      function transformHeaders(headers: Buffer): Buffer {
+        return Buffer.concat([headers, Buffer.from(`\r\n${name}: ${value}`)]);
+      }
+      return async function* (source: AsyncIterable<Buffer>) {
+        let hasConsumedHeaders = false;
+        let headers = Buffer.from([]);
+        for await (const chunk of source) {
+          if (hasConsumedHeaders) {
+            yield chunk;
+          } else {
+            const received = Buffer.concat([headers, chunk]);
+            if (received.includes("\r\n\r\n")) {
+              const index = received.indexOf("\r\n\r\n");
+              const pre = Buffer.from(received.slice(0, index));
+              const post = Buffer.from(received.slice(index));
+              hasConsumedHeaders = true;
+              yield Buffer.concat([transformHeaders(pre), post]);
+            } else {
+              headers = Buffer.concat([headers, chunk]);
+            }
+          }
+        }
+      };
+    }
 
-      const wsRuntimeEntryURL = new URL(this.runtimeURL!.href);
-      wsRuntimeEntryURL.protocol = "ws";
-
-      const runtime = new WebSocket(new URL(request.url!, wsRuntimeEntryURL), {
-        headers: request.headers,
-      });
-
-      // Proxy messages to and from the runtime
-      client.addEventListener("message", (e: MessageEvent) =>
-        runtime.send(e.data)
+    const tcpServer = net.createServer((conn) => {
+      const runtime = net.createConnection(
+        Number(this.runtimeURL!.port),
+        this.runtimeURL!.hostname
       );
-      client.addEventListener("close", (e) => {
-        if (e.code === 1005 /* No Status Received */) {
-          runtime.close();
-        } else {
-          runtime.close(e.code, e.reason);
-        }
-      });
-
-      runtime.addEventListener("message", (e: MessageEvent) => {
-        client.send(e.data);
-      });
-      runtime.addEventListener("close", (e) => {
-        if (e.code === 1005 /* No Status Received */) {
-          client.close();
-        } else {
-          client.close(e.code, e.reason);
-        }
-      });
-    });
-    const server = http.createServer((originalRequest, originalResponse) => {
-      originalRequest.headers[CfHeader.Blob] = JSON.stringify(this.#cf);
-
-      const runtimeRequest = http.request(
-        {
-          hostname: this.runtimeURL!.hostname,
-          port: this.runtimeURL!.port,
-          path: originalRequest.url,
-          method: originalRequest.method,
-          headers: originalRequest.headers,
-        },
-        (runtimeResponse) => {
-          originalResponse.writeHead(
-            runtimeResponse.statusCode as number,
-            runtimeResponse.headers
-          );
-          runtimeResponse.pipe(originalResponse);
-        }
-      );
-
-      originalRequest.pipe(runtimeRequest);
-    });
-    // Handle websocket requests
-    server.on("upgrade", (request, socket, head) => {
-      proxyWebSocketServer.handleUpgrade(request, socket, head, (ws) => {
-        proxyWebSocketServer.emit("connection", ws, request);
-      });
+      conn
+        .pipe(compose(injectHeader(CfHeader.Blob, JSON.stringify(this.#cf))))
+        .pipe(runtime);
+      conn.on("end", () => runtime.end());
+      conn.on("error", () => runtime.end());
+      runtime.on("error", () => conn.end());
+      runtime.on("end", () => conn.end());
+      runtime.pipe(compose(injectHeader("Connection", "close"))).pipe(conn);
     });
 
-    return server;
+    return tcpServer;
   }
 
   async startServer() {
     const port = await getPort({ port: this.#options.port });
     const host = this.#options.host ?? "127.0.0.1";
-    this.#server = stoppable(this.createServer());
+    this.#server = this.createServer();
 
     await new Promise<void>((resolve) => {
-      (this.#server as StoppableServer).listen(port, host, () => resolve());
+      this.#server!.listen(port, host, () => resolve());
     });
     console.log(bold(green(`Ready on http://${host}:${port}! 🎉`)));
   }
@@ -198,7 +170,7 @@ ${dim(e.cause ? e.cause.stack : e.stack)}`)
   stop(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.#server !== undefined)
-        this.#server.stop((err) => (err ? reject(err) : resolve()));
+        this.#server.close((err) => (err ? reject(err) : resolve()));
     });
   }
   get ready() {
