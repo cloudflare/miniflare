@@ -102,7 +102,7 @@ class NativeRuntime extends Runtime {
     runtimeProcess.stdin.end();
   }
 
-  dispose() {
+  dispose(): Awaitable<void> {
     this.#process?.kill();
     return this.#processExitPromise;
   }
@@ -190,7 +190,7 @@ class DockerRuntime extends Runtime {
     runtimeProcess.stderr.pipe(process.stderr);
   }
 
-  dispose() {
+  dispose(): Awaitable<void> {
     this.#process?.kill();
     try {
       fs.unlinkSync(this.#configPath);
