@@ -37,8 +37,7 @@
   },
   "dependencies": {
     "@miniflare/core": "2.8.2",
-    "@miniflare/shared": "2.8.2",
-    "@types/better-sqlite3": "^7.6.0"
+    "@miniflare/shared": "2.8.2"
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.8.2"

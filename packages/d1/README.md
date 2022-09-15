@@ -13,18 +13,18 @@ const db = new BetaDatabase(new MemoryStorage());
 
 // BetaDatabase only supports .fetch(), once D1 is out of beta the full API will be available here:
 await db.fetch("/execute", {
-  method: 'POST',
+  method: "POST",
   body: JSON.stringify({
     sql: `CREATE TABLE my_table (cid INTEGER PRIMARY KEY, name TEXT NOT NULL);`,
   }),
 });
 const response = await db.fetch("/query", {
-  method: 'POST',
+  method: "POST",
   body: JSON.stringify({
     sql: `SELECT * FROM sqlite_schema`,
   }),
 });
-console.log(await response.json())
+console.log(await response.json());
 /*
 {
   "success": true,

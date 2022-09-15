@@ -1,5 +1,6 @@
 import { CachePlugin } from "@miniflare/cache";
 import { BindingsPlugin, CorePlugin } from "@miniflare/core";
+import { D1Plugin } from "@miniflare/d1";
 import { DurableObjectsPlugin } from "@miniflare/durable-objects";
 import { HTMLRewriterPlugin } from "@miniflare/html-rewriter";
 import { KVPlugin } from "@miniflare/kv";
@@ -15,6 +16,7 @@ import { WebSocketPlugin } from "@miniflare/web-sockets";
 export const PLUGINS = {
   CorePlugin,
   KVPlugin,
+  D1Plugin,
   R2Plugin,
   DurableObjectsPlugin,
   CachePlugin,

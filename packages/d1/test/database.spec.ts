@@ -13,8 +13,7 @@ const test = anyTest as TestInterface<Context>;
 
 test.beforeEach(async (t) => {
   const storage = new MemoryStorage(undefined, testClock);
-  const db = new BetaDatabase(storage);
-  await db.init();
+  const db = new BetaDatabase(await storage.getSqliteDatabase());
   t.context = { storage, db };
 });
 

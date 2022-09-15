@@ -35,12 +35,13 @@
     "extends": "../../package.json"
   },
   "dependencies": {
+    "@types/better-sqlite3": "^7.6.0",
     "kleur": "^4.1.4",
-    "npx-import": "^1.1.2",
     "picomatch": "^2.3.1"
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.8.2",
-    "@types/picomatch": "^2.3.0"
+    "@types/picomatch": "^2.3.0",
+    "npx-import": "^1.1.2"
   }
 }

@@ -10,3 +10,4 @@ export * from "./runner";
 export * from "./storage";
 export * from "./sync/";
 export * from "./wrangler";
+export * from "./sqlite";

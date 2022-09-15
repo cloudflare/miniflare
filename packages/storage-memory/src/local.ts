@@ -8,9 +8,11 @@ import {
   StoredKeyMeta,
   StoredMeta,
   StoredValueMeta,
+  createSQLiteDB,
   defaultClock,
   millisToSeconds,
 } from "@miniflare/shared";
+import { Database as SqliteDB } from "better-sqlite3";
 import { listFilterMatch, listPaginate } from "./helpers";
 
 export abstract class LocalStorage extends Storage {
@@ -117,7 +119,7 @@ export abstract class LocalStorage extends Storage {
     return res;
   }
 
-  getSqliteDatabasePath(): string {
-    return ":memory:";
+  getSqliteDatabase(): Awaitable<SqliteDB> {
+    return createSQLiteDB(":memory:");
   }
 }

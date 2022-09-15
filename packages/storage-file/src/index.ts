@@ -1,17 +1,20 @@
 import fs, { existsSync } from "fs";
 import path from "path";
 import {
+  Awaitable,
   MiniflareError,
   Range,
   RangeStoredValueMeta,
   StoredKeyMeta,
   StoredMeta,
   StoredValueMeta,
+  createSQLiteDB,
   defaultClock,
   sanitisePath,
   viewToArray,
 } from "@miniflare/shared";
 import { LocalStorage } from "@miniflare/storage-memory";
+import { Database as SqliteDB } from "better-sqlite3";
 import {
   deleteFile,
   readFile,
@@ -104,9 +107,9 @@ export class FileStorage extends LocalStorage {
     }
   }
 
-  getSqliteDatabasePath(): string {
+  getSqliteDatabase(): Awaitable<SqliteDB> {
     fs.mkdirSync(path.dirname(this.root), { recursive: true });
-    return this.root + ".sqlite3";
+    return createSQLiteDB(this.root + ".sqlite3");
   }
 
   async getRangeMaybeExpired<Meta = unknown>(

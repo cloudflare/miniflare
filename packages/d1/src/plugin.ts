@@ -43,12 +43,11 @@ export class D1Plugin extends Plugin<D1Options> implements D1Options {
   }
 
   async getBetaDatabase(
-    storage: StorageFactory,
+    storageFactory: StorageFactory,
     dbName: string
   ): Promise<BetaDatabase> {
-    const db = new BetaDatabase(await storage.storage(dbName, this.#persist));
-    await db.init();
-    return db;
+    const storage = await storageFactory.storage(dbName, this.#persist);
+    return new BetaDatabase(await storage.getSqliteDatabase());
   }
 
   async setup(storageFactory: StorageFactory): Promise<SetupResult> {
