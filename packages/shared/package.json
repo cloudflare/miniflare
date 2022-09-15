@@ -42,6 +42,6 @@
   "devDependencies": {
     "@miniflare/shared-test": "2.8.2",
     "@types/picomatch": "^2.3.0",
-    "npx-import": "^1.1.2"
+    "npx-import": "^1.1.3"
   }
 }
