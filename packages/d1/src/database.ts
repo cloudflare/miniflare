@@ -3,7 +3,7 @@ import type { SqliteDB } from "@miniflare/shared";
 import { Statement } from "./statement";
 
 export class BetaDatabase {
-  #db: SqliteDB;
+  readonly #db: SqliteDB;
 
   constructor(db: SqliteDB) {
     this.#db = db;

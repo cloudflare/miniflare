@@ -35,7 +35,7 @@ export class Statement {
     return new Statement(this.#db, this.#query, params);
   }
 
-  private prepareAndBind() {
+  #prepareAndBind() {
     const prepared = this.#db.prepare(this.#query);
     if (this.#bindings === undefined) return prepared;
     try {
@@ -55,9 +55,9 @@ export class Statement {
 
   async all() {
     const start = performance.now();
-    const statementWithBindings = this.prepareAndBind();
+    const statementWithBindings = this.#prepareAndBind();
     try {
-      const results = Statement.#all(statementWithBindings);
+      const results = this.#all(statementWithBindings);
       return {
         results,
         duration: performance.now() - start,
@@ -71,7 +71,7 @@ export class Statement {
     }
   }
 
-  static #all(statementWithBindings: SqliteStatement) {
+  #all(statementWithBindings: SqliteStatement) {
     try {
       return statementWithBindings.all();
     } catch (e: unknown) {
@@ -82,33 +82,31 @@ export class Statement {
           (e as Error).message
         )
       ) {
-        return Statement.#run(statementWithBindings);
+        return this.#run(statementWithBindings);
       }
       throw e;
     }
   }
 
   async first(col?: string) {
-    const statementWithBindings = this.prepareAndBind();
+    const statementWithBindings = this.#prepareAndBind();
     try {
-      const data = Statement.#first(statementWithBindings);
+      const data = this.#first(statementWithBindings);
       return typeof col === "string" ? data[col] : data;
     } catch (e) {
       throw errorWithCause("D1_FIRST_ERROR", e);
     }
   }
 
-  static #first(statementWithBindings: SqliteStatement) {
+  #first(statementWithBindings: SqliteStatement) {
     return statementWithBindings.get();
   }
 
   async run() {
     const start = performance.now();
-    const statementWithBindings = this.prepareAndBind();
+    const statementWithBindings = this.#prepareAndBind();
     try {
-      const { changes, lastInsertRowid } = Statement.#run(
-        statementWithBindings
-      );
+      const { changes, lastInsertRowid } = this.#run(statementWithBindings);
       return {
         results: null,
         duration: performance.now() - start,
@@ -122,16 +120,16 @@ export class Statement {
     }
   }
 
-  static #run(statementWithBindings: SqliteStatement) {
+  #run(statementWithBindings: SqliteStatement) {
     return statementWithBindings.run();
   }
 
   async raw() {
-    const statementWithBindings = this.prepareAndBind();
-    return Statement.#raw(statementWithBindings);
+    const statementWithBindings = this.#prepareAndBind();
+    return this.#raw(statementWithBindings);
   }
 
-  static #raw(statementWithBindings: SqliteStatement) {
+  #raw(statementWithBindings: SqliteStatement) {
     return statementWithBindings.raw() as any;
   }
 }

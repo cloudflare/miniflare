@@ -8,23 +8,14 @@ fun, full-featured, fully-local simulator for Cloudflare Workers. See
 
 ```js
 import { BetaDatabase } from "@miniflare/d1";
-import { MemoryStorage } from "@miniflare/storage-memory";
-const db = new BetaDatabase(new MemoryStorage());
+import { createSQLiteDB } from "@miniflare/shared";
+const db = new BetaDatabase(createSQLiteDB(":memory:"));
 
-// BetaDatabase only supports .fetch(), once D1 is out of beta the full API will be available here:
-await db.fetch("/execute", {
-  method: "POST",
-  body: JSON.stringify({
-    sql: `CREATE TABLE my_table (cid INTEGER PRIMARY KEY, name TEXT NOT NULL);`,
-  }),
-});
-const response = await db.fetch("/query", {
-  method: "POST",
-  body: JSON.stringify({
-    sql: `SELECT * FROM sqlite_schema`,
-  }),
-});
-console.log(await response.json());
+await db.exec(
+  `CREATE TABLE my_table (cid INTEGER PRIMARY KEY, name TEXT NOT NULL);`
+);
+const response = await db.prepare(`SELECT * FROM sqlite_schema`).all();
+console.log(await response);
 /*
 {
   "success": true,
