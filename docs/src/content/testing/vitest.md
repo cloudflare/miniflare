@@ -87,10 +87,10 @@ $ NODE_OPTIONS=--experimental-vm-modules npx vitest run
 ## Isolated Storage
 
 The Miniflare environment will use isolated storage for KV namespaces, caches,
-and Durable Objects in each test. This essentially means any changes you make in
-a test or `describe`-block are automatically undone afterwards. The isolated
-storage is copied from the parent `describe`-block, allowing you to seed data in
-`beforeAll` hooks.
+Durable Objects and D1 databases in each test. This essentially means any
+changes you make in a test or `describe`-block are automatically undone
+afterwards. The isolated storage is copied from the parent `describe`-block,
+allowing you to seed data in `beforeAll` hooks.
 
 <Aside type="warning" header="Warning">
 
@@ -291,6 +291,58 @@ test("flushes alarms", async () => {
   await flushMiniflareDurableObjectAlarms();
   // ...or specify an array of `DurableObjectId`s to flush
   await flushMiniflareDurableObjectAlarms([id]);
+});
+```
+
+### Constructing Durable Objects Directly
+
+Alternatively, you can construct instances of your Durable Object using
+`DurableObjectState`s returned by the `getMiniflareDurableObjectState()` global
+function. This allows you to call instance methods and access ephemeral state
+directly. Wrapping calls to instance methods with
+`runWithMiniflareDurableObjectGates()` will close the Durable Object's input
+gate, and wait for the output gate to open before resolving. Make sure to use
+this when calling your `fetch()` method.
+
+```js
+---
+filename: test / index.spec.js
+---
+import { expect, test } from "vitest";
+const describe = setupMiniflareIsolatedStorage();
+
+import { TestObject } from "../src/index.mjs";
+
+test("increments count", async () => {
+  const env = getMiniflareBindings();
+  // Use standard Durable Object bindings to generate IDs
+  const id = env.TEST_OBJECT.newUniqueId();
+
+  // Get DurableObjectState, and seed Durable Object storage
+  // (isolated storage rules from above also apply)
+  const state = await getMiniflareDurableObjectState(id);
+  await state.storage.put("count", 3);
+
+  // Construct object directly
+  const object = new TestObject(state, env);
+
+  // Concurrently increment the count twice. Wrapping `object.fetch`
+  // calls with `runWithMiniflareDurableObjectGates(state, ...)`
+  // closes `object`'s input gate when fetching, preventing race
+  // conditions.
+  const [res1, res2] = await Promise.all([
+    runWithMiniflareDurableObjectGates(state, () => {
+      return object.fetch(new Request("http://localhost/"));
+    }),
+    runWithMiniflareDurableObjectGates(state, () => {
+      return object.fetch(new Request("http://localhost/"));
+    }),
+  ]);
+  expect(await res1.text()).toBe("4");
+  expect(await res2.text()).toBe("5");
+
+  // Check storage updated twice
+  expect(await state.storage.get("count")).toBe(5);
 });
 ```
 

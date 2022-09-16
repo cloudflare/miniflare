@@ -4,7 +4,6 @@ import type {
   Options as SqliteOptions,
 } from "better-sqlite3";
 export type { SqliteDB, SqliteOptions };
-import { npxImport, npxResolve } from "npx-import";
 
 // Can't use typeof import(), so reproducing BetterSqlite3.DatabaseConstructor here
 export interface DBConstructor {
@@ -12,6 +11,8 @@ export interface DBConstructor {
 }
 
 export async function createSQLiteDB(dbPath: string): Promise<SqliteDB> {
+  // eslint-disable-next-line es/no-dynamic-import
+  const { npxImport, npxResolve } = await import("npx-import");
   const { default: DatabaseConstructor } = await npxImport<{
     default: DBConstructor;
   }>("better-sqlite3@7.6.2");

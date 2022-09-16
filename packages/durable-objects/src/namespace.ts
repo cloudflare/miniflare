@@ -83,6 +83,7 @@ export class DurableObjectState {
     return this.#inputGate.runWithClosed(closure);
   }
 
+  /** @internal */
   [_kRunWithGates]<T>(closure: () => Awaitable<T>): Promise<T> {
     // TODO: catch, reset object on error
     const outputGate = new OutputGate();

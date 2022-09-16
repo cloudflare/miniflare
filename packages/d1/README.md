@@ -9,8 +9,8 @@ fun, full-featured, fully-local simulator for Cloudflare Workers. See
 ```js
 import { BetaDatabase } from "@miniflare/d1";
 import { createSQLiteDB } from "@miniflare/shared";
-const db = new BetaDatabase(createSQLiteDB(":memory:"));
 
+const db = new BetaDatabase(await createSQLiteDB(":memory:"));
 await db.exec(
   `CREATE TABLE my_table (cid INTEGER PRIMARY KEY, name TEXT NOT NULL);`
 );
@@ -19,17 +19,16 @@ console.log(await response);
 /*
 {
   "success": true,
-  "result": [
-    [
-      {
-        "type": "table",
-        "name": "my_table",
-        "tbl_name": "my_table",
-        "rootpage": 2,
-        "sql": "CREATE TABLE my_table (cid INTEGER PRIMARY KEY, name TEXT NOT NULL)"
-      }
-    ]
-  ]
+  "results": [
+    {
+      "type": "table",
+      "name": "my_table",
+      "tbl_name": "my_table",
+      "rootpage": 2,
+      "sql": "CREATE TABLE my_table (cid INTEGER PRIMARY KEY, name TEXT NOT NULL)"
+    }
+  ],
+  ...
 }
 */
 ```

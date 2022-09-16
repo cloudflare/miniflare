@@ -219,6 +219,17 @@ Specifying a script is optional when `--repl` is enabled, but may be required if
 you're using Durable Objects. If you're using an ES module format worker,
 bindings will be accessible via the `env` global variable.
 
+The REPL can be configured using environment variables similar to
+[Node.js](https://nodejs.org/api/repl.html#environment-variable-options):
+
+- `MINIFLARE_REPL_HISTORY`: path to save REPL history to. Setting this to an
+  empty string disables persistent REPL history. Defaults to
+  `~/.mf_repl_history`.
+- `MINIFLARE_REPL_HISTORY_SIZE`: number of history lines to save if persistent
+  REPL history is enabled. Defaults to `1000`.
+- `MINIFLARE_REPL_MODE`: either `sloppy` or `strict`. Defaults to `sloppy`
+  allowing non-strict code to run.
+
 ```sh
 $ miniflare --repl --kv TEST_NAMESPACE
 > await new HTMLRewriter().on("p", {

@@ -127,6 +127,6 @@ export class MemoryStorage extends LocalStorage {
     if (this.sqliteDB) return this.sqliteDB;
 
     this.sqliteDB = await createSQLiteDB(":memory:");
-    return await this.sqliteDB;
+    return this.sqliteDB;
   }
 }

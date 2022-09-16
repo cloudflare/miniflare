@@ -40,7 +40,7 @@ export class StackedMemoryStorageFactory implements StorageFactory {
   private readonly storages = new Map<string, StackedMemoryStorage>();
 
   storage(namespace: string, persist?: boolean | string): Storage {
-    // @miniflare/jest-environment-miniflare doesn't support persistent storage
+    // Test environments don't support persistent storage
     assert(!persist);
     let storage = this.storages.get(namespace);
     if (storage) return storage;
