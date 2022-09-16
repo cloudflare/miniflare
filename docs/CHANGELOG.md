@@ -1,5 +1,109 @@
 # 🚧 Changelog
 
+## 2.9.0
+
+### Features
+
+- 💾 **Add support for D1. Closes
+  [issue #277](https://github.com/cloudflare/miniflare/issues/277), thanks
+  [@geelen](https://github.com/geelen) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/329).** Docs coming
+  soon™... 👀
+- 🚪 **Add `getMiniflareDurableObjectState()` and
+  `runWithMiniflareDurableObjectGates()` functions** to the Jest/Vitest
+  environments. This allows you to construct and call instance methods of
+  Durable Objects directly, without having to fetch through a stub. Closes
+  [issue #157](https://github.com/cloudflare/miniflare/issues/157), thanks
+  [@jorroll](https://github.com/jorroll).
+
+  ```js
+  // Durable Object class, would probably come from an import
+  class Counter {
+    constructor(state) {
+      this.storage = state.storage;
+    }
+    async fetch() {
+      const count = ((await this.storage.get("count")) ?? 0) + 1;
+      void this.storage.put("count", count);
+      return new Response(String(count));
+    }
+  }
+
+  const env = getMiniflareBindings();
+  // Use standard Durable Object bindings to generate IDs
+  const id = env.COUNTER.newUniqueId();
+  // Get DurableObjectState, and seed data
+  const state = await getMiniflareDurableObjectState(id);
+  await state.storage.put("count", 3);
+  // Construct object directly
+  const object = new Counter(state, env);
+  // Call instance method directly, closing input gate,
+  // and waiting for output gate to open
+  const res = await runWithMiniflareDurableObjectGates(state, () =>
+    object.fetch(new Request("http://localhost/"))
+  );
+  expect(await res.text()).toBe("4");
+  ```
+
+- 🥷 Don't construct corresponding Durable Object instance when calling
+  `Miniflare#getDurableObjectStorage()`. This allows you to seed data _before_
+  your Durable Object's constructor is invoked. Closes
+  [issue #300](https://github.com/cloudflare/miniflare/issues/300), thanks
+  [@spigaz](https://github.com/spigaz).
+- ☑️ **Add support for `WebSocket#readyState`** and
+  `WebSocket.READY_STATE_{CONNECTING,OPEN,CLOSING,CLOSED}` constants. Note these
+  constant names intentionally deviate from
+  [the spec](https://websockets.spec.whatwg.org/#interface-definition) to match
+  the Workers runtime.
+- 📜 **Add persistent history to the REPL.** This respects the
+  `MINIFLARE_REPL_HISTORY`, `MINIFLARE_REPL_HISTORY_SIZE`, and
+  `MINIFLARE_REPL_MODE` environment variables
+  [based on Node's](https://nodejs.org/api/repl.html#environment-variable-options).
+- 💵 **Add support for `Range`, `If-Modified-Since` and `If-None-Match`
+  headers** on `Request`s to `Cache#match`. Closes
+  [issue #246](https://github.com/cloudflare/miniflare/issues/246).
+
+### Fixes
+
+- Don't wait for `waitUntil` `Promise`s to resolve before opening WebSocket
+  connections
+- Allow WebSockets to be `close()`d on receiving a `close` event. Closes
+  [issue #331](https://github.com/cloudflare/miniflare/issues/331), thanks
+  [@awthwathje](https://github.com/awthwathje).
+- Ensure calling `WebSocket#close()` before returning a WebSocket response sends
+  the correct close code and reason.
+- Fix delivery of incoming `WebSocket` `error` events
+- Ensure only scheduled Durable Object alarms are flushed. Previously, flushing
+  all alarms would attempt to execute the `alarm` handler of every constructed
+  Durable Object instance, even if that instance hadn't scheduled an alarm, or
+  didn't have an `alarm` handler.
+- Delay scheduled missed alarms. Previously, if Durable Object persistence was
+  enabled, and an alarm should've executed when Miniflare wasn't running,
+  Miniflare may have crashed on startup. Closes
+  [issue #359](https://github.com/cloudflare/miniflare/issues/359), thanks
+  [@AlCalzone](https://github.com/AlCalzone).
+- Allow empty-chunk writes to `IdentityTransformStream`. Closes
+  [issue #374](https://github.com/cloudflare/miniflare/issues/374), thanks
+  [@cdloh](https://github.com/cdloh).
+- Don't hang when fetching from Durable Objects with fake-timers installed.
+  Closes [issue #190](https://github.com/cloudflare/miniflare/issues/190),
+  thanks [@vlovich](https://github.com/vlovich).
+- Match unimplemented `Request`/`Response` properties with the Workers runtime.
+  Specifically, throw unimplemented errors when attempting to access
+  `Request#{context,mode,credentials,integrity,cache}` and
+  `Response#{type,useFinalUrl}`.
+- Discard `Content-Length: NaN` headers as a temporary workaround until
+  [cloudflare/kv-asset-handler#295](https://github.com/cloudflare/kv-asset-handler/pull/295)
+  is released. Closes
+  [honojs/hono#520](https://github.com/honojs/hono/issues/520), thanks
+  [@Cherry](https://github.com/Cherry).
+- Return byte streams when `tee()`ing byte streams to match the behaviour of the
+  Workers runtime. Closes
+  [issues #317](https://github.com/cloudflare/miniflare/issues/317) and
+  [#375](https://github.com/cloudflare/miniflare/issues/375).
+- Throw `TypeError` when calling `Fetcher#fetch` with an illegal this to match
+  the behaviour of the Workers runtime.
+
 ## 2.8.2
 
 ### Fixes
