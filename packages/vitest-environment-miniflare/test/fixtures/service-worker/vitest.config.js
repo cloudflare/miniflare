@@ -14,6 +14,7 @@ export default defineConfig({
     environment: "miniflare",
     environmentOptions: {
       kvNamespaces: ["TEST_NAMESPACE"],
+      d1Databases: ["__D1_BETA__DB_1"],
       sitePath: __dirname,
       globals: { KEY: "value" },
       // Check persistence options ignored

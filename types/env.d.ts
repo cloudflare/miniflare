@@ -5,6 +5,7 @@ declare namespace NodeJS {
     MINIFLARE_SUBREQUEST_LIMIT?: string;
     MINIFLARE_INTERNAL_SUBREQUEST_LIMIT?: string;
     MINIFLARE_TEST_REDIS_URL?: string;
+    NPX_IMPORT_QUIET?: string;
 
     // REPL options: https://nodejs.org/api/repl.html#environment-variable-options
     MINIFLARE_REPL_HISTORY?: string;

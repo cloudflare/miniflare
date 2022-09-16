@@ -1,15 +1,16 @@
 {
-  "name": "@miniflare/shared",
+  "name": "@miniflare/d1",
   "version": "2.8.2",
-  "description": "Shared utility module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
+  "description": "Workers D1 module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
     "workers",
     "worker",
     "local",
-    "cloudworker"
+    "d1",
+    "sqlite"
   ],
-  "author": "MrBBot <me@mrbbot.dev>",
+  "author": "Glen Maddern <glen@glenmaddern.com>",
   "license": "MIT",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
@@ -17,7 +18,7 @@
     "dist/src"
   ],
   "engines": {
-    "node": ">=16.13"
+    "node": ">=16.7"
   },
   "publishConfig": {
     "access": "public"
@@ -25,23 +26,20 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cloudflare/miniflare.git",
-    "directory": "packages/shared"
+    "directory": "packages/d1"
   },
   "bugs": {
     "url": "https://github.com/cloudflare/miniflare/issues"
   },
-  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/shared#readme",
+  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/d1#readme",
   "volta": {
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@types/better-sqlite3": "^7.6.0",
-    "kleur": "^4.1.4",
-    "picomatch": "^2.3.1"
+    "@miniflare/core": "2.8.2",
+    "@miniflare/shared": "2.8.2"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.8.2",
-    "@types/picomatch": "^2.3.0",
-    "npx-import": "^1.1.3"
+    "@miniflare/shared-test": "2.8.2"
   }
 }

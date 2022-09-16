@@ -53,6 +53,7 @@
     "@miniflare/html-rewriter": "2.8.2",
     "@miniflare/http-server": "2.8.2",
     "@miniflare/kv": "2.8.2",
+    "@miniflare/d1": "2.8.2",
     "@miniflare/queues": "2.8.2",
     "@miniflare/r2": "2.8.2",
     "@miniflare/runner-vm": "2.8.2",

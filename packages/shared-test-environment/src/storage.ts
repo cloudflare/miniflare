@@ -4,10 +4,18 @@ import { MemoryStorage } from "@miniflare/storage-memory";
 
 export class StackedMemoryStorage extends MemoryStorage {
   private readonly stack: Map<string, StoredValueMeta>[] = [];
+  private readonly transactionStack: string[] = [];
 
   push(): void {
     this.stack.push(this.map);
     this.map = new Map(this.map);
+
+    if (this.sqliteDB) {
+      const transactionName = `STACK_${this.transactionStack.length + 1}`;
+      this.transactionStack.push(transactionName);
+
+      this.sqliteDB.exec(`SAVEPOINT ${transactionName}`);
+    }
   }
 
   pop(): void {
@@ -16,6 +24,15 @@ export class StackedMemoryStorage extends MemoryStorage {
     // If this happens, default to an empty map, since the storage didn't exist
     // at the new stack level.
     this.map = this.stack.pop() ?? new Map();
+
+    if (this.sqliteDB) {
+      const transactionToRollback = this.transactionStack.pop();
+      // This may be undefined if we popped too many times
+      if (transactionToRollback) {
+        this.sqliteDB.exec(`ROLLBACK TO ${transactionToRollback}`);
+        this.sqliteDB.exec(`RELEASE ${transactionToRollback}`);
+      }
+    }
   }
 }
 

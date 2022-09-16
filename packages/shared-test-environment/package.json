@@ -37,6 +37,7 @@
   "dependencies": {
     "@miniflare/cache": "2.8.2",
     "@miniflare/core": "2.8.2",
+    "@miniflare/d1": "2.8.2",
     "@miniflare/durable-objects": "2.8.2",
     "@miniflare/html-rewriter": "2.8.2",
     "@miniflare/kv": "2.8.2",

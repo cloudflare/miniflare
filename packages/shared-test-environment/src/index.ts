@@ -57,6 +57,7 @@ export async function createMiniflareEnvironment(
       watch: false,
       // - Persistence must be disabled for stacked storage to work
       kvPersist: false,
+      d1Persist: false,
       cachePersist: false,
       durableObjectsPersist: false,
       // - Allow all global operations, tests will be outside of a request

@@ -8,6 +8,7 @@ import {
   MiniflareCore,
   MiniflareCoreOptions,
 } from "@miniflare/core";
+import { D1Plugin } from "@miniflare/d1";
 import {
   DurableObjectId,
   DurableObjectNamespace,
@@ -49,6 +50,7 @@ export const PLUGINS = {
 
   // Storage
   KVPlugin,
+  D1Plugin,
   R2Plugin,
   DurableObjectsPlugin,
   CachePlugin,

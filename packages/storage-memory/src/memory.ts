@@ -1,9 +1,17 @@
-import { Range, RangeStoredValueMeta, defaultClock } from "@miniflare/shared";
+import {
+  Range,
+  RangeStoredValueMeta,
+  SqliteDB,
+  createSQLiteDB,
+  defaultClock,
+} from "@miniflare/shared";
 import { StoredKeyMeta, StoredMeta, StoredValueMeta } from "@miniflare/shared";
 import { cloneMetadata } from "./helpers";
 import { LocalStorage } from "./local";
 
 export class MemoryStorage extends LocalStorage {
+  protected sqliteDB?: SqliteDB;
+
   constructor(
     protected map = new Map<string, StoredValueMeta>(),
     clock = defaultClock
@@ -113,5 +121,12 @@ export class MemoryStorage extends LocalStorage {
     return Array.from(this.map.entries()).map(
       MemoryStorage.entryToStoredKey
     ) as StoredKeyMeta<Meta>[];
+  }
+
+  async getSqliteDatabase(): Promise<SqliteDB> {
+    if (this.sqliteDB) return this.sqliteDB;
+
+    this.sqliteDB = await createSQLiteDB(":memory:");
+    return await this.sqliteDB;
   }
 }

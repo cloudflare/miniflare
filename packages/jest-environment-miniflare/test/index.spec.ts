@@ -39,7 +39,7 @@ async function runJest(
         "--testEnvironmentOptions",
         JSON.stringify(options),
       ],
-      { cwd }
+      { cwd, env: { ...process.env, NPX_IMPORT_QUIET: "true" } }
     );
     let output = "";
     jest.stdout.on("data", (data) => (output += data));
@@ -53,6 +53,7 @@ test.serial(
   async (t) => {
     const [exitCode, output] = await runJest(".worker.spec.js", {
       kvNamespaces: ["TEST_NAMESPACE"],
+      d1Databases: ["__D1_BETA__DB_1"],
       sitePath: fixturesPath,
       globals: { KEY: "value" },
       // Check persistence options ignored

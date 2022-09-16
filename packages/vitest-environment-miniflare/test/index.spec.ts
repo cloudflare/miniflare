@@ -48,6 +48,7 @@ async function runVitest(
         env: {
           ...process.env,
           NODE_OPTIONS: "--experimental-vm-modules --no-warnings",
+          NPX_IMPORT_QUIET: "true",
         },
       }
     );

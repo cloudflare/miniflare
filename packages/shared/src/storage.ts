@@ -1,3 +1,4 @@
+import type { SqliteDB } from "./sqlite";
 import { Awaitable } from "./sync";
 
 export interface StoredMeta<Meta = unknown> {
@@ -116,6 +117,9 @@ export abstract class Storage {
     options: StorageListOptions,
     skipMetadata: true
   ): Awaitable<StorageListResult<StoredKey>>;
+  async getSqliteDatabase(): Promise<SqliteDB> {
+    throw new Error("D1 not implemented for this Storage class");
+  }
 
   // Batch functions, default implementations may be overridden to optimise
 
