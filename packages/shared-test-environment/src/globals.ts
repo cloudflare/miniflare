@@ -5,6 +5,7 @@ import {
   kWaitUntil,
 } from "@miniflare/core";
 import {
+  DurableObject,
   DurableObjectId,
   DurableObjectState,
   DurableObjectStorage,
@@ -32,6 +33,9 @@ declare global {
   function getMiniflareDurableObjectState(
     id: DurableObjectId
   ): Promise<DurableObjectState>;
+  function getMiniflareDurableObjectInstance(
+    id: DurableObjectId
+  ): Promise<DurableObject>;
   function runWithMiniflareDurableObjectGates<T>(
     state: DurableObjectState,
     closure: () => Awaitable<T>
@@ -53,6 +57,9 @@ export interface MiniflareEnvironmentUtilities {
   getMiniflareDurableObjectState(
     id: DurableObjectId
   ): Promise<DurableObjectState>;
+  getMiniflareDurableObjectInstance(
+    id: DurableObjectId
+  ): Promise<DurableObject>;
   runWithMiniflareDurableObjectGates<T>(
     state: DurableObjectState,
     closure: () => Awaitable<T>
@@ -86,6 +93,11 @@ export async function createMiniflareEnvironmentUtilities(
       const factory = mf.getPluginStorage("DurableObjectsPlugin");
       const storage = plugin.getStorage(factory, id);
       return new DurableObjectState(id, storage);
+    },
+    async getMiniflareDurableObjectInstance(id: DurableObjectId) {
+      const plugin = (await mf.getPlugins()).DurableObjectsPlugin;
+      const factory = mf.getPluginStorage("DurableObjectsPlugin");
+      return await plugin.getInstance(factory, id);
     },
     runWithMiniflareDurableObjectGates<T>(
       state: DurableObjectState,

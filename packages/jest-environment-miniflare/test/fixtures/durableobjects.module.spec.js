@@ -1,3 +1,5 @@
+import { jest } from "@jest/globals";
+
 beforeAll(async () => {
   const { TEST_OBJECT } = getMiniflareBindings();
   const id = TEST_OBJECT.idFromName("test");
@@ -42,4 +44,17 @@ test("Durable Objects direct", async () => {
   expect(await state.storage.get("count")).toBe(2);
   expect(await res1.text()).toBe("0");
   expect(await res2.text()).toBe("1");
+});
+
+test("Access to Durable Object instance", async () => {
+  const env = getMiniflareBindings();
+  const id = env.TEST_OBJECT.idFromName("test");
+  const stub = env.TEST_OBJECT.get(id);
+  const instance = await getMiniflareDurableObjectInstance(id);
+  const fetch = jest.spyOn(instance, "fetch");
+
+  await stub.fetch(new Request("https://object/"));
+
+  expect(instance.constructor.name).toBe("TestObject");
+  expect(fetch).toHaveBeenCalled();
 });
