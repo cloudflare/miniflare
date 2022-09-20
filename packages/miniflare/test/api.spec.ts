@@ -169,7 +169,7 @@ test.serial("Miniflare: startServer: starts HTTP server", async (t) => {
   const port = (server.address() as AddressInfo).port;
   const res = await fetch(`http://localhost:${port}/`);
   t.is(await res.text(), "body");
-  t.is(logs[0], "[mf:inf] Listening on :0");
+  t.regex(logs[0], /\[mf:inf\] Listening on :\d+/);
   t.regex(logs[logs.length - 1], /^GET \/ 200 OK/);
 });
 test.serial("Miniflare: startScheduler: starts CRON scheduler", async (t) => {

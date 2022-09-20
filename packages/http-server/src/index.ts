@@ -482,9 +482,12 @@ export async function startServer<Plugins extends HTTPPluginSignatures>(
       const protocol = httpsEnabled ? "https" : "http";
       const accessibleHosts =
         host && host !== "0.0.0.0" ? [host] : getAccessibleHosts(true);
-      log.info(`Listening on ${host ?? ""}:${port}`);
+      const address = server.address();
+      const usedPort =
+        address && typeof address === "object" ? address.port : port;
+      log.info(`Listening on ${host ?? ""}:${usedPort}`);
       for (const accessibleHost of accessibleHosts) {
-        log.info(`- ${protocol}://${accessibleHost}:${port}`);
+        log.info(`- ${protocol}://${accessibleHost}:${usedPort}`);
       }
       resolve(server);
     });
