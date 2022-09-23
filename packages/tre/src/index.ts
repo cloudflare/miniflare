@@ -337,6 +337,7 @@ export class Miniflare {
     const sockets: Socket[] = [
       {
         name: SOCKET_ENTRY,
+        http: {},
         service: { name: SERVICE_ENTRY },
       },
     ];
@@ -420,6 +421,10 @@ export class Miniflare {
     await this.#runtime.updateConfig(configBuffer);
     await this.#waitForRuntime();
     updatePromise.resolve();
+
+    console.log(
+      bold(green(`Updated and ready on ${this.#runtimeEntryURL}! 🎉`))
+    );
   }
 
   async dispose() {
