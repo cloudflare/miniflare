@@ -1,5 +1,4 @@
 import { mkdir, readFile, stat, writeFile } from "fs/promises";
-import { Server } from "net";
 import path from "path";
 import { IncomingRequestCfProperties, fetch } from "@miniflare/core";
 import { bold, dim, grey, red } from "kleur/colors";

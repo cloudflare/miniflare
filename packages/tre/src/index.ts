@@ -4,9 +4,10 @@ import path from "path";
 import getPort from "get-port";
 import { bold, green, grey } from "kleur/colors";
 import stoppable from "stoppable";
-import { fetch, RequestInfo, RequestInit } from "undici";
+import { RequestInfo, RequestInit, fetch } from "undici";
 import { HeadersInit, Request, Response } from "undici";
 import { z } from "zod";
+import { CfFetcher } from "./cf";
 import {
   DeferredPromise,
   HttpError,
@@ -17,7 +18,6 @@ import {
 } from "./helpers";
 
 import {
-  CfHeader,
   GatewayConstructor,
   GatewayFactory,
   HEADER_PROBE,
@@ -27,7 +27,6 @@ import {
   SOCKET_ENTRY,
 } from "./plugins";
 import { HEADER_CUSTOM_SERVICE } from "./plugins/core";
-import { CfFetcher } from "./cf";
 import {
   Config,
   Runtime,
