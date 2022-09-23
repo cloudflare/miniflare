@@ -1,13 +1,10 @@
 import { mkdir, readFile, stat, writeFile } from "fs/promises";
-import net, { Server } from "net";
+import { Server } from "net";
 import path from "path";
-import { compose } from "stream";
 import { IncomingRequestCfProperties, fetch } from "@miniflare/core";
-import getPort from "get-port";
-import { bold, dim, green, grey, red } from "kleur/colors";
-import { Request, RequestInfo, RequestInit, Response } from "undici";
+import { bold, dim, grey, red } from "kleur/colors";
 import { OptionalZodTypeOf } from "./helpers";
-import { CfHeader, Plugins } from "./plugins";
+import { Plugins } from "./plugins";
 const defaultCfPath = path.resolve("node_modules", ".mf", "cf.json");
 const defaultCfFetch = process.env.NODE_ENV !== "test";
 const defaultCfFetchEndpoint = "https://workers.cloudflare.com/cf.json";
@@ -48,12 +45,9 @@ export const DAY = 86400000;
 export const CF_DAYS = 30;
 
 type CoreOptions = OptionalZodTypeOf<Plugins["core"]["sharedOptions"]>;
-export class ProxyServer {
+export class CfFetcher {
   #options: CoreOptions;
-  #server?: Server;
   #cf = fallbackCf;
-
-  runtimeURL?: URL;
 
   readonly #initPromise: Promise<void>;
 
@@ -104,76 +98,10 @@ ${dim(e.cause ? e.cause.stack : e.stack)}`)
       );
     }
   }
-  // Initialise a proxy server that adds the `CF-Blob` header to runtime requests
-  createServer(): Server {
-    function injectHeader(name: string, value: string) {
-      function transformHeaders(headers: Buffer): Buffer {
-        return Buffer.concat([headers, Buffer.from(`\r\n${name}: ${value}`)]);
-      }
-      return async function* (source: AsyncIterable<Buffer>) {
-        let hasConsumedHeaders = false;
-        let headers = Buffer.from([]);
-        for await (const chunk of source) {
-          if (hasConsumedHeaders) {
-            yield chunk;
-          } else {
-            const received = Buffer.concat([headers, chunk]);
-            if (received.includes("\r\n\r\n")) {
-              const index = received.indexOf("\r\n\r\n");
-              const pre = Buffer.from(received.slice(0, index));
-              const post = Buffer.from(received.slice(index));
-              hasConsumedHeaders = true;
-              yield Buffer.concat([transformHeaders(pre), post]);
-            } else {
-              headers = Buffer.concat([headers, chunk]);
-            }
-          }
-        }
-      };
-    }
-
-    const tcpServer = net.createServer((conn) => {
-      const runtime = net.createConnection(
-        Number(this.runtimeURL!.port),
-        this.runtimeURL!.hostname
-      );
-      conn
-        .pipe(compose(injectHeader(CfHeader.Blob, JSON.stringify(this.#cf))))
-        .pipe(runtime);
-      conn.on("end", () => runtime.end());
-      conn.on("error", () => runtime.end());
-      runtime.on("error", () => conn.end());
-      runtime.on("end", () => conn.end());
-      runtime.pipe(compose(injectHeader("Connection", "close"))).pipe(conn);
-    });
-
-    return tcpServer;
-  }
-
-  async startServer() {
-    const port = await getPort({ port: this.#options.port });
-    const host = this.#options.host ?? "127.0.0.1";
-    this.#server = this.createServer();
-
-    await new Promise<void>((resolve) => {
-      this.#server!.listen(port, host, () => resolve());
-    });
-    console.log(bold(green(`Ready on http://${host}:${port}! 🎉`)));
-  }
-  dispatchFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-    const forward = new Request(input, init);
-    forward.headers.set(CfHeader.Blob, JSON.stringify(this.#cf));
-    const url = new URL(forward.url);
-    url.host = this.runtimeURL!.host;
-    return fetch(url, forward as RequestInit);
-  }
-  stop(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (this.#server !== undefined)
-        this.#server.close((err) => (err ? reject(err) : resolve()));
-    });
-  }
   get ready() {
     return this.#initPromise;
+  }
+  config() {
+    return this.#cf;
   }
 }

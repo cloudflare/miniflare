@@ -1,3 +1,4 @@
+import { IncomingRequestCfProperties } from "@miniflare/core";
 import { readFileSync } from "fs";
 import fs from "fs/promises";
 import { Request, Response } from "undici";
@@ -12,13 +13,11 @@ import {
   STRING_SCRIPT_PATH,
   convertModuleDefinition,
 } from "./modules";
-
 // (request: Request) => Awaitable<Response>
 export const ServiceFetch = z
   .function()
   .args(z.instanceof(Request))
   .returns(z.instanceof(Response).or(z.promise(z.instanceof(Response))));
-
 export const CoreOptionsSchema = z.object({
   name: z.string().optional(),
   script: z.string().optional(),
@@ -47,6 +46,7 @@ export const CoreSharedOptionsSchema = z.object({
   host: z.string().optional(),
   port: z.number().optional(),
   cfFetch: z.union([z.boolean(), z.string()]).optional(),
+  cf: z.object({}).optional(),
 });
 
 export const CORE_PLUGIN_NAME = "core";
@@ -70,7 +70,14 @@ const BINDING_TEXT_CUSTOM_SERVICE = "MINIFLARE_CUSTOM_SERVICE";
 // TODO: is there a way of capturing the full stack trace somehow?
 // Using `>=` for version check to handle multiple `setOptions` calls before
 // reload complete.
-export const SCRIPT_ENTRY = `addEventListener("fetch", (event) => {
+export const getScriptEntry = (
+  cf: IncomingRequestCfProperties
+) => `addEventListener("fetch", (event) => {
+  const request = new Request(event.request)
+  const cf = ${JSON.stringify(cf)}
+  Object.entries(cf).forEach(([k,v]) => {
+    request.cf[k] = v
+  })
   const probe = event.request.headers.get("${HEADER_PROBE}");
   if (probe !== null) {
     const probeMin = parseInt(probe);
@@ -79,7 +86,7 @@ export const SCRIPT_ENTRY = `addEventListener("fetch", (event) => {
   }
 
   if (globalThis.${BINDING_SERVICE_USER} !== undefined) {
-    event.respondWith(${BINDING_SERVICE_USER}.fetch(event.request).catch((err) => new Response(err.stack)));
+    event.respondWith(${BINDING_SERVICE_USER}.fetch(request).catch((err) => new Response(err.stack)));
   } else {
     event.respondWith(new Response("No script! 😠", { status: 404 }));
   }
@@ -144,7 +151,13 @@ export const CORE_PLUGIN: Plugin<
 
     return Promise.all(bindings);
   },
-  async getServices({ options, optionsVersion, workerBindings, workerIndex }) {
+  async getServices({
+    options,
+    optionsVersion,
+    workerBindings,
+    workerIndex,
+    sharedOptions,
+  }) {
     // Define core/shared services.
     // Services get de-duped by name, so only the first worker's
     // SERVICE_LOOPBACK and SERVICE_ENTRY will be used
@@ -156,7 +169,9 @@ export const CORE_PLUGIN: Plugin<
       {
         name: SERVICE_ENTRY,
         worker: {
-          serviceWorkerScript: SCRIPT_ENTRY,
+          serviceWorkerScript: getScriptEntry(
+            sharedOptions.cf as IncomingRequestCfProperties
+          ),
           bindings: serviceEntryBindings,
         },
       },

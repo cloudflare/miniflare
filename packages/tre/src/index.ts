@@ -2,9 +2,9 @@ import assert from "assert";
 import http from "http";
 import path from "path";
 import getPort from "get-port";
-import { grey } from "kleur/colors";
+import { bold, green, grey } from "kleur/colors";
 import stoppable from "stoppable";
-import { RequestInfo, RequestInit } from "undici";
+import { fetch, RequestInfo, RequestInit } from "undici";
 import { HeadersInit, Request, Response } from "undici";
 import { z } from "zod";
 import {
@@ -27,7 +27,7 @@ import {
   SOCKET_ENTRY,
 } from "./plugins";
 import { HEADER_CUSTOM_SERVICE } from "./plugins/core";
-import { ProxyServer } from "./proxy";
+import { CfFetcher } from "./cf";
 import {
   Config,
   Runtime,
@@ -112,7 +112,6 @@ export class Miniflare {
   #optionsVersion: number;
   #sharedOpts: PluginSharedOptions;
   #workerOpts: PluginWorkerOptions[];
-  #initialConfigPromise?: Promise<Config>;
 
   readonly #runtimeConstructor: RuntimeConstructor;
   #runtime?: Runtime;
@@ -124,7 +123,7 @@ export class Miniflare {
 
   #updatePromise?: Promise<void>;
 
-  #proxyServer: ProxyServer;
+  #cfFetcher: CfFetcher;
 
   constructor(opts: MiniflareOptions) {
     // Initialise plugin gateway factories and routers
@@ -137,8 +136,6 @@ export class Miniflare {
     this.#optionsVersion = 1;
     this.#sharedOpts = sharedOpts;
     this.#workerOpts = workerOpts;
-    // Assemble config asynchronously whilst initialising finishes
-    this.#initialConfigPromise = this.#assembleConfig();
 
     // Get supported shell for executing runtime binary
     // TODO: allow this to be configured if necessary
@@ -150,8 +147,8 @@ export class Miniflare {
     );
 
     this.#disposeController = new AbortController();
+    this.#cfFetcher = new CfFetcher(sharedOpts.core);
     this.#initPromise = this.#init();
-    this.#proxyServer = new ProxyServer(sharedOpts.core);
   }
 
   #initPlugins() {
@@ -167,22 +164,19 @@ export class Miniflare {
     }
   }
 
-  // Initialise a proxy server that adds the `CF-Blob` header to runtime requests
-  async createServer() {
-    await this.#initPromise;
-    return this.#proxyServer.createServer();
+  startServer(): Promise<void> {
+    return this.ready;
   }
 
-  async startServer() {
-    await this.#initPromise;
-    return this.#proxyServer.startServer();
-  }
   async dispatchFetch(
     input: RequestInfo,
     init?: RequestInit
   ): Promise<Response> {
-    await this.#initPromise;
-    return this.#proxyServer.dispatchFetch(input, init);
+    await this.ready;
+    const forward = new Request(input, init);
+    const url = new URL(forward.url);
+    url.host = this.#runtimeEntryURL!.host;
+    return fetch(url, forward as RequestInit);
   }
   async #init() {
     // Start loopback server (how the runtime accesses with Miniflare's storage)
@@ -194,7 +188,8 @@ export class Miniflare {
     const loopbackPort = address.port;
 
     // Start runtime
-    const entryPort = await getPort();
+    const entryPort = await getPort({ port: this.#sharedOpts.core.port });
+
     // TODO: respect entry `host` option
     // TODO: download/cache from GitHub releases or something, or include in pkg?
     this.#runtime = new this.#runtimeConstructor(
@@ -203,17 +198,16 @@ export class Miniflare {
       loopbackPort
     );
     this.#runtimeEntryURL = new URL(`http://127.0.0.1:${entryPort}`);
+    await this.#cfFetcher.ready;
 
-    const config = await this.#initialConfigPromise;
+    const config = await this.#assembleConfig();
     assert(config !== undefined);
-    this.#initialConfigPromise = undefined;
     const configBuffer = serializeConfig(config);
     await this.#runtime.updateConfig(configBuffer);
 
     // Wait for runtime to start
     await this.#waitForRuntime();
-    this.#proxyServer.runtimeURL = this.#runtimeEntryURL;
-    await this.#proxyServer.ready;
+    console.log(bold(green(`Ready on ${this.#runtimeEntryURL}! 🎉`)));
   }
 
   async #handleLoopbackCustomService(
@@ -338,11 +332,12 @@ export class Miniflare {
     const allWorkerOpts = this.#workerOpts;
     const sharedOpts = this.#sharedOpts;
 
+    sharedOpts.core.cf = sharedOpts.core.cf ?? this.#cfFetcher.config();
+
     const services: Service[] = [];
     const sockets: Socket[] = [
       {
         name: SOCKET_ENTRY,
-        http: { cfBlobHeader: CfHeader.Blob },
         service: { name: SERVICE_ENTRY },
       },
     ];
@@ -434,7 +429,6 @@ export class Miniflare {
     await this.#updatePromise;
     this.#runtime?.dispose();
     await this.#stopLoopbackServer();
-    await this.#proxyServer.stop();
   }
 }
 
