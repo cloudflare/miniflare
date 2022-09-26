@@ -3,8 +3,8 @@ import crypto from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { Awaitable, MiniflareCoreError } from "../helpers";
 import { SERVICE_LOOPBACK, SOCKET_ENTRY } from "../plugins";
+import { Awaitable, MiniflareCoreError } from "../shared";
 
 export abstract class Runtime {
   constructor(

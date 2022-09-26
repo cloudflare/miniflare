@@ -1,4 +1,4 @@
-import { ValueOf } from "../helpers";
+import { ValueOf } from "../shared";
 import { CACHE_PLUGIN, CACHE_PLUGIN_NAME } from "./cache";
 import { CORE_PLUGIN, CORE_PLUGIN_NAME } from "./core";
 import { DURABLE_OBJECTS_PLUGIN, DURABLE_OBJECTS_PLUGIN_NAME } from "./do";

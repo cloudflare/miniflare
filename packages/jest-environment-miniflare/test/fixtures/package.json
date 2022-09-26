@@ -1,5 +1,0 @@
-{
-  "__comment": "This file is here so Jest doesn't traverse up to jest-environment-miniflare's package.json and try run its tests",
-  "name": "jest-environment-miniflare-fixtures",
-  "type": "module"
-}

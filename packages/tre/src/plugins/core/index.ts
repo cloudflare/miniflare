@@ -2,8 +2,8 @@ import { readFileSync } from "fs";
 import fs from "fs/promises";
 import { Request, Response } from "undici";
 import { z } from "zod";
-import { Awaitable, JsonSchema } from "../../helpers";
 import { Service, Worker_Binding, Worker_Module } from "../../runtime";
+import { Awaitable, JsonSchema } from "../../shared";
 import { BINDING_SERVICE_LOOPBACK, Plugin } from "../shared";
 import {
   ModuleDefinitionSchema,
@@ -12,6 +12,7 @@ import {
   STRING_SCRIPT_PATH,
   convertModuleDefinition,
 } from "./modules";
+
 // (request: Request) => Awaitable<Response>
 export const ServiceFetch = z
   .function()
@@ -47,7 +48,6 @@ export const IncomingRequestCfPropertiesBotManagementSchema = z.object({
   staticResource: z.boolean().optional(),
   verifiedBot: z.boolean().optional(),
 });
-
 export const IncomingRequestCfPropertiesTLSClientAuthSchema = z.object({
   certIssuerDNLegacy: z.string().optional(),
   certIssuerDN: z.string().optional(),
@@ -224,7 +224,6 @@ export const CORE_PLUGIN: Plugin<
           serviceWorkerScript: SCRIPT_ENTRY,
           compatibilityDate: "2022-09-01",
           bindings: serviceEntryBindings,
-          compatibilityDate: "2022-09-01",
         },
       },
     ];

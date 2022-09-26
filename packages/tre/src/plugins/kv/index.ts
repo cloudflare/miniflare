@@ -75,7 +75,6 @@ export const KV_PLUGIN: Plugin<
               service: { name: SERVICE_LOOPBACK },
             },
           ],
-          compatibilityDate: "2022-09-01",
         },
       })
     );

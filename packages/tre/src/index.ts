@@ -9,14 +9,6 @@ import { RequestInfo, RequestInit, fetch } from "undici";
 import { HeadersInit, Request, Response } from "undici";
 import { z } from "zod";
 import { setupCf } from "./cf";
-import {
-  DeferredPromise,
-  HttpError,
-  MiniflareCoreError,
-  OptionalZodTypeOf,
-  UnionToIntersection,
-  ValueOf,
-} from "./helpers";
 
 import {
   GatewayConstructor,
@@ -38,6 +30,14 @@ import {
   getSupportedRuntime,
   serializeConfig,
 } from "./runtime";
+import {
+  DeferredPromise,
+  HttpError,
+  MiniflareCoreError,
+  OptionalZodTypeOf,
+  UnionToIntersection,
+  ValueOf,
+} from "./shared";
 import { waitForRequest } from "./wait";
 // ===== `Miniflare` User Options =====
 export type WorkerOptions = UnionToIntersection<
@@ -438,7 +438,7 @@ export class Miniflare {
   }
 }
 
-export * from "./helpers";
 export * from "./plugins";
 export * from "./runtime";
+export * from "./shared";
 export * from "./storage";
