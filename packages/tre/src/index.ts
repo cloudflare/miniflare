@@ -1,12 +1,12 @@
 import assert from "assert";
 import http from "http";
-import path from "path";
 import exitHook from "exit-hook";
 import getPort from "get-port";
 import { bold, green, grey } from "kleur/colors";
 import stoppable from "stoppable";
 import { RequestInfo, RequestInit, fetch } from "undici";
 import { HeadersInit, Request, Response } from "undici";
+import workerd from "workerd";
 import { z } from "zod";
 import { setupCf } from "./cf";
 
@@ -102,9 +102,6 @@ type PluginRouters = {
   [Key in keyof Plugins]: OptionalInstanceType<Plugins[Key]["router"]>;
 };
 
-// `__dirname` relative to bundled output `dist/src/index.js`
-const RUNTIME_PATH = path.resolve(__dirname, "..", "..", "lib", "workerd");
-
 type StoppableServer = http.Server & stoppable.WithStop;
 
 export class Miniflare {
@@ -190,9 +187,8 @@ export class Miniflare {
     const entryPort = await getPort({ port: this.#sharedOpts.core.port });
 
     // TODO: respect entry `host` option
-    // TODO: download/cache from GitHub releases or something, or include in pkg?
     this.#runtime = new this.#runtimeConstructor(
-      RUNTIME_PATH,
+      workerd,
       entryPort,
       loopbackPort
     );
