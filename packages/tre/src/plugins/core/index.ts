@@ -1,4 +1,3 @@
-import { IncomingRequestCfProperties } from "@miniflare/core";
 import { readFileSync } from "fs";
 import fs from "fs/promises";
 import { Request, Response } from "undici";
@@ -42,11 +41,59 @@ export const CoreOptionsSchema = z.object({
   dataBlobBindings: z.record(z.string()).optional(),
   serviceBindings: z.record(z.union([z.string(), ServiceFetch])).optional(),
 });
+
+export const IncomingRequestCfPropertiesBotManagementSchema = z.object({
+  score: z.number(),
+  staticResource: z.boolean(),
+  verifiedBot: z.boolean(),
+});
+
+export const IncomingRequestCfPropertiesTLSClientAuthSchema = z.object({
+  certIssuerDNLegacy: z.string(),
+  certIssuerDN: z.string(),
+  certPresented: z.enum(["0", "1"]),
+  certSubjectDNLegacy: z.string(),
+  certSubjectDN: z.string(),
+  certNotBefore: z.string(),
+  certNotAfter: z.string(),
+  certSerial: z.string(),
+  certFingerprintSHA1: z.string(),
+  certVerified: z.string(),
+});
+export const IncomingRequestCfPropertiesSchema = z.object({
+  asn: z.number(),
+  botManagement: IncomingRequestCfPropertiesBotManagementSchema.optional(),
+  city: z.string().optional(),
+  clientAcceptEncoding: z.union([z.string(), z.array(z.string())]).optional(),
+  clientTcpRtt: z.number(),
+  clientTrustScore: z.number().optional(),
+  colo: z.string(),
+  continent: z.string().optional(),
+  country: z.string(),
+  httpProtocol: z.string(),
+  latitude: z.string().optional(),
+  longitude: z.string().optional(),
+  metroCode: z.string().optional(),
+  postalCode: z.string().optional(),
+  region: z.string().optional(),
+  regionCode: z.string().optional(),
+  requestPriority: z.string(),
+  timezone: z.string().optional(),
+  tlsVersion: z.string(),
+  tlsCipher: z.string(),
+  tlsClientAuth: IncomingRequestCfPropertiesTLSClientAuthSchema,
+});
+
 export const CoreSharedOptionsSchema = z.object({
   host: z.string().optional(),
   port: z.number().optional(),
-  cfFetch: z.union([z.boolean(), z.string()]).optional(),
-  cf: z.object({}).optional(),
+  cf: z
+    .union([
+      z.boolean(),
+      z.string(),
+      IncomingRequestCfPropertiesSchema.passthrough(),
+    ])
+    .optional(),
 });
 
 export const CORE_PLUGIN_NAME = "core";
@@ -66,17 +113,14 @@ export const HEADER_CUSTOM_SERVICE = "MF-Custom-Service";
 const BINDING_JSON_VERSION = "MINIFLARE_VERSION";
 const BINDING_SERVICE_USER = "MINIFLARE_USER";
 const BINDING_TEXT_CUSTOM_SERVICE = "MINIFLARE_CUSTOM_SERVICE";
+const BINDING_JSON_CF_BLOB = "CF_BLOB";
 
 // TODO: is there a way of capturing the full stack trace somehow?
 // Using `>=` for version check to handle multiple `setOptions` calls before
 // reload complete.
-export const getScriptEntry = (
-  cf: IncomingRequestCfProperties
-) => `addEventListener("fetch", (event) => {
-  const request = new Request(event.request)
-  const cf = ${JSON.stringify(cf)}
-  Object.entries(cf).forEach(([k,v]) => {
-    request.cf[k] = v
+export const SCRIPT_ENTRY = `addEventListener("fetch", (event) => {
+  const request = new Request(event.request, {
+    cf: ${BINDING_JSON_CF_BLOB}
   })
   const probe = event.request.headers.get("${HEADER_PROBE}");
   if (probe !== null) {
@@ -158,20 +202,20 @@ export const CORE_PLUGIN: Plugin<
     workerIndex,
     sharedOptions,
   }) {
+    console.log(sharedOptions.cf);
     // Define core/shared services.
     // Services get de-duped by name, so only the first worker's
     // SERVICE_LOOPBACK and SERVICE_ENTRY will be used
     const serviceEntryBindings: Worker_Binding[] = [
       { name: BINDING_JSON_VERSION, json: optionsVersion.toString() },
+      { name: BINDING_JSON_CF_BLOB, json: JSON.stringify(sharedOptions.cf) },
     ];
     const services: Service[] = [
       { name: SERVICE_LOOPBACK, external: { http: {} } },
       {
         name: SERVICE_ENTRY,
         worker: {
-          serviceWorkerScript: getScriptEntry(
-            sharedOptions.cf as IncomingRequestCfProperties
-          ),
+          serviceWorkerScript: SCRIPT_ENTRY,
           bindings: serviceEntryBindings,
         },
       },

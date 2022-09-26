@@ -7,7 +7,7 @@ import stoppable from "stoppable";
 import { RequestInfo, RequestInit, fetch } from "undici";
 import { HeadersInit, Request, Response } from "undici";
 import { z } from "zod";
-import { CfFetcher } from "./cf";
+import { setupCf } from "./cf";
 import {
   DeferredPromise,
   HttpError,
@@ -122,8 +122,6 @@ export class Miniflare {
 
   #updatePromise?: Promise<void>;
 
-  #cfFetcher: CfFetcher;
-
   constructor(opts: MiniflareOptions) {
     // Initialise plugin gateway factories and routers
     this.#gatewayFactories = {} as PluginGatewayFactories;
@@ -146,7 +144,6 @@ export class Miniflare {
     );
 
     this.#disposeController = new AbortController();
-    this.#cfFetcher = new CfFetcher(sharedOpts.core);
     this.#initPromise = this.#init();
   }
 
@@ -197,7 +194,6 @@ export class Miniflare {
       loopbackPort
     );
     this.#runtimeEntryURL = new URL(`http://127.0.0.1:${entryPort}`);
-    await this.#cfFetcher.ready;
 
     const config = await this.#assembleConfig();
     assert(config !== undefined);
@@ -331,7 +327,7 @@ export class Miniflare {
     const allWorkerOpts = this.#workerOpts;
     const sharedOpts = this.#sharedOpts;
 
-    sharedOpts.core.cf = sharedOpts.core.cf ?? this.#cfFetcher.config();
+    sharedOpts.core.cf = await setupCf(sharedOpts.core.cf);
 
     const services: Service[] = [];
     const sockets: Socket[] = [
