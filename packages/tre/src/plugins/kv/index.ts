@@ -65,6 +65,7 @@ export const KV_PLUGIN: Plugin<
         name: `${SERVICE_NAMESPACE_PREFIX}:${id}`,
         worker: {
           serviceWorkerScript: SCRIPT_PLUGIN_NAMESPACE_PERSIST,
+          compatibilityDate: "2022-09-01",
           bindings: [
             ...persistBinding,
             { name: BINDING_TEXT_PLUGIN, text: KV_PLUGIN_NAME },

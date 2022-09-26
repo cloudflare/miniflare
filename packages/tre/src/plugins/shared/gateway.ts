@@ -16,9 +16,14 @@ export interface GatewayConstructor<Gateway> {
 }
 
 const DEFAULT_PERSIST_ROOT = ".mf";
-const URL_REGEXP = /^\w+:\/\//;
 
 export const PARAM_FILE_UNSANITISE = "unsanitise";
+
+function maybeParseURL(url: Persistence): URL | undefined {
+  try {
+    if (typeof url === "string") return new URL(url);
+  } catch {}
+}
 
 export class GatewayFactory<Gateway> {
   readonly #memoryStorages = new Map<string, MemoryStorage>();
@@ -41,9 +46,9 @@ export class GatewayFactory<Gateway> {
     // Sanitise namespace to make it file-system safe
     const sanitisedNamespace = sanitisePath(namespace);
 
-    // If `persist` looks like a URL, parse it
-    if (persist !== true && URL_REGEXP.test(persist)) {
-      const url = new URL(persist);
+    // Try parse `persist` as a URL
+    const url = maybeParseURL(persist);
+    if (url !== undefined) {
       if (url.protocol === "file:") {
         const root = path.join(fileURLToPath(url), sanitisedNamespace);
         const unsanitise =
@@ -53,7 +58,7 @@ export class GatewayFactory<Gateway> {
       // TODO: support Redis/SQLite storages?
       throw new MiniflareCoreError(
         "ERR_PERSIST_UNSUPPORTED",
-        `Unsupported "${url.protocol}" persistence protocol for storage`
+        `Unsupported "${url.protocol}" persistence protocol for storage: ${url.href}`
       );
     }
 

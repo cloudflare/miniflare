@@ -85,7 +85,7 @@ async function handleRequest(request) {
   // Only permit reads
   if (request.method !== "GET") {
     const message = \`Cannot \${request.method.toLowerCase()}() with read-only Workers Sites namespace\`;
-    return new Response(message, { status: 400, statusText: message });
+    return new Response(message, { status: 405, statusText: message });
   }
 
   // Decode key (empty if listing)
