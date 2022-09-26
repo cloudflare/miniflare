@@ -23,8 +23,9 @@ import {
   Plugins,
   SERVICE_ENTRY,
   SOCKET_ENTRY,
+  normaliseDurableObject,
 } from "./plugins";
-import { HEADER_CUSTOM_SERVICE } from "./plugins/core";
+import { HEADER_CUSTOM_SERVICE, getUserServiceName } from "./plugins/core";
 import {
   Config,
   Runtime,
@@ -82,6 +83,31 @@ function validateOptions(
   }
 
   return [pluginSharedOpts, pluginWorkerOpts];
+}
+
+// When creating user worker services, we need to know which Durable Objects
+// they export. Rather than parsing JavaScript to search for class exports
+// (which would have to be recursive because of `export * from ...`), we collect
+// all Durable Object bindings, noting that bindings may be defined for objects
+// in other services.
+function getDurableObjectClassNames(
+  allWorkerOpts: PluginWorkerOptions[]
+): Map<string, string[]> {
+  const serviceClassNames = new Map<string, string[]>();
+  for (const workerOpts of allWorkerOpts) {
+    const workerServiceName = getUserServiceName(workerOpts.core.name);
+    for (const klass of Object.values(workerOpts.do.durableObjects ?? {})) {
+      // Fallback to current worker service if name not defined
+      const [className, serviceName = workerServiceName] =
+        normaliseDurableObject(klass);
+      let classNames = serviceClassNames.get(serviceName);
+      if (classNames === undefined) {
+        serviceClassNames.set(serviceName, (classNames = []));
+      }
+      classNames.push(className);
+    }
+  }
+  return serviceClassNames;
 }
 
 // ===== `Miniflare` Internal Storage & Routing =====
@@ -326,6 +352,8 @@ export class Miniflare {
       { name: SOCKET_ENTRY, http: {}, service: { name: SERVICE_ENTRY } },
     ];
 
+    const durableObjectClassNames = getDurableObjectClassNames(allWorkerOpts);
+
     // Dedupe services by name
     const serviceNames = new Set<string>();
 
@@ -348,6 +376,7 @@ export class Miniflare {
           sharedOptions: sharedOpts[key],
           workerBindings,
           workerIndex: i,
+          durableObjectClassNames,
         });
         if (pluginServices !== undefined) {
           for (const service of pluginServices) {
