@@ -202,7 +202,6 @@ export const CORE_PLUGIN: Plugin<
     workerIndex,
     sharedOptions,
   }) {
-    console.log(sharedOptions.cf);
     // Define core/shared services.
     // Services get de-duped by name, so only the first worker's
     // SERVICE_LOOPBACK and SERVICE_ENTRY will be used
