@@ -1,4 +1,0 @@
-{
-  "name": "jest-environment-miniflare-fixtures-autoload",
-  "module": "./worker.js"
-}

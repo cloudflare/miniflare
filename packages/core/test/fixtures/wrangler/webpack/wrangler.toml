@@ -1,8 +1,0 @@
-name = "webpack-worker"
-type = "webpack"
-compatibility_date = "2021-09-28"
-
-# This environment is only here so Wrangler doesn't complain there aren't any
-# when passing "--env dev"
-[env.dev.vars]
-KEY = "value"

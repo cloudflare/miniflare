@@ -61,13 +61,7 @@ async function buildTypes() {
 
     if (name === "tre") {
       await fs.copyFile(
-        path.join(
-          pkgRoot,
-          "src",
-          "runtime",
-          "config",
-          "sserve-conf.capnp.d.ts"
-        ),
+        path.join(pkgRoot, "src", "runtime", "config", "workerd.capnp.d.ts"),
         path.join(
           projectRoot,
           "dist",
@@ -76,7 +70,7 @@ async function buildTypes() {
           "src",
           "runtime",
           "config",
-          "sserve-conf.capnp.d.ts"
+          "workerd.capnp.d.ts"
         )
       );
     }
