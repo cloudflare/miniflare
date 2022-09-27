@@ -42,6 +42,7 @@
     "@miniflare/html-rewriter": "2.9.0",
     "@miniflare/kv": "2.9.0",
     "@miniflare/queues": "2.9.0",
+    "@miniflare/r2": "2.9.0",
     "@miniflare/shared": "2.9.0",
     "@miniflare/sites": "2.9.0",
     "@miniflare/storage-memory": "2.9.0",
