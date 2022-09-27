@@ -3,7 +3,9 @@ import crypto from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import workerdPath from "workerd";
+import workerdPath, {
+  compatibilityDate as supportedCompatibilityDate,
+} from "workerd";
 import { SERVICE_LOOPBACK, SOCKET_ENTRY } from "../plugins";
 import { Awaitable, MiniflareCoreError } from "../shared";
 
@@ -243,3 +245,4 @@ export function getSupportedRuntime(): RuntimeConstructor {
 }
 
 export * from "./config";
+export { supportedCompatibilityDate };
