@@ -1,0 +1,47 @@
+diff --git a/node_modules/capnp-ts/src/serialization/arena/index.ts b/node_modules/capnp-ts/src/serialization/arena/index.ts
+index 5128c6e..f2407b9 100644
+--- a/node_modules/capnp-ts/src/serialization/arena/index.ts
++++ b/node_modules/capnp-ts/src/serialization/arena/index.ts
+@@ -2,7 +2,7 @@
+  * @author jdiaz5513
+  */
+ 
+-export { AnyArena } from "./any-arena";
++export type { AnyArena } from "./any-arena";
+ export { Arena } from "./arena";
+ export { ArenaKind } from "./arena-kind";
+ export { MultiSegmentArena } from "./multi-segment-arena";
+diff --git a/node_modules/capnp-ts/src/serialization/pointers/index.ts b/node_modules/capnp-ts/src/serialization/pointers/index.ts
+index 5a94ada..4e2f49d 100644
+--- a/node_modules/capnp-ts/src/serialization/pointers/index.ts
++++ b/node_modules/capnp-ts/src/serialization/pointers/index.ts
+@@ -15,12 +15,14 @@ export { Int32List } from "./int32-list";
+ export { Int64List } from "./int64-list";
+ export { Interface } from "./interface";
+ export { InterfaceList } from "./interface-list";
+-export { List, ListCtor } from "./list";
++export { List } from "./list";
++export type { ListCtor } from "./list";
+ export { Orphan } from "./orphan";
+ export { PointerList } from "./pointer-list";
+ export { PointerType } from "./pointer-type";
+ export { Pointer } from "./pointer";
+-export { _StructCtor, Struct, StructCtor } from "./struct";
++export { Struct } from "./struct";
++export type { _StructCtor, StructCtor } from "./struct";
+ export { Text } from "./text";
+ export { TextList } from "./text-list";
+ export { Uint8List } from "./uint8-list";
+diff --git a/node_modules/capnp-ts/src/serialization/pointers/struct.ts b/node_modules/capnp-ts/src/serialization/pointers/struct.ts
+index 30b3fc0..c746431 100644
+--- a/node_modules/capnp-ts/src/serialization/pointers/struct.ts
++++ b/node_modules/capnp-ts/src/serialization/pointers/struct.ts
+@@ -107,8 +107,6 @@ export class Struct extends Pointer {
+   static readonly setText = setText;
+   static readonly testWhich = testWhich;
+ 
+-  readonly _capnp!: _Struct;
+-
+   /**
+    * Create a new pointer to a struct.
+    *
