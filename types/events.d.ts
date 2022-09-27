@@ -53,3 +53,7 @@ declare class EventTarget {
   ): void;
   dispatchEvent(event: Event): boolean;
 }
+
+interface AbortSignal extends EventTarget {
+  readonly aborted: boolean;
+}

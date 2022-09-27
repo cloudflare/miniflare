@@ -38,7 +38,9 @@ import {
   UnionToIntersection,
   ValueOf,
 } from "./shared";
+import { anyAbortSignal } from "./shared/signal";
 import { waitForRequest } from "./wait";
+
 // ===== `Miniflare` User Options =====
 export type WorkerOptions = UnionToIntersection<
   z.infer<ValueOf<Plugins>["options"]>
@@ -202,8 +204,9 @@ export class Miniflare {
     await this.#runtime.updateConfig(configBuffer);
 
     // Wait for runtime to start
-    await this.#waitForRuntime();
-    console.log(bold(green(`Ready on ${this.#runtimeEntryURL}! 🎉`)));
+    if (await this.#waitForRuntime()) {
+      console.log(bold(green(`Ready on ${this.#runtimeEntryURL}! 🎉`)));
+    }
   }
 
   async #handleLoopbackCustomService(
@@ -316,10 +319,38 @@ export class Miniflare {
   }
 
   async #waitForRuntime() {
+    assert(this.#runtime !== undefined);
+
+    // Setup controller aborted when runtime exits
+    const exitController = new AbortController();
+    this.#runtime.exitPromise?.then(() => exitController.abort());
+
+    // Wait for the runtime to start by repeatedly sending probe HTTP requests
+    // until either:
+    // 1) The runtime responds with an OK response
+    // 2) The runtime exits
+    // 3) The Miniflare instance is disposed
+    const signal = anyAbortSignal(
+      exitController.signal,
+      this.#disposeController.signal
+    );
     await waitForRequest(this.#runtimeEntryURL!, {
       headers: { [HEADER_PROBE]: this.#optionsVersion.toString() },
-      signal: this.#disposeController.signal,
+      signal,
     });
+
+    // If we stopped waiting because of reason 2), something's gone wrong
+    const disposeAborted = this.#disposeController.signal.aborted;
+    const exitAborted = exitController.signal.aborted;
+    if (!disposeAborted && exitAborted) {
+      throw new MiniflareCoreError(
+        "ERR_RUNTIME_FAILURE",
+        "The Workers runtime failed to start. " +
+          "There is likely additional logging output above."
+      );
+    }
+
+    return !(disposeAborted || exitAborted);
   }
 
   async #assembleConfig(): Promise<Config> {
@@ -416,21 +447,26 @@ export class Miniflare {
     // Send to runtime and wait for updates to process
     assert(this.#runtime !== undefined);
     await this.#runtime.updateConfig(configBuffer);
-    await this.#waitForRuntime();
-    updatePromise.resolve();
 
-    console.log(
-      bold(green(`Updated and ready on ${this.#runtimeEntryURL}! 🎉`))
-    );
+    if (await this.#waitForRuntime()) {
+      console.log(
+        bold(green(`Updated and ready on ${this.#runtimeEntryURL}! 🎉`))
+      );
+    }
+    updatePromise.resolve();
   }
 
   async dispose() {
     this.#disposeController.abort();
-    await this.#initPromise;
-    await this.#updatePromise;
-    this.#removeRuntimeExitHook?.();
-    this.#runtime?.dispose();
-    await this.#stopLoopbackServer();
+    try {
+      await this.#initPromise;
+      await this.#updatePromise;
+    } finally {
+      // Cleanup as much as possible even if #init() threw
+      this.#removeRuntimeExitHook?.();
+      this.#runtime?.dispose();
+      await this.#stopLoopbackServer();
+    }
   }
 }
 
