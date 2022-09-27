@@ -26,7 +26,8 @@
     "lint:fix": "npm run lint -- --fix",
     "prepublishOnly": "npm run lint && npm run clean && npm run build && npm run types:bundle && npm run test",
     "helpers:scaffold": "node scripts/scaffold.mjs",
-    "helpers:version": "node scripts/version.mjs"
+    "helpers:version": "node scripts/version.mjs",
+    "capnp:workerd": "capnpc -o ts packages/tre/src/runtime/config/workerd.capnp"
   },
   "devDependencies": {
     "@ava/typescript": "^2.0.0",
@@ -37,6 +38,7 @@
     "@typescript-eslint/eslint-plugin": "^5.9.1",
     "@typescript-eslint/parser": "^5.9.1",
     "ava": "^3.15.0",
+    "capnpc-ts": "^0.7.0",
     "esbuild": "^0.12.20",
     "eslint": "^8.6.0",
     "eslint-config-prettier": "^8.3.0",
