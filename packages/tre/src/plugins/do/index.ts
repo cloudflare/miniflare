@@ -27,15 +27,15 @@ export const DurableObjectsSharedOptionsSchema = z.object({
 });
 
 export function normaliseDurableObject(
-  klass: NonNullable<
+  designator: NonNullable<
     z.infer<typeof DurableObjectsOptionsSchema>["durableObjects"]
   >[string]
 ): [className: string, serviceName: string | undefined] {
-  const isObject = typeof klass === "object";
-  const className = isObject ? klass.className : klass;
+  const isObject = typeof designator === "object";
+  const className = isObject ? designator.className : designator;
   const serviceName =
-    isObject && klass.scriptName !== undefined
-      ? getUserServiceName(klass.scriptName)
+    isObject && designator.scriptName !== undefined
+      ? getUserServiceName(designator.scriptName)
       : undefined;
   return [className, serviceName];
 }

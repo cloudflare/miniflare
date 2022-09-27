@@ -96,10 +96,12 @@ function getDurableObjectClassNames(
   const serviceClassNames = new Map<string, string[]>();
   for (const workerOpts of allWorkerOpts) {
     const workerServiceName = getUserServiceName(workerOpts.core.name);
-    for (const klass of Object.values(workerOpts.do.durableObjects ?? {})) {
+    for (const designator of Object.values(
+      workerOpts.do.durableObjects ?? {}
+    )) {
       // Fallback to current worker service if name not defined
       const [className, serviceName = workerServiceName] =
-        normaliseDurableObject(klass);
+        normaliseDurableObject(designator);
       let classNames = serviceClassNames.get(serviceName);
       if (classNames === undefined) {
         serviceClassNames.set(serviceName, (classNames = []));
