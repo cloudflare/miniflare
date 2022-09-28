@@ -438,8 +438,11 @@ export class Miniflare {
     return { services, sockets };
   }
 
-  get ready() {
-    return this.#initPromise;
+  get ready(): Promise<URL> {
+    // Cannot use async/await with getters.
+    // Safety: `#runtimeEntryURL` is assigned in `#init()`. `#initPromise`
+    // doesn't resolve until `#init()` returns.
+    return this.#initPromise.then(() => this.#runtimeEntryURL!);
   }
 
   #checkDisposed() {
