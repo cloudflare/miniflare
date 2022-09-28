@@ -4,8 +4,14 @@ import exitHook from "exit-hook";
 import getPort from "get-port";
 import { bold, green, grey } from "kleur/colors";
 import stoppable from "stoppable";
-import { RequestInfo, RequestInit, fetch } from "undici";
-import { HeadersInit, Request, Response } from "undici";
+import {
+  HeadersInit,
+  Request,
+  RequestInfo,
+  RequestInit,
+  Response,
+  fetch,
+} from "undici";
 import workerd from "workerd";
 import { z } from "zod";
 import { setupCf } from "./cf";
@@ -190,10 +196,6 @@ export class Miniflare {
     }
   }
 
-  startServer(): Promise<void> {
-    return this.ready;
-  }
-
   async dispatchFetch(
     input: RequestInfo,
     init?: RequestInit
@@ -204,6 +206,7 @@ export class Miniflare {
     url.host = this.#runtimeEntryURL!.host;
     return fetch(url, forward as RequestInit);
   }
+
   async #init() {
     // Start loopback server (how the runtime accesses with Miniflare's storage)
     this.#loopbackServer = await this.#startLoopbackServer(0, "127.0.0.1");
