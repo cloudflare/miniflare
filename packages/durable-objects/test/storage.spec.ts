@@ -153,12 +153,14 @@ test("get: gets multiple keys", async (t) => {
   await backing.put("key1", storedValue("value1"));
   await backing.put("key2", storedValue("value2"));
   await backing.put("key3", storedValue("value3"));
+  // Results should be always be returned in lexicographic order:
+  // https://github.com/cloudflare/miniflare/issues/393
   const expected = new Map([
     ["key1", "value1"],
     ["key2", "value2"],
     ["key3", "value3"],
   ]);
-  t.deepEqual(await storage.get(["key1", "key2", "key3"]), expected);
+  t.deepEqual(await storage.get(["key2", "key3", "key1"]), expected);
 });
 test("get: gets multiple keys with complex values", async (t) => {
   const { backing, storage } = t.context;

@@ -5,6 +5,7 @@ import {
   Storage,
   StoredValue,
   addAll,
+  lexicographicCompare,
   runWithInputGateClosed,
   viewToArray,
   waitUntilOnOutputGate,
@@ -128,21 +129,21 @@ function helpfulDeserialize(buffer: NodeJS.TypedArray): any {
 async function get<Value = unknown>(
   storage: Storage,
   key: string,
-  checkMaxKeys?: boolean
+  listing?: boolean
 ): Promise<Value | undefined>;
 // noinspection JSUnusedLocalSymbols
 async function get<Value = unknown>(
   storage: Storage,
   keys: string[],
-  checkMaxKeys?: boolean
+  listing?: boolean
 ): Promise<Map<string, Value>>;
 async function get<Value = unknown>(
   storage: Storage,
   keys: string | string[],
-  checkMaxKeys = true
+  listing = false
 ): Promise<Value | undefined | Map<string, Value>> {
   if (Array.isArray(keys)) {
-    if (checkMaxKeys && keys.length > MAX_KEYS) {
+    if (!listing && keys.length > MAX_KEYS) {
       throw new RangeError(`Maximum number of keys is ${MAX_KEYS}.`);
     }
     // Filter out undefined keys
@@ -151,6 +152,12 @@ async function get<Value = unknown>(
       if (key === undefined) continue;
       defined.push(key);
       assertKeySize(key, true);
+    }
+    if (!listing) {
+      // Return results in lexicographic order if not `list()`ing (where keys
+      // will already be sorted, and we may want to return in reverse)
+      // https://github.com/cloudflare/miniflare/issues/393
+      defined.sort(lexicographicCompare);
     }
     // If array of keys passed, build map of results
     const res = new Map<string, Value>();
@@ -212,8 +219,9 @@ async function list<Value = unknown>(
   return get(
     storage,
     keyNames,
-    // Allow listing more than MAX_KEYS keys
-    false /* checkMaxKeys */
+    // Allow listing more than MAX_KEYS keys and disable lexicographic sort
+    // (if `reverse` is `true`, we want keys to be returned in reverse)
+    true /* listing */
   );
 }
 
