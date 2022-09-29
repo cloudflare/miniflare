@@ -416,8 +416,11 @@ test("CorePlugin: setup: includes web standards", async (t) => {
 
   t.is(typeof globals.IdentityTransformStream, "function");
   t.is(typeof globals.FixedLengthStream, "function");
+
   t.is(typeof globals.CompressionStream, "function");
   t.is(typeof globals.DecompressionStream, "function");
+  t.is(typeof globals.TextEncoderStream, "function");
+  t.is(typeof globals.TextDecoderStream, "function");
 
   t.is(typeof globals.Event, "function");
   t.is(typeof globals.EventTarget, "function");
