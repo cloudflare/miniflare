@@ -2,6 +2,7 @@ import path from "path";
 import { TextDecoder } from "util";
 import {
   addAll,
+  arrayCompare,
   base64Decode,
   base64Encode,
   globsToMatcher,
@@ -18,11 +19,32 @@ import {
 import { useTmp } from "@miniflare/shared-test";
 import test from "ava";
 
+test("arrayCompare: compares arrays", (t) => {
+  // Check with numeric values
+  t.is(arrayCompare([], []), 0);
+  t.is(arrayCompare([1, 2, 3], [1, 2, 3]), 0);
+  t.true(arrayCompare([], [1]) < 0);
+  t.true(arrayCompare([1], []) > 0);
+  t.true(arrayCompare([1, 2, 3], [1, 2, 4]) < 0);
+  t.true(arrayCompare([1, 2, 4], [1, 2, 3]) > 0);
+  t.true(arrayCompare([1, 2], [1, 2, 3]) < 0);
+  t.true(arrayCompare([1, 2, 3], [1, 2]) > 0);
+
+  // Check with non-numeric values
+  t.true(arrayCompare(["a", "b", "c"], ["a", "b", "d"]) < 0);
+  t.true(arrayCompare(["a", "b", "d"], ["a", "b", "c"]) > 0);
+});
+
 test("lexicographicCompare: compares lexicographically", (t) => {
   t.is(lexicographicCompare("a", "b"), -1);
   t.is(lexicographicCompare("a", "a"), 0);
   t.is(lexicographicCompare("b", "a"), 1);
   t.is(lexicographicCompare("!", ", "), -1);
+
+  // https://github.com/cloudflare/miniflare/issues/380
+  t.is(lexicographicCompare("Z", "\uFF3A"), -1);
+  t.is(lexicographicCompare("\uFF3A", "\u{1D655}"), -1);
+  t.is(lexicographicCompare("\u{1D655}", "Z"), 1);
 });
 
 test("nonCircularClone: creates copy of data", (t) => {

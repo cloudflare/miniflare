@@ -1,14 +1,32 @@
 import path from "path";
+import { TextEncoder } from "util";
 import { deserialize, serialize } from "v8";
 import picomatch from "picomatch";
+
+const encoder = new TextEncoder();
 
 export const numericCompare = new Intl.Collator(undefined, { numeric: true })
   .compare;
 
+export function arrayCompare<T extends any[] | NodeJS.TypedArray>(
+  a: T,
+  b: T
+): number {
+  const minLength = Math.min(a.length, b.length);
+  for (let i = 0; i < minLength; i++) {
+    const aElement = a[i];
+    const bElement = b[i];
+    if (aElement < bElement) return -1;
+    if (aElement > bElement) return 1;
+  }
+  return a.length - b.length;
+}
+
+// Compares x and y lexicographically using a UTF-8 collation
 export function lexicographicCompare(x: string, y: string): number {
-  if (x < y) return -1;
-  if (x === y) return 0;
-  return 1;
+  const xEncoded = encoder.encode(x);
+  const yEncoded = encoder.encode(y);
+  return arrayCompare(xEncoded, yEncoded);
 }
 
 export function nonCircularClone<T>(value: T): T {

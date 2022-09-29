@@ -876,8 +876,14 @@ test("list: sorts lexicographically", async (t) => {
   // https://github.com/cloudflare/miniflare/issues/235
   const { storage } = t.context;
   await storage.put({ "!": {}, ", ": {} });
-  const keys = Array.from((await storage.list()).keys());
+  let keys = Array.from((await storage.list()).keys());
   t.deepEqual(keys, ["!", ", "]);
+
+  // https://github.com/cloudflare/miniflare/issues/380
+  await storage.deleteAll();
+  await storage.put({ Z: 0, "\u{1D655}": 1, "\uFF3A": 2 });
+  keys = Array.from((await storage.list()).keys());
+  t.deepEqual(keys, ["Z", "\uFF3A", "\u{1D655}"]);
 });
 test("list: closes input gate unless allowConcurrency", async (t) => {
   const { storage } = t.context;
