@@ -1,7 +1,5 @@
 import { SqliteDB } from "@miniflare/shared";
 
-// TODO: FINISH QUANTILEWEIGHTED
-// TODO: SUPPORT "INTERVAL '42' DAY"
 export default function buildSQLFunctions(sqliteDB: SqliteDB) {
   // https://clickhouse.com/docs/en/sql-reference/aggregate-functions/reference/quantileexactweighted/
   sqliteDB.function(

@@ -17,8 +17,6 @@ export interface AnalyticsEngineOptions {
   aePersist?: boolean | string;
 }
 
-// TODO: vitest tests
-// TODO: jest tests
 export class AnalyticsEnginePlugin
   extends Plugin<AnalyticsEngineOptions>
   implements AnalyticsEngineOptions
