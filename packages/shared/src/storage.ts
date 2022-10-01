@@ -117,7 +117,7 @@ export abstract class Storage {
     options: StorageListOptions,
     skipMetadata: true
   ): Awaitable<StorageListResult<StoredKey>>;
-  async getSqliteDatabase(): Promise<SqliteDB> {
+  async getSqliteDatabase(_migration?: string): Promise<SqliteDB> {
     throw new Error("D1 not implemented for this Storage class");
   }
 

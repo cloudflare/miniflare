@@ -1,5 +1,6 @@
 import http from "http";
 import https from "https";
+import { AnalyticsEnginePlugin } from "@miniflare/analytics-engine";
 import { CachePlugin, CacheStorage } from "@miniflare/cache";
 import {
   BindingsPlugin,
@@ -49,6 +50,7 @@ export const PLUGINS = {
   BuildPlugin,
 
   // Storage
+  AnalyticsEnginePlugin,
   KVPlugin,
   D1Plugin,
   R2Plugin,

@@ -1,0 +1,45 @@
+{
+  "name": "@miniflare/analytics-engine",
+  "version": "2.9.0",
+  "description": "Workers Analytics Engine module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "worker",
+    "local",
+    "analytics-engine",
+    "sqlite"
+  ],
+  "author": "CraigglesO <craiggles@s2maps.io>",
+  "license": "MIT",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "files": [
+    "dist/src"
+  ],
+  "engines": {
+    "node": ">=16.7"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cloudflare/miniflare.git",
+    "directory": "packages/analytics-engine"
+  },
+  "bugs": {
+    "url": "https://github.com/cloudflare/miniflare/issues"
+  },
+  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/analytics-engine#readme",
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "dependencies": {
+    "@miniflare/core": "2.9.0",
+    "@miniflare/shared": "2.9.0"
+  },
+  "devDependencies": {
+    "@miniflare/shared-test": "2.9.0"
+  }
+}

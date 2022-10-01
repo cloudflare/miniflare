@@ -35,6 +35,7 @@
     "extends": "../../package.json"
   },
   "dependencies": {
+    "@miniflare/analytics-engine": "2.9.0",
     "@miniflare/cache": "2.9.0",
     "@miniflare/core": "2.9.0",
     "@miniflare/d1": "2.9.0",

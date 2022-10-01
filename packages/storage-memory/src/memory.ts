@@ -123,10 +123,11 @@ export class MemoryStorage extends LocalStorage {
     ) as StoredKeyMeta<Meta>[];
   }
 
-  async getSqliteDatabase(): Promise<SqliteDB> {
+  async getSqliteDatabase(migration?: string): Promise<SqliteDB> {
     if (this.sqliteDB) return this.sqliteDB;
 
     this.sqliteDB = await createSQLiteDB(":memory:");
+    if (migration) this.sqliteDB.exec(migration);
     return this.sqliteDB;
   }
 }

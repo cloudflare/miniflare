@@ -31,6 +31,11 @@ export interface WranglerEnvironmentConfig {
     id?: string;
     preview_id?: string;
   }[]; // NOT inherited
+  analytics_engines?: {
+    binding: string;
+    name: string;
+    dataset: string;
+  }[];
   d1_databases?: {
     binding: string;
     database_name: string;
@@ -82,6 +87,7 @@ export interface WranglerEnvironmentConfig {
     upstream?: string;
     watch?: boolean;
     build_watch_dirs?: string[];
+    ae_persist?: boolean | string;
     kv_persist?: boolean | string;
     d1_persist?: boolean | string;
     r2_persist?: boolean | string;

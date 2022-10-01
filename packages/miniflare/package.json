@@ -46,6 +46,7 @@
     "miniflare": "bootstrap.js"
   },
   "dependencies": {
+    "@miniflare/analytics-engine": "2.9.0",
     "@miniflare/cache": "2.9.0",
     "@miniflare/cli-parser": "2.9.0",
     "@miniflare/core": "2.9.0",
