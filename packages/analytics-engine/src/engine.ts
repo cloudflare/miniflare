@@ -1,5 +1,7 @@
 import { TextDecoder } from "util";
 import type { SqliteDB } from "@miniflare/shared";
+import analytics from "./analytics";
+import buildSQLFunctions from "./functions";
 
 export interface AnalyticsEngineEvent {
   readonly doubles?: number[]; // up to 20
@@ -104,6 +106,8 @@ export class AnalyticsEngine {
   constructor(name: string, db: SqliteDB) {
     this.#name = name;
     this.#db = db;
+    buildSQLFunctions(db);
+    db.exec(analytics.replaceAll("{{BINDING}}", name));
   }
 
   async writeDataPoint({

@@ -3,8 +3,6 @@ import { Storage } from "@miniflare/shared";
 import { testClock } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
 import anyTest, { TestInterface } from "ava";
-import analytics from "../src/analytics";
-import buildSQLFunctions from "../src/functions";
 
 interface Context {
   storage: Storage;
@@ -15,11 +13,10 @@ const test = anyTest as TestInterface<Context>;
 
 test.beforeEach(async (t) => {
   const storage = new MemoryStorage(undefined, testClock);
-  const sqliteDB = await storage.getSqliteDatabase(
-    analytics.replaceAll("{{BINDING}}", "TEST_BINDING")
+  const db = new AnalyticsEngine(
+    "TEST_BINDING",
+    await storage.getSqliteDatabase()
   );
-  buildSQLFunctions(sqliteDB);
-  const db = new AnalyticsEngine("TEST_BINDING", sqliteDB);
   t.context = { storage, db };
 });
 

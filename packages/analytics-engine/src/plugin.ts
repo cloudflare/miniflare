@@ -8,9 +8,7 @@ import {
   StorageFactory,
   resolveStoragePersist,
 } from "@miniflare/shared";
-import analytics from "./analytics";
 import { AnalyticsEngine } from "./engine";
-import buildSQLFunctions from "./functions";
 
 export interface AnalyticsEngineOptions {
   analyticsEngines?: string[];
@@ -51,11 +49,7 @@ export class AnalyticsEnginePlugin
     dbName: string
   ): Promise<AnalyticsEngine> {
     const storage = storageFactory.storage(dbName, this.#persist);
-    const sqliteDB = await storage.getSqliteDatabase(
-      analytics.replaceAll("{{BINDING}}", dbName)
-    );
-    buildSQLFunctions(sqliteDB);
-    return new AnalyticsEngine(dbName, sqliteDB);
+    return new AnalyticsEngine(dbName, await storage.getSqliteDatabase());
   }
 
   async setup(storageFactory: StorageFactory): Promise<SetupResult> {

@@ -107,12 +107,11 @@ export class FileStorage extends LocalStorage {
     }
   }
 
-  async getSqliteDatabase(migration?: string): Promise<SqliteDB> {
+  async getSqliteDatabase(): Promise<SqliteDB> {
     if (this.sqliteDB) return this.sqliteDB;
 
     fs.mkdirSync(path.dirname(this.root), { recursive: true });
     this.sqliteDB = await createSQLiteDB(this.root + ".sqlite3");
-    if (migration) this.sqliteDB.exec(migration);
     return this.sqliteDB;
   }
 

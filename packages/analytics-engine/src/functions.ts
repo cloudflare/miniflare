@@ -1,5 +1,13 @@
 import { SqliteDB } from "@miniflare/shared";
 
+export type IntervalTypes =
+  | "SECOND"
+  | "MINUTE"
+  | "HOUR"
+  | "DAY"
+  | "MONTH"
+  | "YEAR";
+
 export default function buildSQLFunctions(sqliteDB: SqliteDB) {
   // https://clickhouse.com/docs/en/sql-reference/aggregate-functions/reference/quantileexactweighted/
   sqliteDB.function(
@@ -42,6 +50,20 @@ export default function buildSQLFunctions(sqliteDB: SqliteDB) {
   sqliteDB.function("NOW", (timeZone = "UTC"): string => {
     return new Date().toLocaleString("se-SE", { timeZone });
   });
+  // NOTE: sqlite does NOT support PROCEDURE creation, so statements are preparsed
+  // and "INTERVAL X Y" is converted to "INTERVAL(X, Y)"
+  // https://clickhouse.com/docs/en/sql-reference/data-types/special-data-types/interval
+  sqliteDB.function(
+    "INTERVAL",
+    (intervalValue: string | number, IntervalTypes: string): number => {
+      if (typeof intervalValue === "string") {
+        intervalValue = parseInt(intervalValue);
+      }
+      console.log("NUMBER", intervalValue);
+      console.log("TYPE", IntervalTypes);
+      return 0;
+    }
+  );
 }
 
 export function isDate(input: string): boolean {

@@ -3,8 +3,7 @@ import { Storage } from "@miniflare/shared";
 import { testClock } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
 import anyTest, { TestInterface } from "ava";
-import analytics from "../src/analytics";
-import buildSQLFunctions, { isDate } from "../src/functions";
+import { isDate } from "../src/functions";
 
 interface Context {
   storage: Storage;
@@ -15,11 +14,10 @@ const test = anyTest as TestInterface<Context>;
 
 test.beforeEach(async (t) => {
   const storage = new MemoryStorage(undefined, testClock);
-  const sqliteDB = await storage.getSqliteDatabase(
-    analytics.replaceAll("{{BINDING}}", "TEST_BINDING")
+  const db = new AnalyticsEngine(
+    "TEST_BINDING",
+    await storage.getSqliteDatabase()
   );
-  buildSQLFunctions(sqliteDB);
-  const db = new AnalyticsEngine("TEST_BINDING", sqliteDB);
   t.context = { storage, db };
 });
 
@@ -91,4 +89,11 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   );
   const res8 = stmt8.get("a3cd45");
   t.true(isDate(res8.answer));
+
+  // // test INTERVAL
+  // const stmt9 = sqliteDB.prepare(
+  //   "SELECT INTERVAL 42 DAY AS answer FROM TEST_BINDING WHERE index1 = ?"
+  // );
+  // const res9 = stmt9.get("a3cd45");
+  // t.true(isDate(res9.answer));
 });
