@@ -8,6 +8,7 @@ import { Transform, Writable } from "stream";
 import { ReadableStream } from "stream/web";
 import { URL } from "url";
 import zlib from "zlib";
+import { AnalyticsEnginePlugin } from "@miniflare/analytics-engine";
 import {
   CorePluginSignatures,
   IncomingRequestCfProperties,
@@ -276,6 +277,8 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
     // can't be handled by workers and are used for utility interfaces.
     const pathname = url.pathname.replace(/\/$/, "");
     if (pathname.startsWith("/cdn-cgi/")) {
+      const headStatus = { "Content-Type": "text/plain; charset=UTF-8" };
+      let body: undefined | string = undefined;
       // TODO (someday): consider adding other utility interfaces for KV, DO, etc
       //  (maybe add another Plugin field/method/decorator for contributes)
       if (pathname === "/cdn-cgi/mf/scheduled") {
@@ -288,11 +291,19 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
           url
         );
         status = 200;
+      } else if (pathname === "/cdn-cgi/mf/analytics_engine/sql") {
+        const query = await request.text();
+        const plugin = (await mf.getPlugins())
+          .AnalyticsEnginePlugin as AnalyticsEnginePlugin;
+        const storage = mf.getPluginStorage("AnalyticsEnginePlugin");
+        const aeDB = await plugin.getStorage(storage);
+        body = JSON.stringify(aeDB.prepare(query).all() ?? []);
+        headStatus["Content-Type"] = "application/javascript";
       } else {
         status = 404;
       }
-      res?.writeHead(status, { "Content-Type": "text/plain; charset=UTF-8" });
-      res?.end();
+      res?.writeHead(status, headStatus);
+      res?.end(body);
     } else {
       try {
         response = await mf.dispatchFetch(request);

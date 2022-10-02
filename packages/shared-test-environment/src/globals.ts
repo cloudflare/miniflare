@@ -112,7 +112,7 @@ export async function createMiniflareEnvironmentUtilities(
       const plugin = (await mf.getPlugins()).AnalyticsEnginePlugin;
       const storage = mf.getPluginStorage("AnalyticsEnginePlugin");
       const aeDB = await plugin.getStorage(storage);
-      return aeDB.prepare(query).get();
+      return aeDB.prepare(query).all();
     },
   };
 }

@@ -47,8 +47,8 @@ CREATE TABLE IF NOT EXISTS {{BINDING}} (
   blob20 TEXT
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS {{BINDING}}_index ON {{BINDING}} (dataset, timestamp);
-CREATE UNIQUE INDEX IF NOT EXISTS {{BINDING}}_index ON {{BINDING}} (dataset, index1, timestamp);
+CREATE INDEX IF NOT EXISTS {{BINDING}}_index ON {{BINDING}} (dataset, timestamp);
+CREATE INDEX IF NOT EXISTS {{BINDING}}_index ON {{BINDING}} (dataset, index1, timestamp);
 
 COMMIT;
 `;
