@@ -81,7 +81,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
     "SELECT TODATETIME(0) AS answer FROM TEST_DATASET WHERE index1 = ?"
   );
   const res7 = stmt7.get("a3cd45");
-  t.is(res7.answer, "1970-01-01 00:00:00");
+  t.is(res7.answer, "1969-12-31 19:00:00");
 
   // test NOW
   const stmt8 = sqliteDB.prepare(
