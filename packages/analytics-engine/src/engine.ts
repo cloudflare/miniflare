@@ -106,8 +106,8 @@ export class AnalyticsEngine {
   constructor(name: string, db: SqliteDB) {
     this.#name = name;
     this.#db = db;
-    buildSQLFunctions(db);
     db.exec(analytics.replaceAll("{{BINDING}}", name));
+    buildSQLFunctions(db);
   }
 
   async writeDataPoint({
@@ -168,7 +168,7 @@ export class AnalyticsEngine {
       blobsValues.push(`@${key}`);
     });
 
-    const insert = this.#db.prepare(
+    const input = prepare(
       `INSERT INTO ${this.#name} (dataset, index1${
         doublesKeys.length > 0 ? `, ${doublesKeys}` : ""
       }${
@@ -177,7 +177,33 @@ export class AnalyticsEngine {
         doublesValues.length > 0 ? `, ${doublesValues}` : ""
       }${blobsValues.length > 0 ? `, ${blobsValues}` : ""})`
     );
+    const insert = this.#db.prepare(input);
 
     insert.run(insertData);
   }
+}
+
+/** @internal */
+export function prepare(input: string): string {
+  // split
+  const pieces = input.split(" ");
+  // find all instances of "INTERVAL"
+  const intervalIndexes = [];
+  for (let i = 0, pl = pieces.length; i < pl; i++) {
+    if (pieces[i].toLocaleLowerCase() === "interval") {
+      intervalIndexes.push(i);
+    }
+  }
+  // for each instance, convert "INTERVAL X Y" to "INTERVAL(X, Y)"
+  for (const intervalIndex of intervalIndexes) {
+    const [interval, value, type] = pieces.slice(
+      intervalIndex,
+      intervalIndex + 3
+    );
+    pieces[intervalIndex] = `${interval}(`;
+    pieces[intervalIndex + 1] = `${value.replaceAll("'", "")},`;
+    pieces[intervalIndex + 2] = `'${type.replaceAll("'", "").toUpperCase()}')`;
+  }
+
+  return pieces.join(" ");
 }

@@ -1,12 +1,13 @@
 import { SqliteDB } from "@miniflare/shared";
 
-export type IntervalTypes =
-  | "SECOND"
-  | "MINUTE"
-  | "HOUR"
-  | "DAY"
-  | "MONTH"
-  | "YEAR";
+const TIME = {
+  SECOND: 1,
+  MINUTE: 60, // 60sec
+  HOUR: 60 * 60, // 60sec * 60min
+  DAY: 60 * 60 * 24, // 60sec * 60min * 24hours
+  MONTH: 60 * 60 * 24 * 30, // 60sec * 60min * 24hours
+  YEAR: 60 * 60 * 24 * 365,
+};
 
 export default function buildSQLFunctions(sqliteDB: SqliteDB) {
   // https://clickhouse.com/docs/en/sql-reference/aggregate-functions/reference/quantileexactweighted/
@@ -55,13 +56,15 @@ export default function buildSQLFunctions(sqliteDB: SqliteDB) {
   // https://clickhouse.com/docs/en/sql-reference/data-types/special-data-types/interval
   sqliteDB.function(
     "INTERVAL",
-    (intervalValue: string | number, IntervalTypes: string): number => {
+    (
+      intervalValue: string | number,
+      IntervalType: keyof typeof TIME
+    ): number => {
       if (typeof intervalValue === "string") {
         intervalValue = parseInt(intervalValue);
       }
-      console.log("NUMBER", intervalValue);
-      console.log("TYPE", IntervalTypes);
-      return 0;
+      const multiplier = TIME[IntervalType] ?? 0;
+      return intervalValue * multiplier;
     }
   );
 }

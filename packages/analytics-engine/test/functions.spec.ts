@@ -1,4 +1,4 @@
-import { AnalyticsEngine } from "@miniflare/analytics-engine";
+import { AnalyticsEngine, prepare } from "@miniflare/analytics-engine";
 import { Storage } from "@miniflare/shared";
 import { testClock } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
@@ -90,10 +90,38 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   const res8 = stmt8.get("a3cd45");
   t.true(isDate(res8.answer));
 
-  // // test INTERVAL
-  // const stmt9 = sqliteDB.prepare(
-  //   "SELECT INTERVAL 42 DAY AS answer FROM TEST_BINDING WHERE index1 = ?"
-  // );
-  // const res9 = stmt9.get("a3cd45");
-  // t.true(isDate(res9.answer));
+  // test INTERVAL
+  const stmt9Input = prepare(
+    "SELECT INTERVAL 42 DAY AS answer FROM TEST_BINDING WHERE index1 = ?"
+  );
+  const stmt9 = sqliteDB.prepare(stmt9Input);
+  const res9 = stmt9.get("a3cd45");
+  t.is(res9.answer, 42 * 60 * 60 * 24);
+
+  // test INTERVAL with comments
+  const stmt10Input = prepare(
+    "SELECT INTERVAL '42' DAY AS answer FROM TEST_BINDING WHERE index1 = ?"
+  );
+  const stmt10 = sqliteDB.prepare(stmt10Input);
+  const res10 = stmt10.get("a3cd45");
+  t.is(res10.answer, 42 * 60 * 60 * 24);
+
+  // test INTERVAL with comments 2
+  const stmt11Input = prepare(
+    "SELECT INTERVAL 42 'DAY' AS answer FROM TEST_BINDING WHERE index1 = ?"
+  );
+  const stmt11 = sqliteDB.prepare(stmt11Input);
+  const res11 = stmt11.get("a3cd45");
+  t.is(res11.answer, 42 * 60 * 60 * 24);
+
+  // test INTERVAL with comments 3
+  const stmt12Input = prepare(
+    "SELECT INTERVAL '42 DAY' AS answer FROM TEST_BINDING WHERE index1 = ?"
+  );
+  const stmt12 = sqliteDB.prepare(stmt12Input);
+  const res12 = stmt12.get("a3cd45");
+  t.is(res12.answer, 42 * 60 * 60 * 24);
+
+  // TODO: test SECOND, MINUTE, ...
+  // TODO: test if not the right word
 });
