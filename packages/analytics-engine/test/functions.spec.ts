@@ -1,4 +1,4 @@
-import { AnalyticsEngine, prepare } from "@miniflare/analytics-engine";
+import { AnalyticsEngine, _prepare } from "@miniflare/analytics-engine";
 import { Storage } from "@miniflare/shared";
 import { testClock } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
@@ -81,7 +81,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
     "SELECT TODATETIME(0) AS answer FROM TEST_DATASET WHERE index1 = ?"
   );
   const res7 = stmt7.get("a3cd45");
-  t.is(res7.answer, "1969-12-31 19:00:00");
+  t.is(res7.answer, "1970-01-01 00:00:00");
 
   // test NOW
   const stmt8 = sqliteDB.prepare(
@@ -91,7 +91,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   t.true(isDate(res8.answer));
 
   // test INTERVAL
-  const stmt9Input = prepare(
+  const stmt9Input = _prepare(
     "SELECT INTERVAL 42 DAY AS answer FROM TEST_DATASET WHERE index1 = ?"
   );
   const stmt9 = sqliteDB.prepare(stmt9Input);
@@ -99,7 +99,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   t.is(res9.answer, 42 * 60 * 60 * 24);
 
   // test INTERVAL with comments
-  const stmt10Input = prepare(
+  const stmt10Input = _prepare(
     "SELECT INTERVAL '42' DAY AS answer FROM TEST_DATASET WHERE index1 = ?"
   );
   const stmt10 = sqliteDB.prepare(stmt10Input);
@@ -107,7 +107,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   t.is(res10.answer, 42 * 60 * 60 * 24);
 
   // test INTERVAL with comments 2
-  const stmt11Input = prepare(
+  const stmt11Input = _prepare(
     "SELECT INTERVAL 42 'DAY' AS answer FROM TEST_DATASET WHERE index1 = ?"
   );
   const stmt11 = sqliteDB.prepare(stmt11Input);
@@ -115,7 +115,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   t.is(res11.answer, 42 * 60 * 60 * 24);
 
   // test INTERVAL with comments 3
-  const stmt12Input = prepare(
+  const stmt12Input = _prepare(
     "SELECT INTERVAL '42 DAY' AS answer FROM TEST_DATASET WHERE index1 = ?"
   );
   const stmt12 = sqliteDB.prepare(stmt12Input);
@@ -123,7 +123,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   t.is(res12.answer, 42 * 60 * 60 * 24);
 
   // test INTERVAL SECOND
-  const stmt13Input = prepare(
+  const stmt13Input = _prepare(
     "SELECT INTERVAL 42 SECOND AS answer FROM TEST_DATASET WHERE index1 = ?"
   );
   const stmt13 = sqliteDB.prepare(stmt13Input);
@@ -131,7 +131,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   t.is(res13.answer, 42);
 
   // test INTERVAL MINUTE
-  const stmt14Input = prepare(
+  const stmt14Input = _prepare(
     "SELECT INTERVAL 42 MINUTE AS answer FROM TEST_DATASET WHERE index1 = ?"
   );
   const stmt14 = sqliteDB.prepare(stmt14Input);
@@ -139,7 +139,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   t.is(res14.answer, 42 * 60);
 
   // test INTERVAL HOUR
-  const stmt15Input = prepare(
+  const stmt15Input = _prepare(
     "SELECT INTERVAL 42 HOUR AS answer FROM TEST_DATASET WHERE index1 = ?"
   );
   const stmt15 = sqliteDB.prepare(stmt15Input);
@@ -147,7 +147,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   t.is(res15.answer, 42 * 60 * 60);
 
   // test INTERVAL MONTH
-  const stmt16Input = prepare(
+  const stmt16Input = _prepare(
     "SELECT INTERVAL 2 MONTH AS answer FROM TEST_DATASET WHERE index1 = ?"
   );
   const stmt16 = sqliteDB.prepare(stmt16Input);
@@ -155,7 +155,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   t.is(res16.answer, 2 * 2_629_746);
 
   // test INTERVAL YEAR
-  const stmt17Input = prepare(
+  const stmt17Input = _prepare(
     "SELECT INTERVAL 2 YEAR AS answer FROM TEST_DATASET WHERE index1 = ?"
   );
   const stmt17 = sqliteDB.prepare(stmt17Input);
@@ -163,7 +163,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   t.is(res17.answer, 2 * 31_556_952);
 
   // test INTERVAL BAD INPUT
-  const stmt18Input = prepare(
+  const stmt18Input = _prepare(
     "SELECT INTERVAL 1 UNKNOWN AS answer FROM TEST_DATASET WHERE index1 = ?"
   );
   const stmt18 = sqliteDB.prepare(stmt18Input);

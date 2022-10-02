@@ -126,7 +126,7 @@ export class AnalyticsEngine {
       blobsValues.push(`@${key}`);
     });
 
-    const input = prepare(
+    const input = _prepare(
       `INSERT INTO ${this.#dataset} (dataset, index1${
         doublesKeys.length > 0 ? `, ${doublesKeys}` : ""
       }${
@@ -141,14 +141,14 @@ export class AnalyticsEngine {
   }
 
   async [kQuery](input: string): Promise<any> {
-    const query = this.#db.prepare(prepare(input));
+    const query = this.#db.prepare(_prepare(input));
 
     return query.get();
   }
 }
 
 /** @internal */
-export function prepare(input: string): string {
+export function _prepare(input: string): string {
   // split
   const pieces = input.split(" ");
   // find all instances of "INTERVAL"
