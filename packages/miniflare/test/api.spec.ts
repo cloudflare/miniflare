@@ -54,6 +54,21 @@ test.serial("Miniflare: dispose: disposes plugins and storage", async (t) => {
     "[mf:vrb] Disposing storage...",
   ]);
 });
+test("Miniflare: getAnalyticsEngine: gets Analytics Engine from name", async (t) => {
+  const mf = new Miniflare({
+    script: `export default { 
+      fetch: async (request, env) => {
+        return new Response(await env.TEST_DB.writeDataPoint({ blobs: ['a', 'b'], doubles: [1, 2] }));
+      }
+    }`,
+    modules: true,
+    analyticsEngines: ["TEST_DB"],
+  });
+  await mf.dispatchFetch("http://localhost/");
+  const ae = await mf.getAnalyticsEngine("TEST_DB");
+  await ae.writeDataPoint({ blobs: ["c", "d"], doubles: [3, 4] });
+  t.pass();
+});
 test("Miniflare: getKVNamespace: gets KV namespace", async (t) => {
   const mf = new Miniflare({
     script: `export default { 

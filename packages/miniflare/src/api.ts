@@ -1,6 +1,9 @@
 import http from "http";
 import https from "https";
-import { AnalyticsEnginePlugin } from "@miniflare/analytics-engine";
+import {
+  AnalyticsEngine,
+  AnalyticsEnginePlugin,
+} from "@miniflare/analytics-engine";
 import { CachePlugin, CacheStorage } from "@miniflare/cache";
 import {
   BindingsPlugin,
@@ -108,6 +111,12 @@ export class Miniflare extends MiniflareCore<Plugins> {
   async dispose(): Promise<void> {
     await super.dispose();
     await this.#storageFactory.dispose();
+  }
+
+  async getAnalyticsEngine(name: string): Promise<AnalyticsEngine> {
+    const plugin = (await this.getPlugins()).AnalyticsEnginePlugin;
+    const storage = this.getPluginStorage("AnalyticsEnginePlugin");
+    return plugin.getAnalyticsEngine(storage, name);
   }
 
   async getKVNamespace(namespace: string): Promise<KVNamespace> {
