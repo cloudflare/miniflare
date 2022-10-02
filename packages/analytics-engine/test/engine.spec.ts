@@ -14,7 +14,7 @@ const test = anyTest as TestInterface<Context>;
 test.beforeEach(async (t) => {
   const storage = new MemoryStorage(undefined, testClock);
   const db = new AnalyticsEngine(
-    "TEST_BINDING",
+    "TEST_DATASET",
     await storage.getSqliteDatabase()
   );
   t.context = { storage, db };
@@ -32,12 +32,12 @@ test("Analytics Engine: Write a data point using indexes, blobs, and doubles.", 
   });
 
   // grab data from sqliteDB
-  const stmt = sqliteDB.prepare("SELECT * FROM TEST_BINDING WHERE index1 = ?");
+  const stmt = sqliteDB.prepare("SELECT * FROM TEST_DATASET WHERE index1 = ?");
   const res = stmt.get("t1");
   t.true(typeof res.timestamp === "string");
   delete res.timestamp;
   t.deepEqual(res, {
-    dataset: "TEST_BINDING",
+    dataset: "TEST_DATASET",
     index1: "t1",
     _sample_interval: 1,
     blob1: "a",
@@ -91,12 +91,12 @@ test("Analytics Engine: Write a data point with no data provided.", async (t) =>
   await db.writeDataPoint({});
 
   // grab data from sqliteDB
-  const stmt = sqliteDB.prepare("SELECT * FROM TEST_BINDING");
+  const stmt = sqliteDB.prepare("SELECT * FROM TEST_DATASET");
   const res = stmt.get();
   t.true(typeof res.timestamp === "string");
   delete res.timestamp;
   t.deepEqual(res, {
-    dataset: "TEST_BINDING",
+    dataset: "TEST_DATASET",
     index1: null,
     _sample_interval: 1,
     blob1: null,
@@ -177,12 +177,12 @@ test("Analytics Engine: Write a data point filling indexes, blobs, and doubles."
   });
 
   // grab data from sqliteDB
-  const stmt = sqliteDB.prepare("SELECT * FROM TEST_BINDING WHERE index1 = ?");
+  const stmt = sqliteDB.prepare("SELECT * FROM TEST_DATASET WHERE index1 = ?");
   const res = stmt.get("t1");
   t.true(typeof res.timestamp === "string");
   delete res.timestamp;
   t.deepEqual(res, {
-    dataset: "TEST_BINDING",
+    dataset: "TEST_DATASET",
     index1: "t1",
     _sample_interval: 1,
     blob1: "a",
@@ -241,7 +241,7 @@ test("Analytics Engine: Store AB", async (t) => {
   });
 
   const stmt = sqliteDB.prepare(
-    "SELECT blob1 FROM TEST_BINDING WHERE index1 = ?"
+    "SELECT blob1 FROM TEST_DATASET WHERE index1 = ?"
   );
   const res = stmt.get("t1");
   t.is(res.blob1, "test string");
@@ -263,7 +263,7 @@ test("Analytics Engine: Minimal example test.", async (t) => {
 
   // grab data from sqliteDB
   const stmt = sqliteDB.prepare(
-    "SELECT blob1 AS city, SUM(_sample_interval * double1) / SUM(_sample_interval) AS avg_humidity FROM TEST_BINDING WHERE double1 > 0 GROUP BY city ORDER BY avg_humidity DESC LIMIT 10"
+    "SELECT blob1 AS city, SUM(_sample_interval * double1) / SUM(_sample_interval) AS avg_humidity FROM TEST_DATASET WHERE double1 > 0 GROUP BY city ORDER BY avg_humidity DESC LIMIT 10"
   );
   const res = stmt.get();
   delete res.timestamp;
@@ -274,7 +274,7 @@ test("Analytics Engine: Minimal example test.", async (t) => {
 
   // USING TIME SERIES DATA
   const stmt2 = sqliteDB.prepare(
-    "SELECT intDiv(toUInt32(timestamp), 300) * 300 AS t, blob1 AS city, SUM(_sample_interval * double1) / SUM(_sample_interval) AS avg_humidity FROM TEST_BINDING WHERE timestamp >= NOW() AND double1 > 0 GROUP BY t, city ORDER BY t, avg_humidity DESC"
+    "SELECT intDiv(toUInt32(timestamp), 300) * 300 AS t, blob1 AS city, SUM(_sample_interval * double1) / SUM(_sample_interval) AS avg_humidity FROM TEST_DATASET WHERE timestamp >= NOW() AND double1 > 0 GROUP BY t, city ORDER BY t, avg_humidity DESC"
   );
   const res2 = stmt2.get();
   // console.log("res2", res2);

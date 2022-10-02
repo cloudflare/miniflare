@@ -54,7 +54,7 @@ test.serial("Miniflare: dispose: disposes plugins and storage", async (t) => {
     "[mf:vrb] Disposing storage...",
   ]);
 });
-test("Miniflare: getAnalyticsEngine: gets Analytics Engine from name", async (t) => {
+test("Miniflare: getAnalyticsEngine: gets Analytics Engine from bindings", async (t) => {
   const mf = new Miniflare({
     script: `export default { 
       fetch: async (request, env) => {
@@ -62,9 +62,11 @@ test("Miniflare: getAnalyticsEngine: gets Analytics Engine from name", async (t)
       }
     }`,
     modules: true,
-    analyticsEngines: ["TEST_DB"],
+    analyticsEngines: {
+      TEST_DB: "TEST_DB",
+    },
   });
-  await mf.dispatchFetch("http://localhost/");
+  // await mf.dispatchFetch("http://localhost/");
   const ae = await mf.getAnalyticsEngine("TEST_DB");
   await ae.writeDataPoint({ blobs: ["c", "d"], doubles: [3, 4] });
   t.pass();

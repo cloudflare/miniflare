@@ -8,10 +8,13 @@ import {
   StorageFactory,
   resolveStoragePersist,
 } from "@miniflare/shared";
+import type { SqliteDB } from "@miniflare/shared";
 import { AnalyticsEngine } from "./engine";
 
+export type ProcessedAnalyticsEngine = Record<string, string>; // { [name]: dataset }
+
 export interface AnalyticsEngineOptions {
-  analyticsEngines?: string[];
+  analyticsEngines?: ProcessedAnalyticsEngine;
   aePersist?: boolean | string;
 }
 
@@ -20,14 +23,25 @@ export class AnalyticsEnginePlugin
   implements AnalyticsEngineOptions
 {
   @Option({
-    type: OptionType.ARRAY,
-    name: "analyticsEngine",
-    description: "Analytics Engine namespace to bind",
-    logName: "Analytics Engine Namespaces",
-    fromWrangler: ({ analytics_engines }) =>
-      analytics_engines?.map(({ binding }) => binding),
+    type: OptionType.OBJECT,
+    typeFormat: "NAME=DATASET",
+    name: "ae",
+    alias: "a",
+    description: "Analytics Engine to bind",
+    logName: "Analytics Engine Names",
+    fromEntries: (entries) =>
+      Object.fromEntries(
+        entries.map(([name, datasetName]) => {
+          return [name, datasetName];
+        })
+      ),
+    fromWrangler: ({ bindings }) =>
+      bindings?.reduce((objects, { type, name, dataset }) => {
+        if (type === "analytics_engine") objects[name] = dataset;
+        return objects;
+      }, {} as ProcessedAnalyticsEngine),
   })
-  analyticsEngines?: string[];
+  analyticsEngines?: ProcessedAnalyticsEngine;
 
   @Option({
     type: OptionType.BOOLEAN_STRING,
@@ -38,6 +52,8 @@ export class AnalyticsEnginePlugin
   aePersist?: boolean | string;
   readonly #persist?: boolean | string;
 
+  #db?: SqliteDB;
+
   constructor(ctx: PluginContext, options?: AnalyticsEngineOptions) {
     super(ctx);
     this.assignOptions(options);
@@ -46,17 +62,35 @@ export class AnalyticsEnginePlugin
 
   async getAnalyticsEngine(
     storageFactory: StorageFactory,
-    dbName: string
+    name: string
   ): Promise<AnalyticsEngine> {
-    const storage = storageFactory.storage(dbName, this.#persist);
-    return new AnalyticsEngine(dbName, await storage.getSqliteDatabase());
+    const dataset = this.analyticsEngines?.[name];
+    if (dataset === undefined) {
+      throw new Error(`Analytics Engine "${name}" does not exist.`);
+    }
+    await this.#setup(storageFactory);
+    // @ts-expect-error: #setup already ensures #db exists.
+    return new AnalyticsEngine(dataset, this.#db);
   }
 
   async setup(storageFactory: StorageFactory): Promise<SetupResult> {
+    await this.#setup(storageFactory);
     const bindings: Context = {};
-    for (const dbName of this.analyticsEngines ?? []) {
-      bindings[dbName] = await this.getAnalyticsEngine(storageFactory, dbName);
+    for (const name of Object.keys(this.analyticsEngines ?? {})) {
+      bindings[name] = await this.getAnalyticsEngine(storageFactory, name);
     }
     return { bindings };
+  }
+
+  async #setup(storageFactory: StorageFactory): Promise<void> {
+    if (this.#db === undefined) {
+      // grab storage
+      const storage = storageFactory.storage(
+        "__MINIFLARE_ANALYTICS_ENGINE_STORAGE__",
+        this.#persist
+      );
+      // setup db
+      this.#db = await storage.getSqliteDatabase();
+    }
   }
 }

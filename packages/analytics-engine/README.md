@@ -10,7 +10,7 @@ fun, full-featured, fully-local simulator for Cloudflare Workers. See
 import { AnalyticsEngine } from "@miniflare/analytics-engine";
 import { createSQLiteDB } from "@miniflare/shared";
 
-const db = new AnalyticsEngine("TEST_BINDING", await createSQLiteDB(":memory:"));
+const db = new AnalyticsEngine("DATASET_NAME", await createSQLiteDB(":memory:"));
 
 await db.writeDataPoint({
   indexes: ["a3cd45"], // Sensor ID

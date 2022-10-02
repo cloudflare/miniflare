@@ -130,8 +130,8 @@ Build Options:
      --build-base-path   Working directory for build command                          [string]
      --build-watch-path  Directory to watch for rebuilding on changes                  [array]
 
-R2 Options:
- -a, --ae                Analytics Engine to bind                                      [array]
+Analytics Engine Options:
+ -a, --ae                Analytics Engine to bind                         [array:NAME=DATASET]
      --ae-persist        Persist Analytics Engine data (to optional path)     [boolean/string]
 
 KV Options:

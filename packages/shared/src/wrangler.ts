@@ -31,8 +31,8 @@ export interface WranglerEnvironmentConfig {
     id?: string;
     preview_id?: string;
   }[]; // NOT inherited
-  analytics_engines?: {
-    binding: string;
+  bindings?: {
+    type: "analytics_engine";
     name: string;
     dataset: string;
   }[];

@@ -54,59 +54,17 @@ interface DataPoint {
   blob20?: string | null;
 }
 
-type Doubles =
-  | "double1"
-  | "double2"
-  | "double3"
-  | "double4"
-  | "double5"
-  | "double6"
-  | "double7"
-  | "double8"
-  | "double9"
-  | "double10"
-  | "double11"
-  | "double12"
-  | "double13"
-  | "double14"
-  | "double15"
-  | "double16"
-  | "double17"
-  | "double18"
-  | "double19"
-  | "double20";
-
-type Blobs =
-  | "blob1"
-  | "blob2"
-  | "blob3"
-  | "blob4"
-  | "blob5"
-  | "blob6"
-  | "blob7"
-  | "blob8"
-  | "blob9"
-  | "blob10"
-  | "blob11"
-  | "blob12"
-  | "blob13"
-  | "blob14"
-  | "blob15"
-  | "blob16"
-  | "blob17"
-  | "blob18"
-  | "blob19"
-  | "blob20";
+export const kQuery = Symbol("kQuery");
 
 export class AnalyticsEngine {
-  readonly #name: string;
+  readonly #dataset: string;
   readonly #db: SqliteDB;
   #decoder = new TextDecoder();
 
-  constructor(name: string, db: SqliteDB) {
-    this.#name = name;
+  constructor(dataset: string, db: SqliteDB) {
+    this.#dataset = dataset;
     this.#db = db;
-    db.exec(analytics.replaceAll("{{BINDING}}", name));
+    db.exec(analytics.replaceAll("{{BINDING}}", dataset));
     buildSQLFunctions(db);
   }
 
@@ -146,15 +104,15 @@ export class AnalyticsEngine {
     }
     // prep insert
     const insertData: DataPoint = {
-      dataset: this.#name,
+      dataset: this.#dataset,
       index1: indexes[0],
     };
     // prep doubles
     const doublesKeys: string[] = [];
     const doublesValues: string[] = [];
     doubles.forEach((double, i) => {
-      const key = `double${i + 1}` as Doubles;
-      insertData[key] = double;
+      const key = `double${i + 1}` as keyof DataPoint;
+      (insertData[key] as any) = double;
       doublesKeys.push(key);
       doublesValues.push(`@${key}`);
     });
@@ -162,14 +120,14 @@ export class AnalyticsEngine {
     const blobsKeys: string[] = [];
     const blobsValues: string[] = [];
     _blobs.forEach((blob, i) => {
-      const key = `blob${i + 1}` as Blobs;
-      insertData[key] = blob;
+      const key = `blob${i + 1}` as keyof DataPoint;
+      (insertData[key] as any) = blob;
       blobsKeys.push(key);
       blobsValues.push(`@${key}`);
     });
 
     const input = prepare(
-      `INSERT INTO ${this.#name} (dataset, index1${
+      `INSERT INTO ${this.#dataset} (dataset, index1${
         doublesKeys.length > 0 ? `, ${doublesKeys}` : ""
       }${
         blobsKeys.length > 0 ? `, ${blobsKeys}` : ""
@@ -180,6 +138,12 @@ export class AnalyticsEngine {
     const insert = this.#db.prepare(input);
 
     insert.run(insertData);
+  }
+
+  async [kQuery](input: string): Promise<any> {
+    const query = this.#db.prepare(prepare(input));
+
+    return query.get();
   }
 }
 
