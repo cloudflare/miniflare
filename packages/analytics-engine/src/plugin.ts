@@ -82,6 +82,12 @@ export class AnalyticsEnginePlugin
     return { bindings };
   }
 
+  async getStorage(storageFactory: StorageFactory): Promise<SqliteDB> {
+    await this.#setup(storageFactory);
+    // @ts-expect-error: #setup already ensures #db exists.
+    return this.#db;
+  }
+
   async #setup(storageFactory: StorageFactory): Promise<void> {
     if (this.#db === undefined) {
       // grab storage
