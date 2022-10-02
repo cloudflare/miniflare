@@ -43,6 +43,7 @@ declare global {
   function flushMiniflareDurableObjectAlarms(
     ids: DurableObjectId[]
   ): Promise<void>;
+  function queryMiniflareAnalyticsEngine(query: string): Promise<any>;
 }
 
 export interface MiniflareEnvironmentUtilities {
@@ -62,6 +63,7 @@ export interface MiniflareEnvironmentUtilities {
     event: FetchEvent | ScheduledEvent | ExecutionContext
   ): Promise<WaitUntil>;
   flushMiniflareDurableObjectAlarms(ids: DurableObjectId[]): Promise<void>;
+  queryMiniflareAnalyticsEngine(query: string): Promise<any>;
 }
 
 export async function createMiniflareEnvironmentUtilities(
@@ -105,6 +107,12 @@ export async function createMiniflareEnvironmentUtilities(
       const plugin = (await mf.getPlugins()).DurableObjectsPlugin;
       const factory = mf.getPluginStorage("DurableObjectsPlugin");
       return plugin.flushAlarms(factory, ids);
+    },
+    async queryMiniflareAnalyticsEngine(query: string): Promise<any> {
+      const plugin = (await mf.getPlugins()).AnalyticsEnginePlugin;
+      const storage = mf.getPluginStorage("AnalyticsEnginePlugin");
+      const aeDB = await plugin.getStorage(storage);
+      return aeDB.prepare(query).get();
     },
   };
 }
