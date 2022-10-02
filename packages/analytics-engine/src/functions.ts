@@ -1,12 +1,13 @@
 import { SqliteDB } from "@miniflare/shared";
 
+// https://github.com/ClickHouse/ClickHouse/blob/master/src/Common/IntervalKind.cpp#L13
 const TIME = {
   SECOND: 1,
   MINUTE: 60, // 60sec
-  HOUR: 60 * 60, // 60sec * 60min
-  DAY: 60 * 60 * 24, // 60sec * 60min * 24hours
-  MONTH: 60 * 60 * 24 * 30, // 60sec * 60min * 24hours
-  YEAR: 60 * 60 * 24 * 365,
+  HOUR: 3600, // 60sec * 60min
+  DAY: 86400, // 60sec * 60min * 24hours
+  MONTH: 2_629_746, // Exactly 1/12 of a year
+  YEAR: 31_556_952, // The average length of a Gregorian year is equal to 365.2425 days
 };
 
 export default function buildSQLFunctions(sqliteDB: SqliteDB) {
@@ -58,12 +59,13 @@ export default function buildSQLFunctions(sqliteDB: SqliteDB) {
     "INTERVAL",
     (
       intervalValue: string | number,
-      IntervalType: keyof typeof TIME
-    ): number => {
+      intervalType: keyof typeof TIME
+    ): number | null => {
       if (typeof intervalValue === "string") {
         intervalValue = parseInt(intervalValue);
       }
-      const multiplier = TIME[IntervalType] ?? 0;
+      const multiplier = TIME[intervalType];
+      if (multiplier === undefined) return null;
       return intervalValue * multiplier;
     }
   );
