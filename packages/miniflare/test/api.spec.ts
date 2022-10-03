@@ -78,10 +78,19 @@ test("Miniflare: getAnalyticsEngine: gets Analytics Engine from bindings", async
       body: "SELECT blob1, blob2, double1, double2 FROM TEST_DB LIMIT 2;",
     }
   ).then(async (b) => await b.json());
-  t.deepEqual(res, [
-    { blob1: "a", blob2: "b", double1: 1, double2: 2 },
-    { blob1: "c", blob2: "d", double1: 3, double2: 4 },
-  ]);
+  t.deepEqual(res, {
+    meta: {
+      blob1: "String",
+      blob2: "String",
+      double1: "Float64",
+      double2: "Float64",
+    },
+    data: [
+      { blob1: "a", blob2: "b", double1: 1, double2: 2 },
+      { blob1: "c", blob2: "d", double1: 3, double2: 4 },
+    ],
+    rows: 2,
+  });
 });
 test("Miniflare: getKVNamespace: gets KV namespace", async (t) => {
   const mf = new Miniflare({

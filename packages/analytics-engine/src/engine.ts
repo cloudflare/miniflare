@@ -1,7 +1,11 @@
 import { TextDecoder } from "util";
 import type { SqliteDB } from "@miniflare/shared";
 import analytics from "./analytics";
-import buildSQLFunctions from "./functions";
+import buildSQLFunctions, { isDate } from "./functions";
+
+export type Format = "JSON" | "JSONEachRow" | "TabSeparated";
+
+export type MetaType = "DateTime" | "String" | "Float64";
 
 export interface AnalyticsEngineEvent {
   readonly doubles?: number[]; // up to 20
@@ -11,7 +15,7 @@ export interface AnalyticsEngineEvent {
 
 interface DataPoint {
   dataset: string;
-  index1: string;
+  index1?: string;
   double1?: number;
   double2?: number;
   double3?: number;
@@ -54,7 +58,15 @@ interface DataPoint {
   blob20?: string | null;
 }
 
-export const kQuery = Symbol("kQuery");
+export interface ResponseData {
+  [key: string]: number | string;
+}
+
+export interface FormatJSON {
+  meta: { [key: string]: MetaType };
+  data: ResponseData[];
+  rows: number;
+}
 
 export class AnalyticsEngine {
   readonly #dataset: string;
@@ -126,7 +138,7 @@ export class AnalyticsEngine {
       blobsValues.push(`@${key}`);
     });
 
-    const input = _prepare(
+    const [input] = _prepare(
       `INSERT INTO ${this.#dataset} (dataset, index1${
         doublesKeys.length > 0 ? `, ${doublesKeys}` : ""
       }${
@@ -139,16 +151,10 @@ export class AnalyticsEngine {
 
     insert.run(insertData);
   }
-
-  async [kQuery](input: string): Promise<any> {
-    const query = this.#db.prepare(_prepare(input));
-
-    return query.get();
-  }
 }
 
 /** @internal */
-export function _prepare(input: string): string {
+export function _prepare(input: string): [string, Format | undefined] {
   // split
   const pieces = input
     .replaceAll("\n", " ") // convert new lines to spaces
@@ -160,13 +166,16 @@ export function _prepare(input: string): string {
   // find all instances of "INTERVAL" and "QUANTILEWEIGHTED"
   const intervalIndexes = [];
   const quantileweigthedIndexes = [];
+  let formatIndex = -1;
   for (let i = 0, pl = pieces.length; i < pl; i++) {
-    if (pieces[i].toLocaleLowerCase() === "interval") {
+    const piece = pieces[i].toLocaleLowerCase();
+    if (piece === "interval") {
       intervalIndexes.push(i);
     }
-    if (pieces[i].toLocaleLowerCase().includes("quantileweighted")) {
+    if (piece.includes("quantileweighted")) {
       quantileweigthedIndexes.push(i);
     }
+    if (piece === "format") formatIndex = i;
   }
 
   // for each instance, convert "INTERVAL X Y" to "INTERVAL(X, Y)"
@@ -182,9 +191,84 @@ export function _prepare(input: string): string {
 
   // for each instance of quantileweighted, seperately aggregate columns;
   for (const qwIndex of quantileweigthedIndexes) {
+    // What if "quantileweighted (", the space between the two could cause an error
+    // adjust to "quantileweighted("
+    if (pieces[qwIndex + 1] === "(") {
+      pieces.splice(qwIndex + 1, 1);
+      pieces[qwIndex] = `${pieces[qwIndex]}(`;
+    }
     pieces[qwIndex + 3] = `__GET_QUANTILE_GROUP(${pieces[qwIndex + 3]})`;
     pieces[qwIndex + 5] = `__GET_QUANTILE_GROUP(${pieces[qwIndex + 5]})`;
   }
 
-  return pieces.join(" ");
+  // if FORMAT exists, grab type and remove it
+  let formatType: Format = "JSON";
+  if (formatIndex >= 0) {
+    // change to new type. revert to JSON if unknown name
+    formatType = pieces[formatIndex + 1] as Format;
+    if (
+      formatType !== "JSON" &&
+      formatType !== "JSONEachRow" &&
+      formatType !== "TabSeparated"
+    ) {
+      formatType = "JSON";
+    }
+    // remove from string
+    pieces.splice(formatIndex, 1);
+    pieces.splice(formatIndex, 1);
+  }
+
+  return [pieces.join(" "), formatType];
+}
+
+/** @internal */
+export function _format(
+  data: ResponseData[] = [],
+  format: Format = "JSON"
+): string | FormatJSON {
+  if (format === "JSON") return _formatJSON(data);
+  else if (format === "JSONEachRow") return _formatJSONEachRow(data);
+  else return _formatTabSeparated(data);
+}
+
+function _formatJSON(data: ResponseData[]): FormatJSON {
+  const meta: { [key: string]: MetaType } = {};
+  // incase one of the data points might have a null value but another might not
+  for (const point of data) {
+    for (const [key, value] of Object.entries(point)) {
+      if (value !== null) meta[key] = _getType(value);
+    }
+  }
+
+  return {
+    meta,
+    data,
+    rows: data.length,
+  };
+}
+
+function _formatJSONEachRow(data: ResponseData[]): string {
+  let res = "";
+
+  for (const point of data) {
+    res += `${JSON.stringify(point)}\n`;
+  }
+
+  return res;
+}
+
+function _formatTabSeparated(data: ResponseData[]): string {
+  let res = "";
+
+  for (const point of data) {
+    res += `${Object.values(point).join("\t")}\n`;
+  }
+
+  return res;
+}
+
+function _getType(input: number | string): MetaType {
+  if (typeof input === "number") return "Float64";
+  if (isDate(input)) return "DateTime";
+  return "String";
 }

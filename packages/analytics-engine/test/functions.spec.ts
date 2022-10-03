@@ -93,7 +93,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   // test INTERVAL
   const stmt9Input = _prepare(
     "SELECT INTERVAL 42 DAY AS answer FROM TEST_DATASET WHERE index1 = ?"
-  );
+  )[0];
   const stmt9 = sqliteDB.prepare(stmt9Input);
   const res9 = stmt9.get("a3cd45");
   t.is(res9.answer, 42 * 60 * 60 * 24);
@@ -101,7 +101,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   // test INTERVAL with comments
   const stmt10Input = _prepare(
     "SELECT INTERVAL '42' DAY AS answer FROM TEST_DATASET WHERE index1 = ?"
-  );
+  )[0];
   const stmt10 = sqliteDB.prepare(stmt10Input);
   const res10 = stmt10.get("a3cd45");
   t.is(res10.answer, 42 * 60 * 60 * 24);
@@ -109,7 +109,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   // test INTERVAL with comments 2
   const stmt11Input = _prepare(
     "SELECT INTERVAL 42 'DAY' AS answer FROM TEST_DATASET WHERE index1 = ?"
-  );
+  )[0];
   const stmt11 = sqliteDB.prepare(stmt11Input);
   const res11 = stmt11.get("a3cd45");
   t.is(res11.answer, 42 * 60 * 60 * 24);
@@ -117,7 +117,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   // test INTERVAL with comments 3
   const stmt12Input = _prepare(
     "SELECT INTERVAL '42 DAY' AS answer FROM TEST_DATASET WHERE index1 = ?"
-  );
+  )[0];
   const stmt12 = sqliteDB.prepare(stmt12Input);
   const res12 = stmt12.get("a3cd45");
   t.is(res12.answer, 42 * 60 * 60 * 24);
@@ -125,7 +125,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   // test INTERVAL SECOND
   const stmt13Input = _prepare(
     "SELECT INTERVAL 42 SECOND AS answer FROM TEST_DATASET WHERE index1 = ?"
-  );
+  )[0];
   const stmt13 = sqliteDB.prepare(stmt13Input);
   const res13 = stmt13.get("a3cd45");
   t.is(res13.answer, 42);
@@ -133,7 +133,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   // test INTERVAL MINUTE
   const stmt14Input = _prepare(
     "SELECT INTERVAL 42 MINUTE AS answer FROM TEST_DATASET WHERE index1 = ?"
-  );
+  )[0];
   const stmt14 = sqliteDB.prepare(stmt14Input);
   const res14 = stmt14.get("a3cd45");
   t.is(res14.answer, 42 * 60);
@@ -141,7 +141,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   // test INTERVAL HOUR
   const stmt15Input = _prepare(
     "SELECT INTERVAL 42 HOUR AS answer FROM TEST_DATASET WHERE index1 = ?"
-  );
+  )[0];
   const stmt15 = sqliteDB.prepare(stmt15Input);
   const res15 = stmt15.get("a3cd45");
   t.is(res15.answer, 42 * 60 * 60);
@@ -149,7 +149,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   // test INTERVAL MONTH
   const stmt16Input = _prepare(
     "SELECT INTERVAL 2 MONTH AS answer FROM TEST_DATASET WHERE index1 = ?"
-  );
+  )[0];
   const stmt16 = sqliteDB.prepare(stmt16Input);
   const res16 = stmt16.get("a3cd45");
   t.is(res16.answer, 2 * 2_629_746);
@@ -157,7 +157,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   // test INTERVAL YEAR
   const stmt17Input = _prepare(
     "SELECT INTERVAL 2 YEAR AS answer FROM TEST_DATASET WHERE index1 = ?"
-  );
+  )[0];
   const stmt17 = sqliteDB.prepare(stmt17Input);
   const res17 = stmt17.get("a3cd45");
   t.is(res17.answer, 2 * 31_556_952);
@@ -165,7 +165,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   // test INTERVAL BAD INPUT
   const stmt18Input = _prepare(
     "SELECT INTERVAL 1 UNKNOWN AS answer FROM TEST_DATASET WHERE index1 = ?"
-  );
+  )[0];
   const stmt18 = sqliteDB.prepare(stmt18Input);
   const res18 = stmt18.get("a3cd45");
   t.is(res18.answer, null);
@@ -197,11 +197,20 @@ test("Analytics Engine: Test quantileWeighted.", async (t) => {
     doubles: [1, 2],
   });
 
+  // QUANTILEWEIGHTED with and without a space between "("
   const stmt = sqliteDB.prepare(
     _prepare(
       "SELECT QUANTILEWEIGHTED(0.5, double1, double2) AS answer FROM TEST_DATASET WHERE index1 = ?"
-    )
+    )[0]
   );
   const res = stmt.get("qw");
   t.is(res.answer, 1);
+
+  const stmt2 = sqliteDB.prepare(
+    _prepare(
+      "SELECT QUANTILEWEIGHTED (0.5, double1, double2) AS answer FROM TEST_DATASET WHERE index1 = ?"
+    )[0]
+  );
+  const res2 = stmt2.get("qw");
+  t.is(res2.answer, 1);
 });

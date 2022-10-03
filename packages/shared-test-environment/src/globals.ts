@@ -111,8 +111,7 @@ export async function createMiniflareEnvironmentUtilities(
     async queryMiniflareAnalyticsEngine(query: string): Promise<any> {
       const plugin = (await mf.getPlugins()).AnalyticsEnginePlugin;
       const storage = mf.getPluginStorage("AnalyticsEnginePlugin");
-      const aeDB = await plugin.getStorage(storage);
-      return aeDB.prepare(query).all();
+      return await plugin.query(storage, query);
     },
   };
 }

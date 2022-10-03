@@ -296,9 +296,12 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
         const plugin = (await mf.getPlugins())
           .AnalyticsEnginePlugin as AnalyticsEnginePlugin;
         const storage = mf.getPluginStorage("AnalyticsEnginePlugin");
-        const aeDB = await plugin.getStorage(storage);
-        body = JSON.stringify(aeDB.prepare(query).all() ?? []);
-        headStatus["Content-Type"] = "application/javascript";
+        const res = await plugin.query(storage, query);
+        const isObj = typeof res === "object";
+        body = isObj ? JSON.stringify(res) : res;
+        if (isObj) {
+          headStatus["Content-Type"] = "application/javascript";
+        }
       } else {
         status = 404;
       }

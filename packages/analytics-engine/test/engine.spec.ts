@@ -1,4 +1,8 @@
-import { AnalyticsEngine } from "@miniflare/analytics-engine";
+import {
+  AnalyticsEngine,
+  _prepare,
+  _format,
+} from "@miniflare/analytics-engine";
 import { Storage } from "@miniflare/shared";
 import { testClock } from "@miniflare/shared-test";
 import { MemoryStorage } from "@miniflare/storage-memory";
@@ -375,4 +379,99 @@ test("Analytics Engine: More than 50kB of blob data fails.", async (t) => {
       message: '"blobs" total size must be less than 50kB.',
     }
   );
+});
+
+test("Analytics Engine: Test FORMAT JSON.", async (t) => {
+  const { db, storage } = t.context;
+  // @ts-expect-error: protected but does exist
+  const { sqliteDB } = storage;
+
+  await db.writeDataPoint({
+    indexes: ["formatJSON"], // Sensor ID
+    blobs: ["input"],
+    doubles: [0, 3],
+  });
+
+  const [query, format] = _prepare(
+    "SELECT double2 AS answer FROM TEST_DATASET WHERE index1 = ? FORMAT JSON"
+  );
+
+  const stmt = sqliteDB.prepare(query);
+  const res = stmt.all("formatJSON");
+  t.deepEqual(res, [{ answer: 3 }]);
+  t.is(format, "JSON");
+
+  // JSON format
+  const formatedRes = _format(res, "JSON");
+  t.deepEqual(formatedRes, {
+    meta: { answer: "Float64" },
+    data: [{ answer: 3 }],
+    rows: 1,
+  });
+});
+
+test("Analytics Engine: Test FORMAT JSONEachRow.", async (t) => {
+  const { db, storage } = t.context;
+  // @ts-expect-error: protected but does exist
+  const { sqliteDB } = storage;
+
+  await db.writeDataPoint({
+    indexes: ["formatJSONEachRow"], // Sensor ID
+    blobs: ["input"],
+    doubles: [0, 1],
+  });
+  await db.writeDataPoint({
+    indexes: ["formatJSONEachRow"], // Sensor ID
+    blobs: ["input"],
+    doubles: [2, 3],
+  });
+
+  const [query, format] = _prepare(
+    "SELECT double1, double2 FROM TEST_DATASET WHERE index1 = ? FORMAT JSONEachRow"
+  );
+
+  const stmt = sqliteDB.prepare(query);
+  const res = stmt.all("formatJSONEachRow");
+  t.deepEqual(res, [
+    { double1: 0, double2: 1 },
+    { double1: 2, double2: 3 },
+  ]);
+  t.is(format, "JSONEachRow");
+
+  // JSON format
+  const formatedRes = _format(res, "JSONEachRow");
+  t.is(formatedRes, `{"double1":0,"double2":1}\n{"double1":2,"double2":3}\n`);
+});
+
+test("Analytics Engine: Test FORMAT TabSeparated.", async (t) => {
+  const { db, storage } = t.context;
+  // @ts-expect-error: protected but does exist
+  const { sqliteDB } = storage;
+
+  await db.writeDataPoint({
+    indexes: ["formatTabSeparated"], // Sensor ID
+    blobs: ["input"],
+    doubles: [0, 1],
+  });
+  await db.writeDataPoint({
+    indexes: ["formatTabSeparated"], // Sensor ID
+    blobs: ["input"],
+    doubles: [2, 3],
+  });
+
+  const [query, format] = _prepare(
+    "SELECT double1, double2 FROM TEST_DATASET WHERE index1 = ? FORMAT TabSeparated"
+  );
+
+  const stmt = sqliteDB.prepare(query);
+  const res = stmt.all("formatTabSeparated");
+  t.deepEqual(res, [
+    { double1: 0, double2: 1 },
+    { double1: 2, double2: 3 },
+  ]);
+  t.is(format, "TabSeparated");
+
+  // JSON format
+  const formatedRes = _format(res, "TabSeparated");
+  t.is(formatedRes, `0\t1\n2\t3\n`);
 });

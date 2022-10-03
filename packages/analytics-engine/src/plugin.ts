@@ -9,7 +9,7 @@ import {
   resolveStoragePersist,
 } from "@miniflare/shared";
 import type { SqliteDB } from "@miniflare/shared";
-import { AnalyticsEngine } from "./engine";
+import { AnalyticsEngine, FormatJSON, _prepare, _format } from "./engine";
 
 export type ProcessedAnalyticsEngine = Record<string, string>; // { [name]: dataset }
 
@@ -86,6 +86,17 @@ export class AnalyticsEnginePlugin
     await this.#setup(storageFactory);
     // @ts-expect-error: #setup already ensures #db exists.
     return this.#db;
+  }
+
+  async query(
+    storageFactory: StorageFactory,
+    input: string
+  ): Promise<string | FormatJSON> {
+    await this.#setup(storageFactory);
+    const [query, format] = _prepare(input);
+    // @ts-expect-error: #setup already ensures #db exists.
+    const data = this.#db.prepare(query).all();
+    return _format(data, format);
   }
 
   async #setup(storageFactory: StorageFactory): Promise<void> {
