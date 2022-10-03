@@ -164,10 +164,14 @@ function matchStrings(a: string | string[], b: string): boolean {
 }
 
 // headers can be a list: e.g. ["if-match", "a, b, c"] -> "if-match: [a, b, c]"
-function parseHeaderArray(input?: string): undefined | string | string[] {
-  if (typeof input !== "string") return;
-  if (!input.includes(",")) return input;
-  return input.split(",").map((x) => x.trim());
+function parseHeaderArray(input: string): undefined | string | string[] {
+  // split if comma found, otherwise return input
+  if (!input.includes(",")) return _stripQuotes(input);
+  return input.split(",").map((x) => _stripQuotes(x.trim()));
+}
+
+function _stripQuotes(input: string): string {
+  return input.replaceAll('"', "");
 }
 
 export function parseOnlyIf(
@@ -185,18 +189,30 @@ export function parseOnlyIf(
   // if string list, convert to array. e.g. 'etagMatches': 'a, b, c' -> ['a', 'b', 'c']
   if (typeof onlyIf.etagMatches === "string") {
     onlyIf.etagMatches = parseHeaderArray(onlyIf.etagMatches);
+  } else if (Array.isArray(onlyIf.etagMatches)) {
+    // otherwise if an array, strip the quotes
+    onlyIf.etagMatches = onlyIf.etagMatches.map((x) => _stripQuotes(x.trim()));
   }
   // if string list, convert to array. e.g. 'etagMatches': 'a, b, c' -> ['a', 'b', 'c']
   if (typeof onlyIf.etagDoesNotMatch === "string") {
     onlyIf.etagDoesNotMatch = parseHeaderArray(onlyIf.etagDoesNotMatch);
+  } else if (Array.isArray(onlyIf.etagDoesNotMatch)) {
+    // otherwise if an array, strip the quotes
+    onlyIf.etagDoesNotMatch = onlyIf.etagDoesNotMatch.map((x) =>
+      _stripQuotes(x.trim())
+    );
   }
   // if string, convert to date
   if (typeof onlyIf.uploadedBefore === "string") {
-    onlyIf.uploadedBefore = new Date(onlyIf.uploadedBefore);
+    onlyIf.uploadedBefore = new Date(
+      _stripQuotes(onlyIf.uploadedBefore) as string
+    );
   }
   // if string, convert to date
   if (typeof onlyIf.uploadedAfter === "string") {
-    onlyIf.uploadedAfter = new Date(onlyIf.uploadedAfter);
+    onlyIf.uploadedAfter = new Date(
+      _stripQuotes(onlyIf.uploadedAfter) as string
+    );
   }
 
   return onlyIf as R2Conditional;

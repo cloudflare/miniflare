@@ -427,6 +427,20 @@ test("R2Object: parseOnlyIf: each parameter is parsed correctly as an R2Conditio
   t.deepEqual(parsed.uploadedAfter, new Date(0));
 });
 
+test("R2Object: parseOnlyIf with quotes: each parameter is parsed correctly as an R2Conditional object", (t) => {
+  const r2conditional = {
+    etagMatches: '"*"',
+    etagDoesNotMatch: ['"123"', '"456"'],
+    uploadedBefore: new Date(0),
+    uploadedAfter: '"1970-01-01T00:00:00.000Z"',
+  };
+  const parsed = parseOnlyIf(r2conditional as any);
+  t.is(parsed.etagMatches, "*");
+  t.deepEqual(parsed.etagDoesNotMatch, ["123", "456"]);
+  t.deepEqual(parsed.uploadedBefore, new Date(0));
+  t.deepEqual(parsed.uploadedAfter, new Date(0));
+});
+
 test("R2Object: parseOnlyIf: parsing instanceof Headers", (t) => {
   const r2ConditionalHeaders = new Headers();
   // test capitalization
