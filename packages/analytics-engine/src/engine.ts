@@ -150,14 +150,25 @@ export class AnalyticsEngine {
 /** @internal */
 export function _prepare(input: string): string {
   // split
-  const pieces = input.split(" ");
-  // find all instances of "INTERVAL"
+  const pieces = input
+    .replaceAll("\n", " ") // convert new lines to spaces
+    .replaceAll(",", " , ") // ensure commas exist by themselves
+    .replaceAll("(", "( ") // seperate following word of opening "("
+    .replaceAll(")", " )") // seperate out close ")"
+    .split(" ") // split via spaces
+    .filter((l) => l !== ""); // remove excess spaces
+  // find all instances of "INTERVAL" and "QUANTILEWEIGHTED"
   const intervalIndexes = [];
+  const quantileweigthedIndexes = [];
   for (let i = 0, pl = pieces.length; i < pl; i++) {
     if (pieces[i].toLocaleLowerCase() === "interval") {
       intervalIndexes.push(i);
     }
+    if (pieces[i].toLocaleLowerCase().includes("quantileweighted")) {
+      quantileweigthedIndexes.push(i);
+    }
   }
+
   // for each instance, convert "INTERVAL X Y" to "INTERVAL(X, Y)"
   for (const intervalIndex of intervalIndexes) {
     const [interval, value, type] = pieces.slice(
@@ -167,6 +178,12 @@ export function _prepare(input: string): string {
     pieces[intervalIndex] = `${interval}(`;
     pieces[intervalIndex + 1] = `${value.replaceAll("'", "")},`;
     pieces[intervalIndex + 2] = `'${type.replaceAll("'", "").toUpperCase()}')`;
+  }
+
+  // for each instance of quantileweighted, seperately aggregate columns;
+  for (const qwIndex of quantileweigthedIndexes) {
+    pieces[qwIndex + 3] = `__GET_QUANTILE_GROUP(${pieces[qwIndex + 3]})`;
+    pieces[qwIndex + 5] = `__GET_QUANTILE_GROUP(${pieces[qwIndex + 5]})`;
   }
 
   return pieces.join(" ");

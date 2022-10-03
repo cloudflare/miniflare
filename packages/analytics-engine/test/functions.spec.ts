@@ -170,3 +170,38 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   const res18 = stmt18.get("a3cd45");
   t.is(res18.answer, null);
 });
+
+test("Analytics Engine: Test quantileWeighted.", async (t) => {
+  const { db, storage } = t.context;
+  // @ts-expect-error: protected but does exist
+  const { sqliteDB } = storage;
+
+  await db.writeDataPoint({
+    indexes: ["qw"], // Sensor ID
+    blobs: ["input"],
+    doubles: [0, 3],
+  });
+  await db.writeDataPoint({
+    indexes: ["qw"], // Sensor ID
+    blobs: ["input"],
+    doubles: [2, 1],
+  });
+  await db.writeDataPoint({
+    indexes: ["qw"], // Sensor ID
+    blobs: ["input"],
+    doubles: [5, 4],
+  });
+  await db.writeDataPoint({
+    indexes: ["qw"], // Sensor ID
+    blobs: ["input"],
+    doubles: [1, 2],
+  });
+
+  const stmt = sqliteDB.prepare(
+    _prepare(
+      "SELECT QUANTILEWEIGHTED(0.5, double1, double2) AS answer FROM TEST_DATASET WHERE index1 = ?"
+    )
+  );
+  const res = stmt.get("qw");
+  t.is(res.answer, 1);
+});

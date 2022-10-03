@@ -11,13 +11,50 @@ const TIME = {
 };
 
 export default function buildSQLFunctions(sqliteDB: SqliteDB) {
+  // return array as string
+  sqliteDB.aggregate("__GET_QUANTILE_GROUP", {
+    start: () => [],
+    step: (array, nextValue) => {
+      // if Date object, get UTC number
+      if (typeof nextValue === "string") {
+        nextValue = new Date(nextValue).getTime();
+      }
+      // store
+      array.push(nextValue);
+    },
+    result: (array) => JSON.stringify(array),
+  });
   // https://clickhouse.com/docs/en/sql-reference/aggregate-functions/reference/quantileexactweighted/
+  // https://github.com/ClickHouse/ClickHouse/blob/master/src/AggregateFunctions/QuantileExactWeighted.h
+  // 1) threshold = SUM(weights) * q.
+  // 2) store arr as [[expr1, weight1], [expr2, weight2], ...].
+  // 3) sort arr by expr value (samaller first).
+  // 4) iterate arr, add each weight to an (accumulated = 0).
+  //    if (accumulated >= threshold) return current expr.
+  //    else return last expr.
   sqliteDB.function(
     "QUANTILEWEIGHTED",
-    (q = 0.5, column: number | Date | string, weight: number): number => {
-      if (typeof column === "string") column = new Date(column);
+    { varargs: true },
+    (q = 0.5, expr: string, weight: string): number => {
       q = Math.min(Math.max(q, 0.01), 0.99);
-      return q / weight;
+      let store = [];
+      const exprParsed = JSON.parse(expr) as number[];
+      const weightParsed = JSON.parse(weight) as number[];
+      const threshold = weightParsed.reduce((sum, value) => sum + value, 0) * q;
+      // merge
+      for (let i = 0, cl = exprParsed.length; i < cl; i++) {
+        store.push([exprParsed[i], weightParsed[i]]);
+      }
+      // sort
+      store = store.sort((a, b) => a[0] - b[0]);
+
+      // iterate until accum is greater or equal to threshold. Return expr
+      let accumulated = 0;
+      for (const [expr, weight] of store) {
+        accumulated += weight;
+        if (accumulated >= threshold) return expr;
+      }
+      return store[store.length - 1][0];
     }
   );
   // https://clickhouse.com/docs/en/sql-reference/functions/conditional-functions/#if
