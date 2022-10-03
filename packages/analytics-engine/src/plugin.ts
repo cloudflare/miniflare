@@ -9,7 +9,7 @@ import {
   resolveStoragePersist,
 } from "@miniflare/shared";
 import type { SqliteDB } from "@miniflare/shared";
-import { AnalyticsEngine, FormatJSON, _prepare, _format } from "./engine";
+import { AnalyticsEngine, FormatJSON, _format, _prepare } from "./engine";
 
 export type ProcessedAnalyticsEngine = Record<string, string>; // { [name]: dataset }
 

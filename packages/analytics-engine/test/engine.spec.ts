@@ -1,7 +1,7 @@
 import {
   AnalyticsEngine,
-  _prepare,
   _format,
+  _prepare,
 } from "@miniflare/analytics-engine";
 import { Storage } from "@miniflare/shared";
 import { testClock } from "@miniflare/shared-test";
