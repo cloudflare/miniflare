@@ -68,10 +68,11 @@ export interface FormatJSON {
   rows: number;
 }
 
+const decoder = new TextDecoder();
+
 export class AnalyticsEngine {
   readonly #dataset: string;
   readonly #db: SqliteDB;
-  #decoder = new TextDecoder();
 
   constructor(dataset: string, db: SqliteDB) {
     this.#dataset = dataset;
@@ -85,7 +86,6 @@ export class AnalyticsEngine {
     doubles = [],
     blobs = [],
   }: AnalyticsEngineEvent): void {
-    const decoder = this.#decoder;
     for (const blob of blobs) {
       if (
         blob !== null &&

@@ -28,7 +28,7 @@ export default function buildSQLFunctions(sqliteDB: SqliteDB) {
   // https://github.com/ClickHouse/ClickHouse/blob/master/src/AggregateFunctions/QuantileExactWeighted.h
   // 1) threshold = SUM(weights) * q.
   // 2) store arr as [[expr1, weight1], [expr2, weight2], ...].
-  // 3) sort arr by expr value (samaller first).
+  // 3) sort arr by expr value (smallest first).
   // 4) iterate arr, add each weight to an (accumulated = 0).
   //    if (accumulated >= threshold) return current expr.
   //    else return last expr.
