@@ -26,7 +26,7 @@ test("Analytics Engine: Test each function to ensure they work.", async (t) => {
   // @ts-expect-error: protected but does exist
   const { sqliteDB } = storage;
 
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["a3cd45"], // Sensor ID
     blobs: ["input"],
     doubles: [0.5, 1, 50, 1_000, 10_000],
@@ -176,22 +176,22 @@ test("Analytics Engine: Test quantileWeighted.", async (t) => {
   // @ts-expect-error: protected but does exist
   const { sqliteDB } = storage;
 
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["qw"], // Sensor ID
     blobs: ["input"],
     doubles: [0, 3],
   });
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["qw"], // Sensor ID
     blobs: ["input"],
     doubles: [2, 1],
   });
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["qw"], // Sensor ID
     blobs: ["input"],
     doubles: [5, 4],
   });
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["qw"], // Sensor ID
     blobs: ["input"],
     doubles: [1, 2],

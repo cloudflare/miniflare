@@ -29,7 +29,7 @@ test("Analytics Engine: Write a data point using indexes, blobs, and doubles.", 
   // @ts-expect-error: protected but does exist
   const { sqliteDB } = storage;
 
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["t1"],
     blobs: ["a", "b", "c"],
     doubles: [0, 1, 2],
@@ -92,7 +92,7 @@ test("Analytics Engine: Write a data point with no data provided.", async (t) =>
   // @ts-expect-error: protected but does exist
   const { sqliteDB } = storage;
 
-  await db.writeDataPoint({});
+  db.writeDataPoint({});
 
   // grab data from sqliteDB
   const stmt = sqliteDB.prepare("SELECT * FROM TEST_DATASET");
@@ -151,7 +151,7 @@ test("Analytics Engine: Write a data point filling indexes, blobs, and doubles."
   // @ts-expect-error: protected but does exist
   const { sqliteDB } = storage;
 
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["t1"],
     blobs: [
       "a",
@@ -239,7 +239,7 @@ test("Analytics Engine: Store AB", async (t) => {
 
   const blob1 = Buffer.from("test string", "utf-8");
 
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["t1"],
     blobs: [new Uint8Array(blob1).buffer],
   });
@@ -257,7 +257,7 @@ test("Analytics Engine: Minimal example test.", async (t) => {
   // @ts-expect-error: protected but does exist
   const { sqliteDB } = storage;
 
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["a3cd45"], // Sensor ID
     blobs: ["Seattle", "USA", "pro_sensor_9000"],
     doubles: [25, 0.5],
@@ -290,9 +290,9 @@ test("Analytics Engine: Minimal example test.", async (t) => {
 test("Analytics Engine: More than one index fails.", async (t) => {
   const { db } = t.context;
 
-  await t.throwsAsync(
-    async () => {
-      await db.writeDataPoint({
+  t.throws(
+    () => {
+      db.writeDataPoint({
         indexes: ["t1", "t2"],
         blobs: ["a", "b", "c"],
         doubles: [0, 1, 2],
@@ -307,9 +307,9 @@ test("Analytics Engine: More than one index fails.", async (t) => {
 test("Analytics Engine: More than twenty blobs fails.", async (t) => {
   const { db } = t.context;
 
-  await t.throwsAsync(
-    async () => {
-      await db.writeDataPoint({
+  t.throws(
+    () => {
+      db.writeDataPoint({
         indexes: ["t1"],
         blobs: [
           "1",
@@ -345,9 +345,9 @@ test("Analytics Engine: More than twenty blobs fails.", async (t) => {
 test("Analytics Engine: More than twenty doubles fails.", async (t) => {
   const { db } = t.context;
 
-  await t.throwsAsync(
-    async () => {
-      await db.writeDataPoint({
+  t.throws(
+    () => {
+      db.writeDataPoint({
         indexes: ["t1"],
         doubles: [
           0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
@@ -368,9 +368,9 @@ test("Analytics Engine: More than 50kB of blob data fails.", async (t) => {
   const blob1 = Buffer.alloc(50_000);
   const blob2 = Buffer.alloc(5);
 
-  await t.throwsAsync(
-    async () => {
-      await db.writeDataPoint({
+  t.throws(
+    () => {
+      db.writeDataPoint({
         indexes: ["t1"],
         blobs: [new Uint8Array(blob1).buffer, new Uint8Array(blob2).buffer],
       });
@@ -386,9 +386,9 @@ test("Analytics Engine: blobs with bad inputs", async (t) => {
 
   const blob1 = Buffer.alloc(5);
 
-  await t.throwsAsync(
-    async () => {
-      await db.writeDataPoint({
+  t.throws(
+    () => {
+      db.writeDataPoint({
         indexes: ["t1"],
         // @ts-expect-error: We are purposely throwing
         blobs: [new Uint8Array(blob1).buffer, "2", null, 4],
@@ -403,9 +403,9 @@ test("Analytics Engine: blobs with bad inputs", async (t) => {
 test("Analytics Engine: doubles with bad inputs", async (t) => {
   const { db } = t.context;
 
-  await t.throwsAsync(
-    async () => {
-      await db.writeDataPoint({
+  t.throws(
+    () => {
+      db.writeDataPoint({
         indexes: ["t1"],
         // @ts-expect-error: We are purposely throwing
         doubles: [1, "2"],
@@ -422,7 +422,7 @@ test("Analytics Engine: Test FORMAT JSON.", async (t) => {
   // @ts-expect-error: protected but does exist
   const { sqliteDB } = storage;
 
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["formatJSON"], // Sensor ID
     blobs: ["input"],
     doubles: [0, 3],
@@ -451,12 +451,12 @@ test("Analytics Engine: Test FORMAT JSONEachRow.", async (t) => {
   // @ts-expect-error: protected but does exist
   const { sqliteDB } = storage;
 
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["formatJSONEachRow"], // Sensor ID
     blobs: ["input"],
     doubles: [0, 1],
   });
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["formatJSONEachRow"], // Sensor ID
     blobs: ["input"],
     doubles: [2, 3],
@@ -484,12 +484,12 @@ test("Analytics Engine: Test FORMAT TabSeparated.", async (t) => {
   // @ts-expect-error: protected but does exist
   const { sqliteDB } = storage;
 
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["formatTabSeparated"], // Sensor ID
     blobs: ["input"],
     doubles: [0, 1],
   });
-  await db.writeDataPoint({
+  db.writeDataPoint({
     indexes: ["formatTabSeparated"], // Sensor ID
     blobs: ["input"],
     doubles: [2, 3],

@@ -58,7 +58,7 @@ test("Miniflare: getAnalyticsEngine: gets Analytics Engine from bindings", async
   const mf = new Miniflare({
     script: `export default { 
       fetch: async (request, env) => {
-        return new Response(await env.TEST_DB.writeDataPoint({ blobs: ['a', 'b'], doubles: [1, 2] }));
+        return new Response(env.TEST_DB.writeDataPoint({ blobs: ['a', 'b'], doubles: [1, 2] }));
       }
     }`,
     modules: true,
@@ -70,7 +70,7 @@ test("Miniflare: getAnalyticsEngine: gets Analytics Engine from bindings", async
   const port = (server.address() as AddressInfo).port;
   await mf.dispatchFetch("http://localhost/");
   const ae = await mf.getAnalyticsEngine("TEST_DB");
-  await ae.writeDataPoint({ blobs: ["c", "d"], doubles: [3, 4] });
+  ae.writeDataPoint({ blobs: ["c", "d"], doubles: [3, 4] });
   const res = await fetch(
     `http://localhost:${port}/cdn-cgi/mf/analytics_engine/sql`,
     {

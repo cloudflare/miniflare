@@ -80,11 +80,11 @@ export class AnalyticsEngine {
     buildSQLFunctions(db);
   }
 
-  async writeDataPoint({
+  writeDataPoint({
     indexes = [],
     doubles = [],
     blobs = [],
-  }: AnalyticsEngineEvent): Promise<void> {
+  }: AnalyticsEngineEvent): void {
     const decoder = this.#decoder;
     for (const blob of blobs) {
       if (

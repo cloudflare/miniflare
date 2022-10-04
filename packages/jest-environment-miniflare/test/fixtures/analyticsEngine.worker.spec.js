@@ -5,7 +5,7 @@ async function get() {
 }
 
 test("AE test 1", async () => {
-  await AE_TEST_DB.writeDataPoint({
+  AE_TEST_DB.writeDataPoint({
     blobs: ["a", "b", "c"],
     doubles: [0, 1, 2],
   });
