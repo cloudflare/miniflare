@@ -86,6 +86,20 @@ export class AnalyticsEngine {
     blobs = [],
   }: AnalyticsEngineEvent): Promise<void> {
     const decoder = this.#decoder;
+    for (const blob of blobs) {
+      if (
+        blob !== null &&
+        typeof blob !== "string" &&
+        !(blob instanceof ArrayBuffer)
+      ) {
+        throw new Error('"blobs" may only be an ArrayBuffer, string, or null.');
+      }
+    }
+    for (const double of doubles) {
+      if (typeof double !== "number") {
+        throw new Error('"doubles" may only contain numbers.');
+      }
+    }
     // convert arrayBuffers if they exist
     const _blobs = blobs.map((blob) => {
       if (blob instanceof ArrayBuffer) {
@@ -106,20 +120,6 @@ export class AnalyticsEngine {
       throw new Error(
         '"blobs" array must contain less than or equal to 20 elements.'
       );
-    }
-    for (const blob of blobs) {
-      if (
-        blob !== null &&
-        typeof blob !== "string" &&
-        !(blob instanceof ArrayBuffer)
-      ) {
-        throw new Error('"blobs" may only be an ArrayBuffer, string, or null.');
-      }
-    }
-    for (const double of doubles) {
-      if (typeof double !== "number") {
-        throw new Error('"doubles" may only contain numbers.');
-      }
     }
     const blobsSize = _blobs.reduce(
       (total, blob) => total + (blob?.length ?? 0),
