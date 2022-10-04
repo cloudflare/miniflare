@@ -381,6 +381,42 @@ test("Analytics Engine: More than 50kB of blob data fails.", async (t) => {
   );
 });
 
+test("Analytics Engine: blobs with bad inputs", async (t) => {
+  const { db } = t.context;
+
+  const blob1 = Buffer.alloc(5);
+
+  await t.throwsAsync(
+    async () => {
+      await db.writeDataPoint({
+        indexes: ["t1"],
+        // @ts-expect-error: We are purposely throwing
+        blobs: [new Uint8Array(blob1).buffer, "2", null, 4],
+      });
+    },
+    {
+      message: '"blobs" may only be an ArrayBuffer, string, or null.',
+    }
+  );
+});
+
+test("Analytics Engine: doubles with bad inputs", async (t) => {
+  const { db } = t.context;
+
+  await t.throwsAsync(
+    async () => {
+      await db.writeDataPoint({
+        indexes: ["t1"],
+        // @ts-expect-error: We are purposely throwing
+        doubles: [1, "2"],
+      });
+    },
+    {
+      message: '"doubles" may only contain numbers.',
+    }
+  );
+});
+
 test("Analytics Engine: Test FORMAT JSON.", async (t) => {
   const { db, storage } = t.context;
   // @ts-expect-error: protected but does exist
