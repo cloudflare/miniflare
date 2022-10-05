@@ -214,3 +214,82 @@ test("Analytics Engine: Test quantileWeighted.", async (t) => {
   const res2 = stmt2.get("qw");
   t.is(res2.answer, 1);
 });
+
+test("Analytics Engine: Test column type functions to ensure they match WAE.", async (t) => {
+  const { db, storage } = t.context;
+  // @ts-expect-error: protected but does exist
+  const { sqliteDB } = storage;
+
+  db.writeDataPoint({
+    indexes: ["columns"], // Sensor ID
+    blobs: ["blob"],
+    doubles: [1],
+  });
+  db.writeDataPoint({
+    indexes: ["columns"], // Sensor ID
+    blobs: ["blob"],
+    doubles: [10],
+  });
+  db.writeDataPoint({
+    indexes: ["columns"], // Sensor ID
+    blobs: ["blob"],
+    doubles: [100],
+  });
+  db.writeDataPoint({
+    indexes: ["columns"], // Sensor ID
+    blobs: ["blob"],
+    doubles: [1_000],
+  });
+
+  // test MIN
+  const stmtMin = sqliteDB.prepare(
+    "SELECT MIN(double1) AS answer FROM TEST_DATASET WHERE index1 = ?"
+  );
+  const resMin = stmtMin.get("columns");
+  t.is(resMin.answer, 1);
+
+  // test MAX
+  const stmtMax = sqliteDB.prepare(
+    "SELECT MAX(double1) AS answer FROM TEST_DATASET WHERE index1 = ?"
+  );
+  const resMax = stmtMax.get("columns");
+  t.is(resMax.answer, 1_000);
+
+  // test SUM
+  const stmtSum = sqliteDB.prepare(
+    "SELECT SUM(double1) AS answer FROM TEST_DATASET WHERE index1 = ?"
+  );
+  const resSum = stmtSum.get("columns");
+  t.is(resSum.answer, 1_111);
+
+  // test AVG
+  const stmtAvg = sqliteDB.prepare(
+    "SELECT AVG(double1) AS answer FROM TEST_DATASET WHERE index1 = ?"
+  );
+  const resAvg = stmtAvg.get("columns");
+  t.is(resAvg.answer, 277.75);
+
+  // THESE SHOULD BE IGNORED
+  db.writeDataPoint({
+    indexes: ["columns"], // Sensor ID
+    blobs: ["input2"],
+    doubles: [1],
+  });
+  db.writeDataPoint({
+    indexes: ["columns"], // Sensor ID
+    blobs: ["input3"],
+    doubles: [1],
+  });
+  db.writeDataPoint({
+    indexes: ["columns"], // Sensor ID
+    blobs: ["input4"],
+    doubles: [1],
+  });
+
+  // test DISTINCT
+  const stmtDistinct = sqliteDB.prepare(
+    "SELECT AVG(DISTINCT double1) AS answer FROM TEST_DATASET WHERE index1 = ?"
+  );
+  const resDistinct = stmtDistinct.get("columns");
+  t.is(resDistinct.answer, 277.75);
+});
