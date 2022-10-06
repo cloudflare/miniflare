@@ -12,7 +12,7 @@ export interface DBConstructor {
 
 export async function createSQLiteDB(dbPath: string): Promise<SqliteDB> {
   // eslint-disable-next-line es/no-dynamic-import
-  const { npxImport, npxResolve } = await import("npx-import");
+  const { npxImport, npxResolve } = await import("npx-import-tmp");
   const { default: DatabaseConstructor } = await npxImport<{
     default: DBConstructor;
   }>("better-sqlite3@7.6.2");

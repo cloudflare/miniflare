@@ -37,7 +37,7 @@
   "dependencies": {
     "@types/better-sqlite3": "^7.6.0",
     "kleur": "^4.1.4",
-    "npx-import": "npm:npx-import-tmp@^1.1.1",
+    "npx-import-tmp": "^1.1.1",
     "picomatch": "^2.3.1"
   },
   "devDependencies": {
