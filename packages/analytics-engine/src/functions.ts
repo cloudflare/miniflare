@@ -83,7 +83,7 @@ export default function buildSQLFunctions(sqliteDB: SqliteDB) {
   );
   // https://clickhouse.com/docs/en/sql-reference/functions/type-conversion-functions/#todatetime
   sqliteDB.function("TODATETIME", (input: string | number): string => {
-    return new Date(input).toLocaleString("se-SE");
+    return new Date(input).toLocaleString("se-SE", { timeZone: "UTC" });
   });
   // https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions/#now
   sqliteDB.function("NOW", (timeZone = "UTC"): string => {
