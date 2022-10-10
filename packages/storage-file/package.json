@@ -39,6 +39,6 @@
     "@miniflare/storage-memory": "2.9.0"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.9.0"
+    "@miniflare/shared-test": "2.9.1"
   }
 }

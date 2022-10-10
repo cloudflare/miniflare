@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/core",
-  "version": "2.9.0",
+  "version": "2.9.1",
   "description": "Core module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -50,10 +50,10 @@
     "urlpattern-polyfill": "^4.0.3"
   },
   "devDependencies": {
-    "@miniflare/durable-objects": "2.9.0",
-    "@miniflare/shared-test": "2.9.0",
+    "@miniflare/durable-objects": "2.9.1",
+    "@miniflare/shared-test": "2.9.1",
     "@miniflare/watcher": "2.9.0",
-    "@miniflare/web-sockets": "2.9.0",
+    "@miniflare/web-sockets": "2.9.1",
     "@types/busboy": "^1.5.0",
     "@types/set-cookie-parser": "^2.4.1",
     "dequal": "^2.0.2"
