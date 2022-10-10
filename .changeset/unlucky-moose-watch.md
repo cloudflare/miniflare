@@ -2,4 +2,5 @@
 "@miniflare/durable-objects": patch
 ---
 
-fix: Return Durable Object `get()`s in lexicographic order
+Return Durable Object `get()`s in lexicographic order. Closes
+[issue #393](https://github.com/cloudflare/miniflare/issues/393).

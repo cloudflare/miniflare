@@ -2,4 +2,5 @@
 "@miniflare/http-server": patch
 ---
 
-fix: Reporting of server port when using `--port=0`
+Fix reporting of server port when using `--port=0`. Closes
+[issue #381](https://github.com/cloudflare/miniflare/issues/381).

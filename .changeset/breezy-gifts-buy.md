@@ -2,5 +2,5 @@
 "@miniflare/shared-test-environment": patch
 ---
 
-fix: Add Add missing @miniflare/r2 dependency to `shared-test-environment`
-package
+Add missing `@miniflare/r2` dependency to `@miniflare/shared-test-environment`
+package.
