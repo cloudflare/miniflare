@@ -4,7 +4,7 @@ order: 1
 
 # ⚡️ Vitest Environment
 
-Miniflare includes a custom Vitest environment that allows you to run your unit
+Miniflare includes a custom [Vitest](https://vitest.dev/) environment that allows you to run your unit
 tests within the Miniflare sandbox. Note that Vitest 0.23.0 is required.
 
 ## Setup
@@ -21,7 +21,7 @@ In the following examples, we'll assume your `package.json` contains
 [⚡️ Developing with esbuild](/developing/esbuild) for an example.
 
 To enable the Miniflare environment, set the
-[`environment` option](https://Vitestjs.io/docs/configuration#testenvironment-string)
+[`environment` option](https://vitest.dev/config/#environment)
 in your Vitest configuration:
 
 ```ts
