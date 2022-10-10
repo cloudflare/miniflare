@@ -96,10 +96,7 @@ export function _getRangeResponse(
       "Content-Range",
       `bytes ${start}-${end}/${responseBody.byteLength}`
     );
-    responseHeaders.set(
-      "Content-Length",
-      `${end-start+1}`
-    );
+    responseHeaders.set("Content-Length", `${end - start + 1}`);
     return new Response(responseBody.slice(start, end + 1), {
       status: 206, // Partial Content
       headers: responseHeaders,
