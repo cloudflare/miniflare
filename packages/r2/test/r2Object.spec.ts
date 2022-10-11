@@ -431,7 +431,7 @@ test("R2Object: parseOnlyIf with quotes: each parameter is parsed correctly as a
   const r2conditional = {
     etagMatches: '"*"',
     etagDoesNotMatch: ['"123"', '"456"'],
-    uploadedBefore: new Date(0),
+    uploadedBefore: '"1970-01-01T00:00:00.000Z"',
     uploadedAfter: '"1970-01-01T00:00:00.000Z"',
   };
   const parsed = parseOnlyIf(r2conditional as any);
