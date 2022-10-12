@@ -11,6 +11,7 @@ import {
 
 export const DEFAULT_BATCH_SIZE = 5;
 export const DEFAULT_WAIT_MS = 1000;
+export const DEFAULT_RETRIES = 2;
 
 export interface BindingOptions {
   name: string;
@@ -106,6 +107,8 @@ export class QueuesPlugin
         queueName: opts.queueName,
         maxBatchSize: opts.maxBatchSize ?? DEFAULT_BATCH_SIZE,
         maxWaitMs: opts.maxWaitMs ?? DEFAULT_WAIT_MS,
+        maxRetries: opts.maxRetries ?? DEFAULT_RETRIES,
+        deadLetterQueue: opts.deadLetterQueue,
         dispatcher: this.ctx.queueEventDispatcher,
       };
 

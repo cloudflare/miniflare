@@ -15,6 +15,8 @@ export interface Consumer {
   queueName: string;
   maxBatchSize: number;
   maxWaitMs: number;
+  maxRetries: number;
+  deadLetterQueue?: string;
   dispatcher: QueueEventDispatcher;
 }
 
