@@ -267,6 +267,15 @@ export class DurableObjectsPlugin
     }).runWith(() => state[kAlarm]());
   }
 
+  getObjects(
+    storageFactory: StorageFactory,
+    namespace: string
+  ): DurableObjectId[] {
+    return [...this.#objectStates.keys()]
+      .map(getObjectIdFromKey)
+      .filter((id) => id[kObjectName] === namespace);
+  }
+
   async beforeReload(): Promise<void> {
     // Clear instance map, this should cause old instances to be GCed
     this.#objectStorages.clear();
