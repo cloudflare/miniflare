@@ -46,3 +46,20 @@ test("Durable Objects direct", async () => {
   expect(await res1.text()).toBe("0");
   expect(await res2.text()).toBe("1");
 });
+
+test("Durable Objects list", async () => {
+  const env = getMiniflareBindings();
+
+  // From beforeAll
+  expect(await getMiniflareDurableObjectIds("TEST_OBJECT")).toHaveLength(1);
+
+  const id = env.TEST_OBJECT.idFromName("test");
+  env.TEST_OBJECT.get(id);
+  expect(await getMiniflareDurableObjectIds("TEST_OBJECT")).toHaveLength(1);
+  expect(await getMiniflareDurableObjectIds("TEST_OBJECT")).toContainEqual(id);
+
+  const id2 = env.TEST_OBJECT.idFromName("test2");
+  env.TEST_OBJECT.get(id2);
+  expect(await getMiniflareDurableObjectIds("TEST_OBJECT")).toHaveLength(2);
+  expect(await getMiniflareDurableObjectIds("TEST_OBJECT")).toContainEqual(id2);
+});
