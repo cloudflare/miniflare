@@ -29,6 +29,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm ci
+      - run: npm i better-sqlite3@7.6.2
       - run: npm test
 
   lint_type:

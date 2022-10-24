@@ -13,6 +13,9 @@ export default defineConfig({
     cache: false,
     environment: "miniflare",
     environmentOptions: {
+      analyticsEngines: {
+        AE_TEST_DB: "AE_TEST_DB",
+      },
       kvNamespaces: ["TEST_NAMESPACE"],
       d1Databases: ["__D1_BETA__DB_1"],
       sitePath: __dirname,

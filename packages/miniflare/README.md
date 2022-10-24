@@ -21,6 +21,7 @@ workers in a sandbox implementing Workers' runtime APIs.
 - ⏰ Scheduled Events (with cron triggering and manual dispatch)
 - 🔑 Variables and Secrets with `.env` Files
 - 📚 Modules Support
+- 📈 Analytics Engine (with optional persistence)
 - 📦 KV (with optional persistence)
 - 🪣 R2 (with optional persistence)
 - ✨ Cache (with optional persistence)
@@ -128,6 +129,10 @@ Build Options:
  -B, --build-command     Command to build project                                     [string]
      --build-base-path   Working directory for build command                          [string]
      --build-watch-path  Directory to watch for rebuilding on changes                  [array]
+
+Analytics Engine Options:
+ -a, --ae                Analytics Engine to bind                         [array:NAME=DATASET]
+     --ae-persist        Persist Analytics Engine data (to optional path)     [boolean/string]
 
 KV Options:
  -k, --kv                KV namespace to bind                                          [array]

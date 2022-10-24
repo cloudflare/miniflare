@@ -1,15 +1,16 @@
 {
-  "name": "@miniflare/shared",
+  "name": "@miniflare/analytics-engine",
   "version": "2.10.0",
-  "description": "Shared utility module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
+  "description": "Workers Analytics Engine module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
     "workers",
     "worker",
     "local",
-    "cloudworker"
+    "analytics-engine",
+    "sqlite"
   ],
-  "author": "MrBBot <me@mrbbot.dev>",
+  "author": "CraigglesO <craiggles@s2maps.io>",
   "license": "MIT",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
@@ -17,7 +18,7 @@
     "dist/src"
   ],
   "engines": {
-    "node": ">=16.13"
+    "node": ">=16.7"
   },
   "publishConfig": {
     "access": "public"
@@ -25,23 +26,20 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cloudflare/miniflare.git",
-    "directory": "packages/shared"
+    "directory": "packages/analytics-engine"
   },
   "bugs": {
     "url": "https://github.com/cloudflare/miniflare/issues"
   },
-  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/shared#readme",
+  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/analytics-engine#readme",
   "volta": {
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@types/better-sqlite3": "^7.6.0",
-    "kleur": "^4.1.4",
-    "npx-import": "^1.1.4",
-    "picomatch": "^2.3.1"
+    "@miniflare/core": "2.10.0",
+    "@miniflare/shared": "2.10.0"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.10.0",
-    "@types/picomatch": "^2.3.0"
+    "@miniflare/shared-test": "2.10.0"
   }
 }

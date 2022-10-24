@@ -54,6 +54,44 @@ test.serial("Miniflare: dispose: disposes plugins and storage", async (t) => {
     "[mf:vrb] Disposing storage...",
   ]);
 });
+test("Miniflare: getAnalyticsEngine: gets Analytics Engine from bindings", async (t) => {
+  const mf = new Miniflare({
+    script: `export default { 
+      fetch: async (request, env) => {
+        return new Response(env.TEST_DB.writeDataPoint({ blobs: ['a', 'b'], doubles: [1, 2] }));
+      }
+    }`,
+    modules: true,
+    analyticsEngines: {
+      TEST_DB: "TEST_DB",
+    },
+  });
+  const server = await mf.startServer();
+  const port = (server.address() as AddressInfo).port;
+  await mf.dispatchFetch("http://localhost/");
+  const ae = await mf.getAnalyticsEngine("TEST_DB");
+  ae.writeDataPoint({ blobs: ["c", "d"], doubles: [3, 4] });
+  const res = await fetch(
+    `http://localhost:${port}/cdn-cgi/mf/analytics_engine/sql`,
+    {
+      method: "POST",
+      body: "SELECT blob1, blob2, double1, double2 FROM TEST_DB LIMIT 2;",
+    }
+  ).then(async (b) => await b.json());
+  t.deepEqual(res, {
+    meta: {
+      blob1: "String",
+      blob2: "String",
+      double1: "Float64",
+      double2: "Float64",
+    },
+    data: [
+      { blob1: "a", blob2: "b", double1: 1, double2: 2 },
+      { blob1: "c", blob2: "d", double1: 3, double2: 4 },
+    ],
+    rows: 2,
+  });
+});
 test("Miniflare: getKVNamespace: gets KV namespace", async (t) => {
   const mf = new Miniflare({
     script: `export default { 
