@@ -18,8 +18,9 @@ export type QueueErrorCode = "ERR_CONSUMER_ALREADY_SET";
 
 export class QueueError extends MiniflareError<QueueErrorCode> {}
 
-export const MAX_ATTEMPTS = 3;
-const kShouldAttemptRetry = Symbol("kShouldAttemptRetry");
+const kGetPendingRetry = Symbol("kGetPendingRetry");
+const kPrepareForRetry = Symbol("kPrepareForRetry");
+const kGetFailedAttempts = Symbol("kGetFailedAttempts");
 
 export class Message<Body = unknown> implements MessageInterface<Body> {
   readonly body: Body;
@@ -48,24 +49,17 @@ export class Message<Body = unknown> implements MessageInterface<Body> {
     this.#pendingRetry = true;
   }
 
-  [kShouldAttemptRetry](): boolean {
-    if (!this.#pendingRetry) {
-      return false;
-    }
-
-    this.#failedAttempts++;
-    if (this.#failedAttempts >= MAX_ATTEMPTS) {
-      this.#log?.warn(
-        `Dropped message "${this.id}" after ${
-          this.#failedAttempts
-        } failed attempts!`
-      );
-      return false;
-    }
-
-    this.#log?.debug(`Retrying message "${this.id}"...`);
+  [kPrepareForRetry]() {
     this.#pendingRetry = false;
-    return true;
+    this.#failedAttempts++;
+  }
+
+  [kGetPendingRetry](): boolean {
+    return this.#pendingRetry;
+  }
+
+  [kGetFailedAttempts](): number {
+    return this.#failedAttempts;
   }
 }
 
@@ -96,6 +90,7 @@ enum FlushType {
 export const kSetFlushCallback = Symbol("kSetFlushCallback");
 
 export class Queue<Body = unknown> implements QueueInterface<Body> {
+  readonly #broker: QueueBroker;
   readonly #queueName: string;
   readonly #log?: Log;
 
@@ -109,7 +104,8 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
   // A callback to run after a flush() has been executed: useful for testing.
   #flushCallback?: () => void;
 
-  constructor(queueName: string, log?: Log) {
+  constructor(broker: QueueBroker, queueName: string, log?: Log) {
+    this.#broker = broker;
     this.#queueName = queueName;
     this.#log = log;
 
@@ -202,6 +198,8 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
     if (!this.#consumer) {
       return;
     }
+    const maxAttempts = this.#consumer.maxRetries + 1;
+    const deadLetterQueueName = this.#consumer.deadLetterQueue;
 
     // Create a batch and execute the queue event handler
     const batch = new MessageBatch<Body>(this.#queueName, [...this.#messages]);
@@ -216,12 +214,41 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
     // Reset state and check for any messages to retry
     this.#pendingFlush = FlushType.NONE;
     this.#timeout = undefined;
-    const messagesToRetry = batch.messages.filter((msg) =>
-      msg[kShouldAttemptRetry]()
-    );
-    this.#messages.push(...messagesToRetry);
-    if (this.#messages.length > 0) {
+
+    const toRetry: Message<Body>[] = [];
+    const toDLQ: Message<Body>[] = [];
+    batch.messages.forEach((msg) => {
+      if (!msg[kGetPendingRetry]()) {
+        return;
+      }
+
+      msg[kPrepareForRetry]();
+      if (msg[kGetFailedAttempts]() < maxAttempts) {
+        this.#log?.debug(`Retrying message "${msg.id}"...`);
+        toRetry.push(msg);
+      } else if (deadLetterQueueName) {
+        this.#log?.warn(
+          `Moving message "${msg.id}" to dead letter queue "${deadLetterQueueName}"...`
+        );
+        toDLQ.push(msg);
+      } else {
+        this.#log?.warn(
+          `Dropped message "${msg.id}" after ${maxAttempts} failed attempts!`
+        );
+      }
+    });
+
+    if (toRetry.length) {
+      this.#messages.push(...toRetry);
       this.#ensurePendingFlush();
+    }
+
+    if (deadLetterQueueName) {
+      const deadLetterQueue =
+        this.#broker.getOrCreateQueue(deadLetterQueueName);
+      toDLQ.forEach((msg) => {
+        deadLetterQueue.send(msg.body);
+      });
     }
   }
 
@@ -242,7 +269,7 @@ export class QueueBroker implements QueueBrokerInterface {
   getOrCreateQueue(name: string): Queue {
     let queue = this.#queues.get(name);
     if (queue === undefined) {
-      this.#queues.set(name, (queue = new Queue(name, this.#log)));
+      this.#queues.set(name, (queue = new Queue(this, name, this.#log)));
     }
     return queue;
   }
