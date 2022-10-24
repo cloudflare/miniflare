@@ -1,4 +1,4 @@
-const analytics = `BEGIN;
+const ANALYTICS_ENGINE_SQL_SCHEMA = `BEGIN;
 
 CREATE TABLE IF NOT EXISTS {{BINDING}} (
   dataset TEXT NOT NULL,
@@ -25,26 +25,26 @@ CREATE TABLE IF NOT EXISTS {{BINDING}} (
   double18 FLOAT,
   double19 FLOAT,
   double20 FLOAT,
-  blob1 TEXT,
-  blob2 TEXT,
-  blob3 TEXT,
-  blob4 TEXT,
-  blob5 TEXT,
-  blob6 TEXT,
-  blob7 TEXT,
-  blob8 TEXT,
-  blob9 TEXT,
-  blob10 TEXT,
-  blob11 TEXT,
-  blob12 TEXT,
-  blob13 TEXT,
-  blob14 TEXT,
-  blob15 TEXT,
-  blob16 TEXT,
-  blob17 TEXT,
-  blob18 TEXT,
-  blob19 TEXT,
-  blob20 TEXT
+  blob1 BLOB,
+  blob2 BLOB,
+  blob3 BLOB,
+  blob4 BLOB,
+  blob5 BLOB,
+  blob6 BLOB,
+  blob7 BLOB,
+  blob8 BLOB,
+  blob9 BLOB,
+  blob10 BLOB,
+  blob11 BLOB,
+  blob12 BLOB,
+  blob13 BLOB,
+  blob14 BLOB,
+  blob15 BLOB,
+  blob16 BLOB,
+  blob17 BLOB,
+  blob18 BLOB,
+  blob19 BLOB,
+  blob20 BLOB
 );
 
 CREATE INDEX IF NOT EXISTS {{BINDING}}_index ON {{BINDING}} (dataset, timestamp);
@@ -53,4 +53,4 @@ CREATE INDEX IF NOT EXISTS {{BINDING}}_index ON {{BINDING}} (dataset, index1, ti
 COMMIT;
 `;
 
-export default analytics;
+export default ANALYTICS_ENGINE_SQL_SCHEMA;

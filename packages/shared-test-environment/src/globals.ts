@@ -1,3 +1,4 @@
+import { FormatJSON } from "@miniflare/analytics-engine";
 import {
   FetchEvent,
   MiniflareCore,
@@ -108,10 +109,12 @@ export async function createMiniflareEnvironmentUtilities(
       const factory = mf.getPluginStorage("DurableObjectsPlugin");
       return plugin.flushAlarms(factory, ids);
     },
-    async queryMiniflareAnalyticsEngine(query: string): Promise<any> {
+    async queryMiniflareAnalyticsEngine(
+      query: string
+    ): Promise<string | FormatJSON> {
       const plugin = (await mf.getPlugins()).AnalyticsEnginePlugin;
       const storage = mf.getPluginStorage("AnalyticsEnginePlugin");
-      return await plugin.query(storage, query);
+      return plugin.query(storage, query);
     },
   };
 }

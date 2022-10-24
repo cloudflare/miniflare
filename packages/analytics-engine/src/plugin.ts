@@ -11,11 +11,11 @@ import {
 import type { SqliteDB } from "@miniflare/shared";
 import { AnalyticsEngine, FormatJSON, _format, _prepare } from "./engine";
 
-export type ProcessedAnalyticsEngine = Record<string, string>; // { [name]: dataset }
+export type AnalyticsEngineDatasetsOptions = Record<string, string>; // { [name]: dataset }
 
 export interface AnalyticsEngineOptions {
-  analyticsEngines?: ProcessedAnalyticsEngine;
-  aePersist?: boolean | string;
+  analyticsEngines?: AnalyticsEngineDatasetsOptions;
+  analytics_engines_persist?: boolean | string;
 }
 
 export class AnalyticsEnginePlugin
@@ -39,17 +39,18 @@ export class AnalyticsEnginePlugin
       bindings?.reduce((objects, { type, name, dataset }) => {
         if (type === "analytics_engine") objects[name] = dataset;
         return objects;
-      }, {} as ProcessedAnalyticsEngine),
+      }, {} as AnalyticsEngineDatasetsOptions),
   })
-  analyticsEngines?: ProcessedAnalyticsEngine;
+  analyticsEngines?: AnalyticsEngineDatasetsOptions;
 
   @Option({
     type: OptionType.BOOLEAN_STRING,
+    name: "ae-persist",
     description: "Persist Analytics Engine data (to optional path)",
     logName: "Analytics Engine Persistence",
     fromWrangler: ({ miniflare }) => miniflare?.ae_persist,
   })
-  aePersist?: boolean | string;
+  analytics_engines_persist?: boolean | string;
   readonly #persist?: boolean | string;
 
   #db?: SqliteDB;
@@ -57,7 +58,10 @@ export class AnalyticsEnginePlugin
   constructor(ctx: PluginContext, options?: AnalyticsEngineOptions) {
     super(ctx);
     this.assignOptions(options);
-    this.#persist = resolveStoragePersist(ctx.rootPath, this.aePersist);
+    this.#persist = resolveStoragePersist(
+      ctx.rootPath,
+      this.analytics_engines_persist
+    );
   }
 
   async getAnalyticsEngine(
@@ -103,7 +107,7 @@ export class AnalyticsEnginePlugin
     if (this.#db === undefined) {
       // grab storage
       const storage = storageFactory.storage(
-        "__MINIFLARE_ANALYTICS_ENGINE_STORAGE__",
+        "__MINIFLARE_ANALYTICS_ENGINE__",
         this.#persist
       );
       // setup db

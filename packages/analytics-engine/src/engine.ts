@@ -92,7 +92,9 @@ export class AnalyticsEngine {
         typeof blob !== "string" &&
         !(blob instanceof ArrayBuffer)
       ) {
-        throw new Error('"blobs" may only be an ArrayBuffer, string, or null.');
+        throw new Error(
+          '"blobs" may only contain elements of type ArrayBuffer, string, or null'
+        );
       }
     }
     for (const double of doubles) {

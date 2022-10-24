@@ -20,7 +20,7 @@ test("AnalyticsEnginePlugin: parses options from argv", (t) => {
       AE1: "dataset-1",
       AE2: "dataset-2",
     },
-    aePersist: "path",
+    analytics_engines_persist: "path",
   });
 });
 test("AnalyticsEnginePlugin: parses options from wrangler config", (t) => {
@@ -44,7 +44,7 @@ test("AnalyticsEnginePlugin: parses options from wrangler config", (t) => {
       AE1: "dataset-1",
       AE2: "dataset-2",
     },
-    aePersist: "path",
+    analytics_engines_persist: "path",
   });
 });
 test("AnalyticsEnginePlugin: logs options", (t) => {
@@ -53,7 +53,7 @@ test("AnalyticsEnginePlugin: logs options", (t) => {
       AE1: "dataset-1",
       AE2: "dataset-2",
     },
-    aePersist: true,
+    analytics_engines_persist: true,
   });
   t.deepEqual(logs, [
     "Analytics Engine Names: AE1, AE2",

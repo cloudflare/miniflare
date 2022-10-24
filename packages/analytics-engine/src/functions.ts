@@ -110,7 +110,6 @@ export default function buildSQLFunctions(sqliteDB: SqliteDB) {
 
 export function isDate(input: string): boolean {
   return (
-    new Date(input).toString() !== "Invalid Date" &&
-    !isNaN(new Date(input) as any)
+    new Date(input).toString() !== "Invalid Date" && !isNaN(Date.parse(input))
   );
 }
