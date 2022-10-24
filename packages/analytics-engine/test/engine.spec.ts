@@ -395,7 +395,8 @@ test("Analytics Engine: blobs with bad inputs", async (t) => {
       });
     },
     {
-      message: '"blobs" may only be an ArrayBuffer, string, or null.',
+      message:
+        '"blobs" may only contain elements of type ArrayBuffer, string, or null',
     }
   );
 });
