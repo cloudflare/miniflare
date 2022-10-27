@@ -23,7 +23,8 @@ function isMiniflarePkg(name) {
   return (
     name.startsWith(scope) ||
     name === "miniflare" ||
-    name === "jest-environment-miniflare"
+    name === "jest-environment-miniflare" ||
+    name === "vitest-environment-miniflare"
   );
 }
 
