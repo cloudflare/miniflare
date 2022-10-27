@@ -264,6 +264,24 @@ test("flushes alarms", async () => {
 });
 ```
 
+To list all active Durable Objects in a namespace, use the
+`getMiniflareDurableObjectIds()` global function:
+
+```js
+test("gets objects", async () => {
+  // Get Durable Object stub
+  const env = getMiniflareBindings();
+  const id = env.TEST_OBJECT.newUniqueId();
+  const stub = env.TEST_OBJECT.get(id);
+  await stub.fetch("http://localhost/");
+
+  // Get all active TEST_OBJECT Durable Object IDs
+  const ids = await getMiniflareDurableObjectIds("TEST_OBJECT");
+  expect(ids).toHaveLength(1);
+  expect(ids[0].toString()).toBe(id.toString());
+});
+```
+
 ### Constructing Durable Objects Directly
 
 Alternatively, you can construct instances of your Durable Object using

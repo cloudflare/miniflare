@@ -1,5 +1,32 @@
 # 🚧 Changelog
 
+## 2.11.0
+
+### Features
+
+- Add support for dead-letter queues. Thanks
+  [@jbw1991](https://github.com/jbw1991) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/411).
+- Add `getMiniflareDurableObjectIds()` global function to Miniflare's
+  Jest/Vitest environments for listing active Durable Objects. Calling
+  `getMiniflareDurableObjectIds("TEST_OBJECT")` will return a `Promise` that
+  resolves to an array of active `DurableObjectId`s for the `TEST_OBJECT`
+  namespace. Closes
+  [issue #384](https://github.com/cloudflare/miniflare/issues/384), thanks
+  [@DaniFoldi](https://github.com/DaniFoldi) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/413).
+
+### Fixes
+
+- Strip quotes from R2 `onlyIf` header values. Closes
+  [issue #402](https://github.com/cloudflare/miniflare/issues/402), thanks
+  [@vincentbernat](https://github.com/vincentbernat) and
+  [@CraigglesO](https://github.com/CraigglesO) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/403).
+- Disable `r2Persist` option in Miniflare's Jest/Vitest environments. Thanks
+  [@hanford](https://github.com/hanford) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/414).
+
 ## 2.10.0
 
 ### Features

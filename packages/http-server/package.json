@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/http-server",
-  "version": "2.10.0",
+  "version": "2.11.0",
   "description": "HTTP server module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -35,9 +35,9 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/core": "2.10.0",
-    "@miniflare/shared": "2.10.0",
-    "@miniflare/web-sockets": "2.10.0",
+    "@miniflare/core": "2.11.0",
+    "@miniflare/shared": "2.11.0",
+    "@miniflare/web-sockets": "2.11.0",
     "kleur": "^4.1.4",
     "selfsigned": "^2.0.0",
     "undici": "5.9.1",
@@ -45,7 +45,7 @@
     "youch": "^2.2.2"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.10.0",
+    "@miniflare/shared-test": "2.11.0",
     "@types/node-forge": "^0.10.4"
   }
 }
