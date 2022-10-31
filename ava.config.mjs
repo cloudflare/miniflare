@@ -8,9 +8,6 @@ const rewritePaths = Object.fromEntries(
 );
 
 export default {
-  nonSemVerExperiments: {
-    nextGenConfig: true,
-  },
   files: ["packages/*/test/**/*.spec.ts"],
   timeout: "5m",
   nodeArguments: ["--no-warnings", "--experimental-vm-modules"],
