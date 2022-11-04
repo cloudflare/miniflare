@@ -63,7 +63,7 @@ export class GatewayFactory<Gateway> {
           url.searchParams.get(PARAM_FILE_UNSANITISE) === "true";
         return new FileStorage(root, !unsanitise);
       } else if (url.protocol === "sqlite:") {
-        return new SqliteStorage(url);
+        return new SqliteStorage(url.pathname, sanitisedNamespace);
       }
       // TODO: support Redis/SQLite storages?
       throw new MiniflareCoreError(

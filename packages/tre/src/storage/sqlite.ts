@@ -1,5 +1,5 @@
 import path from "path";
-import Database, { Database as DatabaseType } from "better-sqlite3";
+import Database, { Database as DatabaseType, Statement } from "better-sqlite3";
 import { defaultClock } from "../shared";
 import { LocalStorage } from "./local";
 import {
@@ -8,7 +8,9 @@ import {
   StoredKeyMeta,
   StoredMeta,
   StoredValueMeta,
+  StoredKey,
 } from "./storage";
+import { parseRange } from "./memory";
 
 export interface FileRange {
   value: Uint8Array;
@@ -47,108 +49,148 @@ export async function getRange(
   return { value: value.slice(offset, offset + length), offset, length };
 }
 
-export interface FileMeta<Meta = unknown> extends StoredMeta<Meta> {
-  key?: string;
+// Safely escape parameters for an SQL query
+function sql(
+  parts: TemplateStringsArray,
+  ...parameters: (string | number | Uint8Array)[]
+): {
+  template: string;
+  parameters: (string | number | Uint8Array)[];
+} {
+  return {
+    template: parts.join(" ? "),
+    parameters,
+  };
 }
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS storage (
-    key text NOT NULL PRIMARY KEY,
-    data blob,
-    meta text
-); 
-`;
 
+interface RawDBRow {
+  key: string;
+  attributes: string;
+  value: Uint8Array;
+  namesoace: string;
+}
+
+type ParsedDBRow<Meta = unknown> = StoredValueMeta<Meta> & {
+  namespace: string;
+} & StoredKey;
 export class SqliteStorage extends LocalStorage {
   protected readonly database: DatabaseType;
-  private sql: <Row>(
-    parts: TemplateStringsArray,
-    ...args: (string | number | Buffer)[]
-  ) => Row[] | undefined;
+  protected namespace: string;
 
-  constructor(database: URL, clock = defaultClock) {
+  private parse<Keys extends keyof ParsedDBRow<Meta>, Meta = unknown>(
+    row: Partial<RawDBRow>
+  ): Pick<ParsedDBRow<Meta>, Keys> {
+    // @ts-ignore-next-line
+    const parsed: Pick<ParsedDBRow<Meta>, Keys> = {};
+    // @ts-ignore-next-line
+    if (row.namespace) parsed.namespace = row.namespace;
+    // @ts-ignore-next-line
+    if (row.key) parsed.name = row.key;
+    if (row.attributes) {
+      const json = JSON.parse(row.attributes);
+      // @ts-ignore-next-line
+      parsed.expiration = json.expiration;
+      // @ts-ignore-next-line
+      parsed.metadata = json.metadata as Meta;
+    }
+    // @ts-ignore-next-line
+    if (row.value) parsed.value = row.value;
+    return parsed;
+  }
+
+  private run(query: ReturnType<typeof sql>): { changes: number } {
+    const stmt = this.database.prepare(query.template);
+    return stmt.run(...query.parameters);
+  }
+  private all<Keys extends keyof ParsedDBRow<Meta>, Meta = unknown>(
+    query: ReturnType<typeof sql>
+  ): Pick<ParsedDBRow<Meta>, Keys>[] {
+    const stmt = this.database.prepare(query.template);
+    return stmt.all(...query.parameters).map((row) => this.parse(row));
+  }
+  private one<Keys extends keyof ParsedDBRow<Meta>, Meta = unknown>(
+    query: ReturnType<typeof sql>
+  ): Pick<ParsedDBRow<Meta>, Keys> | undefined {
+    const stmt = this.database.prepare(query.template);
+    return this.parse(stmt.get(...query.parameters));
+  }
+
+  constructor(database: string, namespace: string, clock = defaultClock) {
     super(clock);
-    this.database = new Database(path.resolve(database.pathname));
-    this.database.exec(SCHEMA);
-    this.sql = (
-      parts: TemplateStringsArray,
-      ...args: (string | number | Buffer)[]
-    ) => {
-      const query = parts.join(" ? ");
-      const stmt = this.database.prepare(query);
-      if (
-        query.toLowerCase().startsWith("insert") ||
-        query.toLowerCase().startsWith("delete")
-      ) {
-        stmt.run(...args);
-      } else {
-        return stmt.all(...args);
-      }
-    };
+    this.database = new Database(database);
+    this.namespace = namespace;
+    this.run(sql`
+      CREATE TABLE IF NOT EXISTS storage (
+          namespace TEXT NOT NULL,
+          key TEXT NOT NULL,
+          value BLOB,
+          attributes TEXT,
+          PRIMARY KEY (namespace, key)
+      );`);
   }
 
   async hasMaybeExpired(key: string): Promise<StoredMeta | undefined> {
-    const data = this.sql<{
-      meta: string;
-    }>`SELECT meta from storage where key=${key}`;
-    if (data === undefined || data.length === 0) return;
+    const data = this.one<"metadata" | "expiration">(
+      sql`SELECT attributes FROM storage WHERE key=${key} AND namespace=${this.namespace}`
+    );
+    if (data === undefined) return;
     return {
-      metadata: JSON.parse(data[0].meta).metadata,
-      expiration: JSON.parse(data[0].meta).expiration,
+      metadata: data.metadata,
+      expiration: data.expiration,
     };
   }
 
   async headMaybeExpired<Meta>(
     key: string
-  ): Promise<FileMeta<Meta> | undefined> {
-    const data = this.sql<{
-      meta: string;
-    }>`SELECT meta from storage where key=${key}`;
-    if (data === undefined || data.length === 0) return;
+  ): Promise<StoredMeta<Meta> | undefined> {
+    const data = this.one<"metadata" | "expiration", Meta>(
+      sql`SELECT attributes FROM storage WHERE key=${key} AND namespace=${this.namespace}`
+    );
+    if (data === undefined) return;
     return {
-      metadata: JSON.parse(data[0].meta).metadata,
-      expiration: JSON.parse(data[0].meta).expiration,
+      metadata: data.metadata,
+      expiration: data.expiration,
     };
   }
 
   async getMaybeExpired<Meta>(
     key: string
   ): Promise<StoredValueMeta<Meta> | undefined> {
-    const data = this.sql<{
-      key: string;
-      data: Buffer;
-      meta: string;
-    }>`SELECT * from storage where key=${key}`;
-    if (data === undefined || data.length === 0) return;
+    const data = this.one<"value" | "metadata" | "expiration", Meta>(
+      sql`SELECT * FROM storage WHERE key=${key} AND namespace=${this.namespace}`
+    );
+
+    if (data === undefined) return;
     return {
-      value: new Uint8Array(data[0].data),
-      metadata: JSON.parse(data[0].meta).metadata,
-      expiration: JSON.parse(data[0].meta).expiration,
+      value: data.value,
+      metadata: data.metadata,
+      expiration: data.expiration,
     };
   }
 
   async getRangeMaybeExpired<Meta = unknown>(
     key: string,
-    { offset: _offset, length: _length, suffix }: Range
+    range: Range
   ): Promise<RangeStoredValueMeta<Meta> | undefined> {
-    const data = this.sql<{
-      key: string;
-      data: Buffer;
-      meta: string;
-    }>`SELECT * from storage where key=${key}`;
-    if (data === undefined || data.length === 0) return;
+    const data = this.one<"value" | "metadata" | "expiration", Meta>(
+      sql`SELECT * FROM storage WHERE key=${key} AND namespace=${this.namespace}`
+    );
+    if (data === undefined) return;
     const entry: StoredValueMeta<Meta> = {
-      value: new Uint8Array(data[0].data),
-      metadata: JSON.parse(data[0].meta).metadata,
-      expiration: JSON.parse(data[0].meta).expiration,
+      value: data.value,
+      metadata: data.metadata,
+      expiration: data.expiration,
     };
-    const res = await getRange(entry.value, _offset, _length, suffix);
-    if (res === undefined) return;
+    const size = entry.value.length;
+    const { offset, length } = parseRange(range, size);
 
-    const { value, offset, length } = res;
+    const value = entry.value.slice(offset, offset + length);
+    if (value === undefined) return;
+
     return {
       ...entry,
       range: { offset, length },
-      value: value,
+      value,
     };
   }
 
@@ -156,28 +198,27 @@ export class SqliteStorage extends LocalStorage {
     key: string,
     { value, expiration, metadata }: StoredValueMeta<Meta>
   ): Promise<void> {
-    this
-      .sql`INSERT OR REPLACE INTO storage (key, data, meta) VALUES (${key}, ${Buffer.from(
-      value
-    )}, ${JSON.stringify({ key, expiration, metadata })})`;
+    this.run(
+      sql`INSERT OR REPLACE INTO storage (namespace, key, value, attributes) VALUES (${
+        this.namespace
+      }, ${key}, ${value}, ${JSON.stringify({
+        key,
+        expiration,
+        metadata,
+      })})`
+    );
   }
 
   async deleteMaybeExpired(key: string): Promise<boolean> {
-    this.sql`DELETE FROM storage WHERE key=${key}`;
-    return true;
+    const { changes } = this.run(
+      sql`DELETE FROM storage WHERE key=${key} AND namespace=${this.namespace}`
+    );
+    return changes === 1;
   }
 
   async listAllMaybeExpired<Meta>(): Promise<StoredKeyMeta<Meta>[]> {
-    const keys: StoredKeyMeta<Meta>[] = [];
-    for (const { key, meta } of this.sql<{
-      key: string;
-      meta: string;
-    }>`SELECT key, meta from storage`!) {
-      keys.push({
-        name: key,
-        ...JSON.parse(meta),
-      });
-    }
-    return keys;
+    return this.all<"name" | "expiration" | "metadata", Meta>(
+      sql`SELECT key, attributes FROM storage WHERE namespace=${this.namespace}`
+    );
   }
 }
