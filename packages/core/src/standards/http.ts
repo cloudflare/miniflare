@@ -736,6 +736,15 @@ class MiniflareDispatcher extends Dispatcher {
     // @ts-expect-error just want to pass through to global dispatcher here
     return this.inner.destroy(...args);
   }
+
+  /**
+   * Required for some testing utilities.
+   * For context see: https://github.com/nodejs/undici/issues/1756#issuecomment-1304711596
+   */
+  get isMockActive(): boolean {
+    // @ts-expect-error Missing type on MockAgent, but exists at runtime
+    return this.inner.isMockActive ?? false;
+  }
 }
 
 export async function fetch(
