@@ -1,6 +1,6 @@
-import path from "path";
-import Database, { Database as DatabaseType, Statement } from "better-sqlite3";
+import Database, { Database as DatabaseType } from "better-sqlite3";
 import { defaultClock } from "../shared";
+import crypto from "crypto";
 import { LocalStorage } from "./local";
 import {
   Range,
@@ -18,61 +18,62 @@ export interface FileRange {
   length: number;
 }
 
-export async function getRange(
-  value: Uint8Array,
-  offset?: number,
-  length?: number,
-  suffix?: number
-): Promise<FileRange | undefined> {
-  const size = value.length;
-  // build offset and length as necessary
-  if (suffix !== undefined) {
-    if (suffix <= 0) {
-      throw new Error("Suffix must be > 0");
-    }
-    if (suffix > size) suffix = size;
-    offset = size - suffix;
-    length = size - offset;
-  }
-  if (offset === undefined) offset = 0;
-  if (length === undefined) {
-    // get length of file
-    length = size - offset;
-  }
-
-  // check offset and length are valid
-  if (offset < 0) throw new Error("Offset must be >= 0");
-  if (offset >= size) throw new Error("Offset must be < size");
-  if (length <= 0) throw new Error("Length must be > 0");
-  if (offset + length > size) length = size - offset;
-
-  return { value: value.slice(offset, offset + length), offset, length };
+// Don't use this!
+function unsafe_raw(value: string): { value: string; unsafe_raw: true } {
+  const safeValue = value.replace(/[^a-zA-Z0-9_]+/g, "-");
+  return { value: `"${safeValue}"`, unsafe_raw: true };
 }
 
 // Safely escape parameters for an SQL query
 function sql(
   parts: TemplateStringsArray,
-  ...parameters: (string | number | Uint8Array)[]
+  ...parameters: (
+    | string
+    | number
+    | Uint8Array
+    | ReturnType<typeof unsafe_raw>
+  )[]
 ): {
   template: string;
   parameters: (string | number | Uint8Array)[];
 } {
-  return {
-    template: parts.join(" ? "),
-    parameters,
-  };
+  return parts.reduce<{
+    template: string;
+    parameters: (string | number | Uint8Array)[];
+  }>(
+    (acc, part, idx) => {
+      const suffix = parameters[idx];
+      if (!suffix) {
+        return {
+          template: acc.template + part,
+          parameters: acc.parameters,
+        };
+      }
+      if (typeof suffix == "object" && "unsafe_raw" in suffix) {
+        return {
+          template: acc.template + part + suffix.value,
+          parameters: acc.parameters,
+        };
+      }
+      return {
+        template: acc.template + part + " ? ",
+        parameters: [...acc.parameters, suffix],
+      };
+    },
+    {
+      template: "",
+      parameters: [],
+    }
+  );
 }
 
 interface RawDBRow {
   key: string;
   attributes: string;
   value: Uint8Array;
-  namesoace: string;
 }
 
-type ParsedDBRow<Meta = unknown> = StoredValueMeta<Meta> & {
-  namespace: string;
-} & StoredKey;
+type ParsedDBRow<Meta = unknown> = StoredValueMeta<Meta> & StoredKey;
 export class SqliteStorage extends LocalStorage {
   protected readonly database: DatabaseType;
   protected namespace: string;
@@ -82,8 +83,6 @@ export class SqliteStorage extends LocalStorage {
   ): Pick<ParsedDBRow<Meta>, Keys> {
     // @ts-ignore-next-line
     const parsed: Pick<ParsedDBRow<Meta>, Keys> = {};
-    // @ts-ignore-next-line
-    if (row.namespace) parsed.namespace = row.namespace;
     // @ts-ignore-next-line
     if (row.key) parsed.name = row.key;
     if (row.attributes) {
@@ -99,6 +98,7 @@ export class SqliteStorage extends LocalStorage {
   }
 
   private run(query: ReturnType<typeof sql>): { changes: number } {
+    console.log(query);
     const stmt = this.database.prepare(query.template);
     return stmt.run(...query.parameters);
   }
@@ -118,20 +118,24 @@ export class SqliteStorage extends LocalStorage {
   constructor(database: string, namespace: string, clock = defaultClock) {
     super(clock);
     this.database = new Database(database);
-    this.namespace = namespace;
+
+    const hash = crypto
+      .createHash("shake256", { outputLength: 2 })
+      .update(namespace)
+      .digest("hex");
+    this.namespace = `${namespace}-${hash}`;
     this.run(sql`
-      CREATE TABLE IF NOT EXISTS storage (
-          namespace TEXT NOT NULL,
+      CREATE TABLE IF NOT EXISTS ${unsafe_raw(this.namespace)} (
           key TEXT NOT NULL,
           value BLOB,
           attributes TEXT,
-          PRIMARY KEY (namespace, key)
+          PRIMARY KEY (key)
       );`);
   }
 
   async hasMaybeExpired(key: string): Promise<StoredMeta | undefined> {
     const data = this.one<"metadata" | "expiration">(
-      sql`SELECT attributes FROM storage WHERE key=${key} AND namespace=${this.namespace}`
+      sql`SELECT attributes FROM ${unsafe_raw(this.namespace)} WHERE key=${key}`
     );
     if (data === undefined) return;
     return {
@@ -144,7 +148,7 @@ export class SqliteStorage extends LocalStorage {
     key: string
   ): Promise<StoredMeta<Meta> | undefined> {
     const data = this.one<"metadata" | "expiration", Meta>(
-      sql`SELECT attributes FROM storage WHERE key=${key} AND namespace=${this.namespace}`
+      sql`SELECT attributes FROM ${unsafe_raw(this.namespace)} WHERE key=${key}`
     );
     if (data === undefined) return;
     return {
@@ -157,7 +161,7 @@ export class SqliteStorage extends LocalStorage {
     key: string
   ): Promise<StoredValueMeta<Meta> | undefined> {
     const data = this.one<"value" | "metadata" | "expiration", Meta>(
-      sql`SELECT * FROM storage WHERE key=${key} AND namespace=${this.namespace}`
+      sql`SELECT * FROM ${unsafe_raw(this.namespace)} WHERE key=${key}`
     );
 
     if (data === undefined) return;
@@ -173,7 +177,7 @@ export class SqliteStorage extends LocalStorage {
     range: Range
   ): Promise<RangeStoredValueMeta<Meta> | undefined> {
     const data = this.one<"value" | "metadata" | "expiration", Meta>(
-      sql`SELECT * FROM storage WHERE key=${key} AND namespace=${this.namespace}`
+      sql`SELECT * FROM ${unsafe_raw(this.namespace)} WHERE key=${key}`
     );
     if (data === undefined) return;
     const entry: StoredValueMeta<Meta> = {
@@ -199,9 +203,9 @@ export class SqliteStorage extends LocalStorage {
     { value, expiration, metadata }: StoredValueMeta<Meta>
   ): Promise<void> {
     this.run(
-      sql`INSERT OR REPLACE INTO storage (namespace, key, value, attributes) VALUES (${
+      sql`INSERT OR REPLACE INTO ${unsafe_raw(
         this.namespace
-      }, ${key}, ${value}, ${JSON.stringify({
+      )} (key, value, attributes) VALUES (${key}, ${value}, ${JSON.stringify({
         key,
         expiration,
         metadata,
@@ -211,14 +215,14 @@ export class SqliteStorage extends LocalStorage {
 
   async deleteMaybeExpired(key: string): Promise<boolean> {
     const { changes } = this.run(
-      sql`DELETE FROM storage WHERE key=${key} AND namespace=${this.namespace}`
+      sql`DELETE FROM ${unsafe_raw(this.namespace)} WHERE key=${key}`
     );
     return changes === 1;
   }
 
   async listAllMaybeExpired<Meta>(): Promise<StoredKeyMeta<Meta>[]> {
     return this.all<"name" | "expiration" | "metadata", Meta>(
-      sql`SELECT key, attributes FROM storage WHERE namespace=${this.namespace}`
+      sql`SELECT key, attributes FROM ${unsafe_raw(this.namespace)}`
     );
   }
 }
