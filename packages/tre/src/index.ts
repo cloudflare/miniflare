@@ -229,7 +229,7 @@ export class Miniflare {
 
     // Wait for runtime to start
     if (await this.#waitForRuntime()) {
-      console.log(bold(green(`Ready on ${this.#runtimeEntryURL}! 🎉`)));
+      console.log(bold(green(`Ready on ${this.#runtimeEntryURL} 🎉`)));
     }
   }
 
@@ -480,7 +480,7 @@ export class Miniflare {
 
     if (await this.#waitForRuntime()) {
       console.log(
-        bold(green(`Updated and ready on ${this.#runtimeEntryURL}! 🎉`))
+        bold(green(`Updated and ready on ${this.#runtimeEntryURL} 🎉`))
       );
     }
     updatePromise.resolve();
