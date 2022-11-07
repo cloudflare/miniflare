@@ -1,16 +1,16 @@
+import crypto from "crypto";
 import Database, { Database as DatabaseType } from "better-sqlite3";
 import { defaultClock } from "../shared";
-import crypto from "crypto";
 import { LocalStorage } from "./local";
+import { parseRange } from "./memory";
 import {
   Range,
   RangeStoredValueMeta,
+  StoredKey,
   StoredKeyMeta,
   StoredMeta,
   StoredValueMeta,
-  StoredKey,
 } from "./storage";
-import { parseRange } from "./memory";
 
 export interface FileRange {
   value: Uint8Array;
