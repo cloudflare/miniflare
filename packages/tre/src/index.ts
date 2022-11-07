@@ -216,13 +216,11 @@ export class Miniflare {
     const loopbackPort = address.port;
 
     // Start runtime
-    const entryPort = await getPort({ port: this.#sharedOpts.core.port });
-
-    // TODO: respect entry `host` option
-    this.#runtime = new this.#runtimeConstructor(entryPort, loopbackPort);
+    const host = this.#sharedOpts.core.host ?? "127.0.0.1";
+    const port = this.#sharedOpts.core.port ?? (await getPort({ port: 8787 }));
+    this.#runtime = new this.#runtimeConstructor(host, port, loopbackPort);
     this.#removeRuntimeExitHook = exitHook(() => void this.#runtime?.dispose());
-
-    this.#runtimeEntryURL = new URL(`http://127.0.0.1:${entryPort}`);
+    this.#runtimeEntryURL = new URL(`http://127.0.0.1:${port}`);
 
     const config = await this.#assembleConfig();
     assert(config !== undefined);
