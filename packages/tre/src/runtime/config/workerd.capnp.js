@@ -797,7 +797,7 @@ class Worker_DurableObjectStorage extends capnp_ts_1.Struct {
 exports.Worker_DurableObjectStorage = Worker_DurableObjectStorage;
 Worker_DurableObjectStorage.NONE = Worker_DurableObjectStorage_Which.NONE;
 Worker_DurableObjectStorage.IN_MEMORY = Worker_DurableObjectStorage_Which.IN_MEMORY;
-Worker_DurableObjectStorage._capnp = { displayName: "durableObjectStorage", id: "cc72b3faa57827d4", size: new capnp_ts_1.ObjectSize(8, 7) };
+Worker_DurableObjectStorage._capnp = { displayName: "durableObjectStorage", id: "cc72b3faa57827d4", size: new capnp_ts_1.ObjectSize(8, 8) };
 var Worker_Which;
 (function (Worker_Which) {
     Worker_Which[Worker_Which["MODULES"] = 0] = "MODULES";
@@ -862,6 +862,12 @@ class Worker extends capnp_ts_1.Struct {
     hasGlobalOutbound() { return !capnp_ts_1.Struct.isNull(capnp_ts_1.Struct.getPointer(4, this)); }
     initGlobalOutbound() { return capnp_ts_1.Struct.initStructAt(4, ServiceDesignator, this); }
     setGlobalOutbound(value) { capnp_ts_1.Struct.copyFrom(value, capnp_ts_1.Struct.getPointer(4, this)); }
+    adoptCacheApiOutbound(value) { capnp_ts_1.Struct.adopt(value, capnp_ts_1.Struct.getPointer(7, this)); }
+    disownCacheApiOutbound() { return capnp_ts_1.Struct.disown(this.getCacheApiOutbound()); }
+    getCacheApiOutbound() { return capnp_ts_1.Struct.getStruct(7, ServiceDesignator, this); }
+    hasCacheApiOutbound() { return !capnp_ts_1.Struct.isNull(capnp_ts_1.Struct.getPointer(7, this)); }
+    initCacheApiOutbound() { return capnp_ts_1.Struct.initStructAt(7, ServiceDesignator, this); }
+    setCacheApiOutbound(value) { capnp_ts_1.Struct.copyFrom(value, capnp_ts_1.Struct.getPointer(7, this)); }
     adoptDurableObjectNamespaces(value) { capnp_ts_1.Struct.adopt(value, capnp_ts_1.Struct.getPointer(5, this)); }
     disownDurableObjectNamespaces() { return capnp_ts_1.Struct.disown(this.getDurableObjectNamespaces()); }
     getDurableObjectNamespaces() { return capnp_ts_1.Struct.getList(5, Worker._DurableObjectNamespaces, this); }
@@ -882,7 +888,7 @@ Worker.INHERIT = Worker_Which.INHERIT;
 Worker.Module = Worker_Module;
 Worker.Binding = Worker_Binding;
 Worker.DurableObjectNamespace = Worker_DurableObjectNamespace;
-Worker._capnp = { displayName: "Worker", id: "acfa77e88fd97d1c", size: new capnp_ts_1.ObjectSize(8, 7), defaultGlobalOutbound: capnp.readRawPointer(new Uint8Array([0x10, 0x05, 0x40, 0x02, 0x11, 0x05, 0x4a, 0x00, 0x00, 0xff, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x65, 0x74, 0x00, 0x00, 0x00]).buffer) };
+Worker._capnp = { displayName: "Worker", id: "acfa77e88fd97d1c", size: new capnp_ts_1.ObjectSize(8, 8), defaultGlobalOutbound: capnp.readRawPointer(new Uint8Array([0x10, 0x05, 0x40, 0x02, 0x11, 0x05, 0x4a, 0x00, 0x00, 0xff, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x65, 0x74, 0x00, 0x00, 0x00]).buffer) };
 class ExternalServer_Https extends capnp_ts_1.Struct {
     adoptOptions(value) { capnp_ts_1.Struct.adopt(value, capnp_ts_1.Struct.getPointer(1, this)); }
     disownOptions() { return capnp_ts_1.Struct.disown(this.getOptions()); }

@@ -1,4 +1,4 @@
-import { Response } from "undici";
+import { Request, RequestInit, Response } from "undici";
 import {
   DELETE,
   GET,
@@ -6,35 +6,54 @@ import {
   RouteHandler,
   Router,
   decodePersist,
+  PURGE,
+  CfHeader,
 } from "../shared";
+import { CacheError, fallible } from "./errors";
 import { CacheGateway } from "./gateway";
 
 export interface CacheParams {
   namespace: string;
-  key: string;
+  uri: string;
 }
+
 export class CacheRouter extends Router<CacheGateway> {
-  @GET("/:namespace/:key")
+  @GET("/:uri")
   match: RouteHandler<CacheParams> = async (req, params) => {
+    const uri = decodeURIComponent(params.uri);
     const persist = decodePersist(req.headers);
-    const gateway = this.gatewayFactory.get(params.namespace, persist);
-    await gateway.match(params.key);
-    return new Response();
+    const ns = req.headers.get(CfHeader.CacheNamespace);
+    console.log(req.headers);
+    const gateway = this.gatewayFactory.get(
+      params.namespace + ns ? `:ns:${ns}` : `:default`,
+      persist
+    );
+    return fallible(gateway.match(new Request(uri, req as RequestInit)));
   };
 
-  @PUT("/:namespace/:key")
+  @PUT("/:uri")
   put: RouteHandler<CacheParams> = async (req, params) => {
+    const uri = decodeURIComponent(params.uri);
     const persist = decodePersist(req.headers);
-    const gateway = this.gatewayFactory.get(params.namespace, persist);
-    await gateway.put(params.key, new Uint8Array(await req.arrayBuffer()));
-    return new Response();
+    const ns = req.headers.get(CfHeader.CacheNamespace);
+    const gateway = this.gatewayFactory.get(
+      params.namespace + ns ? `:ns:${ns}` : `:default`,
+      persist
+    );
+    return fallible(
+      gateway.put(new Request(uri, req as RequestInit), await req.arrayBuffer())
+    );
   };
 
-  @DELETE("/:namespace/:key")
+  @PURGE("/:uri")
   delete: RouteHandler<CacheParams> = async (req, params) => {
+    const uri = decodeURIComponent(params.uri);
     const persist = decodePersist(req.headers);
-    const gateway = this.gatewayFactory.get(params.namespace, persist);
-    await gateway.delete(params.key);
-    return new Response();
+    const ns = req.headers.get(CfHeader.CacheNamespace);
+    const gateway = this.gatewayFactory.get(
+      params.namespace + ns ? `:ns:${ns}` : `:default`,
+      persist
+    );
+    return fallible(gateway.delete(new Request(uri, req as RequestInit)));
   };
 }
