@@ -154,12 +154,7 @@ function getMatchResponse(
 }
 
 class CacheResponse {
-  metadata: CacheMetadata;
-  value: Uint8Array;
-  constructor(metadata: CacheMetadata, value: Uint8Array) {
-    this.metadata = metadata;
-    this.value = value;
-  }
+  constructor(readonly metadata: CacheMetadata, readonly value: Uint8Array) {}
   toResponse(): Response {
     return new Response(this.value, {
       status: this.metadata.status,
@@ -177,7 +172,12 @@ class HttpParser {
   readonly server: http.Server;
   readonly responses: Map<string, Uint8Array> = new Map();
   readonly connected: Promise<void>;
-  constructor() {
+  private static INSTANCE: HttpParser;
+  static get(): HttpParser {
+    HttpParser.INSTANCE ??= new HttpParser();
+    return HttpParser.INSTANCE;
+  }
+  private constructor() {
     this.server = http.createServer(this.listen.bind(this));
     this.connected = new Promise((accept) => {
       this.server.listen(0, "localhost", accept);
@@ -214,7 +214,6 @@ class HttpParser {
 }
 
 export class CacheGateway {
-  parser: HttpParser = new HttpParser();
   constructor(
     private readonly storage: Storage,
     private readonly clock: Clock
@@ -239,7 +238,7 @@ export class CacheGateway {
   }
 
   async put(request: Request, value: ArrayBuffer): Promise<Response> {
-    const response = await this.parser.parse(new Uint8Array(value));
+    const response = await HttpParser.get().parse(new Uint8Array(value));
 
     const { storable, expiration, headers } = getExpiration(
       this.clock,
