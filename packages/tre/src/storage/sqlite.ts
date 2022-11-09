@@ -12,16 +12,15 @@ import {
   StoredValueMeta,
 } from "./storage";
 
-export interface FileRange {
-  value: Uint8Array;
-  offset: number;
-  length: number;
-}
-
 // Don't use this!
 function unsafe_raw(value: string): { value: string; unsafe_raw: true } {
   const safeValue = value.replace(/[^a-zA-Z0-9_]+/g, "-");
   return { value: `"${safeValue}"`, unsafe_raw: true };
+}
+
+interface SQLParameterisedQuery {
+  template: string;
+  parameters: (string | number | Uint8Array)[];
 }
 
 // Safely escape parameters for an SQL query
@@ -33,38 +32,25 @@ function sql(
     | Uint8Array
     | ReturnType<typeof unsafe_raw>
   )[]
-): {
-  template: string;
-  parameters: (string | number | Uint8Array)[];
-} {
-  return parts.reduce<{
-    template: string;
-    parameters: (string | number | Uint8Array)[];
-  }>(
-    (acc, part, idx) => {
-      const suffix = parameters[idx];
-      if (!suffix) {
-        return {
-          template: acc.template + part,
-          parameters: acc.parameters,
-        };
-      }
-      if (typeof suffix == "object" && "unsafe_raw" in suffix) {
-        return {
-          template: acc.template + part + suffix.value,
-          parameters: acc.parameters,
-        };
-      }
-      return {
-        template: acc.template + part + " ? ",
-        parameters: [...acc.parameters, suffix],
-      };
-    },
-    {
-      template: "",
-      parameters: [],
+): SQLParameterisedQuery {
+  const query: SQLParameterisedQuery = {
+    template: "",
+    parameters: [],
+  };
+  parts.forEach((part, idx) => {
+    const suffix = parameters[idx];
+    if (!suffix) {
+      query.template += part;
+      return;
     }
-  );
+    if (typeof suffix == "object" && "unsafe_raw" in suffix) {
+      query.template += part + suffix.value;
+      return;
+    }
+    query.template += part + " ? ";
+    query.parameters.push(suffix);
+  });
+  return query;
 }
 
 interface RawDBRow {
@@ -81,20 +67,15 @@ export class SqliteStorage extends LocalStorage {
   private parse<Keys extends keyof ParsedDBRow<Meta>, Meta = unknown>(
     row: Partial<RawDBRow>
   ): Pick<ParsedDBRow<Meta>, Keys> {
-    // @ts-ignore-next-line
-    const parsed: Pick<ParsedDBRow<Meta>, Keys> = {};
-    // @ts-ignore-next-line
+    const parsed = {} as ParsedDBRow<Meta>;
     if (row.key) parsed.name = row.key;
     if (row.attributes) {
       const json = JSON.parse(row.attributes);
-      // @ts-ignore-next-line
       parsed.expiration = json.expiration;
-      // @ts-ignore-next-line
       parsed.metadata = json.metadata as Meta;
     }
-    // @ts-ignore-next-line
     if (row.value) parsed.value = row.value;
-    return parsed;
+    return parsed as Pick<ParsedDBRow<Meta>, Keys>;
   }
 
   private run(query: ReturnType<typeof sql>): { changes: number } {
