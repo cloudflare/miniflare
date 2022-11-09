@@ -35,7 +35,6 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@types/http-cache-semantics": "^4.0.1",
     "acorn": "^8.8.0",
     "acorn-walk": "^8.2.0",
     "capnp-ts": "^0.7.0",
@@ -53,6 +52,7 @@
     "@types/debug": "^4.1.7",
     "@types/estree": "^1.0.0",
     "@types/glob-to-regexp": "^0.4.1",
-    "@types/stoppable": "^1.1.1"
+    "@types/stoppable": "^1.1.1",
+    "@types/http-cache-semantics": "^4.0.1"
   }
 }

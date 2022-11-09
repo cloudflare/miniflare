@@ -1,15 +1,14 @@
-import { Request, RequestInit, Response } from "undici";
+import { Request, RequestInit } from "undici";
 import {
-  DELETE,
+  CfHeader,
   GET,
+  PURGE,
   PUT,
   RouteHandler,
   Router,
   decodePersist,
-  PURGE,
-  CfHeader,
 } from "../shared";
-import { CacheError, fallible } from "./errors";
+import { fallible } from "./errors";
 import { CacheGateway } from "./gateway";
 
 export interface CacheParams {
@@ -23,7 +22,6 @@ export class CacheRouter extends Router<CacheGateway> {
     const uri = decodeURIComponent(params.uri);
     const persist = decodePersist(req.headers);
     const ns = req.headers.get(CfHeader.CacheNamespace);
-    console.log(req.headers);
     const gateway = this.gatewayFactory.get(
       params.namespace + ns ? `:ns:${ns}` : `:default`,
       persist

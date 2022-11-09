@@ -1,18 +1,81 @@
 import crypto from "crypto";
+import http from "http";
 import { AddressInfo } from "net";
-import http from "node:http";
 import CachePolicy from "http-cache-semantics";
-import { Headers, Request, Response, fetch } from "undici";
+import { Headers, HeadersInit, Request, Response, fetch } from "undici";
+import { Clock, millisToSeconds } from "../../shared";
 import { Storage } from "../../storage";
 import { CacheMiss, PurgeFailure, StorageFailure } from "./errors";
 import { _getRangeResponse } from "./range";
 
 interface CacheMetadata {
-  value: Uint8Array;
-  metadata: {
-    headers: string[][];
-    status: number;
+  headers: string[][];
+  status: number;
+}
+
+function getExpiration(
+  clock: Clock,
+  req: Request,
+  res: Response
+):
+  | {
+      storable: true;
+      expiration: number;
+      headers: HeadersInit;
+    }
+  | {
+      storable: false;
+      expiration: number | undefined;
+      headers: HeadersInit;
+    } {
+  // Cloudflare ignores request Cache-Control
+  const reqHeaders = normaliseHeaders(req.headers);
+  delete reqHeaders["cache-control"];
+
+  // Cloudflare never caches responses with Set-Cookie headers
+  // If Cache-Control contains private=set-cookie, Cloudflare will remove
+  // the Set-Cookie header automatically
+  const resHeaders = normaliseHeaders(res.headers);
+  if (
+    resHeaders["cache-control"]?.toLowerCase().includes("private=set-cookie")
+  ) {
+    resHeaders["cache-control"] = resHeaders["cache-control"]
+      ?.toLowerCase()
+      .replace(/private=set-cookie;?/i, "");
+    delete resHeaders["set-cookie"];
+  }
+
+  // Build request and responses suitable for CachePolicy
+  const cacheReq: CachePolicy.Request = {
+    url: req.url,
+    // If a request gets to the Cache service, it's method will be GET. See README.md for details
+    method: "GET",
+    headers: reqHeaders,
   };
+  const cacheRes: CachePolicy.Response = {
+    status: res.status,
+    headers: resHeaders,
+  };
+
+  // @ts-expect-error `now` isn't included in CachePolicy's type definitions
+  const originalNow = CachePolicy.prototype.now;
+  // @ts-expect-error `now` isn't included in CachePolicy's type definitions
+  CachePolicy.prototype.now = clock;
+  try {
+    const policy = new CachePolicy(cacheReq, cacheRes, { shared: true });
+
+    return {
+      // Check if the request & response is cacheable
+      storable: policy.storable() && !("set-cookie" in resHeaders),
+      expiration: policy.timeToLive(),
+      // Cache Policy Headers is typed as [header: string]: string | string[] | undefined
+      // It's safe to ignore the undefined here, which is what casting to HeadersInit does
+      headers: policy.responseHeaders() as HeadersInit,
+    };
+  } finally {
+    // @ts-expect-error `now` isn't included in CachePolicy's type definitions
+    CachePolicy.prototype.now = originalNow;
+  }
 }
 
 // Normalises headers to object mapping lower-case names to single values.
@@ -90,10 +153,10 @@ function getMatchResponse(
   return new Response(resBody, { status: resStatus, headers: resHeaders });
 }
 
-class CacheResponse implements CacheMetadata {
-  metadata: CacheMetadata["metadata"];
+class CacheResponse {
+  metadata: CacheMetadata;
   value: Uint8Array;
-  constructor(metadata: CacheMetadata["metadata"], value: Uint8Array) {
+  constructor(metadata: CacheMetadata, value: Uint8Array) {
     this.metadata = metadata;
     this.value = value;
   }
@@ -111,22 +174,20 @@ interface ParsedHttpResponse {
   body: Uint8Array;
 }
 class HttpParser {
-  server: http.Server;
-  responses: Record<string, Uint8Array> = {};
-  parsing: Promise<ParsedHttpResponse> =
-    Promise.resolve() as unknown as Promise<ParsedHttpResponse>;
-  connected: Promise<void>;
+  readonly server: http.Server;
+  readonly responses: Map<string, Uint8Array> = new Map();
+  readonly connected: Promise<void>;
   constructor() {
     this.server = http.createServer(this.listen.bind(this));
     this.connected = new Promise((accept) => {
-      this.server.listen(0, "localhost", () => {
-        accept();
-      });
+      this.server.listen(0, "localhost", accept);
     });
   }
   private listen(request: http.IncomingMessage, response: http.ServerResponse) {
     if (request.url) {
-      response?.socket?.write(this.responses[request.url] ?? new Uint8Array());
+      response?.socket?.write(
+        this.responses.get(request.url) ?? new Uint8Array()
+      );
     }
     response.end();
   }
@@ -134,29 +195,33 @@ class HttpParser {
     await this.connected;
     // Since multiple parses can be in-flight at once, an identifier is needed
     const id = `/${crypto.randomBytes(16).toString("hex")}`;
-    this.responses[id] = response;
+    this.responses.set(id, response);
     const address = this.server.address()! as AddressInfo;
-    const parsedResponse = await fetch(`http://localhost:${address.port}${id}`);
-    const body = await parsedResponse.arrayBuffer();
-    delete this.responses[id];
-    return {
-      headers: parsedResponse.headers,
-      status: parsedResponse.status,
-      body: new Uint8Array(body),
-    };
+    try {
+      const parsedResponse = await fetch(
+        `http://localhost:${address.port}${id}`
+      );
+      const body = await parsedResponse.arrayBuffer();
+      return {
+        headers: parsedResponse.headers,
+        status: parsedResponse.status,
+        body: new Uint8Array(body),
+      };
+    } finally {
+      this.responses.delete(id);
+    }
   }
 }
 
 export class CacheGateway {
-  parser: HttpParser;
-  constructor(private readonly storage: Storage) {
-    this.parser = new HttpParser();
-  }
+  parser: HttpParser = new HttpParser();
+  constructor(
+    private readonly storage: Storage,
+    private readonly clock: Clock
+  ) {}
 
   async match(request: Request): Promise<Response> {
-    const cached = await this.storage.get<CacheMetadata["metadata"]>(
-      request.url
-    );
+    const cached = await this.storage.get<CacheMetadata>(request.url);
     if (!cached || !cached?.metadata) throw new CacheMiss();
 
     const response = new CacheResponse(
@@ -165,47 +230,34 @@ export class CacheGateway {
     ).toResponse();
     response.headers.set("CF-Cache-Status", "HIT");
 
-    const res = getMatchResponse(
+    return getMatchResponse(
       request.headers,
       cached.metadata.status,
       response.headers,
       cached.value
     );
-    return res;
   }
 
   async put(request: Request, value: ArrayBuffer): Promise<Response> {
     const response = await this.parser.parse(new Uint8Array(value));
-    const responseHeaders = Object.fromEntries([...response.headers.entries()]);
-    if (
-      responseHeaders["cache-control"]
-        ?.toLowerCase()
-        .includes("private=set-cookie")
-    ) {
-      responseHeaders["cache-control"] = responseHeaders[
-        "cache-control"
-      ].replace(/private=set-cookie/i, "");
-      delete responseHeaders["set-cookie"];
-    }
-    const policy = new CachePolicy(
-      { url: request.url, headers: normaliseHeaders(request.headers) },
-      { ...response, headers: responseHeaders },
-      { shared: true }
+
+    const { storable, expiration, headers } = getExpiration(
+      this.clock,
+      request,
+      new Response(response.body, {
+        status: response.status,
+        headers: response.headers,
+      })
     );
-
-    const headers = Object.entries(policy.responseHeaders()) as [
-      string,
-      string
-    ][];
-
-    if (!policy.storable() || !!headers.find(([h]) => h == "set-cookie")) {
+    if (!storable) {
       throw new StorageFailure();
     }
 
-    await this.storage.put<CacheMetadata["metadata"]>(request.url, {
+    await this.storage.put<CacheMetadata>(request.url, {
       value: response.body,
+      expiration: millisToSeconds(this.clock() + expiration),
       metadata: {
-        headers: headers,
+        headers: Object.entries(headers),
         status: response.status,
       },
     });

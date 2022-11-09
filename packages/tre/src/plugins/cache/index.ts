@@ -3,13 +3,11 @@ import { Worker_Binding } from "../../runtime";
 import { SERVICE_LOOPBACK } from "../core";
 import {
   BINDING_SERVICE_LOOPBACK,
-  BINDING_TEXT_NAMESPACE,
   BINDING_TEXT_PERSIST,
   BINDING_TEXT_PLUGIN,
   HEADER_PERSIST,
   PersistenceSchema,
   Plugin,
-  SCRIPT_PLUGIN_NAMESPACE_PERSIST,
 } from "../shared";
 import { CacheGateway } from "./gateway";
 import { CacheRouter } from "./router";
@@ -41,17 +39,17 @@ export const CACHE_PLUGIN: Plugin<
   router: CacheRouter,
   options: CacheOptionsSchema,
   sharedOptions: CacheSharedOptionsSchema,
-  async getBindings(options) {
+  getBindings() {
     return [];
   },
-  getServices({ options, sharedOptions }) {
+  getServices() {
     const loopbackBinding: Worker_Binding = {
       name: BINDING_SERVICE_LOOPBACK,
       service: { name: SERVICE_LOOPBACK },
     };
     return [
       {
-        name: `cache`,
+        name: "cache",
         worker: {
           serviceWorkerScript: CACHE_LOOPBACK_SCRIPT,
           bindings: [

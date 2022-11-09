@@ -1,4 +1,4 @@
-import { Response } from "undici";
+import { HeadersInit, Response } from "undici";
 import { CfHeader } from "../shared/constants";
 
 enum Status {
@@ -19,17 +19,13 @@ export async function fallible<T>(promise: Promise<T>): Promise<T | Response> {
 }
 
 export class CacheError extends Error {
-  status: number;
-  headers: [string, string][];
   constructor(
-    status: number,
+    private status: number,
     message: string,
-    headers: [string, string][] = []
+    readonly headers: HeadersInit = []
   ) {
     super(message);
     this.name = "CacheError";
-    this.status = status;
-    this.headers = headers;
   }
 
   toResponse() {
