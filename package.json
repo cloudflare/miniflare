@@ -1,7 +1,7 @@
 {
-  "private": true,
   "name": "@miniflare/root",
   "version": "3.0.0-next.2",
+  "private": true,
   "description": "Fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -10,24 +10,24 @@
     "local",
     "cloudworker"
   ],
-  "author": "MrBBot <me@mrbbot.dev>",
   "license": "MIT",
+  "author": "MrBBot <me@mrbbot.dev>",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "clean": "rimraf './packages/*/dist' './dist'",
     "build": "node scripts/build.mjs",
-    "types:build": "tsc",
-    "types:bundle": "npm run types:build && node scripts/types.mjs",
+    "capnp:workerd": "capnpc -o ts packages/tre/src/runtime/config/workerd.capnp",
+    "clean": "rimraf './packages/*/dist' './dist'",
     "dev": "node scripts/build.mjs watch",
-    "test": "npm run build && ava && rimraf ./.tmp",
+    "helpers:scaffold": "node scripts/scaffold.mjs",
+    "helpers:version": "node scripts/version.mjs",
     "lint": "eslint 'packages/*/{src,test}/**/*.ts' 'scripts/**/*.{js,mjs}' 'types/**/*.ts'",
     "lint:fix": "npm run lint -- --fix",
     "prepublishOnly": "npm run lint && npm run clean && npm run build && npm run types:bundle && npm run test",
-    "helpers:scaffold": "node scripts/scaffold.mjs",
-    "helpers:version": "node scripts/version.mjs",
-    "capnp:workerd": "capnpc -o ts packages/tre/src/runtime/config/workerd.capnp"
+    "test": "npm run build && ava && rimraf ./.tmp",
+    "types:build": "tsc",
+    "types:bundle": "npm run types:build && node scripts/types.mjs"
   },
   "devDependencies": {
     "@ava/typescript": "^3.0.1",
