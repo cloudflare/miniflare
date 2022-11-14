@@ -1,0 +1,32 @@
+declare class DOMException extends Error {
+  constructor(param0?: string, param1?: string);
+  readonly message: string;
+  readonly name: string;
+  readonly code: number;
+  readonly stack: any;
+  static readonly INDEX_SIZE_ERR: number;
+  static readonly DOMSTRING_SIZE_ERR: number;
+  static readonly HIERARCHY_REQUEST_ERR: number;
+  static readonly WRONG_DOCUMENT_ERR: number;
+  static readonly INVALID_CHARACTER_ERR: number;
+  static readonly NO_DATA_ALLOWED_ERR: number;
+  static readonly NO_MODIFICATION_ALLOWED_ERR: number;
+  static readonly NOT_FOUND_ERR: number;
+  static readonly NOT_SUPPORTED_ERR: number;
+  static readonly INUSE_ATTRIBUTE_ERR: number;
+  static readonly INVALID_STATE_ERR: number;
+  static readonly SYNTAX_ERR: number;
+  static readonly INVALID_MODIFICATION_ERR: number;
+  static readonly NAMESPACE_ERR: number;
+  static readonly INVALID_ACCESS_ERR: number;
+  static readonly VALIDATION_ERR: number;
+  static readonly TYPE_MISMATCH_ERR: number;
+  static readonly SECURITY_ERR: number;
+  static readonly NETWORK_ERR: number;
+  static readonly ABORT_ERR: number;
+  static readonly URL_MISMATCH_ERR: number;
+  static readonly QUOTA_EXCEEDED_ERR: number;
+  static readonly TIMEOUT_ERR: number;
+  static readonly INVALID_NODE_TYPE_ERR: number;
+  static readonly DATA_CLONE_ERR: number;
+}

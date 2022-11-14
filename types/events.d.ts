@@ -17,13 +17,6 @@ interface EventInit {
   cancelable?: boolean;
 }
 
-declare class Event {
-  constructor(type: string, init?: EventInit);
-  readonly type: string;
-  preventDefault(): void;
-  stopImmediatePropagation(): void;
-}
-
 type EventListener = (event: Event) => void;
 
 interface EventListenerObject {
@@ -38,20 +31,6 @@ interface EventListenerOptions {
 
 interface AddEventListenerOptions extends EventListenerOptions {
   once?: boolean;
-}
-
-declare class EventTarget {
-  addEventListener(
-    type: string,
-    listener: EventListenerOrEventListenerObject | null,
-    options?: AddEventListenerOptions | boolean
-  ): void;
-  removeEventListener(
-    type: string,
-    listener: EventListenerOrEventListenerObject | null,
-    options?: EventListenerOptions | boolean
-  ): void;
-  dispatchEvent(event: Event): boolean;
 }
 
 interface AbortSignal extends EventTarget {
