@@ -8,6 +8,7 @@ import {
   HEADER_PERSIST,
   PersistenceSchema,
   Plugin,
+  encodePersist,
 } from "../shared";
 import { CacheGateway } from "./gateway";
 import { CacheRouter } from "./router";
@@ -42,7 +43,8 @@ export const CACHE_PLUGIN: Plugin<
   getBindings() {
     return [];
   },
-  getServices() {
+  getServices({ options, sharedOptions }) {
+    const persistBinding = encodePersist(sharedOptions.cachePersist);
     const loopbackBinding: Worker_Binding = {
       name: BINDING_SERVICE_LOOPBACK,
       service: { name: SERVICE_LOOPBACK },
@@ -53,6 +55,7 @@ export const CACHE_PLUGIN: Plugin<
         worker: {
           serviceWorkerScript: CACHE_LOOPBACK_SCRIPT,
           bindings: [
+            ...persistBinding,
             { name: BINDING_TEXT_PLUGIN, text: CACHE_PLUGIN_NAME },
             loopbackBinding,
           ],
