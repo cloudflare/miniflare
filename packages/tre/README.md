@@ -289,6 +289,18 @@ parameter in module format Workers.
     from your Worker.
     <!--TODO: other service types, disk, network, external, etc-->
 
+#### Cache
+
+- `cache?: boolean`
+
+  If `false`, default and named caches will be disabled. The Cache API will
+  still be available, it just won't cache anything.
+
+- `cacheWarnUsage?: boolean`
+
+  If `true`, the first use of the Cache API will log a warning stating that the
+  Cache API is unsupported on `workers.dev` subdomains.
+
 #### Durable Objects
 
 - `durableObjects?: Record<string, string | { className: string, scriptName?: string }>`
@@ -404,24 +416,12 @@ Options shared between all Workers/"nanoservices".
 
 <!--TODO: implement custom logger-->
 
-#### Cache
+#### Cache, Durable Objects, KV and R2
 
 - `cachePersist?: Persistence`
 
   Where to persist data cached in default or named caches. See docs for
   `Persistence`.
-
-- `cache?: boolean`
-
-  If `false`, default and named caches will be disabled. The Cache API will
-  still be available, it just won't cache anything.
-
-- `cacheWarnUsage?: boolean`
-
-  If `true`, the first use of the Cache API will log a warning stating that the
-  Cache API is unsupported on `workers.dev` subdomains.
-
-#### Durable Objects, KV and R2
 
 - `durableObjectsPersist?: Persistence`
 

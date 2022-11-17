@@ -15,14 +15,12 @@ import { HEADER_CACHE_WARN_USAGE } from "./constants";
 import { CacheGateway } from "./gateway";
 import { CacheRouter } from "./router";
 
-export const CacheOptionsSchema = z.object({});
-export const CacheSharedOptionsSchema = z.object({
-  cachePersist: PersistenceSchema,
-  // Ideally, these options would be configurable per-worker (i.e. part of
-  // `CacheOptionsSchema` instead). However, `workerd` can only have one global
-  // "cache" service, so we can't distinguish which worker called the Cache API.
+export const CacheOptionsSchema = z.object({
   cache: z.boolean().optional(),
   cacheWarnUsage: z.boolean().optional(),
+});
+export const CacheSharedOptionsSchema = z.object({
+  cachePersist: PersistenceSchema,
 });
 
 const BINDING_JSON_CACHE_WARN_USAGE = "MINIFLARE_CACHE_WARN_USAGE";
@@ -52,6 +50,11 @@ export const NOOP_CACHE_SCRIPT = `addEventListener("fetch", (event) => {
   }
 });`;
 export const CACHE_PLUGIN_NAME = "cache";
+
+export function getCacheServiceName(workerIndex: number) {
+  return `${CACHE_PLUGIN_NAME}:${workerIndex}`;
+}
+
 export const CACHE_PLUGIN: Plugin<
   typeof CacheOptionsSchema,
   typeof CacheSharedOptionsSchema,
@@ -64,7 +67,7 @@ export const CACHE_PLUGIN: Plugin<
   getBindings() {
     return [];
   },
-  getServices({ sharedOptions }) {
+  getServices({ sharedOptions, options, workerIndex }) {
     const persistBinding = encodePersist(sharedOptions.cachePersist);
     const loopbackBinding: Worker_Binding = {
       name: BINDING_SERVICE_LOOPBACK,
@@ -72,19 +75,17 @@ export const CACHE_PLUGIN: Plugin<
     };
     return [
       {
-        name: "cache",
+        name: getCacheServiceName(workerIndex),
         worker: {
           serviceWorkerScript:
             // If options.cache is undefined, default to enabling cache
-            sharedOptions.cache === false
-              ? NOOP_CACHE_SCRIPT
-              : CACHE_LOOPBACK_SCRIPT,
+            options.cache === false ? NOOP_CACHE_SCRIPT : CACHE_LOOPBACK_SCRIPT,
           bindings: [
             ...persistBinding,
             { name: BINDING_TEXT_PLUGIN, text: CACHE_PLUGIN_NAME },
             {
               name: BINDING_JSON_CACHE_WARN_USAGE,
-              json: JSON.stringify(sharedOptions.cacheWarnUsage ?? false),
+              json: JSON.stringify(options.cacheWarnUsage ?? false),
             },
             loopbackBinding,
           ],
