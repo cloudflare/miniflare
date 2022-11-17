@@ -418,10 +418,8 @@ Options shared between all Workers/"nanoservices".
 
 - `cacheWarnUsage?: boolean`
 
-  _Not yet supported_
-
-  <!--If `true`, the first use of the Cache API will log a warning stating that the
-  Cache API is unsupported on `workers.dev` subdomains.-->
+  If `true`, the first use of the Cache API will log a warning stating that the
+  Cache API is unsupported on `workers.dev` subdomains.
 
 #### Durable Objects, KV and R2
 

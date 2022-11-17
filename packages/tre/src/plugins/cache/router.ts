@@ -8,6 +8,7 @@ import {
   Router,
   decodePersist,
 } from "../shared";
+import { HEADER_CACHE_WARN_USAGE } from "./constants";
 import { fallible } from "./errors";
 import { CacheGateway } from "./gateway";
 
@@ -23,8 +24,19 @@ function decodeNamespace(headers: Headers) {
 }
 
 export class CacheRouter extends Router<CacheGateway> {
+  #warnedUsage = false;
+  #maybeWarnUsage(headers: Headers) {
+    if (!this.#warnedUsage && headers.get(HEADER_CACHE_WARN_USAGE) === "true") {
+      this.#warnedUsage = true;
+      this.log.warn(
+        "Cache operations will have no impact if you deploy to a workers.dev subdomain!"
+      );
+    }
+  }
+
   @GET("/:uri")
   match: RouteHandler<CacheParams> = async (req, params) => {
+    this.#maybeWarnUsage(req.headers);
     const uri = decodeURIComponent(params.uri);
     const namespace = decodeNamespace(req.headers);
     const persist = decodePersist(req.headers);
@@ -34,6 +46,7 @@ export class CacheRouter extends Router<CacheGateway> {
 
   @PUT("/:uri")
   put: RouteHandler<CacheParams> = async (req, params) => {
+    this.#maybeWarnUsage(req.headers);
     const uri = decodeURIComponent(params.uri);
     const namespace = decodeNamespace(req.headers);
     const persist = decodePersist(req.headers);
@@ -45,6 +58,7 @@ export class CacheRouter extends Router<CacheGateway> {
 
   @PURGE("/:uri")
   delete: RouteHandler<CacheParams> = async (req, params) => {
+    this.#maybeWarnUsage(req.headers);
     const uri = decodeURIComponent(params.uri);
     const namespace = decodeNamespace(req.headers);
     const persist = decodePersist(req.headers);
