@@ -293,10 +293,7 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
         response = await fetch(new URL(pathname, "https://cloudflare.com"));
         status = response.status;
         if (res) {
-          const bytes = consumers.buffer(response.body);
-          const body = String.fromCharCode.apply(null, bytes);
-          response = new Response(body);
-          await writeResponse(response, res, HTTPPlugin2.liveReload, mf.log);
+          await writeResponse(response, res, HTTPPlugin.liveReload, mf.log);
         }
       } else {
         status = 404;
