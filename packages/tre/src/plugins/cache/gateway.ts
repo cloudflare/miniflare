@@ -1,3 +1,4 @@
+import assert from "assert";
 import crypto from "crypto";
 import http from "http";
 import { AddressInfo } from "net";
@@ -171,12 +172,13 @@ class HttpParser {
     });
   }
   private listen(request: http.IncomingMessage, response: http.ServerResponse) {
-    if (request.url) {
-      response?.socket?.write(
-        this.responses.get(request.url) ?? new Uint8Array()
-      );
-    }
-    response.end();
+    assert(request.url !== undefined);
+    assert(response.socket !== null);
+    const array = this.responses.get(request.url);
+    assert(array !== undefined);
+    // Write response to parse directly to underlying socket
+    response.socket.write(array);
+    response.socket.end();
   }
   public async parse(response: Uint8Array): Promise<ParsedHttpResponse> {
     await this.connected;
@@ -231,13 +233,13 @@ export class CacheGateway {
 
   async put(
     request: Request,
-    value: ArrayBuffer,
+    value: Uint8Array,
     cacheKey?: string
   ): Promise<Response> {
     // Never cache Workers Sites requests, so we always return on-disk files
     if (isSitesRequest(request)) return new Response(null, { status: 204 });
 
-    const response = await HttpParser.get().parse(new Uint8Array(value));
+    const response = await HttpParser.get().parse(value);
 
     const { storable, expiration, headers } = getExpiration(
       this.clock,
