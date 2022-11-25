@@ -65,6 +65,7 @@ export const CoreSharedOptionsSchema = z.object({
   verbose: z.boolean().optional(),
 
   log: z.instanceof(Log).optional(),
+  clock: z.function().returns(z.number()).optional(),
   cloudflareFetch: CloudflareFetchSchema.optional(),
 
   // TODO: add back validation of cf object
