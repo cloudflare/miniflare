@@ -6,6 +6,7 @@ import {
   PUT,
   RouteHandler,
   Router,
+  decodeCfBlob,
   decodePersist,
 } from "../shared";
 import { HEADER_CACHE_WARN_USAGE } from "./constants";
@@ -40,8 +41,10 @@ export class CacheRouter extends Router<CacheGateway> {
     const uri = decodeURIComponent(params.uri);
     const namespace = decodeNamespace(req.headers);
     const persist = decodePersist(req.headers);
+    const cf = decodeCfBlob(req.headers);
     const gateway = this.gatewayFactory.get(namespace, persist);
-    return fallible(gateway.match(new Request(uri, req as RequestInit)));
+    const key = new Request(uri, req as RequestInit);
+    return fallible(gateway.match(key, cf.cacheKey));
   };
 
   @PUT("/:uri")
@@ -50,10 +53,10 @@ export class CacheRouter extends Router<CacheGateway> {
     const uri = decodeURIComponent(params.uri);
     const namespace = decodeNamespace(req.headers);
     const persist = decodePersist(req.headers);
+    const cf = decodeCfBlob(req.headers);
     const gateway = this.gatewayFactory.get(namespace, persist);
-    return fallible(
-      gateway.put(new Request(uri, req as RequestInit), await req.arrayBuffer())
-    );
+    const key = new Request(uri, { ...(req as RequestInit), body: undefined });
+    return fallible(gateway.put(key, await req.arrayBuffer(), cf.cacheKey));
   };
 
   @PURGE("/:uri")
@@ -62,7 +65,9 @@ export class CacheRouter extends Router<CacheGateway> {
     const uri = decodeURIComponent(params.uri);
     const namespace = decodeNamespace(req.headers);
     const persist = decodePersist(req.headers);
+    const cf = decodeCfBlob(req.headers);
     const gateway = this.gatewayFactory.get(namespace, persist);
-    return fallible(gateway.delete(new Request(uri, req as RequestInit)));
+    const key = new Request(uri, req as RequestInit);
+    return fallible(gateway.delete(key, cf.cacheKey));
   };
 }

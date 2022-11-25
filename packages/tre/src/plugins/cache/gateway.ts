@@ -207,11 +207,12 @@ export class CacheGateway {
     private readonly clock: Clock
   ) {}
 
-  async match(request: Request): Promise<Response> {
+  async match(request: Request, cacheKey?: string): Promise<Response> {
     // Never cache Workers Sites requests, so we always return on-disk files
     if (isSitesRequest(request)) throw new CacheMiss();
 
-    const cached = await this.storage.get<CacheMetadata>(request.url);
+    cacheKey ??= request.url;
+    const cached = await this.storage.get<CacheMetadata>(cacheKey);
     if (cached?.metadata === undefined) throw new CacheMiss();
 
     const response = new CacheResponse(
@@ -228,7 +229,11 @@ export class CacheGateway {
     );
   }
 
-  async put(request: Request, value: ArrayBuffer): Promise<Response> {
+  async put(
+    request: Request,
+    value: ArrayBuffer,
+    cacheKey?: string
+  ): Promise<Response> {
     // Never cache Workers Sites requests, so we always return on-disk files
     if (isSitesRequest(request)) return new Response(null, { status: 204 });
 
@@ -246,7 +251,8 @@ export class CacheGateway {
       throw new StorageFailure();
     }
 
-    await this.storage.put<CacheMetadata>(request.url, {
+    cacheKey ??= request.url;
+    await this.storage.put<CacheMetadata>(cacheKey, {
       value: response.body,
       expiration: millisToSeconds(this.clock() + expiration),
       metadata: {
@@ -257,8 +263,9 @@ export class CacheGateway {
     return new Response(null, { status: 204 });
   }
 
-  async delete(request: Request): Promise<Response> {
-    const deleted = await this.storage.delete(request.url);
+  async delete(request: Request, cacheKey?: string): Promise<Response> {
+    cacheKey ??= request.url;
+    const deleted = await this.storage.delete(cacheKey);
     // This is an extremely vague error, but it fits with what the cache API in workerd expects
     if (!deleted) throw new PurgeFailure();
     return new Response(null);
