@@ -355,24 +355,30 @@ export class Miniflare {
     });
 
     let response: Response | undefined;
-    const customService = request.headers.get(HEADER_CUSTOM_SERVICE);
-    if (customService !== null) {
-      response = await this.#handleLoopbackCustomService(
-        request,
-        customService
-      );
-    } else if (url.pathname === "/core/error") {
-      const workerSrcOpts = this.#workerOpts.map<SourceOptions>(
-        ({ core }) => core
-      );
-      response = await handlePrettyErrorRequest(
-        this.#log,
-        workerSrcOpts,
-        request
-      );
-    } else {
-      // TODO: check for proxying/outbound fetch header first (with plans for fetch mocking)
-      response = await this.#handleLoopbackPlugins(request, url);
+    try {
+      const customService = request.headers.get(HEADER_CUSTOM_SERVICE);
+      if (customService !== null) {
+        response = await this.#handleLoopbackCustomService(
+          request,
+          customService
+        );
+      } else if (url.pathname === "/core/error") {
+        const workerSrcOpts = this.#workerOpts.map<SourceOptions>(
+          ({ core }) => core
+        );
+        response = await handlePrettyErrorRequest(
+          this.#log,
+          workerSrcOpts,
+          request
+        );
+      } else {
+        // TODO: check for proxying/outbound fetch header first (with plans for fetch mocking)
+        response = await this.#handleLoopbackPlugins(request, url);
+      }
+    } catch (e: any) {
+      this.#log.error(e);
+      res.writeHead(500);
+      return res.end(e?.stack ?? String(e));
     }
 
     if (response === undefined) {
