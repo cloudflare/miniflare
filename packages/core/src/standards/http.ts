@@ -191,6 +191,10 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
     return this[_kInner].headers;
   }
 
+  set bodyStream(value: ReadableStream | undefined) {
+    this.#bodyStream = value;
+  }
+
   get body(): ReadableStream<Uint8Array> | null {
     const body = this[_kInner].body;
 
@@ -584,6 +588,7 @@ export class Response<
       throw new TypeError("Cannot clone a response to a WebSocket handshake.");
     }
     const innerClone = this[_kInner].clone();
+    this.bodyStream = undefined;
     const clone = new Response(innerClone.body, innerClone);
     clone[kInputGated] = this[kInputGated];
     clone[kFormDataFiles] = this[kFormDataFiles];

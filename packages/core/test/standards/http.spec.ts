@@ -1,7 +1,12 @@
 import assert from "assert";
 import http from "http";
 import { text } from "stream/consumers";
-import { ReadableStream, TransformStream, WritableStream } from "stream/web";
+import {
+  ReadableStream,
+  ReadableStreamDefaultReader,
+  TransformStream,
+  WritableStream,
+} from "stream/web";
 import { URL } from "url";
 import {
   Body,
@@ -149,6 +154,35 @@ test("Body: body isn't locked until read from", async (t) => {
   // Check we can still clone the body
   const clone = res.clone();
   t.is(await clone.text(), "body");
+});
+test("Body: should be locked when attaching a reader", async (t) => {
+  const res = new Response("body");
+  // noinspection SuspiciousTypeOfGuard
+  t.true(res instanceof Body);
+  // noinspection SuspiciousTypeOfGuard
+  assert(res.body instanceof ReadableStream);
+  t.false(res.body.locked);
+  const reader = res.body.getReader();
+  // noinspection SuspiciousTypeOfGuard
+  assert(reader instanceof ReadableStreamDefaultReader);
+  t.true(res.body.locked);
+});
+test("Body: should reset bodyStream when body is cloned", async (t) => {
+  const res = new Response(new ArrayBuffer(10));
+  // noinspection SuspiciousTypeOfGuard
+  t.true(res instanceof Body);
+  const bodyStream = res.body;
+  assert(bodyStream instanceof ReadableStream);
+  // Clone the response. undici will change the `body.stream` to a new clone.
+  res.clone();
+  // We can loop over body. This is what http-server writeResponse() does.
+  if (res.body) {
+    for await (const chunk of res.body) {
+      assert(chunk instanceof Uint8Array);
+    }
+  }
+  // Expect that the internal bodyStream also changed
+  t.not(bodyStream, res.body);
 });
 test("Body: can pause, resume and cancel body stream", async (t) => {
   const chunks = ["123", "456", "789"];
