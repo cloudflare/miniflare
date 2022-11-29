@@ -201,9 +201,11 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
     const maxAttempts = this.#consumer.maxRetries + 1;
     const deadLetterQueueName = this.#consumer.deadLetterQueue;
 
-    // Create a batch and execute the queue event handler
-    const batch = new MessageBatch<Body>(this.#queueName, [...this.#messages]);
-    this.#messages = [];
+    // Create a batch and execute the queue event handler, making sure to send
+    // no more than maxBatchSize messages at a time.
+    const msgs = this.#messages.slice(0, this.#consumer.maxBatchSize);
+    const batch = new MessageBatch<Body>(this.#queueName, msgs);
+    this.#messages = this.#messages.slice(msgs.length);
     try {
       await this.#consumer?.dispatcher(batch);
     } catch (err) {
@@ -240,6 +242,9 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
 
     if (toRetry.length) {
       this.#messages.push(...toRetry);
+    }
+
+    if (this.#messages.length > 0) {
       this.#ensurePendingFlush();
     }
 
