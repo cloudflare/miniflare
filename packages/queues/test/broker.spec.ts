@@ -99,7 +99,7 @@ test("QueueBroker: flushes partial batches", async (t) => {
   await prom;
 });
 
-test("QueueBroker: flushes full batches", async (t) => {
+test("QueueBroker: flushes full batches of maxBatchSize", async (t) => {
   const broker = new QueueBroker();
   const q = broker.getOrCreateQueue("myQueue");
   const sub: Consumer = {
@@ -127,19 +127,16 @@ test("QueueBroker: flushes full batches", async (t) => {
   });
   await prom;
 
+  let expectedBatches = [
+    ["message6", "message7", "message8", "message9", "message10"],
+    ["message11", "message12"],
+  ];
   sub.dispatcher = async (batch: MessageBatch) => {
     t.deepEqual(
       batch.messages.map((x) => x.body),
-      [
-        "message6",
-        "message7",
-        "message8",
-        "message9",
-        "message10",
-        "message11",
-        "message12",
-      ]
+      expectedBatches[0]
     );
+    expectedBatches.shift();
   };
 
   q.send("message6");
@@ -153,21 +150,16 @@ test("QueueBroker: flushes full batches", async (t) => {
     q[kSetFlushCallback](() => resolve());
   });
   await prom;
+  prom = new Promise<void>((resolve) => {
+    q[kSetFlushCallback](() => resolve());
+  });
+  await prom;
 
-  sub.dispatcher = async (batch: MessageBatch) => {
-    t.deepEqual(
-      batch.messages.map((x) => x.body),
-      [
-        "message13",
-        "message14",
-        "message15",
-        "message16",
-        "message17",
-        "message18",
-        "message19",
-      ]
-    );
-  };
+  expectedBatches = [
+    ["message13", "message14", "message15", "message16", "message17"],
+    ["message18", "message19", "message20", "message21", "message22"],
+    ["message23"],
+  ];
 
   q.sendBatch([
     { body: "message13" },
@@ -177,11 +169,17 @@ test("QueueBroker: flushes full batches", async (t) => {
     { body: "message17" },
     { body: "message18" },
     { body: "message19" },
+    { body: "message20" },
+    { body: "message21" },
+    { body: "message22" },
+    { body: "message23" },
   ]);
-  prom = new Promise<void>((resolve) => {
-    q[kSetFlushCallback](() => resolve());
-  });
-  await prom;
+  for (let i = 0; i < 3; ++i) {
+    prom = new Promise<void>((resolve) => {
+      q[kSetFlushCallback](() => resolve());
+    });
+    await prom;
+  }
 });
 
 test("QueueBroker: supports message retry()", async (t) => {
