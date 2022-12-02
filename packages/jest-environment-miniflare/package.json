@@ -30,7 +30,7 @@
   "bugs": {
     "url": "https://github.com/cloudflare/miniflare/issues"
   },
-  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/jest#readme",
+  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/jest-environment-miniflare#readme",
   "volta": {
     "extends": "../../package.json"
   },
