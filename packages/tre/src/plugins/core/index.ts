@@ -479,4 +479,5 @@ function getWorkerScript(
 }
 
 export * from "./errors";
+export * from "./modules";
 export * from "./services";
