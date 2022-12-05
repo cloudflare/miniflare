@@ -2,6 +2,10 @@ import assert from "assert";
 import http from "http";
 import net from "net";
 import { Duplex } from "stream";
+import type {
+  IncomingRequestCfProperties,
+  RequestInitCfProperties,
+} from "@cloudflare/workers-types";
 import exitHook from "exit-hook";
 import getPort from "get-port";
 import stoppable from "stoppable";
@@ -21,6 +25,7 @@ import {
 import {
   GatewayConstructor,
   GatewayFactory,
+  HEADER_CF_BLOB,
   HEADER_PROBE,
   PLUGIN_ENTRIES,
   Plugins,
@@ -358,7 +363,7 @@ export class Miniflare {
   }
 
   async #handleLoopbackPlugins(
-    request: Request,
+    request: Request<RequestInitCfProperties>,
     url: URL
   ): Promise<Response | undefined> {
     const pathname = url.pathname;
@@ -390,12 +395,20 @@ export class Miniflare {
     res?: http.ServerResponse
   ): Promise<Response | undefined> => {
     const url = new URL(req.url ?? "", "http://127.0.0.1");
-    // TODO: maybe just use native Node http objects?
+
+    // Extract cf blob (if any) from headers
+    const cfBlobHeader = HEADER_CF_BLOB.toLowerCase();
+    const cfBlob = req.headers[cfBlobHeader];
+    delete req.headers[cfBlobHeader];
+    assert(!Array.isArray(cfBlob)); // Only `Set-Cookie` headers are arrays
+    const cf = cfBlob ? JSON.parse(cfBlob) : undefined;
+
     const request = new Request(url, {
       method: req.method,
       headers: req.headers as HeadersInit,
       body: req.method === "GET" || req.method === "HEAD" ? undefined : req,
       duplex: "half",
+      cf,
     });
 
     let response: Response | undefined;
@@ -559,8 +572,10 @@ export class Miniflare {
     const sockets: Socket[] = [
       {
         name: SOCKET_ENTRY,
-        http: {},
         service: { name: SERVICE_ENTRY },
+        // Even though we inject a `cf` object in the entry worker, allow it to
+        // be customised via `dispatchFetch`
+        http: { cfBlobHeader: HEADER_CF_BLOB },
       },
     ];
 
@@ -674,13 +689,16 @@ export class Miniflare {
 
   async dispatchFetch(
     input: RequestInfo,
-    init?: RequestInit
+    init?: RequestInit<Partial<IncomingRequestCfProperties>>
   ): Promise<Response> {
     this.#checkDisposed();
     await this.ready;
     const forward = new Request(input, init);
     const url = new URL(forward.url);
     url.host = this.#runtimeEntryURL!.host;
+    if (forward.cf) {
+      forward.headers.set(HEADER_CF_BLOB, JSON.stringify(forward.cf));
+    }
     return fetch(url, forward as RequestInit);
   }
 
