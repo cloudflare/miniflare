@@ -111,7 +111,7 @@ const LIVE_RELOAD_SCRIPT_TEMPLATE = (
 ) => `<script defer type="application/javascript">
 (function () {
   // Miniflare Live Reload
-  var url = new URL("/core/reload", location.origin);
+  var url = new URL("/cdn-cgi/mf/reload", location.origin);
   url.protocol = url.protocol.replace("http", "ws");
   url.port = ${port};
   function reload() { location.reload(); }
