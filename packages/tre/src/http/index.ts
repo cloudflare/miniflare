@@ -1,5 +1,6 @@
 export * from "./request";
 export * from "./response";
+export * from "./websocket";
 
 export { File, FormData, Headers, fetch } from "undici";
 export type {

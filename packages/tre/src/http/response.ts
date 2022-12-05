@@ -1,10 +1,10 @@
-import type { WebSocket } from "@cloudflare/workers-types";
 import {
   Response as BaseResponse,
   ResponseInit as BaseResponseInit,
   BodyInit,
   ResponseRedirectStatus,
 } from "undici";
+import { WebSocket } from "./websocket";
 
 export interface ResponseInit extends BaseResponseInit {
   webSocket?: WebSocket | null;
