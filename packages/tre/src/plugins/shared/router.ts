@@ -1,4 +1,4 @@
-import { Request, Response } from "undici";
+import { Request, Response } from "../../http";
 import { Awaitable, Log } from "../../shared";
 import { GatewayFactory } from "./gateway";
 

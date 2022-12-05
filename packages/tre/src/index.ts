@@ -5,6 +5,9 @@ import { Duplex } from "stream";
 import exitHook from "exit-hook";
 import getPort from "get-port";
 import stoppable from "stoppable";
+import { WebSocketServer } from "ws";
+import { z } from "zod";
+import { setupCf } from "./cf";
 import {
   HeadersInit,
   Request,
@@ -12,10 +15,7 @@ import {
   RequestInit,
   Response,
   fetch,
-} from "undici";
-import { WebSocketServer } from "ws";
-import { z } from "zod";
-import { setupCf } from "./cf";
+} from "./http";
 import {
   GatewayConstructor,
   GatewayFactory,

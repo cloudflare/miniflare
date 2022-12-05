@@ -1,4 +1,4 @@
-import { Headers, Request, RequestInit } from "undici";
+import { Headers, Request, RequestInit } from "../../http";
 import {
   CfHeader,
   GET,
