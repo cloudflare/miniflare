@@ -168,13 +168,15 @@ test("Body: should be locked when attaching a reader", async (t) => {
   t.true(res.body.locked);
 });
 test("Body: should reset bodyStream when body is cloned", async (t) => {
-  const res = new Response(new ArrayBuffer(10));
+  const resBody = new ArrayBuffer(10);
+  const res = new Response(resBody);
   // noinspection SuspiciousTypeOfGuard
   t.true(res instanceof Body);
   const bodyStream = res.body;
   assert(bodyStream instanceof ReadableStream);
   // Clone the response. undici will change the `body.stream` to a new clone.
-  res.clone();
+  const cloneRes = res.clone();
+  t.deepEqual(await cloneRes.arrayBuffer(), resBody);
   // We can loop over body. This is what http-server writeResponse() does.
   if (res.body) {
     for await (const chunk of res.body) {
