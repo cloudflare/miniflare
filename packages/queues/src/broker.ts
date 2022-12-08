@@ -89,7 +89,7 @@ enum FlushType {
 
 export const kSetFlushCallback = Symbol("kSetFlushCallback");
 
-export class Queue<Body = unknown> implements QueueInterface<Body> {
+export class WorkerQueue<Body = unknown> implements QueueInterface<Body> {
   readonly #broker: QueueBroker;
   readonly #queueName: string;
   readonly #log?: Log;
@@ -263,23 +263,23 @@ export class Queue<Body = unknown> implements QueueInterface<Body> {
 }
 
 export class QueueBroker implements QueueBrokerInterface {
-  readonly #queues: Map<string, Queue>;
+  readonly #queues: Map<string, WorkerQueue>;
   readonly #log?: Log;
 
   constructor(log?: Log) {
-    this.#queues = new Map<string, Queue>();
+    this.#queues = new Map<string, WorkerQueue>();
     this.#log = log;
   }
 
-  getOrCreateQueue(name: string): Queue {
+  getOrCreateQueue(name: string): WorkerQueue {
     let queue = this.#queues.get(name);
     if (queue === undefined) {
-      this.#queues.set(name, (queue = new Queue(this, name, this.#log)));
+      this.#queues.set(name, (queue = new WorkerQueue(this, name, this.#log)));
     }
     return queue;
   }
 
-  setConsumer(queue: Queue, consumer: Consumer) {
+  setConsumer(queue: WorkerQueue, consumer: Consumer) {
     queue[kSetConsumer](consumer);
   }
 }
