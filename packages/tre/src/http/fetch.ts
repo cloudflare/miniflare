@@ -1,31 +1,20 @@
 import http from "http";
 import { Headers, RequestInfo, fetch as baseFetch } from "undici";
-import StandardWebSocket from "ws";
+import NodeWebSocket from "ws";
 import { DeferredPromise } from "../shared";
 import { Request, RequestInit } from "./request";
 import { Response } from "./response";
 import { WebSocketPair, coupleWebSocket } from "./websocket";
 
+const ignored = ["transfer-encoding", "connection", "keep-alive", "expect"];
 function headersFromIncomingRequest(req: http.IncomingMessage): Headers {
-  const headers = new Headers();
-  for (const [name, values] of Object.entries(req.headers)) {
-    // These headers are unsupported in undici fetch requests, they're added
-    // automatically
-    if (
-      name === "transfer-encoding" ||
-      name === "connection" ||
-      name === "keep-alive" ||
-      name === "expect"
-    ) {
-      continue;
+  const entries = Object.entries(req.headers).filter(
+    (pair): pair is [string, string | string[]] => {
+      const [name, value] = pair;
+      return !ignored.includes(name) && value !== undefined;
     }
-    if (Array.isArray(values)) {
-      for (const value of values) headers.append(name, value);
-    } else if (values !== undefined) {
-      headers.append(name, values);
-    }
-  }
-  return headers;
+  );
+  return new Headers(Object.fromEntries(entries));
 }
 
 export async function fetch(
@@ -34,7 +23,7 @@ export async function fetch(
 ): Promise<Response> {
   const request = new Request(input, init as RequestInit);
 
-  // Handle web socket upgrades
+  // Handle WebSocket upgrades
   if (
     request.method === "GET" &&
     request.headers.get("upgrade") === "websocket"
@@ -60,7 +49,7 @@ export async function fetch(
     }
 
     // Establish web socket connection
-    const ws = new StandardWebSocket(url, protocols, {
+    const ws = new NodeWebSocket(url, protocols, {
       followRedirects: request.redirect === "follow",
       headers,
     });

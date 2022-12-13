@@ -1,4 +1,4 @@
-import type { RequestInitCfProperties } from "@cloudflare/workers-types";
+import type { RequestInitCfProperties } from "@cloudflare/workers-types/experimental";
 import { Request, Response } from "../../http";
 import { Awaitable, Log } from "../../shared";
 import { GatewayFactory } from "./gateway";

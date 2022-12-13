@@ -28,7 +28,7 @@
     "test": "npm run build && ava && rimraf ./.tmp",
     "types:build": "tsc",
     "___$comment:types:bundle": "api-extractor doesn't know to load index.ts instead of index.d.ts when resolving imported types",
-    "types:bundle": "cp node_modules/@cloudflare/workers-types/index.ts node_modules/@cloudflare/workers-types/index.d.ts && npm run types:build && node scripts/types.mjs"
+    "types:bundle": "cp node_modules/@cloudflare/workers-types/experimental/index.ts node_modules/@cloudflare/workers-types/experimental/index.d.ts && npm run types:build && node scripts/types.mjs"
   },
   "devDependencies": {
     "@ava/get-port": "^2.0.0",

@@ -1,6 +1,6 @@
 import assert from "assert";
 import { once } from "events";
-import StandardWebSocket from "ws";
+import NodeWebSocket from "ws";
 import { TypedEventTarget, ValueOf, viewToBuffer } from "../shared";
 
 export class MessageEvent extends Event {
@@ -209,9 +209,7 @@ export type WebSocketPair = {
   0: WebSocket;
   1: WebSocket;
 };
-export const WebSocketPair: { new (): WebSocketPair } = function (
-  this: WebSocketPair
-) {
+export const WebSocketPair = function (this: WebSocketPair) {
   if (!(this instanceof WebSocketPair)) {
     throw new TypeError(
       "Failed to construct 'WebSocketPair': Please use the 'new' operator, this object constructor cannot be called as a function."
@@ -221,10 +219,10 @@ export const WebSocketPair: { new (): WebSocketPair } = function (
   this[1] = new WebSocket();
   this[0][kPair] = this[1];
   this[1][kPair] = this[0];
-} as any;
+} as unknown as { new (): WebSocketPair };
 
 export async function coupleWebSocket(
-  ws: StandardWebSocket,
+  ws: NodeWebSocket,
   pair: WebSocket
 ): Promise<void> {
   if (pair[kCoupled]) {
@@ -274,12 +272,12 @@ export async function coupleWebSocket(
     }
   });
 
-  if (ws.readyState === StandardWebSocket.CONNECTING) {
+  if (ws.readyState === NodeWebSocket.CONNECTING) {
     // Wait for client to be open before accepting worker pair (which would
     // release buffered messages). Note this will throw if an "error" event is
     // dispatched (https://github.com/cloudflare/miniflare/issues/229).
     await once(ws, "open");
-  } else if (ws.readyState >= StandardWebSocket.CLOSING) {
+  } else if (ws.readyState >= NodeWebSocket.CLOSING) {
     throw new TypeError("Incoming WebSocket connection already closed.");
   }
   pair.accept();

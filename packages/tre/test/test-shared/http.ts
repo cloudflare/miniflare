@@ -2,7 +2,7 @@ import http from "http";
 import { AddressInfo } from "net";
 import { URL } from "url";
 import { ExecutionContext } from "ava";
-import StandardWebSocket, { WebSocketServer } from "ws";
+import NodeWebSocket, { WebSocketServer } from "ws";
 
 // Returns a free port, whilst preventing races between test files
 export async function getPort(): Promise<number> {
@@ -15,10 +15,7 @@ export async function getPort(): Promise<number> {
 export async function useServer(
   t: ExecutionContext,
   listener: http.RequestListener,
-  webSocketListener?: (
-    socket: StandardWebSocket,
-    req: http.IncomingMessage
-  ) => void
+  webSocketListener?: (socket: NodeWebSocket, req: http.IncomingMessage) => void
 ): Promise<{ http: URL; ws: URL }> {
   return new Promise((resolve) => {
     const server = http.createServer(listener);

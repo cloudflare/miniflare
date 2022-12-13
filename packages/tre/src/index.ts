@@ -5,7 +5,7 @@ import { Duplex } from "stream";
 import type {
   IncomingRequestCfProperties,
   RequestInitCfProperties,
-} from "@cloudflare/workers-types";
+} from "@cloudflare/workers-types/experimental";
 import exitHook from "exit-hook";
 import getPort from "get-port";
 import stoppable from "stoppable";
@@ -475,7 +475,7 @@ export class Miniflare {
     if (response?.status === 101 && webSocket) {
       // Accept and couple the Web Socket
       this.#webSocketExtraHeaders.set(req, response.headers);
-      this.#webSocketServer.handleUpgrade(req, socket as any, head, (ws) => {
+      this.#webSocketServer.handleUpgrade(req, socket, head, (ws) => {
         void coupleWebSocket(ws, webSocket);
         this.#webSocketServer.emit("connection", ws, req);
       });

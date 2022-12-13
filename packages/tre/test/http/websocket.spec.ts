@@ -13,10 +13,7 @@ import {
 } from "@miniflare/tre";
 import test from "ava";
 import { expectTypeOf } from "expect-type";
-import StandardWebSocket, {
-  Event as WebSocketEvent,
-  WebSocketServer,
-} from "ws";
+import NodeWebSocket, { Event as WebSocketEvent, WebSocketServer } from "ws";
 import { useServer, utf8Decode, utf8Encode } from "../test-shared";
 
 const noop = () => {};
@@ -29,7 +26,7 @@ test("WebSocket: can accept multiple times", (t) => {
 });
 test("WebSocket: cannot accept if already coupled", async (t) => {
   const server = await useServer(t, noop, (ws) => ws.send("test"));
-  const ws = new StandardWebSocket(server.ws);
+  const ws = new NodeWebSocket(server.ws);
   const [webSocket1] = Object.values(new WebSocketPair());
   await coupleWebSocket(ws, webSocket1);
   t.throws(() => webSocket1.accept(), {
@@ -248,7 +245,7 @@ function testWebSocketPairTypes() {
 
 test("coupleWebSocket: throws if already coupled", async (t) => {
   const server = await useServer(t, noop, (ws) => ws.send("test"));
-  const ws = new StandardWebSocket(server.ws);
+  const ws = new NodeWebSocket(server.ws);
   const [client] = Object.values(new WebSocketPair());
   await coupleWebSocket(ws, client);
   await t.throwsAsync(coupleWebSocket({} as any, client), {
@@ -266,7 +263,7 @@ test("coupleWebSocket: throws if already accepted", async (t) => {
 });
 test("coupleWebSocket: forwards messages from client to worker before coupling", async (t) => {
   const server = await useServer(t, noop, (ws) => ws.send("test"));
-  const ws = new StandardWebSocket(server.ws);
+  const ws = new NodeWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   // Accept before coupling, simulates accepting in worker code before returning response
@@ -281,7 +278,7 @@ test("coupleWebSocket: forwards messages from client to worker before coupling",
 });
 test("coupleWebSocket: forwards messages from client to worker after coupling", async (t) => {
   const server = await useServer(t, noop, (ws) => ws.send("test"));
-  const ws = new StandardWebSocket(server.ws);
+  const ws = new NodeWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   await coupleWebSocket(ws, client);
@@ -299,7 +296,7 @@ test("coupleWebSocket: forwards binary messages from client to worker", async (t
   const server = await useServer(t, noop, (ws) => {
     ws.send(Buffer.from("test", "utf8"));
   });
-  const ws = new StandardWebSocket(server.ws);
+  const ws = new NodeWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   worker.accept();
@@ -317,7 +314,7 @@ test("coupleWebSocket: closes worker socket on client close", async (t) => {
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("message", () => ws.close(1000, "Test Closure"));
   });
-  const ws = new StandardWebSocket(server.ws);
+  const ws = new NodeWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
   worker.accept();
   const eventPromise = new Promise<CloseEvent>((resolve) => {
@@ -344,7 +341,7 @@ test("coupleWebSocket: closes worker socket with invalid client close code", asy
       resolve((server.address() as AddressInfo).port);
     });
   });
-  const ws = new StandardWebSocket(`ws://localhost:${port}`);
+  const ws = new NodeWebSocket(`ws://localhost:${port}`);
   const [client, worker] = Object.values(new WebSocketPair());
 
   const eventPromise = new DeferredPromise<CloseEvent>();
@@ -360,7 +357,7 @@ test("coupleWebSocket: forwards messages from worker to client before coupling",
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("message", eventPromise.resolve);
   });
-  const ws = new StandardWebSocket(server.ws);
+  const ws = new NodeWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   worker.accept();
@@ -376,7 +373,7 @@ test("coupleWebSocket: forwards messages from worker to client after coupling", 
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("message", eventPromise.resolve);
   });
-  const ws = new StandardWebSocket(server.ws);
+  const ws = new NodeWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   worker.accept();
@@ -392,7 +389,7 @@ test("coupleWebSocket: forwards binary messages from worker to client", async (t
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("message", eventPromise.resolve);
   });
-  const ws = new StandardWebSocket(server.ws);
+  const ws = new NodeWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   worker.accept();
@@ -407,7 +404,7 @@ test("coupleWebSocket: closes client socket on worker close", async (t) => {
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("close", eventPromise.resolve);
   });
-  const ws = new StandardWebSocket(server.ws);
+  const ws = new NodeWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
   worker.accept();
   await coupleWebSocket(ws, client);
@@ -422,7 +419,7 @@ test("coupleWebSocket: closes client socket on worker close with no close code",
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("close", eventPromise.resolve);
   });
-  const ws = new StandardWebSocket(server.ws);
+  const ws = new NodeWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
   worker.accept();
   await coupleWebSocket(ws, client);
@@ -436,7 +433,7 @@ test("coupleWebSocket: accepts worker socket immediately if already open", async
   const server = await useServer(t, noop, (ws) => {
     ws.addEventListener("message", eventPromise.resolve);
   });
-  const ws = new StandardWebSocket(server.ws);
+  const ws = new NodeWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   worker.accept();
@@ -453,7 +450,7 @@ test("coupleWebSocket: accepts worker socket immediately if already open", async
 });
 test("coupleWebSocket: throws if web socket already closed", async (t) => {
   const server = await useServer(t, noop, noop);
-  const ws = new StandardWebSocket(server.ws);
+  const ws = new NodeWebSocket(server.ws);
   const [client, worker] = Object.values(new WebSocketPair());
 
   worker.accept();

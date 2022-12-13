@@ -1,7 +1,7 @@
 import type {
   IncomingRequestCfProperties,
   RequestInitCfProperties,
-} from "@cloudflare/workers-types";
+} from "@cloudflare/workers-types/experimental";
 import {
   Request as BaseRequest,
   RequestInit as BaseRequestInit,

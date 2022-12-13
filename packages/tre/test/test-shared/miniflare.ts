@@ -3,7 +3,7 @@ import type {
   ServiceWorkerGlobalScope,
   Request as WorkerRequest,
   Response as WorkerResponse,
-} from "@cloudflare/workers-types";
+} from "@cloudflare/workers-types/experimental";
 import {
   Awaitable,
   Miniflare,
