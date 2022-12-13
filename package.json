@@ -27,11 +27,13 @@
     "prepublishOnly": "npm run lint && npm run clean && npm run build && npm run types:bundle && npm run test",
     "test": "npm run build && ava && rimraf ./.tmp",
     "types:build": "tsc",
-    "types:bundle": "npm run types:build && node scripts/types.mjs"
+    "___$comment:types:bundle": "api-extractor doesn't know to load index.ts instead of index.d.ts when resolving imported types",
+    "types:bundle": "cp node_modules/@cloudflare/workers-types/experimental/index.ts node_modules/@cloudflare/workers-types/experimental/index.d.ts && npm run types:build && node scripts/types.mjs"
   },
   "devDependencies": {
+    "@ava/get-port": "^2.0.0",
     "@ava/typescript": "^3.0.1",
-    "@microsoft/api-extractor": "^7.19.4",
+    "@microsoft/api-extractor": "^7.33.6",
     "@types/node": "^18.11.9",
     "@types/rimraf": "^3.0.2",
     "@types/which": "^2.0.1",
@@ -39,6 +41,7 @@
     "@typescript-eslint/parser": "^5.9.1",
     "ava": "^5.0.1",
     "capnpc-ts": "^0.7.0",
+    "capnp-ts": "^0.7.0",
     "esbuild": "^0.12.20",
     "eslint": "^8.6.0",
     "eslint-config-prettier": "^8.3.0",
@@ -46,10 +49,11 @@
     "eslint-plugin-import": "^2.24.2",
     "eslint-plugin-prettier": "^3.4.1",
     "esm": "^3.2.25",
+    "expect-type": "^0.15.0",
     "patch-package": "^6.4.7",
     "prettier": "^2.3.2",
     "rimraf": "^3.0.2",
-    "typescript": "^4.5.4",
+    "typescript": "^4.8.4",
     "which": "^2.0.2"
   },
   "engines": {
