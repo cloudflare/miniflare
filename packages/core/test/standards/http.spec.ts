@@ -616,9 +616,9 @@ test("Request: should reset bodyStream when body is cloned", async (t) => {
   t.true(req instanceof Body);
   const bodyStream = req.body;
   assert(bodyStream instanceof ReadableStream);
-  // Clone the response. undici will change the `body.stream` to a new clone.
-  const cloneRes = req.clone();
-  t.deepEqual(await cloneRes.arrayBuffer(), reqBody);
+  // Clone the request. undici will change the `body.stream` to a new clone.
+  const cloneReq = req.clone();
+  t.deepEqual(await cloneReq.arrayBuffer(), reqBody);
   // We can loop over body. This is what http-server writeResponse() does.
   if (req.body) {
     for await (const chunk of req.body) {
