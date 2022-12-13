@@ -409,6 +409,7 @@ export class Request extends Body<BaseRequest> {
 
   clone(): Request {
     const innerClone = this[_kInner].clone();
+    this[kBodyStream] = undefined;
     const clone = new Request(innerClone);
     clone[kInputGated] = this[kInputGated];
     clone[kFormDataFiles] = this[kFormDataFiles];

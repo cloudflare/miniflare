@@ -155,37 +155,6 @@ test("Body: body isn't locked until read from", async (t) => {
   const clone = res.clone();
   t.is(await clone.text(), "body");
 });
-test("Body: should be locked when attaching a reader", async (t) => {
-  const res = new Response("body");
-  // noinspection SuspiciousTypeOfGuard
-  t.true(res instanceof Body);
-  // noinspection SuspiciousTypeOfGuard
-  assert(res.body instanceof ReadableStream);
-  t.false(res.body.locked);
-  const reader = res.body.getReader();
-  // noinspection SuspiciousTypeOfGuard
-  assert(reader instanceof ReadableStreamDefaultReader);
-  t.true(res.body.locked);
-});
-test("Body: should reset bodyStream when body is cloned", async (t) => {
-  const resBody = new ArrayBuffer(10);
-  const res = new Response(resBody);
-  // noinspection SuspiciousTypeOfGuard
-  t.true(res instanceof Body);
-  const bodyStream = res.body;
-  assert(bodyStream instanceof ReadableStream);
-  // Clone the response. undici will change the `body.stream` to a new clone.
-  const cloneRes = res.clone();
-  t.deepEqual(await cloneRes.arrayBuffer(), resBody);
-  // We can loop over body. This is what http-server writeResponse() does.
-  if (res.body) {
-    for await (const chunk of res.body) {
-      assert(chunk instanceof Uint8Array);
-    }
-  }
-  // Expect that the internal bodyStream also changed
-  t.not(bodyStream, res.body);
-});
 test("Body: can pause, resume and cancel body stream", async (t) => {
   const chunks = ["123", "456", "789"];
   const bodyStream = new ReadableStream({
@@ -625,6 +594,41 @@ test("Request: can use byob reader when cloning", async (t) => {
   t.is(await byobReadFirstChunk(clone.body), "body");
   t.is(await byobReadFirstChunk(req.body), "body");
 });
+test("Request: should be locked when attaching a reader", async (t) => {
+  const req = new Request("http://localhost", { method: "POST", body: "body" });
+  // noinspection SuspiciousTypeOfGuard
+  t.true(req instanceof Body);
+  // noinspection SuspiciousTypeOfGuard
+  assert(req.body instanceof ReadableStream);
+  t.false(req.body.locked);
+  const reader = req.body.getReader();
+  // noinspection SuspiciousTypeOfGuard
+  assert(reader instanceof ReadableStreamDefaultReader);
+  t.true(req.body.locked);
+});
+test("Request: should reset bodyStream when body is cloned", async (t) => {
+  const reqBody = new ArrayBuffer(10);
+  const req = new Request("http://localhost", {
+    method: "POST",
+    body: reqBody,
+  });
+  // noinspection SuspiciousTypeOfGuard
+  t.true(req instanceof Body);
+  const bodyStream = req.body;
+  assert(bodyStream instanceof ReadableStream);
+  // Clone the response. undici will change the `body.stream` to a new clone.
+  const cloneRes = req.clone();
+  t.deepEqual(await cloneRes.arrayBuffer(), reqBody);
+  // We can loop over body. This is what http-server writeResponse() does.
+  if (req.body) {
+    for await (const chunk of req.body) {
+      // noinspection SuspiciousTypeOfGuard
+      assert(chunk instanceof Uint8Array);
+    }
+  }
+  // Expect that the internal bodyStream also changed
+  t.not(bodyStream, req.body);
+});
 test("Request: access to unimplemented properties throws error", async (t) => {
   const req = new Request("https://a");
   t.throws(() => req.context, unimplementedExpectation("Request", "context"));
@@ -895,6 +899,38 @@ test("Response: can use byob reader when cloning", async (t) => {
   clone = res.clone();
   t.is(await byobReadFirstChunk(clone.body), "body");
   t.is(await byobReadFirstChunk(res.body), "body");
+});
+test("Response: should be locked when attaching a reader", async (t) => {
+  const res = new Response("body");
+  // noinspection SuspiciousTypeOfGuard
+  t.true(res instanceof Body);
+  // noinspection SuspiciousTypeOfGuard
+  assert(res.body instanceof ReadableStream);
+  t.false(res.body.locked);
+  const reader = res.body.getReader();
+  // noinspection SuspiciousTypeOfGuard
+  assert(reader instanceof ReadableStreamDefaultReader);
+  t.true(res.body.locked);
+});
+test("Response: should reset bodyStream when body is cloned", async (t) => {
+  const resBody = new ArrayBuffer(10);
+  const res = new Response(resBody);
+  // noinspection SuspiciousTypeOfGuard
+  t.true(res instanceof Body);
+  const bodyStream = res.body;
+  assert(bodyStream instanceof ReadableStream);
+  // Clone the response. undici will change the `body.stream` to a new clone.
+  const cloneRes = res.clone();
+  t.deepEqual(await cloneRes.arrayBuffer(), resBody);
+  // We can loop over body. This is what http-server writeResponse() does.
+  if (res.body) {
+    for await (const chunk of res.body) {
+      // noinspection SuspiciousTypeOfGuard
+      assert(chunk instanceof Uint8Array);
+    }
+  }
+  // Expect that the internal bodyStream also changed
+  t.not(bodyStream, res.body);
 });
 test("Response: access to unimplemented properties throws error", async (t) => {
   const res = new Response();
