@@ -1,3 +1,4 @@
+import { DurableObjectId } from "@miniflare/durable-objects";
 import { beforeAll, expect, test, vi } from "vitest";
 setupMiniflareIsolatedStorage();
 
@@ -45,6 +46,28 @@ test("Durable Objects direct", async () => {
   expect(await state.storage.get("count")).toBe(2);
   expect(await res1.text()).toBe("0");
   expect(await res2.text()).toBe("1");
+});
+
+test("Durable Objects list", async () => {
+  const env = getMiniflareBindings();
+
+  // From beforeAll
+  expect(await getMiniflareDurableObjectIds("TEST_OBJECT")).toHaveLength(1);
+
+  const id = env.TEST_OBJECT.idFromName("test");
+  env.TEST_OBJECT.get(id);
+  expect(await getMiniflareDurableObjectIds("TEST_OBJECT")).toHaveLength(1);
+  expect((await getMiniflareDurableObjectIds("TEST_OBJECT"))[0]).toMatchObject(
+    new DurableObjectId("TEST_OBJECT", id.toString())
+  );
+
+  const id2 = env.TEST_OBJECT.idFromName("test2");
+  const stub = env.TEST_OBJECT.get(id2);
+  await stub.fetch("https://object/");
+  expect(await getMiniflareDurableObjectIds("TEST_OBJECT")).toHaveLength(2);
+  expect((await getMiniflareDurableObjectIds("TEST_OBJECT"))[1]).toMatchObject(
+    new DurableObjectId("TEST_OBJECT", id2.toString())
+  );
 });
 
 test("Access to Durable Object instance", async () => {

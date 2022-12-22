@@ -4,8 +4,9 @@ order: 1
 
 # ⚡️ Vitest Environment
 
-Miniflare includes a custom Vitest environment that allows you to run your unit
-tests within the Miniflare sandbox. Note that Vitest 0.23.0 is required.
+Miniflare includes a custom [Vitest](https://vitest.dev/) environment that
+allows you to run your unit tests within the Miniflare sandbox. Note that Vitest
+0.23.0 is required.
 
 ## Setup
 
@@ -21,8 +22,8 @@ In the following examples, we'll assume your `package.json` contains
 [⚡️ Developing with esbuild](/developing/esbuild) for an example.
 
 To enable the Miniflare environment, set the
-[`environment` option](https://Vitestjs.io/docs/configuration#testenvironment-string)
-in your Vitest configuration:
+[`environment` option](https://vitest.dev/config/#environment) in your Vitest
+configuration:
 
 ```ts
 ---
@@ -291,6 +292,27 @@ test("flushes alarms", async () => {
   await flushMiniflareDurableObjectAlarms();
   // ...or specify an array of `DurableObjectId`s to flush
   await flushMiniflareDurableObjectAlarms([id]);
+});
+```
+
+To list all active Durable Objects in a namespace, use the
+`getMiniflareDurableObjectIds()` global function:
+
+```js
+import { expect, test } from "vitest";
+const describe = setupMiniflareIsolatedStorage();
+
+test("gets objects", async () => {
+  // Get Durable Object stub
+  const env = getMiniflareBindings();
+  const id = env.TEST_OBJECT.newUniqueId();
+  const stub = env.TEST_OBJECT.get(id);
+  await stub.fetch("http://localhost/");
+
+  // Get all active TEST_OBJECT Durable Object IDs
+  const ids = await getMiniflareDurableObjectIds("TEST_OBJECT");
+  expect(ids).toHaveLength(1);
+  expect(ids[0].toString()).toBe(id.toString());
 });
 ```
 

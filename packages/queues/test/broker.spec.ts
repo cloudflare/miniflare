@@ -1,8 +1,4 @@
-import {
-  MAX_ATTEMPTS,
-  QueueBroker,
-  kSetFlushCallback,
-} from "@miniflare/queues";
+import { QueueBroker, kSetFlushCallback } from "@miniflare/queues";
 import {
   Consumer,
   LogLevel,
@@ -19,6 +15,7 @@ test("QueueBroker: flushes partial batches", async (t) => {
     queueName: "myQueue",
     maxBatchSize: 5,
     maxWaitMs: 1,
+    maxRetries: 2,
     dispatcher: async (_batch) => {},
   };
   q[kSetConsumer](sub);
@@ -102,13 +99,14 @@ test("QueueBroker: flushes partial batches", async (t) => {
   await prom;
 });
 
-test("QueueBroker: flushes full batches", async (t) => {
+test("QueueBroker: flushes full batches of maxBatchSize", async (t) => {
   const broker = new QueueBroker();
   const q = broker.getOrCreateQueue("myQueue");
   const sub: Consumer = {
     queueName: "myQueue",
     maxBatchSize: 5,
     maxWaitMs: 1,
+    maxRetries: 2,
     dispatcher: async (_batch) => {},
   };
   q[kSetConsumer](sub);
@@ -129,19 +127,16 @@ test("QueueBroker: flushes full batches", async (t) => {
   });
   await prom;
 
+  let expectedBatches = [
+    ["message6", "message7", "message8", "message9", "message10"],
+    ["message11", "message12"],
+  ];
   sub.dispatcher = async (batch: MessageBatch) => {
     t.deepEqual(
       batch.messages.map((x) => x.body),
-      [
-        "message6",
-        "message7",
-        "message8",
-        "message9",
-        "message10",
-        "message11",
-        "message12",
-      ]
+      expectedBatches[0]
     );
+    expectedBatches.shift();
   };
 
   q.send("message6");
@@ -155,21 +150,16 @@ test("QueueBroker: flushes full batches", async (t) => {
     q[kSetFlushCallback](() => resolve());
   });
   await prom;
+  prom = new Promise<void>((resolve) => {
+    q[kSetFlushCallback](() => resolve());
+  });
+  await prom;
 
-  sub.dispatcher = async (batch: MessageBatch) => {
-    t.deepEqual(
-      batch.messages.map((x) => x.body),
-      [
-        "message13",
-        "message14",
-        "message15",
-        "message16",
-        "message17",
-        "message18",
-        "message19",
-      ]
-    );
-  };
+  expectedBatches = [
+    ["message13", "message14", "message15", "message16", "message17"],
+    ["message18", "message19", "message20", "message21", "message22"],
+    ["message23"],
+  ];
 
   q.sendBatch([
     { body: "message13" },
@@ -179,11 +169,17 @@ test("QueueBroker: flushes full batches", async (t) => {
     { body: "message17" },
     { body: "message18" },
     { body: "message19" },
+    { body: "message20" },
+    { body: "message21" },
+    { body: "message22" },
+    { body: "message23" },
   ]);
-  prom = new Promise<void>((resolve) => {
-    q[kSetFlushCallback](() => resolve());
-  });
-  await prom;
+  for (let i = 0; i < 3; ++i) {
+    prom = new Promise<void>((resolve) => {
+      q[kSetFlushCallback](() => resolve());
+    });
+    await prom;
+  }
 });
 
 test("QueueBroker: supports message retry()", async (t) => {
@@ -193,6 +189,7 @@ test("QueueBroker: supports message retry()", async (t) => {
     queueName: "myQueue",
     maxBatchSize: 5,
     maxWaitMs: 1,
+    maxRetries: 2,
     dispatcher: async (_batch) => {},
   };
   q[kSetConsumer](sub);
@@ -241,6 +238,7 @@ test("QueueBroker: automatic retryAll() on consumer error", async (t) => {
     queueName: "myQueue",
     maxBatchSize: 5,
     maxWaitMs: 1,
+    maxRetries: 2,
     dispatcher: async (_batch) => {},
   };
   q[kSetConsumer](sub);
@@ -299,6 +297,7 @@ test("QueueBroker: drops messages after max retry()", async (t) => {
     queueName: "myQueue",
     maxBatchSize: 5,
     maxWaitMs: 1,
+    maxRetries: 4,
     dispatcher: async (_batch) => {},
   };
   q[kSetConsumer](sub);
@@ -312,7 +311,7 @@ test("QueueBroker: drops messages after max retry()", async (t) => {
   // Expect the queue to flush() the maximum number of times
   q.send("message1");
 
-  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+  for (let i = 0; i < 5; i++) {
     const prom = new Promise<void>((resolve) => {
       q[kSetFlushCallback](() => resolve());
     });
@@ -323,7 +322,7 @@ test("QueueBroker: drops messages after max retry()", async (t) => {
   // Check last log message is warning that message dropped
   t.deepEqual(log.logs[log.logs.length - 1], [
     LogLevel.WARN,
-    'Dropped message "myQueue-0" after 3 failed attempts!',
+    'Dropped message "myQueue-0" after 5 failed attempts!',
   ]);
 
   // To check that "message1" is dropped:
@@ -337,4 +336,67 @@ test("QueueBroker: drops messages after max retry()", async (t) => {
     q[kSetFlushCallback](() => resolve());
   });
   await prom;
+});
+
+test("QueueBroker: dead letter queue support", async (t) => {
+  const log = new TestLog();
+  log.error = (message) =>
+    log.logWithLevel(LogLevel.ERROR, message?.stack ?? "");
+
+  const broker = new QueueBroker(log);
+
+  // Setup the original queue
+  const q = broker.getOrCreateQueue("myQueue");
+  const originalConsumer: Consumer = {
+    queueName: "myQueue",
+    maxBatchSize: 5,
+    maxWaitMs: 1,
+    maxRetries: 1,
+    deadLetterQueue: "myDLQ",
+    dispatcher: async (_batch) => {},
+  };
+  q[kSetConsumer](originalConsumer);
+
+  const dlq = broker.getOrCreateQueue("myDLQ");
+  const dlqConsumer: Consumer = {
+    queueName: "myDLQ",
+    maxBatchSize: 5,
+    maxWaitMs: 1,
+    maxRetries: 0,
+    dispatcher: async (_batch) => {},
+  };
+  dlq[kSetConsumer](dlqConsumer);
+
+  // Set up the consumer for the original queue
+  let originalInvocations = 0;
+  originalConsumer.dispatcher = async (batch: MessageBatch) => {
+    batch.messages[0].retry();
+    originalInvocations++;
+  };
+
+  // Set up the consumer for the dead letter queue
+  let dlqInvocations = 0;
+  dlqConsumer.dispatcher = async (_batch: MessageBatch) => {
+    dlqInvocations++;
+  };
+
+  const originalQProm = new Promise<void>((resolve) => {
+    q[kSetFlushCallback](() => resolve());
+  });
+  q.send("message1");
+  await originalQProm;
+
+  const dlqProm = new Promise<void>((resolve) => {
+    dlq[kSetFlushCallback](() => resolve());
+  });
+  await dlqProm;
+
+  t.deepEqual(originalInvocations, 2);
+  t.deepEqual(dlqInvocations, 1);
+
+  // Check last log message is warning that message dropped
+  t.deepEqual(log.logs[log.logs.length - 1], [
+    LogLevel.WARN,
+    'Moving message "myQueue-0" to dead letter queue "myDLQ"...',
+  ]);
 });

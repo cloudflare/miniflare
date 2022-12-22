@@ -1,6 +1,6 @@
 {
   "name": "jest-environment-miniflare",
-  "version": "2.9.0",
+  "version": "2.11.0",
   "description": "Jest testing environment for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -30,15 +30,15 @@
   "bugs": {
     "url": "https://github.com/cloudflare/miniflare/issues"
   },
-  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/jest#readme",
+  "homepage": "https://github.com/cloudflare/miniflare/tree/master/packages/jest-environment-miniflare#readme",
   "volta": {
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/queues": "2.9.0",
-    "@miniflare/runner-vm": "2.9.0",
-    "@miniflare/shared": "2.9.0",
-    "@miniflare/shared-test-environment": "2.9.0",
+    "@miniflare/queues": "2.11.0",
+    "@miniflare/runner-vm": "2.11.0",
+    "@miniflare/shared": "2.11.0",
+    "@miniflare/shared-test-environment": "2.11.0",
     "@jest/environment": ">=27",
     "@jest/fake-timers": ">=27",
     "@jest/types": ">=27",
@@ -52,11 +52,11 @@
     "@jest/environment": "^29.0.3",
     "@jest/fake-timers": "^29.0.3",
     "@jest/types": "^29.0.3",
-    "@miniflare/shared-test": "2.9.0",
+    "@miniflare/shared-test": "2.11.0",
     "jest": "^29.0.3",
     "jest-mock": "^29.0.3",
     "jest-util": "^29.0.3",
-    "miniflare": "2.9.0",
+    "miniflare": "2.11.0",
     "react-dom": "^18.1.0"
   }
 }

@@ -157,6 +157,7 @@ export function _headersFromIncomingRequest(
 /** @internal */
 export const _kInner = Symbol("kInner");
 
+const kBodyStream = Symbol("kBodyStream");
 const kInputGated = Symbol("kInputGated");
 const kFormDataFiles = Symbol("kFormDataFiles");
 const kCloned = Symbol("kCloned");
@@ -168,7 +169,7 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
   [kInputGated] = false;
   [kFormDataFiles] = true; // Default to enabling form-data File parsing
   [kCloned] = false;
-  #bodyStream?: ReadableStream<Uint8Array>;
+  [kBodyStream]?: ReadableStream<Uint8Array>;
 
   constructor(inner: Inner) {
     // Allow forbidden header mutation after construction
@@ -196,7 +197,8 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
 
     if (body === null) return body;
     // Only transform body stream once
-    if (this.#bodyStream) return this.#bodyStream;
+    const bodyStream = this[kBodyStream];
+    if (bodyStream) return bodyStream;
     assert(body instanceof ReadableStream);
 
     // Cloudflare Workers allows you to byob-read all Request/Response bodies,
@@ -209,7 +211,7 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
     // If we're not input gating, and body is already a byte stream, we're set,
     // just return it as is (this will be the case for incoming http requests)
     if (!this[kInputGated] && _isByteStream(body)) {
-      return (this.#bodyStream = body);
+      return (this[kBodyStream] = body);
     }
 
     // Otherwise, we need to create a "byte-TransformStream" that makes sure
@@ -261,7 +263,7 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
       cancel: (reason) => reader.cancel(reason),
     };
     // TODO: maybe set { highWaterMark: 0 } as a strategy here?
-    return (this.#bodyStream = new ReadableStream(source));
+    return (this[kBodyStream] = new ReadableStream(source));
   }
   get bodyUsed(): boolean {
     return this[_kInner].bodyUsed;
@@ -407,6 +409,7 @@ export class Request extends Body<BaseRequest> {
 
   clone(): Request {
     const innerClone = this[_kInner].clone();
+    this[kBodyStream] = undefined;
     const clone = new Request(innerClone);
     clone[kInputGated] = this[kInputGated];
     clone[kFormDataFiles] = this[kFormDataFiles];
@@ -584,6 +587,7 @@ export class Response<
       throw new TypeError("Cannot clone a response to a WebSocket handshake.");
     }
     const innerClone = this[_kInner].clone();
+    this[kBodyStream] = undefined;
     const clone = new Response(innerClone.body, innerClone);
     clone[kInputGated] = this[kInputGated];
     clone[kFormDataFiles] = this[kFormDataFiles];
@@ -735,6 +739,15 @@ class MiniflareDispatcher extends Dispatcher {
   destroy(...args: any[]) {
     // @ts-expect-error just want to pass through to global dispatcher here
     return this.inner.destroy(...args);
+  }
+
+  /**
+   * Required for some testing utilities.
+   * For context see: https://github.com/nodejs/undici/issues/1756#issuecomment-1304711596
+   */
+  get isMockActive(): boolean {
+    // @ts-expect-error Missing type on MockAgent, but exists at runtime
+    return this.inner.isMockActive ?? false;
   }
 }
 

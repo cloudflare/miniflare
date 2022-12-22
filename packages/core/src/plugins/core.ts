@@ -10,6 +10,8 @@ import {
   ReadableStreamBYOBRequest,
   ReadableStreamDefaultController,
   ReadableStreamDefaultReader,
+  TextDecoderStream,
+  TextEncoderStream,
   TransformStream,
   TransformStreamDefaultController,
   WritableStream,
@@ -572,6 +574,8 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
       CompressionStream: CompressionStreamImpl,
       DecompressionStream: DecompressionStreamImpl,
+      TextEncoderStream,
+      TextDecoderStream,
 
       Event,
       EventTarget,

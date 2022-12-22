@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@miniflare/root",
-  "version": "2.9.0",
+  "version": "2.11.0",
   "description": "Fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@ava/typescript": "^2.0.0",
+    "@changesets/cli": "^2.24.3",
     "@microsoft/api-extractor": "^7.19.4",
     "@types/node": "^18.7.15",
     "@types/rimraf": "^3.0.2",

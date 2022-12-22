@@ -1,5 +1,60 @@
 # 🚧 Changelog
 
+## 2.11.0
+
+### Features
+
+- Add support for dead-letter queues. Thanks
+  [@jbw1991](https://github.com/jbw1991) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/411).
+- Add `getMiniflareDurableObjectIds()` global function to Miniflare's
+  Jest/Vitest environments for listing active Durable Objects. Calling
+  `getMiniflareDurableObjectIds("TEST_OBJECT")` will return a `Promise` that
+  resolves to an array of active `DurableObjectId`s for the `TEST_OBJECT`
+  namespace. Closes
+  [issue #384](https://github.com/cloudflare/miniflare/issues/384), thanks
+  [@DaniFoldi](https://github.com/DaniFoldi) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/413).
+
+### Fixes
+
+- Strip quotes from R2 `onlyIf` header values. Closes
+  [issue #402](https://github.com/cloudflare/miniflare/issues/402), thanks
+  [@vincentbernat](https://github.com/vincentbernat) and
+  [@CraigglesO](https://github.com/CraigglesO) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/403).
+- Disable `r2Persist` option in Miniflare's Jest/Vitest environments. Thanks
+  [@hanford](https://github.com/hanford) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/414).
+
+## 2.10.0
+
+### Features
+
+- Add support for `TextEncoderStream`/`TextDecoderStream`. Closes
+  [issue #389](https://github.com/cloudflare/miniflare/issues/389), thanks
+  [@vlovich](https://github.com/vlovich).
+
+### Fixes
+
+- Fix reporting of server port when using `--port=0`. Closes
+  [issue #381](https://github.com/cloudflare/miniflare/issues/381), thanks
+  [@GregBrimble](https://github.com/GregBrimble) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/382).
+- Return Durable Object `get()`s in lexicographic order. Closes
+  [issue #393](https://github.com/cloudflare/miniflare/issues/393), thanks
+  [@vlovich](https://github.com/vlovich).
+- Add missing `@miniflare/r2` dependency to `@miniflare/shared-test-environment`
+  package. Thanks [@askoufis](https://github.com/askoufis) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/394).
+- Return correct `Content-Length` from `Cache#match()` partial responses. Closes
+  [issue #406](https://github.com/cloudflare/miniflare/issues/406). Thanks
+  [@notorca](https://github.com/notorca) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/405).
+- Fix links in Vitest test environment docs. Thanks
+  [@eadmundo](https://github.com/eadmundo) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/404).
+
 ## 2.9.0
 
 ### Features

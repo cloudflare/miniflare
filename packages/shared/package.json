@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/shared",
-  "version": "2.9.0",
+  "version": "2.11.0",
   "description": "Shared utility module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -37,11 +37,11 @@
   "dependencies": {
     "@types/better-sqlite3": "^7.6.0",
     "kleur": "^4.1.4",
-    "npx-import": "^1.1.3",
+    "npx-import": "^1.1.4",
     "picomatch": "^2.3.1"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.9.0",
+    "@miniflare/shared-test": "2.11.0",
     "@types/picomatch": "^2.3.0"
   }
 }

@@ -305,12 +305,19 @@ test("Cache: match respects If-Modified-Since header", async (t) => {
 });
 test("Cache: match respects Range header", async (t) => {
   const { cache } = t.context;
-  await cache.put("http://localhost:8787/test", testResponse("0123456789"));
+  const testRes = new Response("0123456789", {
+    headers: {
+      "Content-Length": "10",
+      "Cache-Control": "max-age=3600",
+    },
+  });
+  await cache.put("http://localhost:8787/test", testRes);
   const req = new BaseRequest("http://localhost:8787/test", {
     headers: { Range: "bytes=2-4" },
   });
   const res = await cache.match(req);
   t.is(res?.status, 206);
+  t.is(res?.headers.get("Content-Length"), "3");
   t.is(await res?.text(), "234");
 });
 test("Cache: match returns Response with immutable headers", async (t) => {

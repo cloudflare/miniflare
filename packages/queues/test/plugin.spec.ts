@@ -1,9 +1,9 @@
 import {
   DEFAULT_BATCH_SIZE,
   DEFAULT_WAIT_MS,
-  Queue,
   QueueBroker,
   QueuesPlugin,
+  WorkerQueue,
 } from "@miniflare/queues";
 import {
   Compatibility,
@@ -157,6 +157,6 @@ test("QueuesPlugin: setup: includes queues in bindings", async (t) => {
   });
 
   const result = await plugin.setup(factory);
-  t.true(result.bindings?.QUEUE1 instanceof Queue);
-  t.true(result.bindings?.QUEUE2 instanceof Queue);
+  t.true(result.bindings?.QUEUE1 instanceof WorkerQueue);
+  t.true(result.bindings?.QUEUE2 instanceof WorkerQueue);
 });
