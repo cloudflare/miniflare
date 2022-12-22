@@ -16,6 +16,7 @@ import {
   Response,
   _getBodyLength,
   _headersFromIncomingRequest,
+  fetch,
   logResponse,
 } from "@miniflare/core";
 import { Log, prefixError, randomHex } from "@miniflare/shared";
