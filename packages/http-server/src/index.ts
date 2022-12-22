@@ -291,7 +291,7 @@ export function createRequestListener<Plugins extends HTTPPluginSignatures>(
         status = 200;
         res?.writeHead(status, { "Content-Type": "text/plain; charset=UTF-8" });
         res?.end();
-      } else if (pathname.startsWith("/cdn-cgi/scripts/") {
+      } else if (pathname.startsWith("/cdn-cgi/scripts/")) {
         response = await fetch(new URL(pathname, "https://cloudflare.com"));
         status = response.status;
         if (res) {
