@@ -15,6 +15,7 @@ import {
 import { AlarmStore } from "./alarms";
 import { DurableObjectError } from "./error";
 import {
+  DurableObject,
   DurableObjectConstructor,
   DurableObjectFactory,
   DurableObjectId,
@@ -205,6 +206,14 @@ export class DurableObjectsPlugin
     if (!state[kInstance]?.alarm) objectStorage[kAlarmExists] = false;
 
     return state;
+  }
+
+  async getInstance(
+    storage: StorageFactory,
+    id: DurableObjectId
+  ): Promise<DurableObject> {
+    const state = await this.getObject(storage, id);
+    return state[kInstance] as DurableObject;
   }
 
   getNamespace(

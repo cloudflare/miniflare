@@ -1,3 +1,4 @@
+import { jest } from "@jest/globals";
 import { DurableObjectId } from "@miniflare/durable-objects";
 
 beforeAll(async () => {
@@ -66,4 +67,17 @@ test("Durable Objects list", async () => {
   expect((await getMiniflareDurableObjectIds("TEST_OBJECT"))[1]).toMatchObject(
     new DurableObjectId("TEST_OBJECT", id2.toString())
   );
+});
+
+test("Access to Durable Object instance", async () => {
+  const env = getMiniflareBindings();
+  const id = env.TEST_OBJECT.idFromName("test");
+  const stub = env.TEST_OBJECT.get(id);
+  const instance = await getMiniflareDurableObjectInstance(id);
+  const fetch = jest.spyOn(instance, "fetch");
+
+  await stub.fetch(new Request("https://object/"));
+
+  expect(instance.constructor.name).toBe("TestObject");
+  expect(fetch).toHaveBeenCalled();
 });
