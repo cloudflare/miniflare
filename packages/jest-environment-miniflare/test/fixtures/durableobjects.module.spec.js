@@ -1,5 +1,5 @@
-import { DurableObjectId } from "@miniflare/durable-objects";
 import { jest } from "@jest/globals";
+import { DurableObjectId } from "@miniflare/durable-objects";
 
 beforeAll(async () => {
   const { TEST_OBJECT } = getMiniflareBindings();
