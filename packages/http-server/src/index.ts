@@ -5,7 +5,6 @@ import http from "http";
 import https from "https";
 import net from "net";
 import { Transform, Writable } from "stream";
-import consumers from "stream/consumers";
 import { ReadableStream } from "stream/web";
 import { URL } from "url";
 import zlib from "zlib";
