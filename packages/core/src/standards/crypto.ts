@@ -9,6 +9,10 @@ import {
   isBufferSource,
 } from "./helpers";
 
+// `CryptoKey` is global in Node 19+:
+// https://nodejs.org/api/globals.html#cryptokey
+export const CryptoKey = globalThis.CryptoKey ?? webcrypto.CryptoKey;
+
 // https://developers.cloudflare.com/workers/runtime-apis/web-crypto#supported-algorithms
 const supportedDigests = ["sha-1", "sha-256", "sha-384", "sha-512", "md5"];
 
@@ -125,7 +129,7 @@ const generateKey: typeof webcrypto.subtle.generateKey = async function (
     // @ts-expect-error TypeScript cannot infer the correct overload here
     await webcrypto.subtle.generateKey(algorithm, extractable, keyUsages);
   // noinspection SuspiciousTypeOfGuard
-  if (key instanceof webcrypto.CryptoKey) {
+  if (key instanceof CryptoKey) {
     return ensureValidWorkerKey(key);
   } else {
     key.publicKey = ensureValidWorkerKey(key.publicKey);

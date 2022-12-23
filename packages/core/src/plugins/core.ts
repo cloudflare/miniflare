@@ -47,6 +47,7 @@ import { MiniflareCoreError } from "../error";
 import {
   AbortSignal,
   CompressionStream,
+  CryptoKey,
   DOMException,
   DecompressionStream,
   FetchEvent,
@@ -543,7 +544,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       Math,
 
       crypto,
-      CryptoKey: crypto.CryptoKey,
+      CryptoKey,
       TextDecoder,
       TextEncoder,
 

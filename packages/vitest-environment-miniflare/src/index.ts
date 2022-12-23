@@ -75,6 +75,13 @@ export default <Environment>{
     mfGlobalScope.setupMiniflareIsolatedStorage = () =>
       setupIsolatedStorage(storageFactory);
 
+    // `crypto` is defined as a getter on the global scope in Node 19+,
+    // so attempting to set it with `Object.assign()` would fail. Instead,
+    // override the getter with a new value.
+    const crypto = mfGlobalScope.crypto;
+    delete mfGlobalScope.crypto;
+    Object.defineProperty(global, "crypto", { get: () => crypto });
+
     // Attach all Miniflare  globals to `global`, recording originals to restore
     // in teardown
     const keys = Object.keys(mfGlobalScope);

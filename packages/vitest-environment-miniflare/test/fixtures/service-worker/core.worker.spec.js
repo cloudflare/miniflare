@@ -44,3 +44,12 @@ test("Object instanceof checks succeed", () => {
 test("allows dynamic code generation", () => {
   expect(eval("1 + 1")).toBe(2);
 });
+
+test("crypto supports md5 hashing", async () => {
+  // Check Miniflare's WebCrypto API is injected, by checking a non-spec,
+  // Worker-only digest algorithm
+  const data = new TextEncoder().encode("test");
+  const digest = await crypto.subtle.digest("md5", data);
+  const hexDigest = Buffer.from(digest).toString("hex");
+  expect(hexDigest).toBe("098f6bcd4621d373cade4e832627b4f6");
+});
