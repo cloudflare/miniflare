@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "@miniflare/shared": "2.11.0",
-    "undici": "5.9.1"
+    "undici": "5.11.0"
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.11.0"

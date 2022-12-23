@@ -38,7 +38,7 @@
     "@miniflare/core": "2.11.0",
     "@miniflare/shared": "2.11.0",
     "html-rewriter-wasm": "^0.4.1",
-    "undici": "5.9.1"
+    "undici": "5.11.0"
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.11.0"
