@@ -31,10 +31,12 @@ export type CompatibilityFlag =
 
 const FEATURES: CompatibilityFeature[] = [
   {
+    defaultAsOf: "2022-11-30",
     enableFlag: "streams_enable_constructors",
     disableFlag: "streams_disable_constructors",
   },
   {
+    defaultAsOf: "2022-11-30",
     enableFlag: "transformstream_enable_standard_constructor",
     disableFlag: "transformstream_disable_standard_constructor",
   },
