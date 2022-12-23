@@ -1,6 +1,11 @@
+import assert from "assert";
 import path from "path";
 import { TextEncoder } from "util";
-import { deserialize, serialize } from "v8";
+import {
+  MessageChannel,
+  TransferListItem,
+  receiveMessageOnPort,
+} from "worker_threads";
 import picomatch from "picomatch";
 
 const encoder = new TextEncoder();
@@ -32,9 +37,23 @@ export function lexicographicCompare(x: string, y: string): number {
 export function nonCircularClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
-// Approximation of structuredClone for Node < 17.0.0
-export function structuredCloneBuffer<T>(value: T): T {
-  return deserialize(serialize(value));
+export interface StructuredSerializeOptions {
+  transfer?: ReadonlyArray<TransferListItem>;
+}
+// `structuredClone` implementation for Node < 17.0.0
+let channel: MessageChannel;
+export function structuredCloneImpl<T>(
+  value: T,
+  options?: StructuredSerializeOptions
+): T {
+  // https://github.com/nodejs/node/blob/71951a0e86da9253d7c422fa2520ee9143e557fa/lib/internal/structured_clone.js
+  channel ??= new MessageChannel();
+  channel.port1.unref();
+  channel.port2.unref();
+  channel.port1.postMessage(value, options?.transfer);
+  const message = receiveMessageOnPort(channel.port2);
+  assert(message !== undefined);
+  return message.message;
 }
 
 export function addAll<T>(set: Set<T>, values: Iterable<T>): void {

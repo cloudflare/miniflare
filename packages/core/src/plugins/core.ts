@@ -38,7 +38,7 @@ import {
   STRING_SCRIPT_PATH,
   SetupResult,
   globsToMatcher,
-  structuredCloneBuffer,
+  structuredCloneImpl,
 } from "@miniflare/shared";
 import { File, FormData, Headers, MockAgent } from "undici";
 // @ts-expect-error `urlpattern-polyfill` only provides global types
@@ -589,8 +589,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       WorkerGlobalScope,
 
       // `structuredClone` was added to the global scope in Node 17.0.0.
-      // Approximate with serialize/deserialize if not there.
-      structuredClone: globalThis.structuredClone ?? structuredCloneBuffer,
+      structuredClone: globalThis.structuredClone ?? structuredCloneImpl,
 
       Date: createDate(this.actualTime),
 

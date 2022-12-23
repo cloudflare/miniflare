@@ -11,7 +11,7 @@ import {
   kGetConsumer,
   kSetConsumer,
   prefixError,
-  structuredCloneBuffer,
+  structuredCloneImpl,
 } from "@miniflare/shared";
 
 export type QueueErrorCode = "ERR_CONSUMER_ALREADY_SET";
@@ -38,7 +38,7 @@ export class Message<Body = unknown> implements MessageInterface<Body> {
     body: Body,
     log?: Log
   ) {
-    this.body = (globalThis.structuredClone ?? structuredCloneBuffer)(body);
+    this.body = (globalThis.structuredClone ?? structuredCloneImpl)(body);
     this.#log = log;
 
     this.#pendingRetry = false;
