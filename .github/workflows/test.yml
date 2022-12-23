@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        node: [16.13.0, 18.x]
+        node: [16.13.0, latest]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
@@ -36,10 +36,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Use Node.js 18.x
+      - name: Use Node.js LTS
         uses: actions/setup-node@v2
         with:
-          node-version: 18.x
+          node-version: lts/*
       - run: npm ci
       - run: npm run lint
       - run: npm run types:build
