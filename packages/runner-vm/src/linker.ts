@@ -1,8 +1,7 @@
 import { readFileSync } from "fs";
-import fs from "fs/promises";
 import { builtinModules } from "module";
 import path from "path";
-import vm from "vm";
+import vm, { SourceTextModuleImportModuleDynamically } from "vm";
 import {
   AdditionalModules,
   Context,
@@ -26,6 +25,9 @@ interface CommonJSModule {
   exports: any;
 }
 
+const linkingPromises = new WeakMap<vm.Module, Promise<vm.Module>>();
+const evaluatingPromises = new WeakMap<vm.Module, Promise<void>>();
+
 export class ModuleLinker {
   readonly #referencedPathSizes = new Map<string, number>();
   readonly #moduleCache = new Map<string, vm.Module>();
@@ -34,9 +36,7 @@ export class ModuleLinker {
   constructor(
     private moduleRules: ProcessedModuleRule[],
     private additionalModules: AdditionalModules
-  ) {
-    this.linker = this.linker.bind(this);
-  }
+  ) {}
 
   get referencedPaths(): IterableIterator<string> {
     return this.#referencedPathSizes.keys();
@@ -49,7 +49,7 @@ export class ModuleLinker {
     return sizes.reduce((total, size) => total + size, 0);
   }
 
-  async linker(spec: string, referencing: vm.Module): Promise<vm.Module> {
+  linker = (spec: string, referencing: vm.Module): vm.Module => {
     const relative = path.relative("", referencing.identifier);
     const errorBase = `Unable to resolve "${relative}" dependency "${spec}"`;
 
@@ -100,11 +100,14 @@ export class ModuleLinker {
     }
 
     // Load module based on rule type
-    const data = await fs.readFile(identifier);
+    const data = readFileSync(identifier);
     this.#referencedPathSizes.set(identifier, data.byteLength);
     switch (rule.type) {
       case "ESModule":
-        module = new vm.SourceTextModule(data.toString("utf8"), moduleOptions);
+        module = new vm.SourceTextModule(data.toString("utf8"), {
+          ...moduleOptions,
+          importModuleDynamically: this.importModuleDynamically,
+        });
         break;
       case "CommonJS":
         const exports = this.loadCommonJSModule(
@@ -156,7 +159,31 @@ export class ModuleLinker {
     }
     this.#moduleCache.set(identifier, module);
     return module;
-  }
+  };
+
+  importModuleDynamically: SourceTextModuleImportModuleDynamically = async (
+    spec,
+    referencing
+  ) => {
+    const module = this.linker(spec, referencing);
+
+    // Defend against concurrent execution by only calling `link()` and
+    // `evaluate()` once, then storing the resulting `Promise` so future
+    // executions can await it. Note, the `get()` calls below may return
+    // `undefined` if `module` was already loaded statically.
+
+    if (module.status === "unlinked") {
+      linkingPromises.set(module, module.link(this.linker));
+    }
+    await linkingPromises.get(module);
+
+    if (module.status === "linked") {
+      evaluatingPromises.set(module, module.evaluate());
+    }
+    await evaluatingPromises.get(module);
+
+    return module;
+  };
 
   private loadCommonJSModule(
     errorBase: string,

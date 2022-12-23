@@ -28,13 +28,14 @@ export class VMScriptRunner implements ScriptRunner {
   private async runAsModule(
     context: vm.Context,
     blueprint: ScriptBlueprint,
-    linker: vm.ModuleLinker
+    linker: ModuleLinker
   ): Promise<Context> {
     const module = new vm.SourceTextModule(blueprint.code, {
       identifier: blueprint.filePath,
       context,
+      importModuleDynamically: linker.importModuleDynamically,
     });
-    await module.link(linker);
+    await module.link(linker.linker);
     await module.evaluate();
     return module.namespace;
   }
@@ -79,7 +80,7 @@ export class VMScriptRunner implements ScriptRunner {
     if (linker) {
       // If we have a linker, we must've passed module rules so run as module,
       // storing exported namespace
-      exports = await this.runAsModule(context, blueprint, linker.linker);
+      exports = await this.runAsModule(context, blueprint, linker);
     } else {
       this.runAsScript(context, blueprint);
     }

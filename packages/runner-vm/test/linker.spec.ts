@@ -280,3 +280,33 @@ test(
   sizeEntryDiamondPath,
   sizeEntryDiamond + sizeA + sizeB + sizeShared
 );
+
+test("ModuleLinker: permits dynamic import in entrypoint", async (t) => {
+  const result = await run(
+    `
+    export default async function() {
+      return (await import("./esmodule.mjs")).default;
+    }
+    `
+  );
+  t.is(await result.exports.default(), "ESModule test");
+});
+test("ModuleLinker: permits dynamic import in ES module", async (t) => {
+  const result = await run(`import f from "./dynamic.mjs"; export default f;`);
+  t.is((await result.exports.default()).trimEnd(), "Text test");
+});
+test("ModuleLinker: permits dynamic import of statically linked module", async (t) => {
+  const result = await run(
+    `
+    import staticValue from "./esmodule.mjs";
+    export default async function() {
+      const module = await import("./esmodule.mjs");
+      return { static: staticValue, dynamic: module.default };
+    }
+    `
+  );
+  t.deepEqual(await result.exports.default(), {
+    static: "ESModule test",
+    dynamic: "ESModule test",
+  });
+});
