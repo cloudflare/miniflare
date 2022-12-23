@@ -15,7 +15,7 @@ export async function createSQLiteDB(dbPath: string): Promise<SqliteDB> {
   const { npxImport, npxResolve } = await import("npx-import");
   const { default: DatabaseConstructor } = await npxImport<{
     default: DBConstructor;
-  }>("better-sqlite3@7.6.2");
+  }>("better-sqlite3@8.0.1");
   return new DatabaseConstructor(dbPath, {
     nativeBinding: getSQLiteNativeBindingLocation(npxResolve("better-sqlite3")),
   });
