@@ -1,4 +1,6 @@
 import assert from "assert";
+import { once } from "events";
+import { DOMException } from "@miniflare/core";
 import {
   EXTERNAL_SUBREQUEST_LIMIT_BUNDLED,
   InputGatedEventTarget,
@@ -6,8 +8,10 @@ import {
   ValueOf,
   getRequestContext,
   kWrapListener,
+  viewToBuffer,
   waitForOpenOutputGate,
 } from "@miniflare/shared";
+import StandardWebSocket from "ws";
 
 export class MessageEvent extends Event {
   readonly data: ArrayBuffer | string;
@@ -63,7 +67,12 @@ export const kClose = Symbol("kClose");
 // Internal error method exposed to dispatch error events to pair
 export const kError = Symbol("kError");
 
+// Internal symbol passed to WebSocket constructor signalling that no connection
+// should be initiated, and we just want to construct an instance of the class.
+const kConstructOnly = Symbol("kConstructOnly");
+
 export type WebSocketEventMap = {
+  open: Event;
   message: MessageEvent;
   close: CloseEvent;
   error: ErrorEvent;
@@ -76,12 +85,70 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
   static readonly READY_STATE_CLOSING = 2;
   static readonly READY_STATE_CLOSED = 3;
 
+  // Whether this instance was constructed by a user using the standard
+  // `new WebSocket()` constructor
+  readonly #userConstructed;
+
   #dispatchQueue?: ValueOf<WebSocketEventMap>[] = [];
   [kPair]: WebSocket;
   [kAccepted] = false;
   [kCoupled] = false;
   [kClosedOutgoing] = false;
   [kClosedIncoming] = false;
+
+  constructor(url: string | URL, protocols?: string | string[]);
+  constructor(flag: typeof kConstructOnly);
+  constructor(
+    url: string | URL | typeof kConstructOnly,
+    protocols?: string | string[]
+  ) {
+    super();
+
+    if (url === kConstructOnly) {
+      this.#userConstructed = false;
+      return;
+    }
+    this.#userConstructed = true;
+
+    // Validate `url`. `ws` will perform its own validation, but we want to
+    // return the same error messages as the actual Workers runtime here.
+    try {
+      if (!(url instanceof URL)) url = new URL(url);
+    } catch {
+      throw new DOMException(
+        "WebSocket Constructor: The url is invalid.",
+        "SyntaxError"
+      );
+    }
+    if (url.protocol !== "ws:" && url.protocol !== "wss:") {
+      throw new DOMException(
+        "WebSocket Constructor: The url scheme must be ws or wss.",
+        "SyntaxError"
+      );
+    }
+    if (url.hash !== "") {
+      throw new DOMException(
+        "WebSocket Constructor: The url fragment must be empty.",
+        "SyntaxError"
+      );
+    }
+
+    // Miniflare's WebSocket implementation requires each WebSocket to have a
+    // corresponding pair, so create one and entangle with `this`
+    const pair = new WebSocket(kConstructOnly);
+    this[kPair] = pair;
+    pair[kPair] = this;
+
+    // Create a new WebSocket connection and couple it with the pair
+    const ws = new StandardWebSocket(url, protocols);
+    void coupleWebSocket(ws, pair).then(
+      () => {
+        this.#accept();
+        this.dispatchEvent(new Event("open"));
+      },
+      (error) => pair[kError](error)
+    );
+  }
 
   protected [kWrapListener]<Type extends keyof WebSocketEventMap>(
     listener: (event: WebSocketEventMap[Type]) => void
@@ -117,7 +184,9 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
   }
 
   get readyState(): number {
-    if (this[kClosedOutgoing] && this[kClosedIncoming]) {
+    if (this.#userConstructed && !this[kAccepted]) {
+      return WebSocket.READY_STATE_CONNECTING;
+    } else if (this[kClosedOutgoing] && this[kClosedIncoming]) {
       return WebSocket.READY_STATE_CLOSED;
     } else if (this[kClosedOutgoing] || this[kClosedIncoming]) {
       return WebSocket.READY_STATE_CLOSING;
@@ -138,6 +207,21 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
   }
 
   accept(): void {
+    if (this.#userConstructed) {
+      throw new TypeError(
+        "Websockets obtained from the 'new WebSocket()' constructor cannot call accept"
+      );
+    }
+    this.#accept();
+  }
+
+  #accept(): void {
+    // Split from accept() so we can call this in the `new WebSocket()`
+    // constructor once the connection is open. Note, in the Workers runtime,
+    // attempting to `send()` before the connection is open confusingly throws a
+    // "You must call accept() on this WebSocket before sending messages."
+    // `TypeError`.
+
     if (this[kCoupled]) {
       throw new TypeError(
         "Can't accept() WebSocket that was already used in a response."
@@ -248,8 +332,71 @@ export const WebSocketPair: { new (): WebSocketPair } = function (
       "Failed to construct 'WebSocketPair': Please use the 'new' operator, this object constructor cannot be called as a function."
     );
   }
-  this[0] = new WebSocket();
-  this[1] = new WebSocket();
+  this[0] = new WebSocket(kConstructOnly);
+  this[1] = new WebSocket(kConstructOnly);
   this[0][kPair] = this[1];
   this[1][kPair] = this[0];
 } as any;
+
+export async function coupleWebSocket(
+  ws: StandardWebSocket,
+  pair: WebSocket
+): Promise<void> {
+  if (pair[kCoupled]) {
+    throw new TypeError(
+      "Can't return WebSocket that was already used in a response."
+    );
+  }
+  if (pair[kAccepted]) {
+    throw new TypeError(
+      "Can't return WebSocket in a Response after calling accept()."
+    );
+  }
+
+  // Forward events from client to worker (register this before `open` to ensure
+  // events queued before other pair `accept`s to release)
+  ws.on("message", (message: Buffer, isBinary: boolean) => {
+    // Silently discard messages received after close:
+    // https://www.rfc-editor.org/rfc/rfc6455#section-1.4
+    if (!pair[kClosedOutgoing]) {
+      // Note `[kSend]` skips accept check and will queue messages if other pair
+      // hasn't `accept`ed yet. Also convert binary messages to `ArrayBuffer`s.
+      pair[kSend](isBinary ? viewToBuffer(message) : message.toString());
+    }
+  });
+  ws.on("close", (code: number, reason: Buffer) => {
+    // Silently discard closes received after close
+    if (!pair[kClosedOutgoing]) {
+      // Note `[kClose]` skips accept check and will queue messages if other
+      // pair hasn't `accept`ed yet. It also skips code/reason validation,
+      // allowing reserved codes (e.g. 1005 for "No Status Received").
+      pair[kClose](code, reason.toString());
+    }
+  });
+  ws.on("error", (error) => {
+    pair[kError](error);
+  });
+
+  // Forward events from worker to client
+  pair.addEventListener("message", (e) => {
+    ws.send(e.data);
+  });
+  pair.addEventListener("close", (e) => {
+    if (e.code === 1005 /* No Status Received */) {
+      ws.close();
+    } else {
+      ws.close(e.code, e.reason);
+    }
+  });
+
+  if (ws.readyState === StandardWebSocket.CONNECTING) {
+    // Wait for client to be open before accepting worker pair (which would
+    // release buffered messages). Note this will throw if an "error" event is
+    // dispatched (https://github.com/cloudflare/miniflare/issues/229).
+    await once(ws, "open");
+  } else if (ws.readyState >= StandardWebSocket.CLOSING) {
+    throw new TypeError("Incoming WebSocket connection already closed.");
+  }
+  pair.accept();
+  pair[kCoupled] = true;
+}

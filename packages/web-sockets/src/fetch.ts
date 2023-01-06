@@ -10,8 +10,7 @@ import {
 import { getRequestContext } from "@miniflare/shared";
 import { Dispatcher, Headers } from "undici";
 import StandardWebSocket from "ws";
-import { coupleWebSocket } from "./couple";
-import { WebSocketPair } from "./websocket";
+import { WebSocketPair, coupleWebSocket } from "./websocket";
 
 export async function upgradingFetch(
   this: Dispatcher | void,
