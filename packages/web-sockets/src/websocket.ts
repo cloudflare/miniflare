@@ -52,20 +52,20 @@ export class ErrorEvent extends Event {
 // construct both sockets before setting the circular references
 const kPair = Symbol("kPair");
 
-export const kAccepted = Symbol("kAccepted");
-export const kCoupled = Symbol("kCoupled");
+const kAccepted = Symbol("kAccepted");
+const kCoupled = Symbol("kCoupled");
 
 // Whether close() has been called on the socket
 export const kClosedOutgoing = Symbol("kClosedOutgoing");
 // Whether a close event has been dispatched on the socket
-export const kClosedIncoming = Symbol("kClosedIncoming");
+const kClosedIncoming = Symbol("kClosedIncoming");
 
 // Internal send method exposed to bypass accept checking
-export const kSend = Symbol("kSend");
+const kSend = Symbol("kSend");
 // Internal close method exposed to bypass close code checking
-export const kClose = Symbol("kClose");
+const kClose = Symbol("kClose");
 // Internal error method exposed to dispatch error events to pair
-export const kError = Symbol("kError");
+const kError = Symbol("kError");
 
 // Internal symbol passed to WebSocket constructor signalling that no connection
 // should be initiated, and we just want to construct an instance of the class.
@@ -104,6 +104,8 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
   ) {
     super();
 
+    // Could refactor this to `!this.#userConstructed`, but then `url` wouldn't
+    // be narrowed correctly
     if (url === kConstructOnly) {
       this.#userConstructed = false;
       return;
