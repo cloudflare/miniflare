@@ -4,6 +4,7 @@ import path from "path";
 import vm, { SourceTextModuleImportModuleDynamically } from "vm";
 import {
   AdditionalModules,
+  Compatibility,
   Context,
   ProcessedModuleRule,
   STRING_SCRIPT_PATH,
@@ -32,10 +33,14 @@ export class ModuleLinker {
   readonly #referencedPathSizes = new Map<string, number>();
   readonly #moduleCache = new Map<string, vm.Module>();
   readonly #cjsModuleCache = new Map<string, CommonJSModule>();
+  // Make sure we always return the same objects from `require()` when the
+  // `export_commonjs_default` compatibility flag is disabled
+  readonly #namespaceCache = new WeakMap<any, any>();
 
   constructor(
-    private moduleRules: ProcessedModuleRule[],
-    private additionalModules: AdditionalModules
+    private readonly moduleRules: ProcessedModuleRule[],
+    private readonly additionalModules: AdditionalModules,
+    private readonly compat?: Compatibility
   ) {}
 
   get referencedPaths(): IterableIterator<string> {
@@ -110,7 +115,7 @@ export class ModuleLinker {
         });
         break;
       case "CommonJS":
-        const exports = this.loadCommonJSModule(
+        const mod = this.loadCommonJSModule(
           errorBase,
           identifier,
           spec,
@@ -119,7 +124,7 @@ export class ModuleLinker {
         module = new vm.SyntheticModule<{ default: Context }>(
           ["default"],
           function () {
-            this.setExport("default", exports);
+            this.setExport("default", mod.exports);
           },
           moduleOptions
         );
@@ -190,20 +195,20 @@ export class ModuleLinker {
     identifier: string,
     spec: string,
     context: vm.Context
-  ): any {
+  ): CommonJSModule {
     // If we've already seen a module with the same identifier, return it, to
     // handle import cycles
     const cached = this.#cjsModuleCache.get(identifier);
-    if (cached) return cached.exports;
+    if (cached) return cached;
 
     const additionalModule = this.additionalModules[spec];
     const module: CommonJSModule = { exports: {} };
 
     // If this is an additional module, return it immediately
     if (additionalModule) {
-      module.exports.default = additionalModule.default;
+      module.exports = additionalModule.default;
       this.#cjsModuleCache.set(identifier, module);
-      return module.exports;
+      return module;
     }
 
     const rule = this.moduleRules.find((rule) => rule.include.test(identifier));
@@ -242,13 +247,13 @@ export class ModuleLinker {
         moduleWrapper(module.exports, require, module);
         break;
       case "Text":
-        module.exports.default = data.toString("utf8");
+        module.exports = data.toString("utf8");
         break;
       case "Data":
-        module.exports.default = viewToBuffer(data);
+        module.exports = viewToBuffer(data);
         break;
       case "CompiledWasm":
-        module.exports.default = new WebAssembly.Module(data);
+        module.exports = new WebAssembly.Module(data);
         break;
       default:
         throw new VMScriptRunnerError(
@@ -256,7 +261,7 @@ export class ModuleLinker {
           `${errorBase}: ${rule.type} modules are unsupported`
         );
     }
-    return module.exports;
+    return module;
   }
 
   private createRequire(referencingIdentifier: string, context: vm.Context) {
@@ -266,7 +271,24 @@ export class ModuleLinker {
       const errorBase = `Unable to resolve "${relative}" dependency "${spec}"`;
       // Get path to specified module relative to referencing module
       const identifier = path.resolve(referencingDirname, spec);
-      return this.loadCommonJSModule(errorBase, identifier, spec, context);
+      const mod = this.loadCommonJSModule(errorBase, identifier, spec, context);
+      // https://developers.cloudflare.com/workers/platform/compatibility-dates/#commonjs-modules-do-not-export-a-module-namespace
+      if (
+        this.compat === undefined ||
+        this.compat.isEnabled("export_commonjs_default")
+      ) {
+        return mod.exports;
+      } else {
+        // Make sure we always return the same object for an indentifier
+        let ns = this.#namespaceCache.get(mod);
+        if (ns !== undefined) return ns;
+        ns = Object.defineProperty({}, "default", {
+          get: () => mod.exports,
+          enumerable: true,
+        });
+        this.#namespaceCache.set(mod, ns);
+        return ns;
+      }
     };
   }
 }

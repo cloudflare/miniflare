@@ -1,3 +1,4 @@
+import { Compatibility } from "./compat";
 import { Matcher } from "./data";
 import { AdditionalModules, Context } from "./plugin";
 
@@ -38,6 +39,7 @@ export interface ScriptRunner {
     globalScope: Context,
     blueprint: ScriptBlueprint,
     modulesRules?: ProcessedModuleRule[],
-    additionalModules?: AdditionalModules
+    additionalModules?: AdditionalModules,
+    compat?: Compatibility
   ): Promise<ScriptRunnerResult>;
 }
