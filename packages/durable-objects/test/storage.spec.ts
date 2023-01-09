@@ -12,7 +12,6 @@ import {
 import {
   InputGate,
   OutputGate,
-  Storage,
   StoredValueMeta,
   nonCircularClone,
   viewToArray,
@@ -35,7 +34,9 @@ import anyTest, {
 import { alarmStore, testKey } from "./object";
 
 interface Context {
-  backing: Storage;
+  // We need synchronous access to storage for `sync()` tests, so require
+  // in-memory storage.
+  backing: MemoryStorage;
   storage: DurableObjectStorage;
 }
 
@@ -1323,6 +1324,74 @@ test("transaction: performs operations in program order", async (t) => {
   t.is(await storage.get("key"), "value"); // not `undefined`
 });
 
+test("sync: waits for writes to be synchronised with storage", async (t) => {
+  const { backing, storage } = t.context;
+
+  // Check `sync()` waits for `put()`s
+  // noinspection ES6MissingAwait
+  void storage.put("key1", "value1");
+  let syncPromise: Promise<void> | undefined = storage.sync();
+  // `syncPromise` shouldn't resolve until all pending flushes have completed,
+  // including those performed with `allowUnconfirmed`
+  // noinspection ES6MissingAwait
+  void storage.put("key2", "value2", { allowUnconfirmed: true });
+
+  // Note `getMaybeExpired()` is synchronous in `MemoryStorage`
+  t.is(backing.getMaybeExpired("key1"), undefined);
+  t.is(backing.getMaybeExpired("key2"), undefined);
+  await syncPromise;
+  t.not(backing.getMaybeExpired("key1"), undefined);
+  t.not(backing.getMaybeExpired("key2"), undefined);
+
+  // Check `sync()` waits for `delete()`s
+  // noinspection ES6MissingAwait
+  void storage.delete("key1");
+  // noinspection ES6MissingAwait
+  void storage.delete("key2", { allowUnconfirmed: true });
+  t.not(backing.getMaybeExpired("key1"), undefined);
+  t.not(backing.getMaybeExpired("key2"), undefined);
+  await storage.sync();
+  t.is(backing.getMaybeExpired("key1"), undefined);
+  t.is(backing.getMaybeExpired("key2"), undefined);
+
+  // Check `sync()` waits for `deleteAll()`s
+  await storage.put("key1", "value1");
+  // noinspection ES6MissingAwait
+  void storage.deleteAll();
+  t.not(backing.getMaybeExpired("key1"), undefined);
+  await storage.sync();
+  t.is(backing.getMaybeExpired("key1"), undefined);
+
+  // Check `sync()` waits for `setAlarm()`s
+  // noinspection ES6MissingAwait
+  void storage.setAlarm(Date.now() + 60_000);
+  t.is(backing.getMaybeExpired("__MINIFLARE_ALARMS__"), undefined);
+  await storage.sync();
+  t.not(backing.getMaybeExpired("__MINIFLARE_ALARMS__"), undefined);
+
+  // Check `sync()` waits for `deleteAlarm()`s
+  // noinspection ES6MissingAwait
+  void storage.deleteAlarm();
+  t.not(backing.getMaybeExpired("__MINIFLARE_ALARMS__"), undefined);
+  await storage.sync();
+  t.is(backing.getMaybeExpired("__MINIFLARE_ALARMS__"), undefined);
+
+  // Check `sync()` waits for `transaction()`s
+  syncPromise = undefined;
+  // noinspection ES6MissingAwait
+  void storage.transaction(async (txn) => {
+    // Check calling `sync()` while transaction running waits for transaction
+    // to complete. Note this closure may be called multiple times, but we only
+    // want to call `sync()` on the first run, hence `??=`.
+    syncPromise ??= storage.sync();
+    await setTimeout();
+    await txn.put("key1", "value2");
+  });
+  t.is(backing.getMaybeExpired("key1"), undefined);
+  await syncPromise;
+  t.not(backing.getMaybeExpired("key1"), undefined);
+});
+
 test("hides implementation details", (t) => {
   const { storage } = t.context;
   t.deepEqual(getObjectProperties(storage), [
@@ -1334,6 +1403,7 @@ test("hides implementation details", (t) => {
     "list",
     "put",
     "setAlarm",
+    "sync",
     "transaction",
   ]);
 });
