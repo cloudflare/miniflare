@@ -17,7 +17,6 @@ import {
 import {
   CloseEvent,
   MessageEvent,
-  WebSocket,
   WebSocketPair,
   WebSocketPlugin,
 } from "@miniflare/web-sockets";
@@ -89,24 +88,6 @@ test("WebSocketPlugin: setup: fetch throws outside request handler unless global
   });
   globals = (await plugin.setup()).globals;
   await globals?.fetch(upstream);
-});
-test("WebSocketPlugin: setup: blocks direct WebSocket construction", (t) => {
-  const plugin = new WebSocketPlugin(ctx);
-  const WebSocketProxy: typeof WebSocket = plugin.setup().globals!.WebSocket;
-  t.throws(() => new WebSocketProxy(), {
-    instanceOf: Error,
-    message:
-      "Failed to construct 'WebSocket': the constructor is not implemented.",
-  });
-  // @ts-expect-error construction without new should also throw
-  t.throws(() => WebSocketProxy(), {
-    instanceOf: Error,
-    message:
-      "Failed to construct 'WebSocket': the constructor is not implemented.",
-  });
-  // Check we can still use it for instanceof checking
-  const pair = new WebSocketPair();
-  t.true(pair[0] instanceof WebSocketProxy);
 });
 
 test("WebSocketPlugin: fetch, reload, dispose: closes WebSockets", async (t) => {

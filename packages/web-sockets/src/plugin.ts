@@ -14,9 +14,6 @@ import {
   kClosedOutgoing,
 } from "./websocket";
 
-const constructError =
-  "Failed to construct 'WebSocket': the constructor is not implemented.";
-
 export class WebSocketPlugin extends Plugin {
   #webSockets = new Set<WebSocket>();
   readonly #upgradingFetch: typeof upgradingFetch;
@@ -35,14 +32,7 @@ export class WebSocketPlugin extends Plugin {
         MessageEvent,
         CloseEvent,
         WebSocketPair,
-        WebSocket: new Proxy(WebSocket, {
-          construct() {
-            throw new Error(constructError);
-          },
-          apply() {
-            throw new Error(constructError);
-          },
-        }),
+        WebSocket,
         // This plugin will always be loaded after CorePlugin, so this overrides
         // the standard non-upgrading fetch
         fetch: this.fetch,
