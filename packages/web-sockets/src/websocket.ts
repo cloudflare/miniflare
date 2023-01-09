@@ -148,7 +148,12 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
         this.#accept();
         this.dispatchEvent(new Event("open"));
       },
-      (error) => pair[kError](error)
+      (error) => {
+        // `[kError]()` will call `#queuingDispatchToPair()` which will only
+        // dispatch the event to this instance if it's accepted.
+        this.#accept();
+        pair[kError](error);
+      }
     );
   }
 
