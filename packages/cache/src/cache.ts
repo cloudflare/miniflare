@@ -12,6 +12,7 @@ import {
   Storage,
   assertInRequest,
   defaultClock,
+  getRangeResponse,
   getRequestContext,
   millisToSeconds,
   waitForOpenInputGate,
@@ -25,7 +26,6 @@ import {
 } from "undici";
 import { CacheError } from "./error";
 import { CacheInterface, CacheMatchOptions, CachedMeta } from "./helpers";
-import { _getRangeResponse } from "./range";
 
 function normaliseRequest(req: RequestInfo): BaseRequest | Request {
   // noinspection SuspiciousTypeOfGuard
@@ -167,7 +167,7 @@ function getMatchResponse(
   // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Range
   const reqRangeHeader = reqHeaders.get("Range");
   if (reqRangeHeader !== null) {
-    return _getRangeResponse(reqRangeHeader, resStatus, resHeaders, resBody);
+    return getRangeResponse(reqRangeHeader, resStatus, resHeaders, resBody);
   }
 
   // Otherwise, return the full response

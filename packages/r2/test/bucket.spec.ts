@@ -283,6 +283,46 @@ test("get: suffix is less than or equal to 0", async (t) => {
     }
   );
 });
+test('get: range using "Range" header', async (t) => {
+  const { r2 } = t.context;
+  const value = "abcdefghijklmnopqrstuvwxyz";
+  await r2.put("key", value);
+  const range = new Headers();
+
+  // Check missing "Range" header returns full response
+  let body = await r2.get("key", { range });
+  assert(body instanceof R2ObjectBody);
+  t.is(await body.text(), value);
+  t.deepEqual(body.range, { offset: 0, length: 26 });
+
+  // Check "Range" with start and end returns partial response
+  range.set("Range", "bytes=3-6");
+  body = await r2.get("key", { range });
+  assert(body instanceof R2ObjectBody);
+  t.is(await body.text(), "defg");
+  t.deepEqual(body.range, { offset: 3, length: 4 });
+
+  // Check "Range" with just start returns partial response
+  range.set("Range", "bytes=10-");
+  body = await r2.get("key", { range });
+  assert(body instanceof R2ObjectBody);
+  t.is(await body.text(), "klmnopqrstuvwxyz");
+  t.deepEqual(body.range, { offset: 10, length: 16 });
+
+  // Check "Range" with just end returns partial response
+  range.set("Range", "bytes=-5");
+  body = await r2.get("key", { range });
+  assert(body instanceof R2ObjectBody);
+  t.is(await body.text(), "vwxyz");
+  t.deepEqual(body.range, { offset: 21, length: 5 });
+
+  // Check "Range" with multiple ranges returns full response
+  range.set("Range", "bytes=5-6,10-11");
+  body = await r2.get("key", { range });
+  assert(body instanceof R2ObjectBody);
+  t.is(await body.text(), value);
+  t.deepEqual(body.range, { offset: 0, length: 26 });
+});
 
 test("get: onlyIf: etagMatches as a string passes", async (t) => {
   const { r2 } = t.context;

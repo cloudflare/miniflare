@@ -10,6 +10,7 @@ import {
   Storage,
   assertInRequest,
   getRequestContext,
+  parseRanges,
   viewToArray,
   waitForOpenInputGate,
   waitForOpenOutputGate,
@@ -52,7 +53,7 @@ export interface R2GetOptions {
   // Specifies that only a specific length (from an optional offset) or suffix
   // of bytes from the object should be returned. Refer to
   // https://developers.cloudflare.com/r2/runtime-apis/#ranged-reads.
-  range?: R2Range;
+  range?: R2Range | Headers;
 }
 
 export type R2PutValueType =
@@ -189,8 +190,11 @@ function validateGetOptions(options: R2GetOptions): void {
   if (typeof range !== "object") {
     throwR2Error("GET", 400, "range must either be an object or undefined.");
   }
-  const { offset, length, suffix } = range;
 
+  // Validate range if not `Range` header, that will be validated once we've
+  // fetched metadata containing the size
+  if (range instanceof Headers) return;
+  const { offset, length, suffix } = range;
   if (offset !== undefined) {
     if (typeof offset !== "number") {
       throwR2Error("GET", 400, "offset must either be a number or undefined.");
@@ -338,6 +342,22 @@ export async function _valueToArray(
   }
 }
 
+function rangeHeaderToR2Range(headers: Headers, size: number): R2Range {
+  const rangeHeader = headers.get("Range");
+  if (rangeHeader !== null) {
+    const ranges = parseRanges(rangeHeader, size);
+    if (ranges?.length === 1) {
+      // If the header contained a single range, convert it to an R2Range.
+      // Note `start` and `end` are inclusive.
+      const [start, end] = ranges[0];
+      return { offset: start, length: end - start + 1 };
+    }
+  }
+  // If the header didn't exist, was invalid, or contained multiple ranges,
+  // just return the full response
+  return {};
+}
+
 function buildKeyTypeError(method: Lowercase<Method>): string {
   return `Failed to execute '${method}' on 'R2Bucket': parameter 1 is not of type 'string'.`;
 }
@@ -414,7 +434,7 @@ export class R2Bucket {
   ): Promise<R2ObjectBody | R2Object | null> {
     const ctx = this.#prepareCtx();
     options = options ?? {};
-    const { range = {} } = options;
+    let { range = {} } = options;
 
     // The Workers runtime will coerce the key parameter to a string
     if (arguments.length === 0) {
@@ -441,6 +461,11 @@ export class R2Bucket {
       await waitForOpenInputGate();
       ctx?.advanceCurrentTime();
       return new R2Object(meta);
+    }
+
+    // Convert `Range` header to R2Range if specified
+    if (range instanceof Headers) {
+      range = rangeHeaderToR2Range(range, meta.size);
     }
 
     let stored: RangeStoredValueMeta<R2ObjectMetadata> | undefined;

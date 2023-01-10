@@ -6,6 +6,7 @@ export * from "./event";
 export * from "./log";
 export * from "./plugin";
 export * from "./queues";
+export * from "./range";
 export * from "./runner";
 export * from "./storage";
 export * from "./sync/";
