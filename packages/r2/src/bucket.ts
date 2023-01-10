@@ -1,6 +1,7 @@
 // noinspection SuspiciousTypeOfGuard
 
 import { Blob } from "buffer";
+import crypto from "crypto";
 import { arrayBuffer } from "stream/consumers";
 import { ReadableStream } from "stream/web";
 import { TextEncoder } from "util";
@@ -17,9 +18,13 @@ import {
 } from "@miniflare/shared";
 import { Headers } from "undici";
 import {
+  HEX_REGEXP,
+  R2Checksums,
+  R2HashAlgorithm,
   R2Object,
   R2ObjectBody,
-  createHash,
+  R2_HASH_ALGORITHMS,
+  createMD5Hash,
   createVersion,
   parseHttpMetadata,
   parseOnlyIf,
@@ -63,7 +68,7 @@ export type R2PutValueType =
   | string
   | null
   | Blob;
-export interface R2PutOptions {
+export interface R2PutOptions extends R2Checksums<ArrayBuffer | string> {
   // Specifies that the object should only be stored given satisfaction of
   // certain conditions in the R2Conditional. Refer to R2Conditional above.
   onlyIf?: R2Conditional | Headers;
@@ -72,8 +77,6 @@ export interface R2PutOptions {
   httpMetadata?: R2HTTPMetadata | Headers;
   // A map of custom, user-defined metadata that will be stored with the object.
   customMetadata?: Record<string, string>;
-  // A md5 hash to use to check the recieved object’s integrity.
-  md5?: ArrayBuffer | string;
 }
 
 export type R2ListOptionsInclude = ("httpMetadata" | "customMetadata")[];
@@ -241,8 +244,65 @@ function validateHttpMetadata(httpMetadata?: R2HTTPMetadata | Headers): void {
   }
 }
 
-function validatePutOptions(options: R2PutOptions): void {
-  const { onlyIf = {}, httpMetadata, customMetadata, md5 } = options;
+interface R2PutOptionHash {
+  alg: R2HashAlgorithm;
+  hash: Buffer;
+}
+function validatePutHash(
+  options: R2PutOptions,
+  alg: R2HashAlgorithm
+): R2PutOptionHash | undefined {
+  const hash = options[alg.field];
+  let buffer: Buffer;
+  if (hash === undefined) {
+    return;
+  } else if (hash instanceof ArrayBuffer) {
+    buffer = Buffer.from(hash);
+  } else if (ArrayBuffer.isView(hash)) {
+    // Note `ArrayBufferView`s are automatically coerced to `ArrayBuffer`'s by
+    // the runtime.
+    buffer = Buffer.from(viewToArray(hash));
+  } else if (typeof hash === "string") {
+    const expectedHex = alg.expectedBytes * 2;
+    if (hash.length !== expectedHex) {
+      throw new TypeError(
+        `${alg.name} is ${expectedHex} hex characters, not ${hash.length}`
+      );
+    }
+    if (!HEX_REGEXP.test(hash)) {
+      throw new TypeError(`Provided ${alg.name} wasn't a valid hex string`);
+    }
+    buffer = Buffer.from(hash, "hex");
+  } else {
+    throw new TypeError(
+      `Incorrect type for the '${alg.field}' field on 'PutOptions': the provided value is not of type 'ArrayBuffer or ArrayBufferView or string'.`
+    );
+  }
+  if (buffer.byteLength !== alg.expectedBytes) {
+    throw new TypeError(
+      `${alg.name} is ${alg.expectedBytes} bytes, not ${buffer.byteLength}`
+    );
+  }
+  return { alg, hash: buffer };
+}
+function validatePutHashes(options: R2PutOptions): R2PutOptionHash | undefined {
+  let hash: R2PutOptionHash | undefined;
+  for (const alg of R2_HASH_ALGORITHMS) {
+    const validatedHash = validatePutHash(options, alg);
+    if (validatedHash !== undefined) {
+      if (hash !== undefined) {
+        throw new TypeError("You cannot specify multiple hashing algorithms.");
+      }
+      hash = validatedHash;
+    }
+  }
+  return hash;
+}
+
+function validatePutOptions(
+  options: R2PutOptions
+): R2PutOptionHash | undefined {
+  const { onlyIf = {}, httpMetadata, customMetadata } = options;
 
   validateOnlyIf(onlyIf, "PUT");
   validateHttpMetadata(httpMetadata);
@@ -262,17 +322,7 @@ function validatePutOptions(options: R2PutOptions): void {
     }
   }
 
-  if (
-    md5 !== undefined &&
-    !(md5 instanceof ArrayBuffer) &&
-    typeof md5 !== "string"
-  ) {
-    throwR2Error(
-      "PUT",
-      400,
-      "md5 must be a string, ArrayBuffer, or undefined."
-    );
-  }
+  return validatePutHashes(options);
 }
 
 function validateListOptions(options: R2ListOptions): void {
@@ -460,7 +510,7 @@ export class R2Bucket {
     if (!testR2Conditional(onlyIf, meta) || meta?.size === 0) {
       await waitForOpenInputGate();
       ctx?.advanceCurrentTime();
-      return new R2Object(meta);
+      return meta;
     }
 
     // Convert `Range` header to R2Range if specified
@@ -507,10 +557,10 @@ export class R2Bucket {
     // Validate key
     validateKey("PUT", key);
     // Validate options
-    validatePutOptions(options);
+    const specifiedHash = validatePutOptions(options);
 
     const { customMetadata = {} } = options;
-    let { md5, onlyIf, httpMetadata } = options;
+    let { onlyIf, httpMetadata } = options;
     onlyIf = parseOnlyIf(onlyIf);
     httpMetadata = parseHttpMetadata(httpMetadata);
 
@@ -530,23 +580,25 @@ export class R2Bucket {
       );
     }
 
-    // if md5 is provided, check objects integrity
-    const md5Hash = createHash(toStore);
-    if (md5 !== undefined) {
-      // convert to string
-      if (md5 instanceof ArrayBuffer) {
-        md5 = Buffer.from(new Uint8Array(md5)).toString("hex");
-      }
-      if (md5 !== md5Hash) {
-        throwR2Error(
-          "PUT",
-          400,
-          "The Content-MD5 you specified did not match what we received."
+    // If hash is provided, check objects integrity
+    const checksums: R2Checksums<string> = {};
+    if (specifiedHash !== undefined) {
+      const computedHash = crypto
+        .createHash(specifiedHash.alg.field)
+        .update(toStore)
+        .digest();
+      if (!specifiedHash.hash.equals(computedHash)) {
+        throw new Error(
+          `put: The ${specifiedHash.alg.name} checksum you specified did not match what we received.`
         );
       }
+      // Store computed hash to ensure consistent casing in returned checksums
+      // from `R2Object`
+      checksums[specifiedHash.alg.field] = computedHash.toString("hex");
     }
 
-    // build metadata
+    // Build metadata
+    const md5Hash = createMD5Hash(toStore);
     const metadata: R2ObjectMetadata = {
       key,
       size: toStore.byteLength,
@@ -556,6 +608,7 @@ export class R2Bucket {
       uploaded: new Date(),
       httpMetadata,
       customMetadata,
+      checksums,
     };
 
     // Store value with expiration and metadata

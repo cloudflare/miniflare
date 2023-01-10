@@ -202,7 +202,7 @@ export interface NewUniqueIdOptions {
   jurisdiction?: string; // Ignored
 }
 
-const HEX_ID_REGEXP = /^[A-Za-z0-9]{64}$/; // 64 hex digits
+const HEX_ID_REGEXP = /^[A-Fa-f0-9]{64}$/; // 64 hex digits
 
 export class DurableObjectNamespace {
   readonly #objectName: string;

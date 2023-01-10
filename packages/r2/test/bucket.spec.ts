@@ -1,5 +1,6 @@
 import assert from "assert";
 import { Blob } from "buffer";
+import crypto from "crypto";
 import { ReadableStream } from "stream/web";
 import {
   R2Bucket,
@@ -11,7 +12,7 @@ import {
   R2Objects,
   R2PutOptions,
   R2PutValueType,
-  createHash,
+  createMD5Hash,
   parseR2ObjectMetadata,
 } from "@miniflare/r2";
 import {
@@ -116,7 +117,7 @@ test("head: waits for input gate to open before returning value", async (t) => {
   const { r2 } = t.context;
   await r2.put("key", "value");
   const r2Object = await waitsForInputGate(t, () => r2.head("key"));
-  const etag = createHash(utf8Encode("value"));
+  const etag = createMD5Hash(utf8Encode("value"));
   assert(r2Object);
   t.is(r2Object.key, "key");
   t.is(r2Object.size, "value".length);
@@ -326,7 +327,7 @@ test('get: range using "Range" header', async (t) => {
 
 test("get: onlyIf: etagMatches as a string passes", async (t) => {
   const { r2 } = t.context;
-  const etag = createHash(utf8Encode("value"));
+  const etag = createMD5Hash(utf8Encode("value"));
   await r2.put("key", "value");
   const r2ObjectBody = await r2.get("key", { onlyIf: { etagMatches: etag } });
   assert(r2ObjectBody instanceof R2ObjectBody);
@@ -335,7 +336,7 @@ test("get: onlyIf: etagMatches as a string passes", async (t) => {
 test("get: onlyIf: etagMatches as a Header passes", async (t) => {
   const { r2 } = t.context;
   const headers = new Headers();
-  const etag = createHash(utf8Encode("value"));
+  const etag = createMD5Hash(utf8Encode("value"));
   headers.append("if-match", etag);
   await r2.put("key", "value");
   const r2ObjectBody = await r2.get("key", {
@@ -347,7 +348,7 @@ test("get: onlyIf: etagMatches as a Header passes", async (t) => {
 test("get: onlyIf: etagMatches as a string array passes", async (t) => {
   const { r2 } = t.context;
   await r2.put("key", "value");
-  const etag = createHash(utf8Encode("value"));
+  const etag = createMD5Hash(utf8Encode("value"));
   const r2ObjectBody = await r2.get("key", {
     onlyIf: { etagMatches: [etag, "etag2"] },
   });
@@ -357,7 +358,7 @@ test("get: onlyIf: etagMatches as a string array passes", async (t) => {
 test("get: onlyIf: etagMatches as a headers array passes", async (t) => {
   const { r2 } = t.context;
   const headers = new Headers();
-  const etag = createHash(utf8Encode("value"));
+  const etag = createMD5Hash(utf8Encode("value"));
   headers.append("if-match", `${etag}, etag2`);
   await r2.put("key", "value");
   const r2ObjectBody = await r2.get("key", {
@@ -461,7 +462,7 @@ test("get: onlyIf: uploadedBefore as a date is ignored if etagMatches matches me
   const r2ObjectBody = await r2.get("key", {
     onlyIf: {
       uploadedBefore: date,
-      etagMatches: createHash(utf8Encode("value")),
+      etagMatches: createMD5Hash(utf8Encode("value")),
     },
   });
   assert(r2ObjectBody instanceof R2ObjectBody);
@@ -472,7 +473,7 @@ test("get: onlyIf: uploadedBefore as a headers date is ignored if etagMatches ma
   const date = new Date(Date.now() - 50_000);
   const headers = new Headers();
   headers.append("if-unmodified-since", date.toUTCString());
-  headers.append("if-match", createHash(utf8Encode("value")));
+  headers.append("if-match", createMD5Hash(utf8Encode("value")));
   await r2.put("key", "value");
   const r2ObjectBody = await r2.get("key", {
     onlyIf: headers,
@@ -623,7 +624,7 @@ const putMacro: Macro<
   assert(metadata);
   parseR2ObjectMetadata(metadata);
 
-  const etag = createHash(get.value);
+  const etag = createMD5Hash(get.value);
 
   t.is(key, metadata.key);
   t.is(typeof metadata.version, "string");
@@ -729,53 +730,211 @@ test("with customMetadata option", putMacro, {
     },
   },
 });
-test("with md5 as correct string", putMacro, {
-  key: "text",
-  value: "value",
-  expected: { value: utf8Encode("value") },
-  options: {
-    md5: createHash(utf8Encode("value")),
-  },
+
+test("put: checksums: validates hash type", async (t) => {
+  const { r2 } = t.context;
+  const expectations = (name: string): ThrowsExpectation => ({
+    instanceOf: TypeError,
+    message: `Incorrect type for the '${name}' field on 'PutOptions': the provided value is not of type 'ArrayBuffer or ArrayBufferView or string'.`,
+  });
+  // @ts-expect-error intentionally testing incorrect types
+  await t.throwsAsync(r2.put("key", "", { md5: 1 }), expectations("md5"));
+  // @ts-expect-error intentionally testing incorrect types
+  await t.throwsAsync(r2.put("key", "", { sha1: 2 }), expectations("sha1"));
+  // @ts-expect-error intentionally testing incorrect types
+  await t.throwsAsync(r2.put("key", "", { sha256: 3 }), expectations("sha256"));
+  // @ts-expect-error intentionally testing incorrect types
+  await t.throwsAsync(r2.put("key", "", { sha384: 4 }), expectations("sha384"));
+  // @ts-expect-error intentionally testing incorrect types
+  await t.throwsAsync(r2.put("key", "", { sha512: 5 }), expectations("sha512"));
+});
+test("put: checksums: validates string hashes", async (t) => {
+  const { r2 } = t.context;
+
+  const lengthExpectations = (
+    name: string,
+    expected: number
+  ): ThrowsExpectation => ({
+    instanceOf: TypeError,
+    message: `${name} is ${expected} hex characters, not 3`,
+  });
+  await t.throwsAsync(
+    r2.put("key", "", { md5: "abc" }),
+    lengthExpectations("MD5", 32)
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha1: "abc" }),
+    lengthExpectations("SHA-1", 40)
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha256: "abc" }),
+    lengthExpectations("SHA-256", 64)
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha384: "abc" }),
+    lengthExpectations("SHA-384", 96)
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha512: "abc" }),
+    lengthExpectations("SHA-512", 128)
+  );
+
+  const characterExpectations = (name: string): ThrowsExpectation => ({
+    instanceOf: TypeError,
+    message: `Provided ${name} wasn't a valid hex string`,
+  });
+  await t.throwsAsync(
+    r2.put("key", "", { md5: "".padStart(32, "x") }),
+    characterExpectations("MD5")
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha1: "".padStart(40, "x") }),
+    characterExpectations("SHA-1")
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha256: "".padStart(64, "x") }),
+    characterExpectations("SHA-256")
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha384: "".padStart(96, "x") }),
+    characterExpectations("SHA-384")
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha512: "".padStart(128, "x") }),
+    characterExpectations("SHA-512")
+  );
+});
+test("put: checksums: validates array buffer (view) hashes", async (t) => {
+  const { r2 } = t.context;
+  const expectations = (name: string, expected: number): ThrowsExpectation => ({
+    instanceOf: TypeError,
+    message: `${name} is ${expected} bytes, not 3`,
+  });
+  await t.throwsAsync(
+    r2.put("key", "", { md5: new ArrayBuffer(3) }),
+    expectations("MD5", 16)
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { md5: new Uint8Array(3) }),
+    expectations("MD5", 16)
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha1: new ArrayBuffer(3) }),
+    expectations("SHA-1", 20)
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha1: new Uint8Array(3) }),
+    expectations("SHA-1", 20)
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha256: new ArrayBuffer(3) }),
+    expectations("SHA-256", 32)
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha256: new Uint8Array(3) }),
+    expectations("SHA-256", 32)
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha384: new ArrayBuffer(3) }),
+    expectations("SHA-384", 48)
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha384: new Uint8Array(3) }),
+    expectations("SHA-384", 48)
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha512: new ArrayBuffer(3) }),
+    expectations("SHA-512", 64)
+  );
+  await t.throwsAsync(
+    r2.put("key", "", { sha512: new Uint8Array(3) }),
+    expectations("SHA-512", 64)
+  );
+});
+test("put: checksums: accepts at most one hash", async (t) => {
+  const { r2 } = t.context;
+  // Check accepts no hash
+  await r2.put("key", "value", {});
+  // Check accepts one hash
+  const md5 = crypto.createHash("md5").update("value").digest("hex");
+  await r2.put("key", "value", { md5 });
+  // Check fails with two hashes
+  const sha256 = crypto.createHash("sha256").update("value").digest("hex");
+  await t.throwsAsync(r2.put("key", "value", { md5, sha256 }), {
+    instanceOf: TypeError,
+    message: "You cannot specify multiple hashing algorithms.",
+  });
+});
+test("put: checksums: only stores if computed hash matches", async (t) => {
+  const { r2 } = t.context;
+  const expectations = (name: string): ThrowsExpectation => ({
+    instanceOf: Error,
+    message: `put: The ${name} checksum you specified did not match what we received.`,
+  });
+
+  // Check with string digest
+  const md5 = crypto.createHash("md5").update("value").digest("hex");
+  await r2.put("key", "value", { md5 });
+  await t.throwsAsync(
+    r2.put("key", "value", { md5: md5.replace("0", "1") }),
+    expectations("MD5")
+  );
+  let checksums = (await r2.head("key"))?.checksums.toJSON();
+  t.deepEqual(checksums, { md5 });
+
+  // Check with ArrayBuffer digest
+  const sha1 = viewToBuffer(crypto.createHash("sha1").update("value").digest());
+  await r2.put("key", "value", { sha1 });
+  const badSha1 = sha1.slice(0);
+  new Uint8Array(badSha1)[0] = 0;
+  await t.throwsAsync(
+    r2.put("key", "value", { sha1: badSha1 }),
+    expectations("SHA-1")
+  );
+  checksums = (await r2.head("key"))?.checksums.toJSON();
+  t.deepEqual(checksums, {
+    md5,
+    sha1: Buffer.from(sha1).toString("hex"),
+  });
+
+  const sha256 = crypto.createHash("sha256").update("value").digest("hex");
+  await r2.put("key", "value", { sha256 });
+  await t.throwsAsync(
+    r2.put("key", "value", { sha256: sha256.replace("0", "1") }),
+    expectations("SHA-256")
+  );
+  // Check `get()` also correctly returns checksums
+  checksums = (await r2.get("key"))?.checksums.toJSON();
+  t.deepEqual(checksums, { md5, sha256 });
+
+  // Check with ArrayBufferView digest
+  const sha384 = new Uint8Array(
+    crypto.createHash("sha384").update("value").digest()
+  );
+  await r2.put("key", "value", { sha384 });
+  const badSha384 = sha384.slice();
+  badSha384[0] = 0;
+  await t.throwsAsync(
+    r2.put("key", "value", { sha384: badSha384 }),
+    expectations("SHA-384")
+  );
+  checksums = (await r2.head("key"))?.checksums.toJSON();
+  t.deepEqual(checksums, {
+    md5,
+    sha384: Buffer.from(sha384).toString("hex"),
+  });
+
+  // Check always stores lowercase hash
+  const sha512 = crypto.createHash("sha512").update("value").digest("hex");
+  await r2.put("key", "value", { sha512: sha512.toUpperCase() });
+  await t.throwsAsync(
+    r2.put("key", "value", { sha512: sha512.replace("0", "1") }),
+    expectations("SHA-512")
+  );
+  checksums = (await r2.head("key"))?.checksums.toJSON();
+  t.deepEqual(checksums, { md5, sha512 });
 });
 
-test("with md5 as correct arrayBuffer", putMacro, {
-  key: "text",
-  value: "value",
-  expected: { value: utf8Encode("value") },
-  options: {
-    md5: viewToBuffer(Buffer.from(createHash(utf8Encode("value")), "hex")),
-  },
-});
-test("put: md5 not a string or arrayBuffer", async (t) => {
-  const { r2 } = t.context;
-  await t.throwsAsync(
-    async () => await r2.put("key", "value", { md5: 5 as unknown as any }),
-    {
-      message:
-        "R2 PUT failed: (400) md5 must be a string, ArrayBuffer, or undefined.",
-    }
-  );
-});
-test("put: bad md5 string fails", async (t) => {
-  const { r2 } = t.context;
-  await t.throwsAsync(
-    async () => await r2.put("key", "value", { md5: "bad" }),
-    {
-      message:
-        "R2 PUT failed: (400) The Content-MD5 you specified did not match what we received.",
-    }
-  );
-});
-test("put: bad md5 arrayBuffer fails", async (t) => {
-  const { r2 } = t.context;
-  await t.throwsAsync(
-    async () => await r2.put("key", "value", { md5: new ArrayBuffer(0) }),
-    {
-      message:
-        "R2 PUT failed: (400) The Content-MD5 you specified did not match what we received.",
-    }
-  );
-});
 test("put: httpMetadata that uses a key not in R2HttpMetadata is filtered", async (t) => {
   const { r2 } = t.context;
   const putRes = await r2.put("key", "value", {
@@ -830,8 +989,8 @@ test("put: validates value type", async (t) => {
 
 test("put: onlyIf: etagMatches as a string passes", async (t) => {
   const { r2 } = t.context;
-  const etag = createHash(utf8Encode("value1"));
-  const etag2 = createHash(utf8Encode("value2"));
+  const etag = createMD5Hash(utf8Encode("value1"));
+  const etag2 = createMD5Hash(utf8Encode("value2"));
   await r2.put("key", "value1");
   const putRes = await r2.put("key", "value2", {
     onlyIf: { etagMatches: etag },
@@ -846,8 +1005,8 @@ test("put: onlyIf: etagMatches as a string passes", async (t) => {
 test("put: onlyIf: etagMatches as a Header passes", async (t) => {
   const { r2 } = t.context;
   const headers = new Headers();
-  const etag = createHash(utf8Encode("value1"));
-  const etag2 = createHash(utf8Encode("value2"));
+  const etag = createMD5Hash(utf8Encode("value1"));
+  const etag2 = createMD5Hash(utf8Encode("value2"));
   headers.append("if-match", etag);
   await r2.put("key", "value1");
   const putRes = await r2.put("key", "value2", {
@@ -862,7 +1021,7 @@ test("put: onlyIf: etagMatches as a Header passes", async (t) => {
 });
 test("put: onlyIf: etagMatches as a string array passes", async (t) => {
   const { r2 } = t.context;
-  const etag = createHash(utf8Encode("value1"));
+  const etag = createMD5Hash(utf8Encode("value1"));
   await r2.put("key", "value1");
   const putRes = await r2.put("key", "value2", {
     onlyIf: { etagMatches: [etag, "etag2"] },
@@ -875,7 +1034,7 @@ test("put: onlyIf: etagMatches as a string array passes", async (t) => {
 });
 test("put: onlyIf: etagMatches as a headers array passes", async (t) => {
   const { r2 } = t.context;
-  const etag = createHash(utf8Encode("value1"));
+  const etag = createMD5Hash(utf8Encode("value1"));
   const headers = new Headers();
   headers.append("if-match", `${etag}, etag2`);
   await r2.put("key", "value1");
@@ -997,7 +1156,7 @@ test("put: onlyIf: uploadedBefore as a date is ignored if etagMatches matches me
   await r2.put("key", "value2", {
     onlyIf: {
       uploadedBefore: date,
-      etagMatches: createHash(utf8Encode("value1")),
+      etagMatches: createMD5Hash(utf8Encode("value1")),
     },
   });
   const r2ObjectBody = await r2.get("key");
@@ -1009,7 +1168,7 @@ test("put: onlyIf: uploadedBefore as a headers date if etagMatches matches metad
   const date = new Date(Date.now() - 50_000);
   const headers = new Headers();
   headers.append("if-unmodified-since", date.toUTCString());
-  headers.append("if-match", createHash(utf8Encode("value1")));
+  headers.append("if-match", createMD5Hash(utf8Encode("value1")));
   await r2.put("key", "value1");
   await r2.put("key", "value2", {
     onlyIf: headers,
@@ -1074,7 +1233,7 @@ test("put: onlyIf: uploadedAfter as a date is ignored if etagDoesNotMatch does n
   await r2.put("key", "value2", {
     onlyIf: {
       uploadedAfter: date,
-      etagDoesNotMatch: createHash(utf8Encode("nomatch")),
+      etagDoesNotMatch: createMD5Hash(utf8Encode("nomatch")),
     },
   });
   const r2ObjectBody = await r2.get("key");
@@ -1086,7 +1245,7 @@ test("put: onlyIf: uploadedAfter as a headers date is ignored if etagDoesNotMatc
   const date = new Date(Date.now() + 50_000);
   const headers = new Headers();
   headers.append("if-modified-since", date.toUTCString());
-  headers.append("if-none-match", createHash(utf8Encode("nomatch")));
+  headers.append("if-none-match", createMD5Hash(utf8Encode("nomatch")));
   await r2.put("key", "value1");
   await r2.put("key", "value2", {
     onlyIf: headers,

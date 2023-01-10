@@ -1,9 +1,10 @@
+import assert from "assert";
 import { Blob } from "buffer";
 import crypto from "crypto";
 import { arrayBuffer } from "stream/consumers";
 import { ReadableStream } from "stream/web";
 import { TextDecoder } from "util";
-import { waitForOpenInputGate } from "@miniflare/shared";
+import { viewToBuffer, waitForOpenInputGate } from "@miniflare/shared";
 import { Headers } from "undici";
 import { R2Conditional, R2Range } from "./bucket";
 
@@ -34,6 +35,59 @@ export interface R2HTTPMetadata {
   cacheExpiry?: Date;
 }
 
+export interface R2Checksums<T extends ArrayBuffer | string> {
+  md5?: T;
+  sha1?: T;
+  sha256?: T;
+  sha384?: T;
+  sha512?: T;
+}
+
+export const HEX_REGEXP = /^[A-Fa-f0-9]*$/;
+export const R2_HASH_ALGORITHMS = [
+  { name: "MD5", field: "md5", expectedBytes: 16 },
+  { name: "SHA-1", field: "sha1", expectedBytes: 20 },
+  { name: "SHA-256", field: "sha256", expectedBytes: 32 },
+  { name: "SHA-384", field: "sha384", expectedBytes: 48 },
+  { name: "SHA-512", field: "sha512", expectedBytes: 64 },
+] as const; // TODO: satisfies once we upgrade to TypeScript 4.9
+export type R2HashAlgorithm = typeof R2_HASH_ALGORITHMS[number];
+
+function maybeHexDecode(hex?: string): ArrayBuffer | undefined {
+  return hex === undefined ? undefined : viewToBuffer(Buffer.from(hex, "hex"));
+}
+
+export class Checksums implements R2Checksums<ArrayBuffer> {
+  readonly #checksums: R2Checksums<string>;
+
+  constructor(checksums: R2Checksums<string>) {
+    this.#checksums = checksums;
+  }
+
+  // Each of these getters must return a new `ArrayBuffer` clone, so we
+  // intentionally don't cache hex decodes.
+
+  get md5() {
+    return maybeHexDecode(this.#checksums.md5);
+  }
+  get sha1() {
+    return maybeHexDecode(this.#checksums.sha1);
+  }
+  get sha256() {
+    return maybeHexDecode(this.#checksums.sha256);
+  }
+  get sha384() {
+    return maybeHexDecode(this.#checksums.sha384);
+  }
+  get sha512() {
+    return maybeHexDecode(this.#checksums.sha512);
+  }
+
+  toJSON(): R2Checksums<string> {
+    return this.#checksums;
+  }
+}
+
 export interface R2ObjectMetadata {
   // The object’s key.
   key: string;
@@ -53,13 +107,16 @@ export interface R2ObjectMetadata {
   customMetadata: Record<string, string>;
   // If a GET request was made with a range option, this will be added
   range?: R2Range;
+  // Hashes used to check the received object’s integrity. At most one can be
+  // specified.
+  checksums?: R2Checksums<string>;
 }
 
 const decoder = new TextDecoder();
 
 // NOTE: Incase multipart is ever added to the worker
 // refer to https://stackoverflow.com/questions/12186993/what-is-the-algorithm-to-compute-the-amazon-s3-etag-for-a-file-larger-than-5gb/19896823#19896823
-export function createHash(input: Uint8Array): string {
+export function createMD5Hash(input: Uint8Array): string {
   return crypto.createHash("md5").update(input).digest("hex");
 }
 
@@ -114,7 +171,7 @@ export function parseHttpMetadata(
 // false -> the condition testing "failed"
 export function testR2Conditional(
   conditional: R2Conditional,
-  metadata?: R2ObjectMetadata
+  metadata?: Pick<R2ObjectMetadata, "etag" | "uploaded">
 ): boolean {
   const { etagMatches, etagDoesNotMatch, uploadedBefore, uploadedAfter } =
     conditional;
@@ -147,6 +204,7 @@ export function testR2Conditional(
   }
 
   // ifModifiedSince check
+  // noinspection RedundantIfStatementJS
   if (
     ifNoneMatch !== true && // if "ifNoneMatch" is true, we ignore date checking
     uploadedAfter !== undefined &&
@@ -243,6 +301,11 @@ export class R2Object {
   readonly customMetadata: Record<string, string>;
   // If a GET request was made with a range option, this will be added
   readonly range?: R2Range;
+
+  // User-specified checksums, `md5` included by default:
+  // https://community.cloudflare.com/t/2022-9-16-workers-runtime-release-notes/420496
+  readonly #checksums: Checksums;
+
   constructor(metadata: R2ObjectMetadata) {
     this.key = metadata.key;
     this.version = metadata.version;
@@ -253,6 +316,22 @@ export class R2Object {
     this.httpMetadata = metadata.httpMetadata;
     this.customMetadata = metadata.customMetadata;
     this.range = metadata.range;
+
+    // We always need to store an MD5 hash in `checksums`, but never explicitly
+    // stored one. Luckily, `R2Bucket#put()` always makes `etag` an MD5 hash.
+    assert(
+      metadata.etag.length === 32 && HEX_REGEXP.test(metadata.etag),
+      "Expected `etag` to be an MD5 hash"
+    );
+    const checksums: R2Checksums<string> = {
+      md5: metadata.etag,
+      ...metadata.checksums,
+    };
+    this.#checksums = new Checksums(checksums);
+  }
+
+  get checksums() {
+    return this.#checksums;
   }
 
   // Retrieves the httpMetadata from the R2Object and applies their corresponding
