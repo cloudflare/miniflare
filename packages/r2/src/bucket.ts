@@ -1,3 +1,5 @@
+// noinspection SuspiciousTypeOfGuard
+
 import { Blob } from "buffer";
 import { arrayBuffer } from "stream/consumers";
 import { ReadableStream } from "stream/web";
@@ -335,6 +337,10 @@ export async function _valueToArray(
   }
 }
 
+function buildKeyTypeError(method: Lowercase<Method>): string {
+  return `Failed to execute '${method}' on 'R2Bucket': parameter 1 is not of type 'string'.`;
+}
+
 export interface InternalR2BucketOptions {
   blockGlobalAsyncIO?: boolean;
 }
@@ -351,32 +357,17 @@ export class R2Bucket {
     this.#blockGlobalAsyncIO = blockGlobalAsyncIO;
   }
 
-  #prepareCtx(method: Method, key?: string): RequestContext | undefined {
+  #prepareCtx(): RequestContext | undefined {
     if (this.#blockGlobalAsyncIO) assertInRequest();
     const ctx = getRequestContext();
     ctx?.incrementInternalSubrequests();
-    // noinspection SuspiciousTypeOfGuard
-    if (method !== "LIST" && typeof key !== "string") {
-      throw new TypeError(
-        `Failed to execute '${method.toLowerCase()}'` +
-          " on 'R2Bucket': parameter 1 is not of type 'string'."
-      );
-    }
-
     return ctx;
   }
 
-  async #head(key: string, ctx?: RequestContext): Promise<R2Object | null> {
-    if (ctx === undefined) ctx = this.#prepareCtx("HEAD", key);
-
-    // Validate key
-    validateKey("HEAD", key);
-
+  async #head(key: string): Promise<R2Object | null> {
     // Get value, returning null if not found
     const stored = await this.#storage.head<R2ObjectMetadata>(key);
     // fix dates
-    await waitForOpenInputGate();
-    ctx?.advanceCurrentTime();
     if (stored?.metadata === undefined) return null;
     const { metadata } = stored;
     parseR2ObjectMetadata(metadata);
@@ -385,7 +376,21 @@ export class R2Bucket {
   }
 
   async head(key: string): Promise<R2Object | null> {
-    return this.#head(key);
+    const ctx = this.#prepareCtx();
+
+    // The Workers runtime will coerce the key parameter to a string
+    if (arguments.length === 0) {
+      throw new TypeError(buildKeyTypeError("head"));
+    }
+    key = String(key);
+    // Validate key
+    validateKey("HEAD", key);
+
+    const meta = await this.#head(key);
+    await waitForOpenInputGate();
+
+    ctx?.advanceCurrentTime();
+    return meta;
   }
 
   /**
@@ -400,10 +405,15 @@ export class R2Bucket {
     key: string,
     options?: R2GetOptions
   ): Promise<R2ObjectBody | R2Object | null> {
-    const ctx = this.#prepareCtx("GET", key);
+    const ctx = this.#prepareCtx();
     options = options ?? {};
     const { range = {} } = options;
 
+    // The Workers runtime will coerce the key parameter to a string
+    if (arguments.length === 0) {
+      throw new TypeError(buildKeyTypeError("get"));
+    }
+    key = String(key);
     // Validate key
     validateKey("GET", key);
     // Validate options
@@ -412,11 +422,17 @@ export class R2Bucket {
     // In the event that an onlyIf precondition fails, we return
     // the R2Object without the body. Otherwise return with body.
     const onlyIf = parseOnlyIf(options.onlyIf);
-    const meta = await this.#head(key, ctx);
+    const meta = await this.#head(key);
     // if bad metadata, return null
-    if (meta === null) return null;
+    if (meta === null) {
+      await waitForOpenInputGate();
+      ctx?.advanceCurrentTime();
+      return null;
+    }
     // test conditional should it exist
     if (!testR2Conditional(onlyIf, meta) || meta?.size === 0) {
+      await waitForOpenInputGate();
+      ctx?.advanceCurrentTime();
       return new R2Object(meta);
     }
 
@@ -449,7 +465,13 @@ export class R2Bucket {
     value: R2PutValueType,
     options: R2PutOptions = {}
   ): Promise<R2Object | null> {
-    const ctx = this.#prepareCtx("PUT", key);
+    const ctx = this.#prepareCtx();
+
+    // The Workers runtime will coerce the key parameter to a string
+    if (arguments.length === 0) {
+      throw new TypeError(buildKeyTypeError("put"));
+    }
+    key = String(key);
     // Validate key
     validateKey("PUT", key);
     // Validate options
@@ -461,7 +483,7 @@ export class R2Bucket {
     httpMetadata = parseHttpMetadata(httpMetadata);
 
     // Get meta, and if exists, run onlyIf condtional test
-    const meta = (await this.#head(key, ctx)) ?? undefined;
+    const meta = (await this.#head(key)) ?? undefined;
     if (!testR2Conditional(onlyIf, meta)) return null;
 
     // Convert value to Uint8Array
@@ -517,9 +539,15 @@ export class R2Bucket {
   }
 
   async delete(key: string): Promise<void> {
-    const ctx = this.#prepareCtx("DELETE", key);
+    const ctx = this.#prepareCtx();
 
+    // The Workers runtime will coerce the key parameter to a string
+    if (arguments.length === 0) {
+      throw new TypeError(buildKeyTypeError("delete"));
+    }
+    key = String(key);
     validateKey("DELETE", key);
+
     await waitForOpenOutputGate();
     await this.#storage.delete(key);
     await waitForOpenInputGate();
@@ -527,7 +555,7 @@ export class R2Bucket {
   }
 
   async list(listOptions: R2ListOptions = {}): Promise<R2Objects> {
-    const ctx = this.#prepareCtx("LIST");
+    const ctx = this.#prepareCtx();
     const delimitedPrefixes = new Set<string>();
 
     validateListOptions(listOptions);

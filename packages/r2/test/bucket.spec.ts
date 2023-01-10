@@ -80,10 +80,6 @@ const validatesKeyMacro: Macro<
     instanceOf: TypeError,
     message: `Failed to execute '${method}' on 'R2Bucket': parameter 1 is not of type 'string'.`,
   });
-  await t.throwsAsync(func(r2, 0), {
-    instanceOf: TypeError,
-    message: `Failed to execute '${method}' on 'R2Bucket': parameter 1 is not of type 'string'.`,
-  });
   await t.throwsAsync(func(r2, String.fromCharCode(parseInt("D801", 16))), {
     message: `R2 ${method.toUpperCase()} failed: (400) Key contains an illegal unicode value(s).`,
   });
@@ -128,10 +124,13 @@ test("head: waits for input gate to open before returning value", async (t) => {
   t.is(r2Object.httpEtag, `"${etag}"`);
   t.deepEqual(r2Object.httpMetadata, {});
   t.deepEqual(r2Object.customMetadata, {});
+  // noinspection SuspiciousTypeOfGuard
   t.true(r2Object.uploaded instanceof Date);
 });
 test(validatesKeyMacro, "head", "HEAD", async (r2, key) => {
-  await r2.head(key);
+  // @ts-expect-error undefined would be coerced to a string if passed
+  if (key === undefined) await r2.head();
+  else await r2.head(key);
 });
 
 test("get: returns null for non-existent keys", async (t) => {
@@ -161,7 +160,9 @@ test("get: waits for input gate to open before returning value", async (t) => {
   t.is(await r2ObjectBody.text(), "value");
 });
 test(validatesKeyMacro, "get", "GET", async (r2, key) => {
-  await r2.get(key);
+  // @ts-expect-error undefined would be coerced to a string if passed
+  if (key === undefined) await r2.get();
+  else await r2.get(key);
 });
 test("get: range using offset", async (t) => {
   const { r2 } = t.context;
@@ -774,7 +775,9 @@ test("put: waits for input gate to open before returning", async (t) => {
   await waitsForInputGate(t, () => r2.put("key", "value"));
 });
 test(validatesKeyMacro, "put", "PUT", async (r2, key) => {
-  await r2.put(key, "value");
+  // @ts-expect-error undefined would be coerced to a string if passed
+  if (key === undefined) await r2.put();
+  else await r2.put(key, "value");
 });
 test("put: validates value type", async (t) => {
   const { r2 } = t.context;
@@ -1177,7 +1180,9 @@ test("delete: waits for input gate to open before returning", async (t) => {
   await waitsForInputGate(t, () => r2.delete("key"));
 });
 test(validatesKeyMacro, "delete", "DELETE", async (r2, key) => {
-  await r2.delete(key);
+  // @ts-expect-error undefined would be coerced to a string if passed
+  if (key === undefined) await r2.delete();
+  else await r2.delete(key);
 });
 
 const listMacro: Macro<
@@ -1205,7 +1210,7 @@ const listMacro: Macro<
     await r2.put(key, value);
   }
 
-  let lastCursor: string | undefined;
+  let lastCursor: string | undefined = undefined;
   for (let i = 0; i < expectedObjects.length; i++) {
     // grab the expected object
     const expectedObject = expectedObjects[i];
@@ -1794,4 +1799,25 @@ test("operations advance current time", async (t) => {
   await advancesTime(t, () => r2.put("key", "value"));
   await advancesTime(t, () => r2.delete("key"));
   await advancesTime(t, () => r2.list());
+});
+test("operations coerce keys to strings", async (t) => {
+  const { r2, storage } = t.context;
+  const keys = async () => (await storage.list()).keys.map(({ name }) => name);
+
+  const arrayKey = [1, [2, 3]] as unknown as string;
+  const undefinedKey = undefined as unknown as string;
+
+  await r2.put(arrayKey, "value");
+  await r2.put(undefinedKey, "value");
+  t.deepEqual(await keys(), ["1,2,3", "undefined"]);
+
+  t.not(await r2.head(arrayKey), null);
+  t.not(await r2.head(undefinedKey), null);
+
+  t.not(await r2.get(arrayKey), null);
+  t.not(await r2.get(undefinedKey), null);
+
+  await r2.delete(arrayKey);
+  await r2.delete(undefinedKey);
+  t.deepEqual(await keys(), []);
 });
