@@ -279,7 +279,7 @@ export class ModuleLinker {
       ) {
         return mod.exports;
       } else {
-        // Make sure we always return the same object for an indentifier
+        // Make sure we always return the same object for an identifier
         let ns = this.#namespaceCache.get(mod);
         if (ns !== undefined) return ns;
         ns = Object.defineProperty({}, "default", {
