@@ -126,10 +126,22 @@ export class Statement {
 
   async raw() {
     const statementWithBindings = this.#prepareAndBind();
-    return this.#raw(statementWithBindings);
+    const s = firstIfArray(await this.#raw(statementWithBindings));
+    const raw = [];
+    for (const r in s.results) {
+      const entry = Object.keys(s.results[r]).map((k) => {
+        return s.results[r][k];
+      });
+      raw.push(entry);
+    }
+    return raw;
   }
 
   #raw(statementWithBindings: SqliteStatement) {
     return statementWithBindings.raw() as any;
   }
+}
+
+function firstIfArray(results: any) {
+  return Array.isArray(results) ? results[0] : results;
 }
