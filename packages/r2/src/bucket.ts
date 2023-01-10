@@ -129,7 +129,7 @@ function throwR2Error(method: Method, status: number, message: string): void {
   throw new Error(`R2 ${method} failed: (${status}) ${message}`);
 }
 
-function validateKey(method: Method, key: string): void {
+function validateKey(method: Method, key: string) {
   // Check key isn't too long and exists outside regex
   const keyLength = encoder.encode(key).byteLength;
   if (UNPAIRED_SURROGATE_PAIR_REGEX.test(key)) {
@@ -142,6 +142,7 @@ function validateKey(method: Method, key: string): void {
       `UTF-8 encoded length of ${keyLength} exceeds key length limit of ${MAX_KEY_SIZE}.`
     );
   }
+  return key;
 }
 
 function validateOnlyIf(
@@ -538,19 +539,20 @@ export class R2Bucket {
     return new R2Object(metadata);
   }
 
-  async delete(key: string): Promise<void> {
+  async delete(keys: string | string[]): Promise<void> {
     const ctx = this.#prepareCtx();
 
-    // The Workers runtime will coerce the key parameter to a string
+    // The Workers runtime will coerce keys to strings
     if (arguments.length === 0) {
       throw new TypeError(buildKeyTypeError("delete"));
     }
-    key = String(key);
-    validateKey("DELETE", key);
+    if (!Array.isArray(keys)) keys = [keys];
+    keys = keys.map((key) => validateKey("DELETE", String(key)));
 
     await waitForOpenOutputGate();
-    await this.#storage.delete(key);
+    await this.#storage.deleteMany(keys);
     await waitForOpenInputGate();
+
     ctx?.advanceCurrentTime();
   }
 

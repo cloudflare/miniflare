@@ -1159,6 +1159,17 @@ test("delete: does nothing for non-existent keys", async (t) => {
   await r2.delete("key");
   t.pass();
 });
+test("delete: deletes multiple keys", async (t) => {
+  const { r2 } = t.context;
+  await r2.put("key1", "value1");
+  await r2.put("key2", "value2");
+  await r2.put("key3", "value3");
+  // Check does nothing with non-existent key too
+  await r2.delete(["key1", "key2", "key4"]);
+  t.is(await r2.get("key1"), null);
+  t.is(await r2.get("key2"), null);
+  t.not(await r2.get("key3"), null);
+});
 test("delete: increments subrequest count", async (t) => {
   const { r2 } = t.context;
   const ctx = new RequestContext(requestCtxOptions);
@@ -1180,9 +1191,14 @@ test("delete: waits for input gate to open before returning", async (t) => {
   await waitsForInputGate(t, () => r2.delete("key"));
 });
 test(validatesKeyMacro, "delete", "DELETE", async (r2, key) => {
-  // @ts-expect-error undefined would be coerced to a string if passed
-  if (key === undefined) await r2.delete();
-  else await r2.delete(key);
+  if (key === undefined) {
+    // @ts-expect-error undefined would be coerced to a string if passed
+    await r2.delete();
+  } else {
+    await r2.delete(key);
+    // Check validates all keys in array
+    await r2.delete(["valid key", key]);
+  }
 });
 
 const listMacro: Macro<
@@ -1805,19 +1821,23 @@ test("operations coerce keys to strings", async (t) => {
   const keys = async () => (await storage.list()).keys.map(({ name }) => name);
 
   const arrayKey = [1, [2, 3]] as unknown as string;
+  const numberKey = 42 as unknown as string;
   const undefinedKey = undefined as unknown as string;
 
   await r2.put(arrayKey, "value");
+  await r2.put(numberKey, "value");
   await r2.put(undefinedKey, "value");
-  t.deepEqual(await keys(), ["1,2,3", "undefined"]);
+  t.deepEqual(await keys(), ["1,2,3", "42", "undefined"]);
 
   t.not(await r2.head(arrayKey), null);
+  t.not(await r2.head(numberKey), null);
   t.not(await r2.head(undefinedKey), null);
 
   t.not(await r2.get(arrayKey), null);
+  t.not(await r2.get(numberKey), null);
   t.not(await r2.get(undefinedKey), null);
 
-  await r2.delete(arrayKey);
+  await r2.delete([arrayKey, numberKey]);
   await r2.delete(undefinedKey);
   t.deepEqual(await keys(), []);
 });
