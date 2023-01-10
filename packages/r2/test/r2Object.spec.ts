@@ -1,7 +1,9 @@
+import assert from "assert";
 import { Blob } from "buffer";
 import crypto from "crypto";
 import { ReadableStream, TextDecoderStream, TransformStream } from "stream/web";
 import { TextEncoder } from "util";
+import { MessageChannel } from "worker_threads";
 import {
   Checksums,
   R2Checksums,
@@ -521,6 +523,13 @@ test("Checksums: returns `ArrayBuffer` hashes", async (t) => {
   t.deepEqual(checksums.sha256, viewToBuffer(bufferChecksums.sha256!));
   t.deepEqual(checksums.sha384, viewToBuffer(bufferChecksums.sha384!));
   t.deepEqual(checksums.sha512, viewToBuffer(bufferChecksums.sha512!));
+
+  // Check getter returns new `ArrayBuffer` each time
+  const buffer = checksums.md5;
+  assert(buffer !== undefined);
+  new MessageChannel().port1.postMessage(buffer, [buffer]);
+  t.is(buffer.byteLength, 0); // (detached)
+  t.is(checksums.md5?.byteLength, 16); // New buffer
 });
 test("Checksums: returns hex hashes with JSON.stringify()", async (t) => {
   const checksums = new Checksums(stringChecksums);
