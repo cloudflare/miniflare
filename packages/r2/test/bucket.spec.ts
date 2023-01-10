@@ -1492,7 +1492,6 @@ test("list: customMetadata: included in options returns metadata", async (t) => 
   t.is(cursor, undefined);
   t.deepEqual(delimitedPrefixes, []);
 });
-
 test("list: customMetadata & httpMetadata: included in options returns both metadatas", async (t) => {
   const { r2 } = t.context;
   await r2.put("key1", "value1", {
@@ -1522,6 +1521,19 @@ test("list: customMetadata & httpMetadata: included in options returns both meta
   t.false(truncated);
   t.is(cursor, undefined);
   t.deepEqual(delimitedPrefixes, []);
+});
+test('list: implicitly includes customMetadata & httpMetadata if "r2_list_honor_include" flag not set', async (t) => {
+  const { storage } = t.context;
+  const r2 = new R2Bucket(storage, {
+    listRespectInclude: false,
+  });
+  await r2.put("key", "value", {
+    customMetadata: { foo: "bar" },
+    httpMetadata: { contentEncoding: "gzip" },
+  });
+  const { objects } = await r2.list({ include: [] });
+  t.deepEqual(objects[0].customMetadata, { foo: "bar" });
+  t.deepEqual(objects[0].httpMetadata, { contentEncoding: "gzip" });
 });
 
 test("list: include: input not customMetadata or httpMetadata fails", async (t) => {

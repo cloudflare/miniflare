@@ -48,6 +48,7 @@ export class R2Plugin extends Plugin<R2Options> implements R2Options {
   ): R2Bucket {
     return new R2Bucket(storage.storage(bucket, this.#persist), {
       blockGlobalAsyncIO,
+      listRespectInclude: this.ctx.compat.isEnabled("r2_list_honor_include"),
     });
   }
 

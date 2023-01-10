@@ -13,6 +13,7 @@ export interface CompatibilityFeature {
 export type CompatibilityEnableFlag =
   | "streams_enable_constructors"
   | "transformstream_enable_standard_constructor"
+  | "r2_list_honor_include"
   | "global_navigator"
   | "durable_object_fetch_requires_full_url"
   | "fetch_refuses_unknown_protocols"
@@ -39,6 +40,10 @@ const FEATURES: CompatibilityFeature[] = [
     defaultAsOf: "2022-11-30",
     enableFlag: "transformstream_enable_standard_constructor",
     disableFlag: "transformstream_disable_standard_constructor",
+  },
+  {
+    defaultAsOf: "2022-08-04",
+    enableFlag: "r2_list_honor_include",
   },
   {
     defaultAsOf: "2022-03-21",

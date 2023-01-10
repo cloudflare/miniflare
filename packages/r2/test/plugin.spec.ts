@@ -146,3 +146,30 @@ test("R2Plugin: setup: operations throw outside request handler unless globalAsy
   r2 = (await plugin.setup(factory)).bindings?.BUCKET;
   await r2.get("key");
 });
+test('R2Plugin: setup: implicitly includes customMetadata & httpMetadata if "r2_list_honor_include" flag not set', async (t) => {
+  const factory = new MemoryStorageFactory();
+  let compat = new Compatibility();
+  let plugin = new R2Plugin(
+    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { r2Buckets: ["BUCKET"] }
+  );
+  let r2 = plugin.getBucket(factory, "BUCKET");
+
+  await r2.put("key", "value", {
+    customMetadata: { foo: "bar" },
+    httpMetadata: { contentEncoding: "gzip" },
+  });
+  let { objects } = await r2.list({ include: [] });
+  t.deepEqual(objects[0].customMetadata, { foo: "bar" });
+  t.deepEqual(objects[0].httpMetadata, { contentEncoding: "gzip" });
+
+  compat = new Compatibility(undefined, ["r2_list_honor_include"]);
+  plugin = new R2Plugin(
+    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { r2Buckets: ["BUCKET"] }
+  );
+  r2 = plugin.getBucket(factory, "BUCKET");
+  ({ objects } = await r2.list({ include: [] }));
+  t.deepEqual(objects[0].customMetadata, {});
+  t.deepEqual(objects[0].httpMetadata, {});
+});

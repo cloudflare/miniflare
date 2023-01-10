@@ -344,18 +344,24 @@ function buildKeyTypeError(method: Lowercase<Method>): string {
 
 export interface InternalR2BucketOptions {
   blockGlobalAsyncIO?: boolean;
+  listRespectInclude?: boolean;
 }
 
 export class R2Bucket {
   readonly #storage: Storage;
   readonly #blockGlobalAsyncIO: boolean;
+  readonly #listRespectInclude: boolean;
 
   constructor(
     storage: Storage,
-    { blockGlobalAsyncIO = false }: InternalR2BucketOptions = {}
+    {
+      blockGlobalAsyncIO = false,
+      listRespectInclude = true,
+    }: InternalR2BucketOptions = {}
   ) {
     this.#storage = storage;
     this.#blockGlobalAsyncIO = blockGlobalAsyncIO;
+    this.#listRespectInclude = listRespectInclude;
   }
 
   #prepareCtx(): RequestContext | undefined {
@@ -592,8 +598,10 @@ export class R2Bucket {
       )
       // filter "httpMetadata" and/or "customMetadata" if found in "include"
       .map((metadata) => {
-        if (!include.includes("httpMetadata")) metadata.httpMetadata = {};
-        if (!include.includes("customMetadata")) metadata.customMetadata = {};
+        if (this.#listRespectInclude) {
+          if (!include.includes("httpMetadata")) metadata.httpMetadata = {};
+          if (!include.includes("customMetadata")) metadata.customMetadata = {};
+        }
         // fix dates
         parseR2ObjectMetadata(metadata);
 
