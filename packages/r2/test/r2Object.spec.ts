@@ -1,23 +1,29 @@
+import assert from "assert";
 import { Blob } from "buffer";
+import crypto from "crypto";
 import { ReadableStream, TextDecoderStream, TransformStream } from "stream/web";
 import { TextEncoder } from "util";
-import { getObjectProperties, utf8Encode } from "@miniflare/shared-test";
-import test from "ava";
-import { Headers } from "undici";
-import { Response } from "undici";
-import { R2Conditional, _valueToArray } from "../src/bucket";
+import { MessageChannel } from "worker_threads";
 import {
+  Checksums,
+  R2Checksums,
+  R2Conditional,
   R2HTTPMetadata,
   R2Object,
   R2ObjectBody,
   R2ObjectMetadata,
-  createHash,
+  _valueToArray,
+  createMD5Hash,
   createVersion,
   parseHttpMetadata,
   parseOnlyIf,
   parseR2ObjectMetadata,
   testR2Conditional,
-} from "../src/r2Object";
+} from "@miniflare/r2";
+import { viewToBuffer } from "@miniflare/shared";
+import { getObjectProperties, utf8Encode } from "@miniflare/shared-test";
+import test from "ava";
+import { Headers, Response } from "undici";
 
 interface TestObject {
   a: string;
@@ -46,8 +52,8 @@ const metadata: R2ObjectMetadata = {
   key: "key",
   version: "version",
   size: 0,
-  etag: "etag",
-  httpEtag: "httpEtag",
+  etag: "00000000000000000000000000000000",
+  httpEtag: '"00000000000000000000000000000000"',
   uploaded,
   httpMetadata,
   customMetadata,
@@ -71,8 +77,8 @@ test("R2Object: R2Object: check values are stored correctly", (t) => {
   t.is(r2Object.key, "key");
   t.is(r2Object.version, "version");
   t.is(r2Object.size, 0);
-  t.is(r2Object.etag, "etag");
-  t.is(r2Object.httpEtag, "httpEtag");
+  t.is(r2Object.etag, "00000000000000000000000000000000");
+  t.is(r2Object.httpEtag, '"00000000000000000000000000000000"');
   t.is(r2Object.uploaded, uploaded);
   t.deepEqual(r2Object.httpMetadata, httpMetadata);
   t.deepEqual(r2Object.customMetadata, customMetadata);
@@ -81,8 +87,8 @@ test("R2Object: R2ObjectBody: check values are stored correctly", (t) => {
   t.is(r2ObjectBody.key, "key");
   t.is(r2ObjectBody.version, "version");
   t.is(r2ObjectBody.size, 0);
-  t.is(r2ObjectBody.etag, "etag");
-  t.is(r2ObjectBody.httpEtag, "httpEtag");
+  t.is(r2ObjectBody.etag, "00000000000000000000000000000000");
+  t.is(r2ObjectBody.httpEtag, '"00000000000000000000000000000000"');
   t.is(r2ObjectBody.uploaded, uploaded);
   t.deepEqual(r2ObjectBody.httpMetadata, httpMetadata);
   t.deepEqual(r2ObjectBody.customMetadata, customMetadata);
@@ -188,6 +194,7 @@ test("R2Object: R2ObjectBody: very large input is consumed as one piece.", async
 
 test("R2Object: R2Object: correct object properties", (t) => {
   t.deepEqual(getObjectProperties(r2Object), [
+    "checksums",
     "customMetadata",
     "etag",
     "httpEtag",
@@ -223,7 +230,7 @@ test("R2Object: R2ObjectBody: hides implementation details", (t) => {
 });
 
 test("R2Object: createHash", (t) => {
-  const md5 = createHash(encoder.encode("hello world"));
+  const md5 = createMD5Hash(encoder.encode("hello world"));
   // pulled from https://www.md5hashgenerator.com/
   t.is(md5, "5eb63bbbe01eeed093cb22bb8f5acdc3");
 });
@@ -298,7 +305,7 @@ test("R2Object: testR2Conditional: no metadata", (t) => {
 test("R2Object: testR2Conditional: test etagMatches", (t) => {
   // match
   const r2conditional: R2Conditional = {
-    etagMatches: "etag",
+    etagMatches: "00000000000000000000000000000000",
   };
   // no match
   const r2conditional2: R2Conditional = {
@@ -310,7 +317,7 @@ test("R2Object: testR2Conditional: test etagMatches", (t) => {
   };
   // one of many exact match
   const r2conditional4: R2Conditional = {
-    etagMatches: ["abc", "etag"],
+    etagMatches: ["abc", "00000000000000000000000000000000"],
   };
 
   // match from above
@@ -331,11 +338,11 @@ test("R2Object: testR2Conditional: test etagDoesNotMatch", (t) => {
   };
   // one of many exact match
   const r2conditional3: R2Conditional = {
-    etagDoesNotMatch: ["abc", "etag"],
+    etagDoesNotMatch: ["abc", "00000000000000000000000000000000"],
   };
   // exact match
   const r2conditional4: R2Conditional = {
-    etagDoesNotMatch: "etag",
+    etagDoesNotMatch: "00000000000000000000000000000000",
   };
 
   t.true(testR2Conditional(r2conditional, metadata));
@@ -364,7 +371,7 @@ test("R2Object: testR2Conditional: uploadedBefore is ignored if etagMatches matc
   };
   const r2conditional2: R2Conditional = {
     uploadedBefore: new Date(40),
-    etagMatches: "etag",
+    etagMatches: "00000000000000000000000000000000",
   };
   const testMeta = JSON.parse(JSON.stringify(metadata)) as R2ObjectMetadata;
   testMeta.uploaded = new Date(80);
@@ -495,4 +502,37 @@ test("R2Object: R2ObjectBody: push 'body' ReadableStream to Response", async (t)
   // convert readable to string
   const testResponse = new Response(readable);
   t.true(testResponse.body instanceof ReadableStream);
+});
+
+const bufferChecksums: R2Checksums<Buffer> = {
+  md5: crypto.createHash("md5").update("test").digest(),
+  sha1: crypto.createHash("sha1").update("test").digest(),
+  sha256: crypto.createHash("sha256").update("test").digest(),
+  sha384: crypto.createHash("sha384").update("test").digest(),
+  sha512: crypto.createHash("sha512").update("test").digest(),
+};
+const stringChecksums: R2Checksums<string> = Object.fromEntries(
+  Object.entries(bufferChecksums as { [key: string]: Buffer }).map(
+    ([key, value]) => [key, value.toString("hex")]
+  )
+);
+test("Checksums: returns `ArrayBuffer` hashes", async (t) => {
+  const checksums = new Checksums(stringChecksums);
+  t.deepEqual(checksums.md5, viewToBuffer(bufferChecksums.md5!));
+  t.deepEqual(checksums.sha1, viewToBuffer(bufferChecksums.sha1!));
+  t.deepEqual(checksums.sha256, viewToBuffer(bufferChecksums.sha256!));
+  t.deepEqual(checksums.sha384, viewToBuffer(bufferChecksums.sha384!));
+  t.deepEqual(checksums.sha512, viewToBuffer(bufferChecksums.sha512!));
+
+  // Check getter returns new `ArrayBuffer` each time
+  const buffer = checksums.md5;
+  assert(buffer !== undefined);
+  new MessageChannel().port1.postMessage(buffer, [buffer]);
+  t.is(buffer.byteLength, 0); // (detached)
+  t.is(checksums.md5?.byteLength, 16); // New buffer
+});
+test("Checksums: returns hex hashes with JSON.stringify()", async (t) => {
+  const checksums = new Checksums(stringChecksums);
+  t.deepEqual(checksums.toJSON(), stringChecksums);
+  t.is(JSON.stringify(checksums), JSON.stringify(stringChecksums));
 });

@@ -24,10 +24,8 @@ interface RangeRegexpGroups {
  * - `undefined` indicating the range is unsatisfiable
  * - An empty array indicating the entire response should be returned
  * - A non-empty array of inclusive ranges of the response to return
- *
- * @internal
  */
-export function _parseRanges(
+export function parseRanges(
   rangeHeader: string,
   length: number
 ): [start: number /* inclusive */, end: number /* inclusive */][] | undefined {
@@ -71,14 +69,13 @@ export function _parseRanges(
   return result;
 }
 
-/** @internal */
-export function _getRangeResponse(
+export function getRangeResponse(
   requestRangeHeader: string,
   responseStatus: number,
   responseHeaders: Headers,
   responseBody: Uint8Array
 ): Response {
-  const ranges = _parseRanges(requestRangeHeader, responseBody.byteLength);
+  const ranges = parseRanges(requestRangeHeader, responseBody.byteLength);
   if (ranges === undefined) {
     return new Response(null, {
       status: 416, // Range Not Satisfiable
