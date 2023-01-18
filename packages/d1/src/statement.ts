@@ -130,6 +130,6 @@ export class Statement {
   }
 
   #raw(statementWithBindings: SqliteStatement) {
-    return statementWithBindings.raw() as any;
+    return statementWithBindings.raw().all();
   }
 }
