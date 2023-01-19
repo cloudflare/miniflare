@@ -25,6 +25,7 @@ import webStreams from "stream/web";
 import { URL, URLSearchParams } from "url";
 import { TextDecoder, TextEncoder } from "util";
 import {
+  AdditionalModules,
   CompatibilityFlag,
   Context,
   ModuleRule,
@@ -70,6 +71,7 @@ import {
 } from "../standards";
 import { assertsInRequest } from "../standards/helpers";
 import type { BindingsOptions } from "./bindings";
+import { additionalModules } from "./node";
 
 const DEFAULT_MODULE_RULES: ModuleRule[] = [
   { type: "ESModule", include: ["**/*.mjs"] },
@@ -411,6 +413,7 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   readonly upstreamURL?: URL;
   readonly #globals: Context;
+  readonly #additionalModules?: AdditionalModules;
 
   constructor(ctx: PluginContext, options?: CoreOptions) {
     super(ctx);
@@ -419,6 +422,11 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       ctx.log.warn(
         "Mounts are experimental. There may be breaking changes in the future."
       );
+    }
+
+    const nodejsCompat = ctx.compat.isEnabled("nodejs_compat");
+    if (nodejsCompat) {
+      this.#additionalModules = additionalModules;
     }
 
     const extraGlobals: Context = {};
@@ -652,11 +660,13 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
   async setup(): Promise<SetupResult> {
     const globals = this.#globals;
+    const additionalModules = this.#additionalModules;
 
     // First, try to load script from string, no need to watch any files
     if (this.script !== undefined) {
       return {
         globals,
+        additionalModules,
         script: { filePath: STRING_SCRIPT_PATH, code: this.script },
       };
     }
@@ -689,11 +699,16 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       scriptPath = path.resolve(this.ctx.rootPath, scriptPath);
       const code = await fs.readFile(scriptPath, "utf8");
       watch.push(scriptPath);
-      return { globals, script: { filePath: scriptPath, code }, watch };
+      return {
+        globals,
+        additionalModules,
+        script: { filePath: scriptPath, code },
+        watch,
+      };
     }
 
     // If we couldn't load a script yet, keep watching package.json anyways, it
     // might get edited with a path
-    return { globals, watch };
+    return { globals, additionalModules, watch };
   }
 }
