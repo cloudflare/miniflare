@@ -8,7 +8,8 @@ import {
   StorageFactory,
   resolveStoragePersist,
 } from "@miniflare/shared";
-import { BetaDatabase } from "./database";
+import { D1DatabaseAPI } from "./api";
+import { D1Database } from "./d1js";
 
 export interface D1Options {
   d1Databases?: string[];
@@ -42,19 +43,20 @@ export class D1Plugin extends Plugin<D1Options> implements D1Options {
     this.#persist = resolveStoragePersist(ctx.rootPath, this.d1Persist);
   }
 
-  async getBetaDatabase(
+  async getDatabase(
     storageFactory: StorageFactory,
     dbName: string
-  ): Promise<BetaDatabase> {
+  ): Promise<D1Database> {
     const storage = await storageFactory.storage(dbName, this.#persist);
-    return new BetaDatabase(await storage.getSqliteDatabase());
+    const db = await storage.getSqliteDatabase();
+    return new D1Database(new D1DatabaseAPI(db));
   }
 
   async setup(storageFactory: StorageFactory): Promise<SetupResult> {
     const bindings: Context = {};
     for (const dbName of this.d1Databases ?? []) {
       if (dbName.startsWith(D1_BETA_PREFIX)) {
-        bindings[dbName] = await this.getBetaDatabase(
+        bindings[dbName] = await this.getDatabase(
           storageFactory,
           // Store it locally without the prefix
           dbName.slice(D1_BETA_PREFIX.length)

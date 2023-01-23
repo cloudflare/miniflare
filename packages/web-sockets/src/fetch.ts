@@ -13,7 +13,7 @@ import StandardWebSocket from "ws";
 import { WebSocketPair, coupleWebSocket } from "./websocket";
 
 export async function upgradingFetch(
-  this: Dispatcher | void,
+  this: Dispatcher | unknown,
   input: RequestInfo,
   init?: RequestInit
 ): Promise<Response> {
