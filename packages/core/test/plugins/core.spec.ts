@@ -654,6 +654,20 @@ test("CorePlugin: setup: uses actual time if option enabled", async (t) => {
   });
 });
 
+test("CorePlugin: nodejs_compat compatibiltiy flag includes Node.js modules", async (t) => {
+  const compat = new Compatibility(undefined, ["nodejs_compat"]);
+
+  const plugin = new CorePlugin(
+    { ...ctx, compat },
+    { compatibilityFlags: ["nodejs_compat"] }
+  );
+  const additionalModules = (await plugin.setup()).additionalModules;
+  t.deepEqual(
+    Object.keys(additionalModules?.["node:async_hooks"].default ?? {}),
+    ["AsyncLocalStorage", "AsyncResource"]
+  );
+});
+
 // Test stream constructors
 test("CorePlugin: setup: ReadableStream/WriteableStream constructors only enabled if compatibility flag enabled", async (t) => {
   // Check without "streams_enable_constructors" compatibility flag (should throw)

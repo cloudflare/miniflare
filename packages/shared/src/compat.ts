@@ -11,6 +11,7 @@ export interface CompatibilityFeature {
 // will get a type error if they try to use an unsupported flag via the API,
 // and they won't be logged in the "Enabled Compatibility Flags" section.
 export type CompatibilityEnableFlag =
+  | "nodejs_compat"
   | "streams_enable_constructors"
   | "transformstream_enable_standard_constructor"
   | "r2_list_honor_include"
@@ -31,6 +32,9 @@ export type CompatibilityFlag =
   | CompatibilityDisableFlag;
 
 const FEATURES: CompatibilityFeature[] = [
+  {
+    enableFlag: "nodejs_compat",
+  },
   {
     defaultAsOf: "2022-11-30",
     enableFlag: "streams_enable_constructors",
