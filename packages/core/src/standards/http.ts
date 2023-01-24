@@ -752,7 +752,7 @@ class MiniflareDispatcher extends Dispatcher {
 }
 
 export async function fetch(
-  this: Dispatcher | void,
+  this: Dispatcher | unknown,
   input: RequestInfo,
   init?: RequestInit
 ): Promise<Response> {
