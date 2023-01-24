@@ -1,2 +1,2 @@
 const additional = require("ADDITIONAL");
-module.exports = `CommonJS ${additional.default}`;
+module.exports = `CommonJS ${additional}`;

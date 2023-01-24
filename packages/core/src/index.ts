@@ -776,7 +776,8 @@ export class MiniflareCore<
         globalScope,
         script,
         rules,
-        additionalModules
+        additionalModules,
+        this.#compat
       );
 
       this.#scriptWatchPaths.clear();
