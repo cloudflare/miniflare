@@ -10,6 +10,7 @@ export {
   Body,
   withInputGating,
   withStringFormDataFiles,
+  _isBodyStream,
   Request,
   withImmutableHeaders,
   Response,
@@ -48,6 +49,8 @@ export {
   CompressionStream,
   DecompressionStream,
   _isByteStream,
+  _isDisturbedStream,
+  _isFixedLengthStream,
 } from "./streams";
 export type { ArrayBufferViewConstructor } from "./streams";
 export * from "./navigator";

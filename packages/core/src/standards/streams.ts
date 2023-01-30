@@ -34,6 +34,19 @@ export function _isByteStream(
   return false;
 }
 
+/** @internal */
+export function _isDisturbedStream(stream: ReadableStream): boolean {
+  // Try to determine if stream is a stream has been consumed at all by
+  // inspecting its state.
+  for (const symbol of Object.getOwnPropertySymbols(stream)) {
+    if (symbol.description === "kState") {
+      // @ts-expect-error symbol properties are not included in type definitions
+      return !!stream[symbol].disturbed;
+    }
+  }
+  return false;
+}
+
 function convertToByteStream(
   stream: ReadableStream<Uint8Array>,
   clone = false
@@ -248,6 +261,13 @@ export class FixedLengthStream extends IdentityTransformStream {
       );
     }
   };
+}
+
+/** @internal */
+export function _isFixedLengthStream(stream: ReadableStream): boolean {
+  return (
+    (stream as { [kContentLength]?: unknown })[kContentLength] !== undefined
+  );
 }
 
 function createTransformerFromTransform(transform: Transform): Transformer {

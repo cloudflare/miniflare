@@ -7,18 +7,28 @@ import { ReadableStream } from "stream/web";
 import { TextEncoder } from "util";
 import { parseRanges } from "@miniflare/core";
 import {
-  RangeStoredValueMeta,
   RequestContext,
   Storage,
   assertInRequest,
   getRequestContext,
+  parseRange,
   viewToArray,
   waitForOpenInputGate,
   waitForOpenOutputGate,
 } from "@miniflare/shared";
 import { Headers } from "undici";
 import {
+  InternalR2MultipartUploadOptions,
+  R2MultipartUpload,
+  _INTERNAL_PREFIX,
+  createMultipartUpload,
+  deleteMultipartParts,
+  getMultipartValue,
+  validateMultipartKey,
+} from "./multipart";
+import {
   HEX_REGEXP,
+  MAX_KEY_SIZE,
   R2Checksums,
   R2HashAlgorithm,
   R2Object,
@@ -78,6 +88,10 @@ export interface R2PutOptions extends R2Checksums<ArrayBuffer | string> {
   // A map of custom, user-defined metadata that will be stored with the object.
   customMetadata?: Record<string, string>;
 }
+export type R2MultipartOptions = Pick<
+  R2PutOptions,
+  "httpMetadata" | "customMetadata"
+>;
 
 export type R2ListOptionsInclude = ("httpMetadata" | "customMetadata")[];
 
@@ -119,7 +133,6 @@ export interface R2Objects {
 }
 
 const MAX_LIST_KEYS = 1_000;
-const MAX_KEY_SIZE = 1024;
 // https://developers.cloudflare.com/r2/platform/limits/ (5GB - 5MB)
 const MAX_VALUE_SIZE = 5 * 1_000 * 1_000 * 1_000 - 5 * 1_000 * 1_000;
 const UNPAIRED_SURROGATE_PAIR_REGEX =
@@ -129,7 +142,7 @@ const encoder = new TextEncoder();
 
 type Method = "HEAD" | "GET" | "PUT" | "LIST" | "DELETE";
 
-function throwR2Error(method: Method, status: number, message: string): void {
+function throwR2Error(method: Method, status: number, message: string): never {
   throw new Error(`R2 ${method} failed: (${status}) ${message}`);
 }
 
@@ -145,6 +158,10 @@ function validateKey(method: Method, key: string) {
       414,
       `UTF-8 encoded length of ${keyLength} exceeds key length limit of ${MAX_KEY_SIZE}.`
     );
+  }
+  // Check key doesn't start with internal prefix used for multipart storage
+  if (key.startsWith(_INTERNAL_PREFIX)) {
+    throwR2Error(method, 400, `Key cannot start with "${_INTERNAL_PREFIX}".`);
   }
   return key;
 }
@@ -408,30 +425,38 @@ function rangeHeaderToR2Range(headers: Headers, size: number): R2Range {
   return {};
 }
 
-function buildKeyTypeError(method: Lowercase<Method>): string {
+function buildKeyTypeError(method: keyof R2Bucket): string {
   return `Failed to execute '${method}' on 'R2Bucket': parameter 1 is not of type 'string'.`;
 }
 
 export interface InternalR2BucketOptions {
   blockGlobalAsyncIO?: boolean;
   listRespectInclude?: boolean;
+  minMultipartUploadSize?: number;
 }
 
 export class R2Bucket {
   readonly #storage: Storage;
   readonly #blockGlobalAsyncIO: boolean;
   readonly #listRespectInclude: boolean;
+  readonly #multipartOpts: InternalR2MultipartUploadOptions;
 
   constructor(
     storage: Storage,
     {
       blockGlobalAsyncIO = false,
       listRespectInclude = true,
+      minMultipartUploadSize,
     }: InternalR2BucketOptions = {}
   ) {
     this.#storage = storage;
     this.#blockGlobalAsyncIO = blockGlobalAsyncIO;
     this.#listRespectInclude = listRespectInclude;
+    this.#multipartOpts = {
+      storage,
+      blockGlobalAsyncIO,
+      minMultipartUploadSize,
+    };
   }
 
   #prepareCtx(): RequestContext | undefined {
@@ -441,7 +466,7 @@ export class R2Bucket {
     return ctx;
   }
 
-  async #head(key: string): Promise<R2Object | null> {
+  async #head(key: string): Promise<R2ObjectMetadata | null> {
     // Get value, returning null if not found
     const stored = await this.#storage.head<R2ObjectMetadata>(key);
     // fix dates
@@ -449,7 +474,7 @@ export class R2Bucket {
     const { metadata } = stored;
     parseR2ObjectMetadata(metadata);
 
-    return new R2Object(metadata);
+    return metadata;
   }
 
   async head(key: string): Promise<R2Object | null> {
@@ -467,7 +492,7 @@ export class R2Bucket {
     await waitForOpenInputGate();
 
     ctx?.advanceCurrentTime();
-    return meta;
+    return meta === null ? null : new R2Object(meta);
   }
 
   /**
@@ -507,10 +532,10 @@ export class R2Bucket {
       return null;
     }
     // test conditional should it exist
-    if (!testR2Conditional(onlyIf, meta) || meta?.size === 0) {
+    if (!testR2Conditional(onlyIf, meta)) {
       await waitForOpenInputGate();
       ctx?.advanceCurrentTime();
-      return meta;
+      return new R2Object(meta);
     }
 
     // Convert `Range` header to R2Range if specified
@@ -518,28 +543,39 @@ export class R2Bucket {
       range = rangeHeaderToR2Range(range, meta.size);
     }
 
-    let stored: RangeStoredValueMeta<R2ObjectMetadata> | undefined;
-
-    // get data dependent upon whether suffix or range exists
+    let value: Uint8Array | ReadableStream<Uint8Array>;
     try {
-      stored = await this.#storage.getRange<R2ObjectMetadata>(key, range);
+      if (meta.size === 0) {
+        value = new Uint8Array();
+      } else if (meta.multipart !== undefined) {
+        const parsedRange = parseRange(range, meta.size);
+        value = getMultipartValue(
+          this.#storage,
+          key,
+          meta.multipart,
+          parsedRange
+        );
+        meta.range = parsedRange;
+      } else {
+        const stored = await this.#storage.getRange<R2ObjectMetadata>(
+          key,
+          range
+        );
+        if (stored === undefined) return null;
+        value = stored.value;
+        // Add range should it exist
+        if ("range" in stored && stored.range !== undefined) {
+          meta.range = stored.range;
+        }
+      }
     } catch {
       throwR2Error("GET", 400, "The requested range is not satisfiable.");
     }
 
     await waitForOpenInputGate();
     ctx?.advanceCurrentTime();
-    // if bad metadata, return null
-    if (stored?.metadata === undefined) return null;
-    const { value, metadata } = stored;
-    // fix dates
-    parseR2ObjectMetadata(metadata);
-    // add range should it exist
-    if ("range" in stored && stored.range !== undefined) {
-      metadata.range = stored.range;
-    }
 
-    return new R2ObjectBody(metadata, value);
+    return new R2ObjectBody(meta, value);
   }
 
   async put(
@@ -617,6 +653,10 @@ export class R2Bucket {
       value: toStore,
       metadata,
     });
+    // If existing value was multipart, remove its parts
+    if (meta?.multipart !== undefined) {
+      await deleteMultipartParts(this.#storage, key, meta.multipart.uploadId);
+    }
     await waitForOpenInputGate();
     ctx?.advanceCurrentTime();
 
@@ -634,7 +674,23 @@ export class R2Bucket {
     keys = keys.map((key) => validateKey("DELETE", String(key)));
 
     await waitForOpenOutputGate();
+    const keyMetas = await Promise.all(keys.map((key) => this.#head(key)));
+
     await this.#storage.deleteMany(keys);
+
+    // If any existing values were multipart, remove their parts
+    const deletePartsPromises = keys.map((key, i) => {
+      const keyMeta = keyMetas[i];
+      if (keyMeta?.multipart !== undefined) {
+        return deleteMultipartParts(
+          this.#storage,
+          key,
+          keyMeta.multipart.uploadId
+        );
+      }
+    });
+    await Promise.all(deletePartsPromises);
+
     await waitForOpenInputGate();
 
     ctx?.advanceCurrentTime();
@@ -659,6 +715,7 @@ export class R2Bucket {
 
     const res = await this.#storage.list<R2ObjectMetadata>({
       prefix,
+      excludePrefix: _INTERNAL_PREFIX,
       limit,
       cursor,
       start: startAfter,
@@ -706,5 +763,78 @@ export class R2Bucket {
       cursor: cursorLength ? res.cursor : undefined,
       delimitedPrefixes: [...delimitedPrefixes],
     };
+  }
+
+  async createMultipartUpload(
+    key: string,
+    options: R2MultipartOptions = {}
+  ): Promise<R2MultipartUpload> {
+    const ctx = this.#prepareCtx();
+
+    // The Workers runtime will coerce the key parameter to a string
+    if (arguments.length === 0) {
+      throw new TypeError(buildKeyTypeError("createMultipartUpload"));
+    }
+    key = String(key);
+    validateMultipartKey("createMultipartUpload", key);
+
+    // Validate options
+    if (typeof options !== "object") {
+      throw new TypeError(
+        "Failed to execute 'createMultipartUpload' on 'R2Bucket': parameter 2 is not of type 'MultipartOptions'."
+      );
+    }
+    if (
+      options.customMetadata !== undefined &&
+      typeof options.customMetadata !== "object"
+    ) {
+      throw new TypeError(
+        "Incorrect type for the 'customMetadata' field on 'MultipartOptions': the provided value is not of type 'object'."
+      );
+    }
+    if (
+      options.httpMetadata !== undefined &&
+      typeof options.httpMetadata !== "object"
+    ) {
+      throw new TypeError(
+        "Incorrect type for the 'httpMetadata' field on 'MultipartOptions': the provided value is not of type 'HttpMetadata or Headers'."
+      );
+    }
+    const customMetadata = options.customMetadata ?? {};
+    const httpMetadata = parseHttpMetadata(options.httpMetadata);
+
+    // Creating a multipart upload isn't observable so no need to wait on
+    // output gate to open
+    const upload = await createMultipartUpload(
+      key,
+      { customMetadata, httpMetadata },
+      this.#multipartOpts
+    );
+    await waitForOpenInputGate();
+    ctx?.advanceCurrentTime();
+
+    return upload;
+  }
+
+  async resumeMultipartUpload(
+    key: string,
+    uploadId: string
+  ): Promise<R2MultipartUpload> {
+    // The Workers runtime doesn't make a subrequest here, so no need to call
+    // `prepareCtx()`
+
+    // The Workers runtime will coerce key and uploadId parameters to a string
+    if (arguments.length === 0) {
+      throw new TypeError(buildKeyTypeError("resumeMultipartUpload"));
+    }
+    if (arguments.length === 1) {
+      throw new TypeError(
+        "Failed to execute 'resumeMultipartUpload' on 'R2Bucket': parameter 2 is not of type 'string'."
+      );
+    }
+    key = String(key);
+    uploadId = String(uploadId);
+
+    return new R2MultipartUpload(key, uploadId, this.#multipartOpts);
   }
 }

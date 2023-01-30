@@ -158,6 +158,7 @@ export function _headersFromIncomingRequest(
 export const _kInner = Symbol("kInner");
 
 const kBodyStream = Symbol("kBodyStream");
+const kBodyStreamBrand = Symbol("kBodyStreamBrand");
 const kInputGated = Symbol("kInputGated");
 const kFormDataFiles = Symbol("kFormDataFiles");
 const kCloned = Symbol("kCloned");
@@ -197,7 +198,7 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
 
     if (body === null) return body;
     // Only transform body stream once
-    const bodyStream = this[kBodyStream];
+    let bodyStream = this[kBodyStream];
     if (bodyStream) return bodyStream;
     assert(body instanceof ReadableStream);
 
@@ -263,7 +264,9 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
       cancel: (reason) => reader.cancel(reason),
     };
     // TODO: maybe set { highWaterMark: 0 } as a strategy here?
-    return (this[kBodyStream] = new ReadableStream(source));
+    bodyStream = new ReadableStream(source);
+    Object.defineProperty(bodyStream, kBodyStreamBrand, { value: true });
+    return (this[kBodyStream] = bodyStream);
   }
   get bodyUsed(): boolean {
     return this[_kInner].bodyUsed;
@@ -355,6 +358,13 @@ export function withStringFormDataFiles<
 >(body: Inner): Inner {
   body[kFormDataFiles] = false;
   return body;
+}
+
+/** @internal */
+export function _isBodyStream(stream: ReadableStream): boolean {
+  return (
+    (stream as { [kBodyStreamBrand]?: unknown })[kBodyStreamBrand] === true
+  );
 }
 
 export type RequestInfo = BaseRequestInfo | Request;

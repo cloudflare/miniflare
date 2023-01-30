@@ -54,7 +54,7 @@ export const listStartMacro = listMacro(
 );
 
 export const listEndMacro = listMacro(
-  " lists keys ending at end exclusive",
+  "lists keys ending at end exclusive",
   [["section1key1", "section1key2"]],
   { end: "section2key1" }
 );
@@ -104,6 +104,12 @@ export const listPrefixMacro = listMacro(
   { prefix: "section2" }
 );
 
+export const listExcludePrefixMacro = listMacro(
+  "lists keys not matching excludePrefix",
+  [["section1key1", "section1key2", "section3key1", "section3key2"]],
+  { excludePrefix: "section2" }
+);
+
 export const listCombinationMacro = listMacro(
   "paginates keys with start, limit and prefix in reverse",
   [
@@ -111,6 +117,15 @@ export const listCombinationMacro = listMacro(
     ["section2key2", "section2key1"],
   ],
   { start: "section2", prefix: "section", limit: 2, reverse: true }
+);
+
+export const listCombination2Macro = listMacro(
+  "paginates keys with limit, prefix and excludePrefix in reverse",
+  [
+    ["section2key2", "section2key1"],
+    ["section1key2", "section1key1"],
+  ],
+  { prefix: "section", excludePrefix: "section3", limit: 2, reverse: true }
 );
 
 export const listStartAfterAllMacro = listMacro(

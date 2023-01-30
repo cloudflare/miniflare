@@ -17,9 +17,12 @@ export function listFilterMatch(
   name: string
 ): boolean {
   return !(
-    (options?.prefix && !name.startsWith(options.prefix)) ||
-    (options?.start && lexicographicCompare(name, options.start) < 0) ||
-    (options?.end && lexicographicCompare(name, options.end) >= 0)
+    (options?.prefix !== undefined && !name.startsWith(options.prefix)) ||
+    (options?.excludePrefix !== undefined &&
+      name.startsWith(options.excludePrefix)) ||
+    (options?.start !== undefined &&
+      lexicographicCompare(name, options.start) < 0) ||
+    (options?.end !== undefined && lexicographicCompare(name, options.end) >= 0)
   );
 }
 
