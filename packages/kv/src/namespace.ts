@@ -289,11 +289,11 @@ export class KVNamespace {
     let expiration = normaliseInt(options.expiration);
     const expirationTtl = normaliseInt(options.expirationTtl);
     if (expirationTtl !== undefined) {
-      if (isNaN(expirationTtl) || expirationTtl <= 0) {
+      if (isNaN(expirationTtl) || expirationTtl <= 0 || expirationTtl > 2147483647) {
         throwKVError(
           "PUT",
           400,
-          `Invalid expiration_ttl of ${options.expirationTtl}. Please specify integer greater than 0.`
+          `Invalid expiration_ttl of ${options.expirationTtl}. Please specify integer greater than 0 and less than or equal to 2147483647.`
         );
       }
       if (expirationTtl < MIN_CACHE_TTL) {
@@ -305,11 +305,11 @@ export class KVNamespace {
       }
       expiration = now + expirationTtl;
     } else if (expiration !== undefined) {
-      if (isNaN(expiration) || expiration <= now) {
+      if (isNaN(expiration) || expiration <= now || expiration > 2147483647) {
         throwKVError(
           "PUT",
           400,
-          `Invalid expiration of ${options.expiration}. Please specify integer greater than the current number of seconds since the UNIX epoch.`
+          `Invalid expiration of ${options.expiration}. Please specify integer greater than the current number of seconds since the UNIX epoch, and less than or equal to 2147483647.`
         );
       }
       if (expiration < now + MIN_CACHE_TTL) {
