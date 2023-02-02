@@ -16,6 +16,7 @@ import {
 } from "@miniflare/shared";
 
 const MIN_CACHE_TTL = 60; /* 60s */
+const MAX_EXPIRATION = 2147483647 /* Maximum signed 32-bit integer */
 const MAX_LIST_KEYS = 1000;
 const MAX_KEY_SIZE = 512; /* 512B */
 const MAX_VALUE_SIZE = 25 * 1024 * 1024; /* 25MiB */
@@ -289,11 +290,11 @@ export class KVNamespace {
     let expiration = normaliseInt(options.expiration);
     const expirationTtl = normaliseInt(options.expirationTtl);
     if (expirationTtl !== undefined) {
-      if (isNaN(expirationTtl) || expirationTtl <= 0 || expirationTtl > 2147483647) {
+      if (isNaN(expirationTtl) || expirationTtl <= 0 || expirationTtl > MAX_EXPIRATION) {
         throwKVError(
           "PUT",
           400,
-          `Invalid expiration_ttl of ${options.expirationTtl}. Please specify integer greater than 0 and less than or equal to 2147483647.`
+          `Invalid expiration_ttl of ${options.expirationTtl}. Please specify integer greater than 0 and less than or equal to ${MAX_EXPIRATION}.`
         );
       }
       if (expirationTtl < MIN_CACHE_TTL) {
@@ -305,11 +306,11 @@ export class KVNamespace {
       }
       expiration = now + expirationTtl;
     } else if (expiration !== undefined) {
-      if (isNaN(expiration) || expiration <= now || expiration > 2147483647) {
+      if (isNaN(expiration) || expiration <= now || expiration > MAX_EXPIRATION) {
         throwKVError(
           "PUT",
           400,
-          `Invalid expiration of ${options.expiration}. Please specify integer greater than the current number of seconds since the UNIX epoch, and less than or equal to 2147483647.`
+          `Invalid expiration of ${options.expiration}. Please specify integer greater than the current number of seconds since the UNIX epoch, and less than or equal to ${MAX_EXPIRATION}.`
         );
       }
       if (expiration < now + MIN_CACHE_TTL) {
