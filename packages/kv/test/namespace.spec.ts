@@ -455,12 +455,17 @@ test("put: validates expiration ttl", async (t) => {
   await t.throwsAsync(ns.put("key", "value", { expirationTtl: "nan" }), {
     instanceOf: Error,
     message:
-      "KV PUT failed: 400 Invalid expiration_ttl of nan. Please specify integer greater than 0.",
+      "KV PUT failed: 400 Invalid expiration_ttl of nan. Please specify integer greater than 0 and less than or equal to 2147483647.",
   });
   await t.throwsAsync(ns.put("key", "value", { expirationTtl: 0 }), {
     instanceOf: Error,
     message:
-      "KV PUT failed: 400 Invalid expiration_ttl of 0. Please specify integer greater than 0.",
+      "KV PUT failed: 400 Invalid expiration_ttl of 0. Please specify integer greater than 0 and less than or equal to 2147483647.",
+  });
+  await t.throwsAsync(ns.put("key", "value", { expirationTtl: 2147483648 }), {
+    instanceOf: Error,
+    message:
+      "KV PUT failed: 400 Invalid expiration_ttl of 2147483648. Please specify integer greater than 0 and less than or equal to 2147483647.",
   });
   await t.throwsAsync(ns.put("key", "value", { expirationTtl: 30 }), {
     instanceOf: Error,
@@ -473,13 +478,18 @@ test("put: validates expiration", async (t) => {
   await t.throwsAsync(ns.put("key", "value", { expiration: "nan" }), {
     instanceOf: Error,
     message:
-      "KV PUT failed: 400 Invalid expiration of nan. Please specify integer greater than the current number of seconds since the UNIX epoch.",
+      "KV PUT failed: 400 Invalid expiration of nan. Please specify integer greater than the current number of seconds since the UNIX epoch, and less than or equal to 2147483647.",
   });
   // testClock sets current time to 750s since UNIX epoch
   await t.throwsAsync(ns.put("key", "value", { expiration: 750 }), {
     instanceOf: Error,
     message:
-      "KV PUT failed: 400 Invalid expiration of 750. Please specify integer greater than the current number of seconds since the UNIX epoch.",
+      "KV PUT failed: 400 Invalid expiration of 750. Please specify integer greater than the current number of seconds since the UNIX epoch, and less than or equal to 2147483647.",
+  });
+  await t.throwsAsync(ns.put("key", "value", { expiration: 2147483648 }), {
+    instanceOf: Error,
+    message:
+      "KV PUT failed: 400 Invalid expiration of 2147483648. Please specify integer greater than the current number of seconds since the UNIX epoch, and less than or equal to 2147483647.",
   });
   await t.throwsAsync(ns.put("key", "value", { expiration: 780 }), {
     instanceOf: Error,
