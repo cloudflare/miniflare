@@ -16,6 +16,7 @@ import {
 } from "@miniflare/shared";
 
 const MIN_CACHE_TTL = 60; /* 60s */
+const MIN_EXPIRATION = -2147483648; /* Minimum signed 32-bit integer */
 const MAX_EXPIRATION = 2147483647; /* Maximum signed 32-bit integer */
 const MAX_LIST_KEYS = 1000;
 const MAX_KEY_SIZE = 512; /* 512B */
@@ -290,15 +291,11 @@ export class KVNamespace {
     let expiration = normaliseInt(options.expiration);
     const expirationTtl = normaliseInt(options.expirationTtl);
     if (expirationTtl !== undefined) {
-      if (
-        isNaN(expirationTtl) ||
-        expirationTtl <= 0 ||
-        expirationTtl > MAX_EXPIRATION
-      ) {
+      if (isNaN(expirationTtl) || expirationTtl <= 0) {
         throwKVError(
           "PUT",
           400,
-          `Invalid expiration_ttl of ${options.expirationTtl}. Please specify integer greater than 0 and less than or equal to ${MAX_EXPIRATION}.`
+          `Invalid expiration_ttl of ${options.expirationTtl}. Please specify integer greater than 0.`
         );
       }
       if (expirationTtl < MIN_CACHE_TTL) {
@@ -308,17 +305,19 @@ export class KVNamespace {
           `Invalid expiration_ttl of ${options.expirationTtl}. Expiration TTL must be at least ${MIN_CACHE_TTL}.`
         );
       }
+      if (expirationTtl < MIN_EXPIRATION || expirationTtl > MAX_EXPIRATION) {
+        // Workers throws like this without the extra sugar when the value is out of bounds.
+        throw new TypeError(
+          `Value out of range. Must be between ${MIN_EXPIRATION} and ${MAX_EXPIRATION} (inclusive).`
+        );
+      }
       expiration = now + expirationTtl;
     } else if (expiration !== undefined) {
-      if (
-        isNaN(expiration) ||
-        expiration <= now ||
-        expiration > MAX_EXPIRATION
-      ) {
+      if (isNaN(expiration) || expiration <= now) {
         throwKVError(
           "PUT",
           400,
-          `Invalid expiration of ${options.expiration}. Please specify integer greater than the current number of seconds since the UNIX epoch, and less than or equal to ${MAX_EXPIRATION}.`
+          `Invalid expiration of ${options.expiration}. Please specify integer greater than the current number of seconds since the UNIX epoch.`
         );
       }
       if (expiration < now + MIN_CACHE_TTL) {
@@ -326,6 +325,12 @@ export class KVNamespace {
           "PUT",
           400,
           `Invalid expiration of ${options.expiration}. Expiration times must be at least ${MIN_CACHE_TTL} seconds in the future.`
+        );
+      }
+      if (expiration < MIN_EXPIRATION || expiration > MAX_EXPIRATION) {
+        // Workers throws like this without the extra sugar when the value is out of bounds.
+        throw new TypeError(
+          `Value out of range. Must be between ${MIN_EXPIRATION} and ${MAX_EXPIRATION} (inclusive).`
         );
       }
     }
