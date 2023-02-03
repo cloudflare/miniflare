@@ -291,6 +291,12 @@ export class KVNamespace {
     let expiration = normaliseInt(options.expiration);
     const expirationTtl = normaliseInt(options.expirationTtl);
     if (expirationTtl !== undefined) {
+      if (expirationTtl < MIN_EXPIRATION || expirationTtl > MAX_EXPIRATION) {
+        // Workers throws like this without the extra sugar when the value is out of bounds, and throws before checking the value itself.
+        throw new TypeError(
+          `Value out of range. Must be between ${MIN_EXPIRATION} and ${MAX_EXPIRATION} (inclusive).`
+        );
+      }
       if (isNaN(expirationTtl) || expirationTtl <= 0) {
         throwKVError(
           "PUT",
@@ -305,14 +311,14 @@ export class KVNamespace {
           `Invalid expiration_ttl of ${options.expirationTtl}. Expiration TTL must be at least ${MIN_CACHE_TTL}.`
         );
       }
-      if (expirationTtl < MIN_EXPIRATION || expirationTtl > MAX_EXPIRATION) {
-        // Workers throws like this without the extra sugar when the value is out of bounds.
+      expiration = now + expirationTtl;
+    } else if (expiration !== undefined) {
+      if (expiration < MIN_EXPIRATION || expiration > MAX_EXPIRATION) {
+        // Workers throws like this without the extra sugar when the value is out of bounds, and throws before checking the value itself.
         throw new TypeError(
           `Value out of range. Must be between ${MIN_EXPIRATION} and ${MAX_EXPIRATION} (inclusive).`
         );
       }
-      expiration = now + expirationTtl;
-    } else if (expiration !== undefined) {
       if (isNaN(expiration) || expiration <= now) {
         throwKVError(
           "PUT",
@@ -325,12 +331,6 @@ export class KVNamespace {
           "PUT",
           400,
           `Invalid expiration of ${options.expiration}. Expiration times must be at least ${MIN_CACHE_TTL} seconds in the future.`
-        );
-      }
-      if (expiration < MIN_EXPIRATION || expiration > MAX_EXPIRATION) {
-        // Workers throws like this without the extra sugar when the value is out of bounds.
-        throw new TypeError(
-          `Value out of range. Must be between ${MIN_EXPIRATION} and ${MAX_EXPIRATION} (inclusive).`
         );
       }
     }
