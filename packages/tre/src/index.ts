@@ -163,6 +163,7 @@ const restrictedWebSocketUpgradeHeaders = [
   "upgrade",
   "connection",
   "sec-websocket-accept",
+  "sec-websocket-protocol"
 ];
 
 async function writeResponse(response: Response, res: http.ServerResponse) {
