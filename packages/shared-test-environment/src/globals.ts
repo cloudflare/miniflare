@@ -25,33 +25,6 @@ export class ExecutionContext {
   }
 }
 
-declare global {
-  function getMiniflareBindings<Bindings = Context>(): Bindings;
-  function getMiniflareDurableObjectStorage(
-    id: DurableObjectId
-  ): Promise<DurableObjectStorage>;
-  function getMiniflareDurableObjectState(
-    id: DurableObjectId
-  ): Promise<DurableObjectState>;
-  function getMiniflareDurableObjectInstance(
-    id: DurableObjectId
-  ): Promise<DurableObject>;
-  function runWithMiniflareDurableObjectGates<T>(
-    state: DurableObjectState,
-    closure: () => Awaitable<T>
-  ): Promise<T>;
-  function getMiniflareFetchMock(): MockAgent;
-  function getMiniflareWaitUntil<WaitUntil extends any[] = unknown[]>(
-    event: FetchEvent | ScheduledEvent | ExecutionContext
-  ): Promise<WaitUntil>;
-  function flushMiniflareDurableObjectAlarms(
-    ids: DurableObjectId[]
-  ): Promise<void>;
-  function getMiniflareDurableObjectIds(
-    namespace: string
-  ): Promise<DurableObjectId[]>;
-}
-
 export interface MiniflareEnvironmentUtilities {
   getMiniflareBindings<Bindings = Context>(): Bindings;
   getMiniflareDurableObjectStorage(

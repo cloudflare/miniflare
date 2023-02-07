@@ -14,7 +14,8 @@
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "files": [
-    "dist/src"
+    "dist/src",
+    "globals.d.ts"
   ],
   "engines": {
     "node": ">=16.13"
@@ -35,6 +36,7 @@
     "extends": "../../package.json"
   },
   "dependencies": {
+    "@cloudflare/workers-types": "^4.20221111.1",
     "@miniflare/cache": "2.11.0",
     "@miniflare/core": "2.11.0",
     "@miniflare/d1": "2.11.0",
