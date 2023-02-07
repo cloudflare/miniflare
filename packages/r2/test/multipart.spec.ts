@@ -359,9 +359,8 @@ test("R2MultipartUpload: complete", async (t) => {
   t.is(object.httpEtag, '"3b676245e58d988dc75f80c0c27a9645-3"');
   t.is(object.range, undefined);
   t.deepEqual(object.checksums.toJSON(), {});
-  // Note metadata is empty in objects returned from complete()
-  t.deepEqual(object.customMetadata, {});
-  t.deepEqual(object.httpMetadata, {});
+  t.deepEqual(object.customMetadata, { key: "value" });
+  t.deepEqual(object.httpMetadata, { contentType: "text/plain" });
   let { keys } = await storage.list();
   t.is(keys.length, 2 /* uploads */ + 3 /* parts */ + 1 /* complete */);
   let objectBody = await r2.get("key");
@@ -582,6 +581,25 @@ test("R2MultipartUpload: complete", async (t) => {
     await objectBody?.text(),
     `${"1".repeat(PART_SIZE)}${"2".repeat(PART_SIZE)}`
   );
+
+  // Check requires all but last part to have same size
+  const upload13 = await r2.createMultipartUpload("key");
+  part1 = await upload13.uploadPart(1, "1".repeat(PART_SIZE));
+  part2 = await upload13.uploadPart(2, "2".repeat(PART_SIZE + 1));
+  part3 = await upload13.uploadPart(3, "3".repeat(PART_SIZE));
+  expectations = {
+    instanceOf: Error,
+    message:
+      "completeMultipartUpload: There was a problem with the multipart upload. (10048)",
+  };
+  await t.throwsAsync(upload13.complete([part1, part2, part3]), expectations);
+  part2 = await upload13.uploadPart(2, "2".repeat(PART_SIZE));
+  // Check allows last part to have different size, only if <= others
+  part3 = await upload13.uploadPart(3, "3".repeat(PART_SIZE + 1));
+  await t.throwsAsync(upload13.complete([part1, part2, part3]), expectations);
+  part3 = await upload13.uploadPart(3, "3".repeat(PART_SIZE - 1));
+  object = await upload13.complete([part1, part2, part3]);
+  t.is(object.size, 3 * PART_SIZE - 1);
 });
 
 // Check regular operations on buckets with existing multipart keys

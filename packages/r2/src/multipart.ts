@@ -102,8 +102,15 @@ function validatePartNumber(partNumber: number) {
   );
 }
 
-function generateId() {
-  return crypto.randomBytes(128).toString("base64url");
+function generateId(likelyOnFilesystem = false) {
+  // Windows has a maximum path length of ~260 characters:
+  // https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
+  // Miniflare R2 buckets will usually be backed by file-system storage,
+  // especially when using multipart uploads for large files. Therefore, reduce
+  // the size of the upload ID on Windows, preferring a longer ID otherwise
+  // to more closely match R2 behaviour.
+  const size = likelyOnFilesystem && process.platform === "win32" ? 32 : 128;
+  return crypto.randomBytes(size).toString("base64url");
 }
 function generateMultipartEtag(md5Hexes: string[]) {
   // TODO: R2's multipart ETags don't seem to be deterministic, should ours be?
@@ -132,7 +139,7 @@ export async function createMultipartUpload(
   metadata: R2MultipartIndexMetadata,
   opts: InternalR2MultipartUploadOptions
 ): Promise<R2MultipartUpload> {
-  const uploadId = generateId();
+  const uploadId = generateId(/* likelyOnFilesystem */ true);
   const indexKey = buildKey(key, uploadId);
   await opts.storage.put<R2MultipartIndexMetadata>(indexKey, {
     value: new Uint8Array(),
@@ -488,13 +495,24 @@ export class R2MultipartUpload {
     //   ...then check again in ascending `partNumber` order, throwing an
     //   internal error. We won't know where the current last element ends
     //   up in the sort, so we just check all parts again.
+    //
+    //   Also check that all but last parts are the same size...
     parts.sort((a, b) => a.partNumber - b.partNumber);
+    let partSize: number | undefined;
     for (const part of parts.slice(0, -1)) {
-      if (part.size < this.#minMultipartUploadSize) {
+      if (partSize === undefined) partSize = part.size;
+      if (part.size < this.#minMultipartUploadSize || part.size !== partSize) {
         throw new Error(
           "completeMultipartUpload: There was a problem with the multipart upload. (10048)"
         );
       }
+    }
+    //   ...and the last part is not greater than all others
+    //   (if part size is defined, we must have at least one part)
+    if (partSize !== undefined && parts[parts.length - 1].size > partSize) {
+      throw new Error(
+        "completeMultipartUpload: There was a problem with the multipart upload. (10048)"
+      );
     }
 
     // 6. Write key to storage with pointers to parts, and mark upload as
@@ -545,6 +563,6 @@ export class R2MultipartUpload {
 
     // Note metadata is empty in objects returned from `complete()`, this feels
     // like a bug...
-    return new R2Object({ ...metadata, httpMetadata: {}, customMetadata: {} });
+    return new R2Object(metadata);
   }
 }
