@@ -9,7 +9,11 @@ import {
   utf8Decode,
   utf8Encode,
 } from "@miniflare/shared-test";
-import { WebSocketPair, coupleWebSocket } from "@miniflare/web-sockets";
+import {
+  WebSocketPair,
+  _kClose,
+  coupleWebSocket,
+} from "@miniflare/web-sockets";
 import { CloseEvent, MessageEvent } from "@miniflare/web-sockets";
 import test from "ava";
 import StandardWebSocket, {
@@ -208,6 +212,23 @@ test("coupleWebSocket: closes client socket on worker close with no close code",
 
   const event = await eventPromise;
   t.is(event.code, 1005);
+});
+test("coupleWebSocket: closes client socket on abnormal worker close", async (t) => {
+  const [eventTrigger, eventPromise] = triggerPromise<{
+    code: number;
+    reason: string;
+  }>();
+  const server = await useServer(t, noop, (ws) => {
+    ws.addEventListener("close", eventTrigger);
+  });
+  const ws = new StandardWebSocket(server.ws);
+  const [client, worker] = Object.values(new WebSocketPair());
+  worker.accept();
+  await coupleWebSocket(ws, client);
+  worker[_kClose](1006); // 1006 is not allowed by worker.close()
+
+  const event = await eventPromise;
+  t.is(event.code, 1006);
 });
 
 test("coupleWebSocket: accepts worker socket immediately if already open", async (t) => {

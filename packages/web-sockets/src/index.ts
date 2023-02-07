@@ -7,5 +7,6 @@ export {
   WebSocket,
   WebSocketPair,
   coupleWebSocket,
+  _kClose,
 } from "./websocket";
 export type { WebSocketEventMap } from "./websocket";

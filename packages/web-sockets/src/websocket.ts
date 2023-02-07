@@ -63,7 +63,8 @@ const kClosedIncoming = Symbol("kClosedIncoming");
 // Internal send method exposed to bypass accept checking
 const kSend = Symbol("kSend");
 // Internal close method exposed to bypass close code checking
-const kClose = Symbol("kClose");
+/** @internal */
+export const _kClose = Symbol("kClose");
 // Internal error method exposed to dispatch error events to pair
 const kError = Symbol("kError");
 
@@ -286,10 +287,10 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
         "You must call accept() on this WebSocket before sending messages."
       );
     }
-    this[kClose](code, reason);
+    this[_kClose](code, reason);
   }
 
-  [kClose](code?: number, reason?: string): void {
+  [_kClose](code?: number, reason?: string): void {
     // Split from close() so we can queue closes before accept() is called, and
     // skip close code checks when forwarding close events from the client.
     if (this[kClosedOutgoing]) throw new TypeError("WebSocket already closed");
@@ -377,7 +378,7 @@ export async function coupleWebSocket(
       // Note `[kClose]` skips accept check and will queue messages if other
       // pair hasn't `accept`ed yet. It also skips code/reason validation,
       // allowing reserved codes (e.g. 1005 for "No Status Received").
-      pair[kClose](code, reason.toString());
+      pair[_kClose](code, reason.toString());
     }
   });
   ws.on("error", (error) => {
@@ -391,6 +392,8 @@ export async function coupleWebSocket(
   pair.addEventListener("close", (e) => {
     if (e.code === 1005 /* No Status Received */) {
       ws.close();
+    } else if (e.code === 1006 /* Abnormal Closure */) {
+      ws.terminate();
     } else {
       ws.close(e.code, e.reason);
     }
