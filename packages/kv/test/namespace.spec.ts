@@ -467,6 +467,16 @@ test("put: validates expiration ttl", async (t) => {
     message:
       "KV PUT failed: 400 Invalid expiration_ttl of 30. Expiration TTL must be at least 60.",
   });
+  await t.throwsAsync(ns.put("key", "value", { expirationTtl: 2147483648 }), {
+    instanceOf: TypeError,
+    message:
+      "Value out of range. Must be between -2147483648 and 2147483647 (inclusive).",
+  });
+  await t.throwsAsync(ns.put("key", "value", { expirationTtl: -2147483649 }), {
+    instanceOf: TypeError,
+    message:
+      "Value out of range. Must be between -2147483648 and 2147483647 (inclusive).",
+  });
 });
 test("put: validates expiration", async (t) => {
   const { ns } = t.context;
@@ -485,6 +495,16 @@ test("put: validates expiration", async (t) => {
     instanceOf: Error,
     message:
       "KV PUT failed: 400 Invalid expiration of 780. Expiration times must be at least 60 seconds in the future.",
+  });
+  await t.throwsAsync(ns.put("key", "value", { expiration: 2147483648 }), {
+    instanceOf: TypeError,
+    message:
+      "Value out of range. Must be between -2147483648 and 2147483647 (inclusive).",
+  });
+  await t.throwsAsync(ns.put("key", "value", { expiration: -2147483649 }), {
+    instanceOf: TypeError,
+    message:
+      "Value out of range. Must be between -2147483648 and 2147483647 (inclusive).",
   });
 });
 test("put: validates value size", async (t) => {
