@@ -71,14 +71,7 @@ async function buildTypes() {
       showVerboseMessages: true,
     });
     errorCount += extractorRes.errorCount;
-    if (name !== "jest-environment-miniflare") {
-      // Ignore `jest-environment-miniflare` warnings. This package will never
-      // be used directly so correct type definitions aren't critical. We have
-      // integration tests for this package anyways, so if something breaks,
-      // we'll know.
-      // TODO: work out why these warnings are being thrown
-      warningCount += extractorRes.warningCount;
-    }
+    warningCount += extractorRes.warningCount;
   }
   const failed = errorCount + warningCount > 0;
   const colour = failed ? 31 : 32;
