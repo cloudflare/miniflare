@@ -654,18 +654,83 @@ test("CorePlugin: setup: uses actual time if option enabled", async (t) => {
   });
 });
 
-test("CorePlugin: nodejs_compat compatibiltiy flag includes Node.js modules", async (t) => {
-  const compat = new Compatibility(undefined, ["nodejs_compat"]);
+test("CorePlugin: nodejs_compat compatibility flag includes Node.js modules", async (t) => {
+  let compat = new Compatibility(undefined, ["nodejs_compat"]);
+  let plugin = new CorePlugin({ ...ctx, compat });
+  let modules = (await plugin.setup()).additionalModules!;
+  const names = Object.keys(modules).sort();
+  t.deepEqual(names, ["node:async_hooks", "node:events"]);
 
-  const plugin = new CorePlugin(
-    { ...ctx, compat },
-    { compatibilityFlags: ["nodejs_compat"] }
+  compat = new Compatibility(undefined, ["nodejs_compat", "experimental"]);
+  plugin = new CorePlugin({ ...ctx, compat });
+  modules = (await plugin.setup()).additionalModules!;
+  const experimentalNames = Object.keys(modules).filter(
+    (name) => !names.includes(name)
   );
-  const additionalModules = (await plugin.setup()).additionalModules;
-  t.deepEqual(
-    Object.keys(additionalModules?.["node:async_hooks"].default ?? {}),
-    ["AsyncLocalStorage", "AsyncResource"]
-  );
+  t.deepEqual(experimentalNames, ["node:assert", "node:buffer", "node:util"]);
+
+  // We're using Node's implementations of these modules' exports, so don't
+  // bother testing their functionality. Instead, just check we've got the
+  // same export types as `workerd`.
+
+  function exportTypes(name: string): Record<string, string> {
+    return Object.fromEntries(
+      Object.entries(modules[name]).map(([key, value]) => [key, typeof value])
+    );
+  }
+
+  t.deepEqual(exportTypes("node:assert"), {
+    AssertionError: "function",
+    deepEqual: "function",
+    deepStrictEqual: "function",
+    default: "function",
+    doesNotMatch: "function",
+    doesNotReject: "function",
+    doesNotThrow: "function",
+    equal: "function",
+    fail: "function",
+    ifError: "function",
+    match: "function",
+    notDeepEqual: "function",
+    notDeepStrictEqual: "function",
+    notEqual: "function",
+    notStrictEqual: "function",
+    ok: "function",
+    rejects: "function",
+    strict: "function",
+    strictEqual: "function",
+    throws: "function",
+  });
+  t.deepEqual(exportTypes("node:async_hooks"), {
+    AsyncLocalStorage: "function",
+    AsyncResource: "function",
+    default: "object",
+  });
+  t.deepEqual(exportTypes("node:buffer"), {
+    Buffer: "function",
+    SlowBuffer: "function",
+    constants: "object",
+    default: "object",
+    kMaxLength: "number",
+    kStringMaxLength: "number",
+  });
+  t.deepEqual(exportTypes("node:events"), {
+    EventEmitter: "function",
+    EventEmitterAsyncResource: "function",
+    captureRejectionSymbol: "symbol",
+    default: "function",
+    defaultMaxListeners: "number",
+    errorMonitor: "symbol",
+    getEventListeners: "function",
+    listenerCount: "function",
+    on: "function",
+    once: "function",
+    setMaxListeners: "function",
+  });
+  t.deepEqual(exportTypes("node:util"), {
+    default: "object",
+    types: "object",
+  });
 });
 
 // Test stream constructors
