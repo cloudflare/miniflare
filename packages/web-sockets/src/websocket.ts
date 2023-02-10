@@ -254,6 +254,7 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
     this[kSend](message);
   }
 
+  /** @internal */
   [kSend](message: ArrayBuffer | string): void {
     // Split from send() so we can queue messages before accept() is called when
     // forwarding message events from the client
@@ -290,6 +291,7 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
     this[_kClose](code, reason);
   }
 
+  /** @internal */
   [_kClose](code?: number, reason?: string): void {
     // Split from close() so we can queue closes before accept() is called, and
     // skip close code checks when forwarding close events from the client.
@@ -321,6 +323,7 @@ export class WebSocket extends InputGatedEventTarget<WebSocketEventMap> {
     void this.#queuingDispatchToPair(event);
   }
 
+  /** @internal */
   [kError](error?: Error): void {
     const event = new ErrorEvent("error", { error });
     void this.#queuingDispatchToPair(event);

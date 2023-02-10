@@ -42,4 +42,4 @@ jobs:
           node-version: lts/*
       - run: npm ci
       - run: npm run lint
-      - run: npm run types:build
+      - run: npm run types:bundle
