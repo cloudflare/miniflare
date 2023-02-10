@@ -716,7 +716,12 @@ test("CorePlugin: nodejs_compat compatibility flag includes Node.js modules", as
   });
   t.deepEqual(exportTypes("node:events"), {
     EventEmitter: "function",
-    EventEmitterAsyncResource: "function",
+    // Miniflare's minimum support Node version is `16.13.0`, but
+    // `EventEmitterAsyncResource` was only added in `16.14.0`:
+    // https://nodejs.org/api/events.html#class-eventseventemitterasyncresource-extends-eventemitter
+    EventEmitterAsyncResource: process.versions.node.startsWith("16.13.")
+      ? "undefined"
+      : "function",
     captureRejectionSymbol: "symbol",
     default: "function",
     defaultMaxListeners: "number",
