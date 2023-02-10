@@ -253,8 +253,8 @@ test("D1PreparedStatement: run", async (t) => {
     meta: {
       // Don't know duration, so just match on returned value asserted > 0
       duration: result.meta.duration,
-      last_row_id: null,
-      changes: null,
+      last_row_id: 4,
+      changes: 1,
       served_by: "miniflare.db",
       internal_stats: null,
     },
@@ -276,8 +276,8 @@ test("D1PreparedStatement: all", async (t) => {
     meta: {
       // Don't know duration, so just match on returned value asserted > 0
       duration: result.meta.duration,
-      last_row_id: null,
-      changes: null,
+      last_row_id: 0,
+      changes: 0,
       served_by: "miniflare.db",
       internal_stats: null,
     },
@@ -297,6 +297,8 @@ test("D1PreparedStatement: all", async (t) => {
     .bind(4, "yellow", 0xffff00)
     .all();
   t.deepEqual(result.results, []);
+  t.is(result.meta.last_row_id, 4);
+  t.is(result.meta.changes, 1);
   const id = await db
     .prepare("SELECT id FROM colours WHERE name = ?")
     .bind("yellow")

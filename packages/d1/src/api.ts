@@ -30,32 +30,38 @@ interface ResponseMeta {
 interface SuccessResponse {
   results: any;
   duration: number;
-  lastRowId: number | null;
-  changes: number | null;
   success: true;
   served_by: string;
   meta: ResponseMeta | null;
+  // These are deprecated in place of `meta`
+  lastRowId: number | null;
+  changes: number | null;
 }
 
 const served_by = "miniflare.db";
 
-function ok(results: any, start: number): SuccessResponse {
-  const duration = performance.now() - start;
+interface OkMeta {
+  start: number;
+  last_row_id?: number;
+  changes?: number;
+}
+function ok(results: any, meta: OkMeta): SuccessResponse {
+  const duration = performance.now() - meta.start;
   return {
     results,
     duration,
-    // These are all `null`ed out in D1
-    lastRowId: null,
-    changes: null,
     success: true,
     served_by,
     meta: {
       duration,
-      last_row_id: null,
-      changes: null,
+      last_row_id: meta.last_row_id ?? 0,
+      changes: meta.changes ?? 0,
       served_by,
       internal_stats: null,
     },
+    // These are deprecated in place of `meta`
+    lastRowId: null,
+    changes: null,
   };
 }
 function err(error: any): ErrorResponse {
@@ -107,7 +113,7 @@ export class D1DatabaseAPI {
   constructor(private readonly db: SqliteDB) {}
 
   #query: QueryRunner = (query) => {
-    const start = performance.now();
+    const meta: OkMeta = { start: performance.now() };
     // D1 only respects the first statement
     const sql = splitSqlQuery(query.sql)[0];
     const stmt = this.db.prepare(sql);
@@ -118,22 +124,26 @@ export class D1DatabaseAPI {
     } else {
       // `/query` does support queries that don't return data,
       // returning `[]` instead of `null`
-      stmt.run(params);
+      const result = stmt.run(params);
       results = [];
+      meta.last_row_id = Number(result.lastInsertRowid);
+      meta.changes = result.changes;
     }
-    return ok(normaliseResults(results), start);
+    return ok(normaliseResults(results), meta);
   };
 
   #execute: QueryRunner = (query) => {
-    const start = performance.now();
+    const meta: OkMeta = { start: performance.now() };
     // D1 only respects the first statement
     const sql = splitSqlQuery(query.sql)[0];
     const stmt = this.db.prepare(sql);
     // `/execute` only supports queries that don't return data
     if (returnsData(stmt)) throw new Error(EXECUTE_RETURNS_DATA_MESSAGE);
     const params = normaliseParams(query.params);
-    stmt.run(params);
-    return ok(null, start);
+    const result = stmt.run(params);
+    meta.last_row_id = Number(result.lastInsertRowid);
+    meta.changes = result.changes;
+    return ok(null, meta);
   };
 
   async #handleQueryExecute(
