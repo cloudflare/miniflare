@@ -3,6 +3,7 @@ import {
   Request,
   RequestInfo,
   Response,
+  getRangeResponse,
   withImmutableHeaders,
   withStringFormDataFiles,
 } from "@miniflare/core";
@@ -12,7 +13,6 @@ import {
   Storage,
   assertInRequest,
   defaultClock,
-  getRangeResponse,
   getRequestContext,
   millisToSeconds,
   waitForOpenInputGate,

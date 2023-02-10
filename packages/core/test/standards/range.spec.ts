@@ -1,5 +1,5 @@
 import assert from "assert";
-import { getRangeResponse, parseRanges } from "@miniflare/shared";
+import { getRangeResponse, parseRanges } from "@miniflare/core";
 import { utf8Encode } from "@miniflare/shared-test";
 import test from "ava";
 import { Headers } from "undici";

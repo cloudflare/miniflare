@@ -1,7 +1,7 @@
 import { ReadableStream } from "stream/web";
 import { TextEncoder } from "util";
-import { Response } from "@miniflare/core";
 import { Headers } from "undici";
+import { Response } from "./http";
 
 const encoder = new TextEncoder();
 
