@@ -17,10 +17,6 @@ import {
 } from "vitest";
 import { createChainable } from "./chain";
 
-declare global {
-  function setupMiniflareIsolatedStorage(): typeof describe;
-}
-
 const scriptRunner = new VMScriptRunner();
 const queueBroker = new QueueBroker();
 
