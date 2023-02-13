@@ -51,4 +51,5 @@ export {
 } from "./streams";
 export type { ArrayBufferViewConstructor } from "./streams";
 export * from "./navigator";
+export * from "./range";
 export * from "./timers";

@@ -5,13 +5,13 @@ import crypto from "crypto";
 import { arrayBuffer } from "stream/consumers";
 import { ReadableStream } from "stream/web";
 import { TextEncoder } from "util";
+import { parseRanges } from "@miniflare/core";
 import {
   RangeStoredValueMeta,
   RequestContext,
   Storage,
   assertInRequest,
   getRequestContext,
-  parseRanges,
   viewToArray,
   waitForOpenInputGate,
   waitForOpenOutputGate,
