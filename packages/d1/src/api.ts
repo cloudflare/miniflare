@@ -34,8 +34,8 @@ interface SuccessResponse {
   served_by: string;
   meta: ResponseMeta | null;
   // These are deprecated in place of `meta`
-  lastRowId: number | null;
-  changes: number | null;
+  lastRowId: null;
+  changes: null;
 }
 
 const served_by = "miniflare.db";
