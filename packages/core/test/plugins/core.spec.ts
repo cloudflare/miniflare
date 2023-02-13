@@ -733,7 +733,12 @@ test("CorePlugin: nodejs_compat compatibility flag includes Node.js modules", as
     setMaxListeners: "function",
   });
   t.deepEqual(exportTypes("node:util"), {
+    _extend: "function",
+    callbackify: "function",
     default: "object",
+    format: "function",
+    inherits: "function",
+    promisify: "function",
     types: "object",
   });
 });

@@ -1,9 +1,21 @@
-import { types } from "node:util";
+import {
+  // @ts-expect-error `_extend` is deprecated, but exported by `node:util`
+  // https://nodejs.org/api/util.html#util_extendtarget-source
+  _extend,
+  callbackify,
+  format,
+  inherits,
+  promisify,
+  types,
+} from "node:util";
 
-// TODO(soon): update once https://github.com/cloudflare/workerd/pull/347 merged
-
-export { types };
+export { types, callbackify, promisify, format, inherits, _extend };
 
 export default {
   types,
+  callbackify,
+  promisify,
+  format,
+  inherits,
+  _extend,
 };
