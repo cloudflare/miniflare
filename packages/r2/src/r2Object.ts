@@ -1,12 +1,14 @@
 import assert from "assert";
 import { Blob } from "buffer";
 import crypto from "crypto";
-import { arrayBuffer } from "stream/consumers";
+import consumers from "stream/consumers";
 import { ReadableStream } from "stream/web";
-import { TextDecoder } from "util";
+import { _isDisturbedStream } from "@miniflare/core";
 import { viewToBuffer, waitForOpenInputGate } from "@miniflare/shared";
 import { Headers } from "undici";
 import { R2Conditional, R2Range } from "./bucket";
+
+export const MAX_KEY_SIZE = 1024;
 
 export interface R2ConditionalUnparsed {
   etagMatches?: string | string[];
@@ -88,6 +90,10 @@ export class Checksums implements R2Checksums<ArrayBuffer> {
   }
 }
 
+export interface R2MultipartReference {
+  uploadId: string;
+  parts: { partNumber: number; size: number }[];
+}
 export interface R2ObjectMetadata {
   // The object’s key.
   key: string;
@@ -110,12 +116,10 @@ export interface R2ObjectMetadata {
   // Hashes used to check the received object’s integrity. At most one can be
   // specified.
   checksums?: R2Checksums<string>;
+  // If this was a multipart upload, pointer to the constituent parts
+  multipart?: R2MultipartReference;
 }
 
-const decoder = new TextDecoder();
-
-// NOTE: Incase multipart is ever added to the worker
-// refer to https://stackoverflow.com/questions/12186993/what-is-the-algorithm-to-compute-the-amazon-s3-etag-for-a-file-larger-than-5gb/19896823#19896823
 export function createMD5Hash(input: Uint8Array): string {
   return crypto.createHash("md5").update(input).digest("hex");
 }
@@ -317,16 +321,18 @@ export class R2Object {
     this.customMetadata = metadata.customMetadata;
     this.range = metadata.range;
 
-    // We always need to store an MD5 hash in `checksums`, but never explicitly
-    // stored one. Luckily, `R2Bucket#put()` always makes `etag` an MD5 hash.
-    assert(
-      metadata.etag.length === 32 && HEX_REGEXP.test(metadata.etag),
-      "Expected `etag` to be an MD5 hash"
-    );
-    const checksums: R2Checksums<string> = {
-      md5: metadata.etag,
-      ...metadata.checksums,
-    };
+    // For non-multipart uploads, we always need to store an MD5 hash in
+    // `checksums`, but never explicitly stored one. Luckily, `R2Bucket#put()`
+    // always makes `etag` an MD5 hash.
+    const checksums: R2Checksums<string> = { ...metadata.checksums };
+    if (metadata.multipart === undefined) {
+      assert(
+        metadata.etag.length === 32 && HEX_REGEXP.test(metadata.etag),
+        "Expected `etag` to be an MD5 hash"
+      );
+      checksums.md5 = metadata.etag;
+    }
+
     this.#checksums = new Checksums(checksums);
   }
 
@@ -347,19 +353,21 @@ export class R2Object {
 export class R2ObjectBody extends R2Object {
   // The object’s value.
   readonly body: ReadableStream<Uint8Array>;
-  // Whether the object’s value has been consumed or not.
-  readonly bodyUsed: boolean = false;
-  constructor(metadata: R2ObjectMetadata, value: Uint8Array) {
+
+  constructor(
+    metadata: R2ObjectMetadata,
+    value: Uint8Array | ReadableStream<Uint8Array>
+  ) {
     super(metadata);
 
-    // To maintain readonly, we build this clever work around to update upon consumption.
-    const setBodyUsed = (): void => {
-      (this.bodyUsed as R2ObjectBody["bodyUsed"]) = true;
-    };
+    // Convert value to readable stream if not already
+    if (value instanceof ReadableStream) {
+      this.body = value;
+      return;
+    }
 
-    // convert value to readable stream
-    this.body = new ReadableStream<Uint8Array>({
-      type: "bytes" as any,
+    this.body = new ReadableStream({
+      type: "bytes",
       // Delay enqueuing chunk until it's actually requested so we can wait
       // for the input gate to open before delivering it
       async pull(controller) {
@@ -371,32 +379,39 @@ export class R2ObjectBody extends R2Object {
         // and notices the end of stream.
         // @ts-expect-error `byobRequest` has type `undefined` in `@types/node`
         controller.byobRequest?.respond(0);
-        setBodyUsed();
       },
     });
+  }
+
+  get bodyUsed(): boolean {
+    return _isDisturbedStream(this.body);
   }
 
   // Returns a Promise that resolves to an ArrayBuffer containing the object’s value.
   async arrayBuffer(): Promise<ArrayBuffer> {
     if (this.bodyUsed) throw new TypeError("Body already used.");
-
     // @ts-expect-error ReadableStream is missing properties
-    return arrayBuffer(this.body);
+    return consumers.arrayBuffer(this.body);
   }
 
-  // Returns a Promise that resolves to an string containing the object’s value.
+  // Returns a Promise that resolves to a string containing the object’s value.
   async text(): Promise<string> {
-    return decoder.decode(await this.arrayBuffer());
+    if (this.bodyUsed) throw new TypeError("Body already used.");
+    // @ts-expect-error ReadableStream is missing properties
+    return consumers.text(this.body);
   }
 
   // Returns a Promise that resolves to the given object containing the object’s value.
   async json<T>(): Promise<T> {
-    return JSON.parse(await this.text());
+    if (this.bodyUsed) throw new TypeError("Body already used.");
+    // @ts-expect-error ReadableStream is missing properties
+    return consumers.json(this.body);
   }
 
   // Returns a Promise that resolves to a binary Blob containing the object’s value.
   async blob(): Promise<Blob> {
-    const ab = await this.arrayBuffer();
-    return new Blob([new Uint8Array(ab)]);
+    if (this.bodyUsed) throw new TypeError("Body already used.");
+    // @ts-expect-error ReadableStream is missing properties
+    return consumers.blob(this.body);
   }
 }

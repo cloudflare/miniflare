@@ -69,6 +69,6 @@ declare module "vm" {
       evaluateCallback: SyntheticModuleEvaluate<Namespace>,
       options?: SyntheticModuleOptions
     );
-    setExport(name: keyof Namespace, value: any): void;
+    setExport<K extends keyof Namespace>(name: K, value: Namespace[K]): void;
   }
 }

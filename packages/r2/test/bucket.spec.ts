@@ -91,6 +91,9 @@ const validatesKeyMacro: Macro<
     instanceOf: Error,
     message: `R2 ${httpMethod} failed: (414) UTF-8 encoded length of 1025 exceeds key length limit of 1024.`,
   });
+  await t.throwsAsync(func(r2, "__MINIFLARE_INTERNAL__:multipart"), {
+    message: `R2 ${method.toUpperCase()} failed: (400) Key cannot start with "__MINIFLARE_INTERNAL__".`,
+  });
 };
 validatesKeyMacro.title = (providedTitle, method) => `${method}: validates key`;
 
@@ -1988,11 +1991,13 @@ test("list: startAfter: ensure limit and starting position are correct", async (
 test("hides implementation details", (t) => {
   const { r2 } = t.context;
   t.deepEqual(getObjectProperties(r2), [
+    "createMultipartUpload",
     "delete",
     "get",
     "head",
     "list",
     "put",
+    "resumeMultipartUpload",
   ]);
 });
 test("operations throw outside request handler", async (t) => {

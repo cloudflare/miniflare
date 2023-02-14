@@ -12,6 +12,7 @@ import {
   StoredValue,
   StoredValueMeta,
   millisToSeconds,
+  parseRange,
   viewToArray,
 } from "@miniflare/shared";
 import { listFilterMatch, listPaginate } from "@miniflare/storage-memory";
@@ -203,27 +204,10 @@ export class RedisStorage extends Storage {
     range: Range = {},
     skipMetadata?: boolean
   ): Promise<RangeStoredValueMeta<Meta> | undefined> {
-    let { offset, length, suffix } = range;
     // ensure offset and length are prepared
     const size = await this.#redis.strlen(this.#key(key));
     if (size === 0) return undefined;
-    if (suffix !== undefined) {
-      if (suffix <= 0) {
-        throw new Error("Suffix must be > 0");
-      }
-      if (suffix > size) suffix = size;
-      offset = size - suffix;
-      length = size - offset;
-    }
-    if (offset === undefined) offset = 0;
-    if (length === undefined) length = size - offset;
-
-    // if offset is negative, throw an error
-    if (offset < 0) throw new Error("Offset must be >= 0");
-    if (offset > size) throw new Error("Offset must be < size");
-    if (length <= 0) throw new Error("Length must be > 0");
-    // if length goes beyond actual length, adjust length to the end of the value
-    if (offset + length > size) length = size - offset;
+    const { offset, length } = parseRange(range, size);
 
     if (skipMetadata) {
       // If we don't need metadata, just get the value, Redis handles expiry

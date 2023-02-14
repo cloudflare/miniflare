@@ -54,14 +54,15 @@ export function getObjectProperties<T>(obj: T): string[] {
     .sort();
 }
 
-export async function advancesTime(
+export async function advancesTime<T>(
   t: ExecutionContext,
-  closure: () => Promise<any>
+  closure: () => Promise<T>
 ) {
   const ctx = new RequestContext();
   const previous = ctx.currentTime;
   await setTimeout(50);
   t.is(ctx.currentTime, previous);
-  await ctx.runWith(closure);
+  const result = await ctx.runWith(closure);
   t.not(ctx.currentTime, previous);
+  return result;
 }

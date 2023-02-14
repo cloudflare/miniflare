@@ -14,6 +14,7 @@ import {
   Request,
   Response,
   _isByteStream,
+  _isDisturbedStream,
 } from "@miniflare/core";
 import { utf8Decode, utf8Encode } from "@miniflare/shared-test";
 import test, { Macro, ThrowsExpectation } from "ava";
@@ -73,6 +74,35 @@ test("_isByteStream: determines if a ReadableStream is a byte stream", (t) => {
   });
   t.false(_isByteStream(regularStream));
   t.true(_isByteStream(byteStream));
+});
+test("_isDisturbedStream: determines if a ReadableStream is disturbed", async (t) => {
+  const regularStream = new ReadableStream({
+    pull(controller) {
+      controller.enqueue(new Uint8Array([1, 2, 3]));
+      controller.enqueue("thing");
+      controller.close();
+    },
+  });
+  const byteStream = new ReadableStream({
+    type: "bytes",
+    pull(controller) {
+      controller.enqueue(new Uint8Array([1, 2, 3]));
+      controller.close();
+    },
+  });
+  t.false(_isDisturbedStream(regularStream));
+  t.false(_isDisturbedStream(byteStream));
+
+  // @ts-expect-error ReadableStream types are incompatible
+  await arrayBuffer(regularStream);
+  t.true(_isDisturbedStream(regularStream));
+
+  const reader = byteStream.getReader();
+  t.false(_isDisturbedStream(byteStream));
+  await reader.read();
+  t.true(_isDisturbedStream(byteStream));
+  await reader.releaseLock();
+  t.true(_isDisturbedStream(byteStream));
 });
 
 test("ReadableStreamBYOBReader: readAtLeast: reads at least n bytes", async (t) => {
