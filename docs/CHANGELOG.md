@@ -1,5 +1,155 @@
 # 🚧 Changelog
 
+## 2.12.0
+
+### Features
+
+- Add support for R2 multipart upload bindings.
+- Add support for dynamic `import()`s. Closes
+  [issue #456](https://github.com/cloudflare/miniflare/issues/456), thanks
+  [@calebmer](https://github.com/calebmer).
+- Add support for the
+  [`new WebSocket()` constructor](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/WebSocket).
+  This is an alternative standard API to `fetch`-with-`Upgrade: websocket` for
+  creating WebSocket clients.
+- Add support for the `nodejs_compat` compatibility flag, specifically the
+  `node:assert`, `node:async_hooks`, `node:buffer`, `node:events`, and
+  `node:util` modules. For now, the `experimental` compatibility flag must also
+  be enabled to use `node:assert`, `node:buffer` or `node:events`. Thanks
+  [@GregBrimble](https://github.com/GregBrimble) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/478).
+- Extract out types for test environment global helper functions. Add either
+  `jest-environment-miniflare/globals` or `vitest-environment-miniflare/globals`
+  to your `tsconfig.json`'s `types` array to include them. Closes
+  [issue #94](https://github.com/cloudflare/miniflare/issues/94), thanks
+  [@ryan-mars](https://github.com/ryan-mars).
+
+  ```jsonc
+  // tsconfig.json
+  {
+    "compilerOptions": {
+      // ...
+      "types": [
+        "@cloudflare/workers-types",
+        // For Jest...
+        "jest",
+        "jest-environment-miniflare/globals"
+        // ...or for Vitest
+        "vitest-environment-miniflare/globals"
+      ]
+    }
+  }
+  ```
+
+- Allow direct access to Durable Object instances inside testing environments.
+  Thanks [@cdrx](https://github.com/cdrx) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/385). See
+  [🤹 Jest Environment](https://miniflare.dev/testing/jest#constructing-durable-objects-directly)
+  or
+  [⚡️ Vitest Environment](https://miniflare.dev/testing/vitest#constructing-durable-objects-directly)
+  for more details.
+- Forward `/cdn-cgi/scripts/*` to Cloudflare. This allows scripts such as
+  `rocket-loader.min.js` to be loaded during development. Closes
+  [issue #421](https://github.com/cloudflare/miniflare/issues/421), thanks
+  [@jstevans](https://github.com/jstevans) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/422)
+- Implement `structuredClone` `transfer` option for Node.js versions below 17.
+  Note Miniflare's minimum supported Node.js version is still 16.13.0.
+- Set default-on date for `streams_enable_constructors` and
+  `transformstream_enable_standard_constructor` compatibility flags to
+  `2022-11-30`.
+- Add support for the `DurableObjectStorage#sync()` method. See
+  [cloudflare/workerd#87](https://github.com/cloudflare/workerd/pull/87) for
+  details.
+- Accept
+  [multiple keys in `R2Bucket#delete()`](https://community.cloudflare.com/t/2022-9-16-workers-runtime-release-notes/420496).
+  Closes [issue #420](https://github.com/cloudflare/miniflare/issues/420),
+  thanks [@TateB](https://github.com/TateB).
+- Implement the
+  [`r2_list_honor_include`](https://developers.cloudflare.com/workers/platform/compatibility-dates/#r2-bucket-list-respects-the-include-option)
+  compatibility flag.
+- Add support for the
+  [HTTP `Range` header](https://community.cloudflare.com/t/2022-8-12-workers-runtime-release-notes/410873)
+  to `R2Bucket#get()`.
+- Add support for
+  [R2 `SHA-*` checksums](https://community.cloudflare.com/t/2022-9-16-workers-runtime-release-notes/420496),
+  and return these from `R2Bucket#{get,head}`.
+- Implement the
+  [`export_commonjs_default`/`export_commonjs_namespace`](https://developers.cloudflare.com/workers/platform/compatibility-dates/#commonjs-modules-do-not-export-a-module-namespace)
+  compatibility flags. Note Miniflare previously implemented
+  `export_commonjs_default` behaviour for `CommonJS` modules, but
+  `export_commonjs_namespace` behaviour for all other types. This change
+  switches everything to the correct `export_commonjs_default` by default, but
+  allows old behaviour to be enabled by setting `export_commonjs_namespace`.
+- Add support for `D1Database#dump()`
+- Add support for `meta.{last_row_id,changes}` properties on D1 responses
+
+### Fixes
+
+- Fix request body type when mocking fetch requests in testing environments with
+  `getMiniflareFetchMock()` and via the `fetchMock` option. Thanks
+  [@robertcepa](https://github.com/robertcepa) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/423).
+- Respect the `maxBatchSize` setting of queue consumers. Thanks
+  [@a-robinson](https://github.com/a-robinson) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/450).
+- Fix `jest-environment-miniflare`'s `homepage` URL. Thanks
+  [@aaharu](https://github.com/aaharu) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/451).
+- Fix typo in R2 documentation. Thanks [@aarhus](https://github.com/aarhus) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/452).
+- Rename queue producer binding class to `WorkerQueue`, matching the name in the
+  real runtime. This will enable
+  [`workers-rs`](https://github.com/cloudflare/workers-rs) to provide queue
+  bindings. Thanks [@zebp](https://github.com/zebp) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/455).
+- Reset internal body stream when cloning `Request`s and `Response`s. This
+  ensures both clones' bodies can be read. Thanks
+  [@DSergiu](https://github.com/DSergiu) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/449).
+- Bump `npx-import` to `1.1.4`, fixing `require is not defined` error when using
+  D1. Closes [issue #400](https://github.com/cloudflare/miniflare/issues/400),
+  thanks [@tgriesser](https://github.com/tgriesser) and
+  [@geelen](https://github.com/geelen).
+- Bump `undici` to `5.11.0`, allowing third-party `FormData`/`Blob`
+  `Request`/`Response` bodies. Closes
+  [issue #351](https://github.com/cloudflare/miniflare/issues/351), thanks
+  [@yusefnapora](https://github.com/yusefnapora).
+- Get `CryptoKey` class from global scope if available. Fixes
+  `'instanceof' is not an object` error in Node.js 19 and above. Closes
+  [issue #457](https://github.com/cloudflare/miniflare/issues/457), thanks
+  [@edevil](https://github.com/edevil) and [@panva](https://github.com/panva).
+- Bump `better-sqlite3` to `8.0.1`, adding support for Node.js 19.
+- Coerce R2 keys to `string`s.
+- Fix return type of `D1PreparedStatement#raw()`. Closes
+  [issue cloudflare/workers-sdk#2238](https://github.com/cloudflare/workers-sdk/issues/2238),
+  thanks [@repository](https://github.com/repository) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/474).
+- Throw when calling `D1PreparedStatement#run()` with statements that return
+  data. Closes [issue #441](https://github.com/cloudflare/miniflare/issues/441),
+  thanks [@AlexBlokh](https://github.com/AlexBlokh).
+- Fix D1 response envelope format. Closes issues
+  [#442](https://github.com/cloudflare/miniflare/issues/442) and
+  [cloudflare/workers-sdk#2504](https://github.com/cloudflare/workers-sdk/issues/2504),
+  thanks [@jiripospisil](https://github.com/jiripospisil) and
+  [@demosjarco](https://github.com/demosjarco).
+- Fix binding/return of `BLOB`-typed values in D1 operations. Closes
+  [cloudflare/workers-sdk#2527](https://github.com/cloudflare/workers-sdk/issues/2527),
+  thanks [@JoshVazq](https://github.com/JoshVazq).
+- Ensure `D1Database#{batch,exec}()` statements are executed in an implicit
+  transaction. Closes
+  [issue #484](https://github.com/cloudflare/miniflare/issues/484), thanks
+  [@anthonymclaughlin](https://github.com/anthonymclaughlin).
+- Ensure only first statements are executed when calling
+  `D1PreparedStatement#{first,run,all,raw}()`
+- Throw an error when KV expiration values exceed 32-bit signed integer bounds.
+  Closes [issue #485](https://github.com/cloudflare/miniflare/issues/485),
+  thanks [@huw](https://github.com/huw) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/487).
+- Pass through WebSocket abnormal closure code. Closes
+  [issue #465](https://github.com/cloudflare/miniflare/issues/465), thanks
+  [@yw662](https://github.com/yw662).
+
 ## 2.11.0
 
 ### Features
