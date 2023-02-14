@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/cli-parser",
-  "version": "2.11.0",
+  "version": "2.12.0",
   "description": "CLI option parsing module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -35,12 +35,12 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/shared": "2.11.0",
+    "@miniflare/shared": "2.12.0",
     "kleur": "^4.1.4"
   },
   "devDependencies": {
-    "@miniflare/core": "2.11.0",
-    "@miniflare/shared-test": "2.11.0",
+    "@miniflare/core": "2.12.0",
+    "@miniflare/shared-test": "2.12.0",
     "@types/mri": "^1.1.1",
     "mri": "^1.1.6"
   }

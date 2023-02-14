@@ -41,6 +41,27 @@ export default {
 };
 ```
 
+To enable TypeScript type checking and completions for global helper functions,
+add `jest-environment-miniflare/globals` to your `tsconfig.json`'s `types`
+array:
+
+```json
+---
+filename: tsconfig.json
+highlight: [7]
+---
+{
+  "compilerOptions": {
+    ...
+    "types": [
+      "@cloudflare/workers-types",
+      "jest",
+      "jest-environment-miniflare/globals"
+    ]
+  }
+}
+```
+
 ## Writing and Running Tests
 
 The Miniflare environment lets us import our worker's functions with regular
@@ -290,7 +311,9 @@ function. This allows you to call instance methods and access ephemeral state
 directly. Wrapping calls to instance methods with
 `runWithMiniflareDurableObjectGates()` will close the Durable Object's input
 gate, and wait for the output gate to open before resolving. Make sure to use
-this when calling your `fetch()` method.
+this when calling your `fetch()` method. The
+`getMiniflareDurableObjectInstance()` global function can also be used to get
+instances directly.
 
 ```js
 ---
@@ -308,8 +331,10 @@ test("increments count", async () => {
   const state = await getMiniflareDurableObjectState(id);
   await state.storage.put("count", 3);
 
-  // Construct object directly
+  // Construct object...
   const object = new TestObject(state, env);
+  // ...or get an instance directly
+  const object = getMiniflareDurableObjectInstance(id);
 
   // Concurrently increment the count twice. Wrapping `object.fetch`
   // calls with `runWithMiniflareDurableObjectGates(state, ...)`
