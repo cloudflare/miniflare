@@ -20,7 +20,8 @@ export type CompatibilityEnableFlag =
   | "durable_object_fetch_requires_full_url"
   | "fetch_refuses_unknown_protocols"
   | "formdata_parser_supports_files"
-  | "html_rewriter_treats_esi_include_as_void_tag";
+  | "html_rewriter_treats_esi_include_as_void_tag"
+  | "experimental";
 export type CompatibilityDisableFlag =
   | "streams_disable_constructors"
   | "transformstream_disable_standard_constructor"
@@ -78,6 +79,9 @@ const FEATURES: CompatibilityFeature[] = [
   },
   {
     enableFlag: "html_rewriter_treats_esi_include_as_void_tag",
+  },
+  {
+    enableFlag: "experimental",
   },
 ];
 

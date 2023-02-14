@@ -71,7 +71,7 @@ import {
 } from "../standards";
 import { assertsInRequest } from "../standards/helpers";
 import type { BindingsOptions } from "./bindings";
-import { additionalModules } from "./node";
+import { additionalNodeModules } from "./node";
 
 const DEFAULT_MODULE_RULES: ModuleRule[] = [
   { type: "ESModule", include: ["**/*.mjs"] },
@@ -426,7 +426,8 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
 
     const nodejsCompat = ctx.compat.isEnabled("nodejs_compat");
     if (nodejsCompat) {
-      this.#additionalModules = additionalModules;
+      const experimental = ctx.compat.isEnabled("experimental");
+      this.#additionalModules = additionalNodeModules(experimental);
     }
 
     const extraGlobals: Context = {};

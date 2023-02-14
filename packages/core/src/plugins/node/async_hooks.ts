@@ -1,6 +1,8 @@
-import async_hooks from "node:async_hooks";
+import { AsyncLocalStorage, AsyncResource } from "node:async_hooks";
 
-export class AsyncHooksModule {
-  AsyncLocalStorage = async_hooks.AsyncLocalStorage;
-  AsyncResource = async_hooks.AsyncResource;
-}
+export { AsyncLocalStorage, AsyncResource };
+
+export default {
+  AsyncLocalStorage,
+  AsyncResource,
+};
