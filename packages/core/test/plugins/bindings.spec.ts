@@ -21,7 +21,7 @@ import {
   getRequestContext,
   viewToBuffer,
 } from "@miniflare/shared";
-import { TestLog } from "@miniflare/shared-test";
+import { TestLog, unusable } from "@miniflare/shared-test";
 import {
   getObjectProperties,
   logPluginOptions,
@@ -44,6 +44,7 @@ const ctx: PluginContext = {
   rootPath,
   queueBroker,
   queueEventDispatcher,
+  sharedCache: unusable(),
 };
 
 const fixturesPath = path.join(__dirname, "..", "..", "..", "test", "fixtures");
@@ -340,10 +341,7 @@ test("BindingsPlugin: setup: loads .env bindings from default location", async (
   const tmp = await useTmp(t);
   const defaultEnvPath = path.join(tmp, ".env");
 
-  let plugin = new BindingsPlugin(
-    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
-    { envPath: true }
-  );
+  let plugin = new BindingsPlugin({ ...ctx, rootPath: tmp }, { envPath: true });
   // Shouldn't throw if file doesn't exist...
   let result = await plugin.setup();
   // ...but should still watch file
@@ -363,10 +361,7 @@ test("BindingsPlugin: setup: loads .env bindings from default location", async (
   });
 
   // Check default .env only loaded when envPath set to true
-  plugin = new BindingsPlugin(
-    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
-    {}
-  );
+  plugin = new BindingsPlugin({ ...ctx, rootPath: tmp }, {});
   result = await plugin.setup();
   t.deepEqual(result, { globals: undefined, bindings: {}, watch: [] });
 });
@@ -377,7 +372,7 @@ test("BindingsPlugin: setup: loads .env bindings from custom location", async (t
   await fs.writeFile(defaultEnvPath, "KEY=default");
 
   const plugin = new BindingsPlugin(
-    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
+    { ...ctx, rootPath: tmp },
     // Should resolve envPath relative to rootPath
     { envPath: ".env.custom" }
   );
@@ -416,13 +411,7 @@ test("BindingsPlugin: setup: loads WebAssembly bindings", async (t) => {
 
   // Check resolves wasmBindings path relative to rootPath
   plugin = new BindingsPlugin(
-    {
-      log,
-      compat,
-      rootPath: path.dirname(addModulePath),
-      queueBroker,
-      queueEventDispatcher,
-    },
+    { ...ctx, rootPath: path.dirname(addModulePath) },
     { wasmBindings: { ADD: path.basename(addModulePath) } }
   );
   result = await plugin.setup();
@@ -438,13 +427,7 @@ test("BindingsPlugin: setup: loads text blob bindings", async (t) => {
 
   // Check resolves text blob bindings path relative to rootPath
   plugin = new BindingsPlugin(
-    {
-      log,
-      compat,
-      rootPath: path.dirname(loremIpsumPath),
-      queueBroker,
-      queueEventDispatcher,
-    },
+    { ...ctx, rootPath: path.dirname(loremIpsumPath) },
     { textBlobBindings: { LOREM_IPSUM: "lorem-ipsum.txt" } }
   );
   result = await plugin.setup();
@@ -460,13 +443,7 @@ test("BindingsPlugin: setup: loads data blob bindings", async (t) => {
 
   // Check resolves data blob bindings path relative to rootPath
   plugin = new BindingsPlugin(
-    {
-      log,
-      compat,
-      rootPath: path.dirname(loremIpsumPath),
-      queueBroker,
-      queueEventDispatcher,
-    },
+    { ...ctx, rootPath: path.dirname(loremIpsumPath) },
     { dataBlobBindings: { BINARY_DATA: "lorem-ipsum.txt" } }
   );
   result = await plugin.setup();

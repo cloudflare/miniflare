@@ -23,6 +23,7 @@ import {
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  unusable,
   useTmp,
   utf8Decode,
 } from "@miniflare/shared-test";
@@ -42,7 +43,9 @@ const ctx: PluginContext = {
   queueBroker,
   queueEventDispatcher,
   globalAsyncIO: true,
+  sharedCache: unusable(),
 };
+
 test("CacheStorage: provides default cache", async (t) => {
   const factory = new MemoryStorageFactory();
   const caches = new CacheStorage({}, log, factory, {});
@@ -218,27 +221,14 @@ test("CachePlugin: setup: Responses parse files in FormData as File objects only
 });
 test("CachePlugin: setup: operations throw outside request handler unless globalAsyncIO set", async (t) => {
   const factory = new MemoryStorageFactory();
-  let plugin = new CachePlugin({
-    log,
-    compat,
-    rootPath,
-    queueBroker,
-    queueEventDispatcher,
-  });
+  let plugin = new CachePlugin({ ...ctx, globalAsyncIO: false });
   let caches: CacheStorage = plugin.setup(factory).globals?.caches;
   await t.throwsAsync(caches.default.match("http://localhost"), {
     instanceOf: Error,
     message: /^Some functionality, such as asynchronous I\/O/,
   });
 
-  plugin = new CachePlugin({
-    log,
-    compat,
-    rootPath,
-    globalAsyncIO: true,
-    queueBroker,
-    queueEventDispatcher,
-  });
+  plugin = new CachePlugin({ ...ctx, globalAsyncIO: true });
   caches = plugin.setup(factory).globals?.caches;
   await caches.default.match("http://localhost");
 });

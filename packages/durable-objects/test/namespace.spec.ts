@@ -53,13 +53,14 @@ const compat = new Compatibility();
 const rootPath = process.cwd();
 const queueBroker = new QueueBroker();
 const queueEventDispatcher: QueueEventDispatcher = async (_batch) => {};
-const ctx: PluginContext = {
+const ctx = (): PluginContext => ({
   log,
   compat,
   rootPath,
   queueBroker,
   queueEventDispatcher,
-};
+  sharedCache: new Map(), // New `sharedCache` for each `ctx` returned
+});
 
 const throws = (): never => {
   throw new Error("Function should not be called!");
@@ -69,7 +70,7 @@ async function getTestObjectNamespace(): Promise<
   [DurableObjectNamespace, DurableObjectsPlugin, MemoryStorageFactory]
 > {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
   await plugin.beforeReload();
@@ -106,7 +107,7 @@ test("DurableObjectState: waitUntil: does nothing", (t) => {
 });
 test("DurableObjectState: blockConcurrencyWhile: prevents fetch events dispatch to object", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
   const [trigger, promise] = triggerPromise<void>();
@@ -137,7 +138,7 @@ test("DurableObjectState: blockConcurrencyWhile: prevents fetch events dispatch 
 });
 test("DurableObjectState: kFetch: waits for writes to be confirmed before returning", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
 
@@ -165,7 +166,7 @@ test("DurableObjectState: kFetch: waits for writes to be confirmed before return
 test("DurableObjectState: kAlarm: no alarm method; setAlarm throws while getAlarm returns null", async (t) => {
   t.plan(3);
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
 
@@ -199,7 +200,7 @@ test("DurableObjectState: kAlarm: no alarm method; setAlarm throws while getAlar
 test("DurableObjectState: kFetch: throws clear error if missing fetch handler", async (t) => {
   // https://github.com/cloudflare/miniflare/issues/164
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
 
@@ -255,7 +256,7 @@ test("DurableObjectStub: fetch: throws with relative urls if compatibility flag 
   ]);
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { ...ctx(), compat },
     { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
   );
   await plugin.beforeReload();
@@ -276,7 +277,7 @@ test("DurableObjectStub: fetch: throws with unknown protocols if compatibility f
   ]);
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { ...ctx(), compat },
     { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
   );
   await plugin.beforeReload();
@@ -299,7 +300,7 @@ test("DurableObjectStub: fetch: logs warning with unknown protocol if compatibil
   const log = new TestLog();
   const factory = new MemoryStorageFactory();
   const plugin = new DurableObjectsPlugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { ...ctx(), log },
     { durableObjects: { TEST: "TestObject" }, durableObjectsAlarms: true }
   );
   await plugin.beforeReload();
@@ -319,7 +320,7 @@ test("DurableObjectStub: fetch: logs warning with unknown protocol if compatibil
 });
 test("DurableObjectStub: fetch: passes through web socket requests", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
 
@@ -479,7 +480,7 @@ test("DurableObjectStub: fetch: advances current time", async (t) => {
     fetch = () => new Response();
   }
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST_OBJECT: "TestObject" },
   });
   const result = await plugin.setup(factory);
@@ -615,7 +616,7 @@ test("DurableObjectStub: fetch: creates new pipeline", async (t) => {
 });
 test("DurableObjectStub: fetch: throws if handler doesn't return Response", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
 
@@ -640,7 +641,7 @@ test("DurableObjectStub: fetch: throws if handler doesn't return Response", asyn
 });
 test("DurableObjectStub: fetch: returns response with immutable headers", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
 
@@ -669,7 +670,7 @@ test.serial(
     t.teardown(() => clock.restore());
 
     const factory = new MemoryStorageFactory();
-    const plugin = new DurableObjectsPlugin(ctx, {
+    const plugin = new DurableObjectsPlugin(ctx(), {
       durableObjects: { TEST: "TestObject" },
     });
 
@@ -865,7 +866,7 @@ class ExampleDurableObject implements DurableObject {
 
 async function getExampleObjectStub(): Promise<DurableObjectStub> {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { EXAMPLE: "ExampleDurableObject" },
   });
   await plugin.beforeReload();
@@ -911,7 +912,7 @@ test("writes are coalesced", async (t) => {
   const storage = new RecorderStorage(new MemoryStorage());
   const storageFactory: StorageFactory = { storage: () => storage };
 
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { EXAMPLE: "ExampleDurableObject" },
   });
   await plugin.beforeReload();

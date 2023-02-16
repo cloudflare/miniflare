@@ -7,6 +7,7 @@ import {
   PluginContext,
   QueueEventDispatcher,
 } from "@miniflare/shared";
+import { unusable } from "@miniflare/shared-test";
 import test from "ava";
 import type { ElementHandlers } from "html-rewriter-wasm";
 
@@ -21,6 +22,7 @@ const ctx: PluginContext = {
   rootPath,
   queueBroker,
   queueEventDispatcher,
+  sharedCache: unusable(),
 };
 
 test("HTMLRewriterPlugin: setup: includes HTMLRewriter in globals", (t) => {

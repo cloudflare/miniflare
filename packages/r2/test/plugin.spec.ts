@@ -14,6 +14,7 @@ import {
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  unusable,
   useTmp,
 } from "@miniflare/shared-test";
 import test from "ava";
@@ -30,6 +31,7 @@ const ctx: PluginContext = {
   queueBroker,
   queueEventDispatcher,
   globalAsyncIO: true,
+  sharedCache: unusable(),
 };
 
 test("R2Plugin: parses options from argv", (t) => {
@@ -90,10 +92,7 @@ test("R2Plugin: getBucket: resolves persist path relative to rootPath", async (t
     [`${tmp}${path.sep}test:BUCKET`]: map,
   });
 
-  const plugin = new R2Plugin(
-    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
-    { r2Persist: "test" }
-  );
+  const plugin = new R2Plugin({ ...ctx, rootPath: tmp }, { r2Persist: "test" });
   const bucket = plugin.getBucket(factory, "BUCKET");
   await bucket.put("key", "value");
   t.true(map.has("key"));
@@ -123,7 +122,7 @@ test("R2Plugin: setup: includes buckets in bindings", async (t) => {
 test("R2Plugin: setup: operations throw outside request handler unless globalAsyncIO set", async (t) => {
   const factory = new MemoryStorageFactory();
   let plugin = new R2Plugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { ...ctx, globalAsyncIO: false },
     { r2Buckets: ["BUCKET"] }
   );
   let r2: R2Bucket = (await plugin.setup(factory)).bindings?.BUCKET;
@@ -133,14 +132,7 @@ test("R2Plugin: setup: operations throw outside request handler unless globalAsy
   });
 
   plugin = new R2Plugin(
-    {
-      log,
-      compat,
-      rootPath,
-      globalAsyncIO: true,
-      queueBroker,
-      queueEventDispatcher,
-    },
+    { ...ctx, globalAsyncIO: true },
     { r2Buckets: ["BUCKET"] }
   );
   r2 = (await plugin.setup(factory)).bindings?.BUCKET;
@@ -149,10 +141,7 @@ test("R2Plugin: setup: operations throw outside request handler unless globalAsy
 test('R2Plugin: setup: implicitly includes customMetadata & httpMetadata if "r2_list_honor_include" flag not set', async (t) => {
   const factory = new MemoryStorageFactory();
   let compat = new Compatibility();
-  let plugin = new R2Plugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
-    { r2Buckets: ["BUCKET"] }
-  );
+  let plugin = new R2Plugin({ ...ctx, compat }, { r2Buckets: ["BUCKET"] });
   let r2 = plugin.getBucket(factory, "BUCKET");
 
   await r2.put("key", "value", {
@@ -164,10 +153,7 @@ test('R2Plugin: setup: implicitly includes customMetadata & httpMetadata if "r2_
   t.deepEqual(objects[0].httpMetadata, { contentEncoding: "gzip" });
 
   compat = new Compatibility(undefined, ["r2_list_honor_include"]);
-  plugin = new R2Plugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
-    { r2Buckets: ["BUCKET"] }
-  );
+  plugin = new R2Plugin({ ...ctx, compat }, { r2Buckets: ["BUCKET"] });
   r2 = plugin.getBucket(factory, "BUCKET");
   ({ objects } = await r2.list({ include: [] }));
   t.deepEqual(objects[0].customMetadata, {});

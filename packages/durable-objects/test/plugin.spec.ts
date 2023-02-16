@@ -36,13 +36,14 @@ const compat = new Compatibility();
 const rootPath = process.cwd();
 const queueBroker = new QueueBroker();
 const queueEventDispatcher: QueueEventDispatcher = async (_batch) => {};
-const ctx: PluginContext = {
+const ctx = (): PluginContext => ({
   log,
   compat,
   rootPath,
   queueBroker,
   queueEventDispatcher,
-};
+  sharedCache: new Map(), // New `sharedCache` for each `ctx` returned
+});
 test("DurableObjectsPlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(DurableObjectsPlugin, [
     "--do",
@@ -113,7 +114,7 @@ test("DurableObjectsPlugin: logs options", (t) => {
 
 test("DurableObjectPlugin: getStorage: reuses single instance of storage", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
   await plugin.beforeReload();
@@ -134,7 +135,7 @@ test("DurableObjectPlugin: getStorage: reuses single instance of storage", async
 });
 test("DurableObjectPlugin: getStorage: doesn't construct Durable Object", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
   class TestObject implements DurableObject {
@@ -152,7 +153,7 @@ test("DurableObjectPlugin: getStorage: doesn't construct Durable Object", async 
 });
 test("DurableObjectPlugin: getStorage: allows setting alarms", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
   const [alarmTrigger, alarmPromise] = triggerPromise<DurableObjectId>();
@@ -175,7 +176,7 @@ test("DurableObjectPlugin: getStorage: allows setting alarms", async (t) => {
 
 test("DurableObjectsPlugin: getObject: waits for constructors and bindings", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
   await plugin.beforeReload();
@@ -191,7 +192,7 @@ test("DurableObjectsPlugin: getObject: object storage is namespaced by object na
   const factory = new MemoryStorageFactory({
     [`test://map:TEST:${testId.toString()}`]: map,
   });
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
     durableObjectsPersist: "test://map",
   });
@@ -201,14 +202,14 @@ test("DurableObjectsPlugin: getObject: object storage is namespaced by object na
   await state.storage.put("key", "value");
   t.true(map.has("key"));
 });
-test("DurableObjectsPlugin: getObject: reresolves persist path relative to rootPath", async (t) => {
+test("DurableObjectsPlugin: getObject: resolves persist path relative to rootPath", async (t) => {
   const tmp = await useTmp(t);
   const map = new Map<string, StoredValue>();
   const factory = new MemoryStorageFactory({
     [`${tmp}${path.sep}test:TEST:${testId.toString()}`]: map,
   });
   const plugin = new DurableObjectsPlugin(
-    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
+    { ...ctx(), rootPath: tmp },
     {
       durableObjects: { TEST: "TestObject" },
       durableObjectsPersist: "test",
@@ -222,7 +223,7 @@ test("DurableObjectsPlugin: getObject: reresolves persist path relative to rootP
 });
 test("DurableObjectsPlugin: getObject: reuses single instance of object", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
   await plugin.beforeReload();
@@ -236,7 +237,7 @@ test("DurableObjectsPlugin: getObject: reuses single instance of object", async 
 
 test("DurableObjectsPlugin: getNamespace: creates namespace for object, creating instances with correct ID and environment", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
   await plugin.beforeReload();
@@ -250,7 +251,7 @@ test("DurableObjectsPlugin: getNamespace: creates namespace for object, creating
 });
 test("DurableObjectsPlugin: getNamespace: creates namespace for object in mounted script", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: { className: "TestObject", scriptName: "test" } },
   });
   await plugin.beforeReload();
@@ -264,7 +265,7 @@ test("DurableObjectsPlugin: getNamespace: creates namespace for object in mounte
 });
 test("DurableObjectsPlugin: getNamespace: reuses single instance of object", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
   await plugin.beforeReload();
@@ -287,7 +288,7 @@ test("DurableObjectsPlugin: setup: includes namespaces for all objects", async (
   }
 
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { OBJECT1: "Object1", OBJECT2: { className: "Object2" } },
   });
 
@@ -310,7 +311,7 @@ test("DurableObjectsPlugin: setup: name removed from id passed to object constru
   }
 
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST_OBJECT: "TestObject" },
   });
 
@@ -327,17 +328,20 @@ test("DurableObjectsPlugin: setup: name removed from id passed to object constru
   t.is(await res.text(), "undefined");
 });
 
-test("DurableObjectsPlugin: beforeReload: deletes all instances", async (t) => {
+test("DurableObjectsPlugin: recreates instances when reload cache cleared", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const pluginCtx = ctx();
+  const plugin = new DurableObjectsPlugin(pluginCtx, {
     durableObjects: { TEST: "TestObject" },
   });
   await plugin.beforeReload();
+  pluginCtx.sharedCache.clear();
   plugin.reload({}, { TestObject }, new Map());
   let ns = plugin.getNamespace(factory, "TEST");
   const res1 = await ns.get(testId).fetch("http://localhost:8787/instance");
 
   await plugin.beforeReload();
+  pluginCtx.sharedCache.clear();
   plugin.reload({}, { TestObject }, new Map());
   ns = plugin.getNamespace(factory, "TEST");
   const res2 = await ns.get(testId).fetch("http://localhost:8787/instance");
@@ -347,7 +351,7 @@ test("DurableObjectsPlugin: beforeReload: deletes all instances", async (t) => {
 });
 
 test("DurableObjectsPlugin: reload: throws if object constructor cannot be found in exports", (t) => {
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
   });
   t.throws(() => plugin.reload({}, {}, new Map()), {
@@ -357,7 +361,7 @@ test("DurableObjectsPlugin: reload: throws if object constructor cannot be found
   });
 });
 test("DurableObjectPlugin: reload: throws if script cannot be found in mounts", (t) => {
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: { className: "TestObject", scriptName: "test" } },
   });
   t.throws(() => plugin.reload({}, {}, new Map()), {
@@ -369,7 +373,7 @@ test("DurableObjectPlugin: reload: throws if script cannot be found in mounts", 
   });
 });
 test("DurableObjectsPlugin: reload: throws if object constructor cannot be found in mount exports", (t) => {
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: { className: "TestObject", scriptName: "test" } },
   });
   const mounts = new Map<string, Mount>([
@@ -383,28 +387,9 @@ test("DurableObjectsPlugin: reload: throws if object constructor cannot be found
   });
 });
 
-test("DurableObjectsPlugin: dispose: deletes all instances", async (t) => {
-  const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
-    durableObjects: { TEST: "TestObject" },
-  });
-  await plugin.beforeReload();
-  plugin.reload({}, { TestObject }, new Map());
-  let ns = plugin.getNamespace(factory, "TEST");
-  const res1 = await ns.get(testId).fetch("http://localhost:8787/instance");
-
-  await plugin.dispose();
-  plugin.reload({}, { TestObject }, new Map());
-  ns = plugin.getNamespace(factory, "TEST");
-  const res2 = await ns.get(testId).fetch("http://localhost:8787/instance");
-
-  // Check new instance created
-  t.not(await res1.text(), await res2.text());
-});
-
 test("DurableObjectsPlugin: setup alarms and dispose alarms", async (t) => {
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
     durableObjectsAlarms: false,
   });
@@ -426,7 +411,7 @@ test("DurableObjectsPlugin: set alarm and run list filters out alarm", async (t)
   }
 
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { OBJECT1: "Object1" },
   });
 
@@ -454,7 +439,7 @@ test("DurableObjectsPlugin: flush scheduled alarms", async (t) => {
   }
 
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
     durableObjectsAlarms: true,
   });
@@ -497,7 +482,7 @@ test("DurableObjectsPlugin: flush specific scheduled alarms", async (t) => {
   }
 
   const factory = new MemoryStorageFactory();
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
     durableObjectsAlarms: true,
   });
@@ -553,7 +538,7 @@ test("DurableObjectsPlugin: immediately schedules persisted alarm", async (t) =>
       alarmTrigger();
     }
   }
-  const plugin = new DurableObjectsPlugin(ctx, {
+  const plugin = new DurableObjectsPlugin(ctx(), {
     durableObjects: { TEST: "TestObject" },
     durableObjectsPersist: "test://map",
   });

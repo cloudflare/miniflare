@@ -14,6 +14,7 @@ import {
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  unusable,
   useTmp,
 } from "@miniflare/shared-test";
 import test from "ava";
@@ -30,6 +31,7 @@ const ctx: PluginContext = {
   queueBroker,
   queueEventDispatcher,
   globalAsyncIO: true,
+  sharedCache: unusable(),
 };
 
 test("KVPlugin: parses options from argv", (t) => {
@@ -93,10 +95,7 @@ test("KVPlugin: getNamespace: resolves persist path relative to rootPath", async
     [`${tmp}${path.sep}test:NAMESPACE`]: map,
   });
 
-  const plugin = new KVPlugin(
-    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
-    { kvPersist: "test" }
-  );
+  const plugin = new KVPlugin({ ...ctx, rootPath: tmp }, { kvPersist: "test" });
   const namespace = plugin.getNamespace(factory, "NAMESPACE");
   await namespace.put("key", "value");
   t.true(map.has("key"));
@@ -126,7 +125,7 @@ test("KVPlugin: setup: includes namespaces in bindings", async (t) => {
 test("KVPlugin: setup: operations throw outside request handler unless globalAsyncIO set", async (t) => {
   const factory = new MemoryStorageFactory();
   let plugin = new KVPlugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { ...ctx, globalAsyncIO: false },
     { kvNamespaces: ["NAMESPACE"] }
   );
   let ns: KVNamespace = (await plugin.setup(factory)).bindings?.NAMESPACE;
@@ -136,14 +135,7 @@ test("KVPlugin: setup: operations throw outside request handler unless globalAsy
   });
 
   plugin = new KVPlugin(
-    {
-      log,
-      compat,
-      rootPath,
-      globalAsyncIO: true,
-      queueBroker,
-      queueEventDispatcher,
-    },
+    { ...ctx, globalAsyncIO: true },
     { kvNamespaces: ["NAMESPACE"] }
   );
   ns = (await plugin.setup(factory)).bindings?.NAMESPACE;

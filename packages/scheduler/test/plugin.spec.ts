@@ -10,6 +10,7 @@ import {
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  unusable,
 } from "@miniflare/shared-test";
 import test from "ava";
 
@@ -24,6 +25,7 @@ const ctx: PluginContext = {
   rootPath,
   queueBroker,
   queueEventDispatcher,
+  sharedCache: unusable(),
 };
 
 test("SchedulerPlugin: parses options from argv", (t) => {

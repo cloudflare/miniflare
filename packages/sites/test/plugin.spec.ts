@@ -14,6 +14,7 @@ import {
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  unusable,
   useMiniflare,
   useTmp,
 } from "@miniflare/shared-test";
@@ -31,6 +32,7 @@ const ctx: PluginContext = {
   rootPath,
   queueBroker,
   queueEventDispatcher,
+  sharedCache: unusable(),
 };
 
 test("SitesPlugin: parses options from argv", (t) => {
@@ -86,7 +88,7 @@ test("SitesPlugin: setup: returns empty result if no site", async (t) => {
 test("SitesPlugin: setup: includes read-only content namespace and watches files", async (t) => {
   const tmp = await useTmp(t);
   const plugin = new SitesPlugin(
-    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
+    { ...ctx, rootPath: tmp },
     { sitePath: "site" }
   );
   const result = await plugin.setup();
@@ -116,7 +118,7 @@ test("SitesPlugin: setup: includes populated manifest", async (t) => {
   await fs.writeFile(path.join(tmp, "4.jsx"), "test4", "utf8");
 
   const plugin = new SitesPlugin(
-    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
+    { ...ctx, rootPath: tmp },
     { sitePath: tmp, siteInclude: ["*.txt"], siteExclude: ["3.txt"] }
   );
   let result = await plugin.setup();

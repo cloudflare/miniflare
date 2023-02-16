@@ -32,6 +32,7 @@ import {
   parsePluginArgv,
   parsePluginWranglerConfig,
   triggerPromise,
+  unusable,
   useServer,
   useTmp,
   utf8Encode,
@@ -51,6 +52,7 @@ const ctx: PluginContext = {
   queueBroker,
   queueEventDispatcher,
   globalAsyncIO: true,
+  sharedCache: unusable(),
 };
 test("CorePlugin: parses options from argv", (t) => {
   let options = parsePluginArgv(CorePlugin, [
@@ -524,14 +526,7 @@ test("CorePlugin: setup: fetch refuses unknown protocols only if compatibility f
   const compat = new Compatibility(undefined, [
     "fetch_refuses_unknown_protocols",
   ]);
-  plugin = new CorePlugin({
-    log,
-    compat,
-    rootPath,
-    globalAsyncIO: true,
-    queueBroker,
-    queueEventDispatcher,
-  });
+  plugin = new CorePlugin({ ...ctx, compat });
   globals = (await plugin.setup()).globals;
   await t.throwsAsync(async () => globals?.fetch(upstream), {
     instanceOf: TypeError,
@@ -540,26 +535,13 @@ test("CorePlugin: setup: fetch refuses unknown protocols only if compatibility f
 });
 test("CorePlugin: setup: fetch throws outside request handler unless globalAsyncIO set", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
-  let plugin = new CorePlugin({
-    log,
-    compat,
-    rootPath,
-    queueBroker,
-    queueEventDispatcher,
-  });
+  let plugin = new CorePlugin({ ...ctx, globalAsyncIO: false });
   let { globals } = await plugin.setup();
   await t.throwsAsync(globals?.fetch(upstream), {
     instanceOf: Error,
     message: /^Some functionality, such as asynchronous I\/O/,
   });
-  plugin = new CorePlugin({
-    log,
-    compat,
-    rootPath,
-    globalAsyncIO: true,
-    queueBroker,
-    queueEventDispatcher,
-  });
+  plugin = new CorePlugin({ ...ctx, globalAsyncIO: true });
   globals = (await plugin.setup()).globals;
   await globals?.fetch(upstream);
 });
@@ -579,13 +561,7 @@ test("CorePlugin: setup: Request parses files in FormData as File objects only i
   const compat = new Compatibility(undefined, [
     "formdata_parser_supports_files",
   ]);
-  plugin = new CorePlugin({
-    log,
-    compat,
-    rootPath,
-    queueBroker,
-    queueEventDispatcher,
-  });
+  plugin = new CorePlugin({ ...ctx, compat });
   CompatRequest = (await plugin.setup()).globals?.Request;
   req = new CompatRequest("http://localhost", {
     method: "POST",
@@ -608,13 +584,7 @@ test("CorePlugin: setup: Response parses files in FormData as File objects only 
   const compat = new Compatibility(undefined, [
     "formdata_parser_supports_files",
   ]);
-  plugin = new CorePlugin({
-    log,
-    compat,
-    rootPath,
-    queueBroker,
-    queueEventDispatcher,
-  });
+  plugin = new CorePlugin({ ...ctx, compat });
   CompatResponse = (await plugin.setup()).globals?.Response;
   res = new CompatResponse(formData);
   resFormData = await res.formData();
@@ -626,13 +596,7 @@ test("CorePlugin: setup: includes navigator only if compatibility flag enabled",
   t.is(globals?.navigator, undefined);
 
   const compat = new Compatibility(undefined, ["global_navigator"]);
-  plugin = new CorePlugin({
-    log,
-    compat,
-    rootPath,
-    queueBroker,
-    queueEventDispatcher,
-  });
+  plugin = new CorePlugin({ ...ctx, compat });
   globals = (await plugin.setup()).globals;
   t.is(globals?.navigator.userAgent, "Cloudflare-Workers");
 });
@@ -1071,7 +1035,7 @@ test("CorePlugin: setup: loads script from package.json in default location", as
   const scriptPath = path.join(tmp, "script.js");
   await fs.writeFile(scriptPath, "console.log(42)");
   const plugin = new CorePlugin(
-    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
+    { ...ctx, rootPath: tmp },
     { packagePath: true }
   );
 
@@ -1101,7 +1065,7 @@ test("CorePlugin: setup: loads script from package.json in custom location", asy
   await fs.writeFile(scriptPath, "console.log('custom')");
 
   const plugin = new CorePlugin(
-    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
+    { ...ctx, rootPath: tmp },
     // Should resolve packagePath relative to rootPath
     { packagePath: "package.custom.json" }
   );
@@ -1144,7 +1108,7 @@ test("CorePlugin: setup: loads script from explicit path", async (t) => {
   const scriptPath = path.join(tmp, "script.js");
   await fs.writeFile(scriptPath, "console.log(42)");
   const plugin = new CorePlugin(
-    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
+    { ...ctx, rootPath: tmp },
     {
       // Should resolve scriptPath relative to rootPath
       scriptPath: "script.js",

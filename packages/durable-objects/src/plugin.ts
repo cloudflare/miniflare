@@ -9,6 +9,7 @@ import {
   RequestContext,
   SetupResult,
   StorageFactory,
+  TypedMap,
   resolveStoragePersist,
   usageModelExternalSubrequestLimit,
 } from "@miniflare/shared";
@@ -55,6 +56,16 @@ function getObjectIdFromKey(key: string): DurableObjectId {
   const hexId = key.substring(colonIndex + 1);
   return new DurableObjectId(objectName, hexId);
 }
+
+const STORAGE_PREFIX = "durable-objects:storage:";
+const STATE_PREFIX = "durable-objects:state:";
+type StorageValueMap = {
+  [Key in string as `${typeof STORAGE_PREFIX}${Key}`]: DurableObjectStorage;
+};
+type StateValueMap = {
+  [Key in string as `${typeof STATE_PREFIX}${Key}`]: DurableObjectState;
+};
+type DurableObjectsSharedCache = TypedMap<StorageValueMap & StateValueMap>;
 
 export class DurableObjectsPlugin
   extends Plugin<DurableObjectsOptions>
@@ -121,8 +132,7 @@ export class DurableObjectsPlugin
   #constructors = new Map<string, DurableObjectConstructor>();
   #bindings: Context = {};
 
-  readonly #objectStorages = new Map<string, DurableObjectStorage>();
-  readonly #objectStates = new Map<string, DurableObjectState>();
+  readonly #sharedCache: DurableObjectsSharedCache;
 
   readonly #alarmStore: AlarmStore;
   #alarmStoreCallback?: (objectKey: string) => Promise<void>;
@@ -135,6 +145,7 @@ export class DurableObjectsPlugin
       ctx.rootPath,
       this.durableObjectsPersist
     );
+    this.#sharedCache = ctx.sharedCache as DurableObjectsSharedCache;
     this.#alarmStore = new AlarmStore();
 
     this.#processedObjects = Object.entries(this.durableObjects ?? {}).map(
@@ -161,13 +172,14 @@ export class DurableObjectsPlugin
     const key = getObjectKeyFromId(id);
     // Make sure we only create one storage instance per object to ensure
     // transactional semantics hold
-    let objectStorage = this.#objectStorages.get(key);
+    const cacheKey = `${STORAGE_PREFIX}${key}` as const;
+    let objectStorage = this.#sharedCache.get(cacheKey);
     if (objectStorage !== undefined) return objectStorage;
     objectStorage = new DurableObjectStorage(
       storage.storage(key, this.#persist),
       this.#alarmStore.buildBridge(key)
     );
-    this.#objectStorages.set(key, objectStorage);
+    this.#sharedCache.set(cacheKey, objectStorage);
     return objectStorage;
   }
 
@@ -184,7 +196,8 @@ export class DurableObjectsPlugin
 
     const key = getObjectKeyFromId(id);
     // Durable Object states should be unique per key
-    let state = this.#objectStates.get(key);
+    const cacheKey = `${STATE_PREFIX}${key}` as const;
+    let state = this.#sharedCache.get(cacheKey);
     if (state !== undefined) return state;
 
     const objectName = id[kObjectName];
@@ -194,7 +207,7 @@ export class DurableObjectsPlugin
     const objectStorage = this.getStorage(storage, id);
 
     state = new DurableObjectState(unnamedId, objectStorage);
-    this.#objectStates.set(key, state);
+    this.#sharedCache.set(cacheKey, state);
 
     // Create and store new instance if none found
     const constructor = this.#constructors.get(objectName);
@@ -280,15 +293,20 @@ export class DurableObjectsPlugin
     storageFactory: StorageFactory,
     namespace: string
   ): DurableObjectId[] {
-    return [...this.#objectStates.keys()]
-      .map(getObjectIdFromKey)
-      .filter((id) => id[kObjectName] === namespace);
+    const ids: DurableObjectId[] = [];
+    for (const cacheKey of this.#sharedCache.keys()) {
+      if (cacheKey.startsWith(STATE_PREFIX)) {
+        const key = cacheKey.substring(STATE_PREFIX.length);
+        const id = getObjectIdFromKey(key);
+        if (id[kObjectName] === namespace) ids.push(id);
+      }
+    }
+    return ids;
   }
 
   async beforeReload(): Promise<void> {
-    // Clear instance map, this should cause old instances to be GCed
-    this.#objectStorages.clear();
-    this.#objectStates.clear();
+    // Reload cache will be cleared after all `beforeReload()` hooks (including
+    // mounts) have run
     this.#contextPromise = new Promise(
       (resolve) => (this.#contextResolve = resolve)
     );
