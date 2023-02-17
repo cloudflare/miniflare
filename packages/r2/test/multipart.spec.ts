@@ -116,33 +116,33 @@ test("R2Bucket: resumeMultipartUpload", async (t) => {
   const { r2 } = t.context;
 
   // Check creates upload object with correct key and uploadId
-  let upload = await r2.resumeMultipartUpload("key", "upload");
+  let upload = r2.resumeMultipartUpload("key", "upload");
   t.is(upload.key, "key");
   t.is(upload.uploadId, "upload");
 
   // Check validates key and uploadId provided, but not key length
   // @ts-expect-error intentionally testing incorrect types
-  await t.throwsAsync(r2.resumeMultipartUpload(), {
+  t.throws(() => r2.resumeMultipartUpload(), {
     instanceOf: TypeError,
     message:
       "Failed to execute 'resumeMultipartUpload' on 'R2Bucket': parameter 1 is not of type 'string'.",
   });
   // @ts-expect-error intentionally testing incorrect types
-  await t.throwsAsync(r2.resumeMultipartUpload("key"), {
+  t.throws(() => r2.resumeMultipartUpload("key"), {
     instanceOf: TypeError,
     message:
       "Failed to execute 'resumeMultipartUpload' on 'R2Bucket': parameter 2 is not of type 'string'.",
   });
-  upload = await r2.resumeMultipartUpload("x".repeat(1025), "upload");
+  upload = r2.resumeMultipartUpload("x".repeat(1025), "upload");
   t.is(upload.key, "x".repeat(1025));
 
   // Check coerces key and uploadId to string
   // @ts-expect-error intentionally testing incorrect types
-  upload = await r2.resumeMultipartUpload(1, 2);
+  upload = r2.resumeMultipartUpload(1, 2);
   t.is(upload.key, "1");
   t.is(upload.uploadId, "2");
   // @ts-expect-error intentionally testing incorrect types
-  upload = await r2.resumeMultipartUpload(undefined, undefined);
+  upload = r2.resumeMultipartUpload(undefined, undefined);
   t.is(upload.key, "undefined");
   t.is(upload.uploadId, "undefined");
 });
@@ -220,12 +220,12 @@ test("R2MultipartUpload: uploadPart", async (t) => {
 
   // Check validates key and uploadId
   let expectations = doesNotExistExpectations("uploadPart");
-  let nonExistentUpload = await r2.resumeMultipartUpload("key", "bad");
+  let nonExistentUpload = r2.resumeMultipartUpload("key", "bad");
   await t.throwsAsync(nonExistentUpload.uploadPart(1, "value"), expectations);
-  nonExistentUpload = await r2.resumeMultipartUpload("badkey", upload.uploadId);
+  nonExistentUpload = r2.resumeMultipartUpload("badkey", upload.uploadId);
   await t.throwsAsync(nonExistentUpload.uploadPart(1, "value"), expectations);
   expectations = objectNameNotValidExpectations("uploadPart");
-  nonExistentUpload = await r2.resumeMultipartUpload("x".repeat(1025), "bad");
+  nonExistentUpload = r2.resumeMultipartUpload("x".repeat(1025), "bad");
   await t.throwsAsync(nonExistentUpload.uploadPart(1, "value"), expectations);
 
   // Check validates part number (before key and uploadId)
@@ -331,12 +331,12 @@ test("R2MultipartUpload: abort", async (t) => {
   const upload3 = await r2.createMultipartUpload("key");
   // Note this is internalErrorExpectations, not doesNotExistExpectations
   expectations = internalErrorExpectations("abortMultipartUpload");
-  let nonExistentUpload = await r2.resumeMultipartUpload("key", "bad");
+  let nonExistentUpload = r2.resumeMultipartUpload("key", "bad");
   await t.throwsAsync(nonExistentUpload.abort(), expectations);
-  nonExistentUpload = await r2.resumeMultipartUpload("bad", upload3.uploadId);
+  nonExistentUpload = r2.resumeMultipartUpload("bad", upload3.uploadId);
   await t.throwsAsync(nonExistentUpload.abort(), expectations);
   expectations = objectNameNotValidExpectations("abortMultipartUpload");
-  nonExistentUpload = await r2.resumeMultipartUpload("x".repeat(1025), "bad");
+  nonExistentUpload = r2.resumeMultipartUpload("x".repeat(1025), "bad");
   await t.throwsAsync(nonExistentUpload.abort(), expectations);
 });
 test("R2MultipartUpload: complete", async (t) => {
@@ -511,15 +511,12 @@ test("R2MultipartUpload: complete", async (t) => {
   const upload11 = await r2.createMultipartUpload("key");
   // Note this is internalErrorExpectations, not doesNotExistExpectations
   let expectations = internalErrorExpectations("completeMultipartUpload");
-  let nonExistentUpload = await r2.resumeMultipartUpload("key", "bad");
+  let nonExistentUpload = r2.resumeMultipartUpload("key", "bad");
   await t.throwsAsync(nonExistentUpload.complete([]), expectations);
-  nonExistentUpload = await r2.resumeMultipartUpload(
-    "badkey",
-    upload11.uploadId
-  );
+  nonExistentUpload = r2.resumeMultipartUpload("badkey", upload11.uploadId);
   await t.throwsAsync(nonExistentUpload.complete([]), expectations);
   expectations = objectNameNotValidExpectations("completeMultipartUpload");
-  nonExistentUpload = await r2.resumeMultipartUpload("x".repeat(1025), "bad");
+  nonExistentUpload = r2.resumeMultipartUpload("x".repeat(1025), "bad");
   await t.throwsAsync(nonExistentUpload.complete([]), expectations);
 
   // Check validates uploaded parts
@@ -872,7 +869,7 @@ test("R2Bucket/R2MultipartUpload: operations throw outside request handler", asy
   await t.throwsAsync(r2.createMultipartUpload("key"), expectations);
   // (resumeMultipartUpload() doesn't make any "network" calls, so can be called
   // outside a request context)
-  await r2.resumeMultipartUpload("key", "upload");
+  r2.resumeMultipartUpload("key", "upload");
 
   t.is(ctx.internalSubrequests, 0);
   const upload = await ctx.runWith(() => r2.createMultipartUpload("key"));

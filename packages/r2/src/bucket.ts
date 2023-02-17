@@ -816,10 +816,7 @@ export class R2Bucket {
     return upload;
   }
 
-  async resumeMultipartUpload(
-    key: string,
-    uploadId: string
-  ): Promise<R2MultipartUpload> {
+  resumeMultipartUpload(key: string, uploadId: string): R2MultipartUpload {
     // The Workers runtime doesn't make a subrequest here, so no need to call
     // `prepareCtx()`
 
