@@ -17,6 +17,7 @@ import {
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  unusable,
   useServer,
   useTmp,
 } from "@miniflare/shared-test";
@@ -33,6 +34,7 @@ const ctx: PluginContext = {
   rootPath,
   queueBroker,
   queueEventDispatcher,
+  sharedCache: unusable(),
 };
 
 test("HTTPPlugin: parses options from argv", (t) => {
@@ -236,7 +238,7 @@ test("HTTPPlugin: setupCf: cf fetch caches cf.json at default location", async (
   );
   const log = new TestLog();
   const plugin = new HTTPPlugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { ...ctx, log },
     {},
     { cfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );
@@ -257,7 +259,7 @@ test("HTTPPlugin: setupCf: cf fetch caches cf.json at custom location", async (t
   );
   const log = new TestLog();
   const plugin = new HTTPPlugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { ...ctx, log },
     { cfFetch: customCfPath },
     { cfPath: defaultCfPath, cfFetch: true, cfFetchEndpoint: upstream }
   );
@@ -300,7 +302,7 @@ test("HTTPPlugin: setupCf: cf fetch refetches cf.json if stale", async (t) => {
   );
   const log = new TestLog();
   const plugin = new HTTPPlugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { ...ctx, log },
     {},
     { cfPath, cfFetch: true, cfFetchEndpoint: upstream, clock }
   );
@@ -392,7 +394,7 @@ test("HTTPPlugin: setupHttps: generates self-signed certificate at default locat
   const log = new TestLog();
   const tmp = await useTmp(t);
   const plugin = new HTTPPlugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { ...ctx, log },
     { https: true },
     { certRoot: tmp }
   );
@@ -417,7 +419,7 @@ test("HTTPPlugin: setupHttps: generates self-signed certificate at custom locati
   const tmpDefault = await useTmp(t);
   const tmpCustom = await useTmp(t);
   const plugin = new HTTPPlugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { ...ctx, log },
     { https: tmpCustom },
     { certRoot: tmpDefault }
   );
@@ -445,7 +447,7 @@ test("HTTPPlugin: setupHttps: reuses existing non-expired certificates", async (
   await fs.writeFile(path.join(tmp, "key.pem"), "existing_key", "utf8");
   await fs.writeFile(path.join(tmp, "cert.pem"), "existing_cert", "utf8");
   const plugin = new HTTPPlugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { ...ctx, log },
     { https: true },
     { certRoot: tmp }
   );
@@ -467,7 +469,7 @@ test("HTTPPlugin: setupHttps: regenerates self-signed certificate if expired", a
   await fs.writeFile(path.join(tmp, "cert.pem"), "expired_cert", "utf8");
   const clock: Clock = () => Date.now() + 86400000 * 30; // now + 30 days
   const plugin = new HTTPPlugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { ...ctx, log },
     { https: true },
     { certRoot: tmp, clock }
   );

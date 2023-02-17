@@ -17,6 +17,7 @@ import {
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  unusable,
 } from "@miniflare/shared-test";
 import test from "ava";
 
@@ -25,6 +26,15 @@ const log = new NoOpLog();
 const compat = new Compatibility();
 const rootPath = process.cwd();
 const queueEventDispatcher: QueueEventDispatcher = async (_batch) => {};
+const ctx: PluginContext = {
+  log,
+  compat,
+  rootPath,
+  queueBroker: unusable(),
+  queueEventDispatcher,
+  globalAsyncIO: true,
+  sharedCache: unusable(),
+};
 
 test("QueuesPlugin: parses options from argv", async (t) => {
   const options = parsePluginArgv(QueuesPlugin, [
@@ -45,15 +55,7 @@ test("QueuesPlugin: parses options from argv", async (t) => {
 
   // setup the plugin and verify default values
   const queueBroker = new QueueBroker();
-  const ctx: PluginContext = {
-    log,
-    compat,
-    rootPath,
-    globalAsyncIO: true,
-    queueBroker,
-    queueEventDispatcher,
-  };
-  const plugin = new QueuesPlugin(ctx, options);
+  const plugin = new QueuesPlugin({ ...ctx, queueBroker }, options);
   await plugin.setup(factory);
 
   const queue1 = queueBroker.getOrCreateQueue("queue1");
@@ -99,15 +101,7 @@ test("QueuesPlugin: parses options from wrangler config", async (t) => {
 
   // verify default vs custom values on optional settings
   const queueBroker = new QueueBroker();
-  const ctx: PluginContext = {
-    log,
-    compat,
-    rootPath,
-    globalAsyncIO: true,
-    queueBroker,
-    queueEventDispatcher,
-  };
-  const plugin = new QueuesPlugin(ctx, options);
+  const plugin = new QueuesPlugin({ ...ctx, queueBroker }, options);
   await plugin.setup(factory);
 
   // queue1 uses defaults
@@ -140,16 +134,8 @@ test("QueuesPlugin: logs options", (t) => {
 
 test("QueuesPlugin: setup: includes queues in bindings", async (t) => {
   const queueBroker = new QueueBroker();
-  const ctx: PluginContext = {
-    log,
-    compat,
-    rootPath,
-    globalAsyncIO: true,
-    queueBroker,
-    queueEventDispatcher,
-  };
-
-  const plugin = new QueuesPlugin(ctx, {
+  const pluginCtx: PluginContext = { ...ctx, queueBroker };
+  const plugin = new QueuesPlugin(pluginCtx, {
     queueBindings: [
       { name: "QUEUE1", queueName: "queue1" },
       { name: "QUEUE2", queueName: "queue2" },

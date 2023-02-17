@@ -11,6 +11,7 @@ import {
 import {
   noop,
   triggerPromise,
+  unusable,
   useMiniflare,
   useServer,
 } from "@miniflare/shared-test";
@@ -34,6 +35,7 @@ const ctx: PluginContext = {
   queueBroker,
   queueEventDispatcher,
   globalAsyncIO: true,
+  sharedCache: unusable(),
 };
 test("WebSocketPlugin: setup: includes WebSocket stuff in globals", (t) => {
   const plugin = new WebSocketPlugin(ctx);
@@ -48,14 +50,7 @@ test("WebSocketPlugin: setup: fetch refuses unknown protocols if compatibility f
   const compat = new Compatibility(undefined, [
     "fetch_refuses_unknown_protocols",
   ]);
-  const plugin = new WebSocketPlugin({
-    log,
-    compat,
-    rootPath,
-    globalAsyncIO: true,
-    queueBroker,
-    queueEventDispatcher,
-  });
+  const plugin = new WebSocketPlugin({ ...ctx, compat });
   const { globals } = await plugin.setup();
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
   upstream.protocol = "ftp:";
@@ -66,26 +61,13 @@ test("WebSocketPlugin: setup: fetch refuses unknown protocols if compatibility f
 });
 test("WebSocketPlugin: setup: fetch throws outside request handler unless globalAsyncIO set", async (t) => {
   const upstream = (await useServer(t, (req, res) => res.end("upstream"))).http;
-  let plugin = new WebSocketPlugin({
-    log,
-    compat,
-    rootPath,
-    queueBroker,
-    queueEventDispatcher,
-  });
+  let plugin = new WebSocketPlugin({ ...ctx, globalAsyncIO: false });
   let { globals } = await plugin.setup();
   await t.throwsAsync(globals?.fetch(upstream), {
     instanceOf: Error,
     message: /^Some functionality, such as asynchronous I\/O/,
   });
-  plugin = new WebSocketPlugin({
-    log,
-    compat,
-    rootPath,
-    globalAsyncIO: true,
-    queueBroker,
-    queueEventDispatcher,
-  });
+  plugin = new WebSocketPlugin({ ...ctx, globalAsyncIO: true });
   globals = (await plugin.setup()).globals;
   await globals?.fetch(upstream);
 });

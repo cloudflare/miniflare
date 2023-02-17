@@ -217,6 +217,7 @@ function throwNoScriptError(modules?: boolean) {
   throw new MiniflareCoreError("ERR_NO_SCRIPT", lines.join("\n"));
 }
 
+const kParentSharedCache = Symbol("kParentSharedCache");
 export interface MiniflareCoreContext {
   log: Log;
   storageFactory: StorageFactory;
@@ -224,7 +225,10 @@ export interface MiniflareCoreContext {
   scriptRunner?: ScriptRunner;
   scriptRequired?: boolean;
   scriptRunForModuleExports?: boolean;
-  isMount?: boolean;
+  // `kParentSharedCache` is used to determine if an instance is a mount, so we
+  // restrict setting it to internal users via a Symbol
+  /** @internal */
+  [kParentSharedCache]?: Map<string, unknown>;
 }
 
 export class ReloadEvent<Plugins extends PluginSignatures> extends Event {
@@ -253,6 +257,7 @@ export class MiniflareCore<
   #previousSetOptions: MiniflareCoreOptions<Plugins>;
   #overrides: PluginOptions<Plugins>;
   #previousOptions?: PluginOptions<Plugins>;
+  readonly #sharedCache: Map<string, unknown>; // See `PluginContext`
 
   readonly #ctx: MiniflareCoreContext;
   readonly #pluginStorages: PluginData<Plugins, PluginStorageFactory>;
@@ -291,11 +296,16 @@ export class MiniflareCore<
     this.#plugins = getPluginEntries(plugins);
     this.#previousSetOptions = options;
     this.#overrides = splitPluginOptions(this.#plugins, options);
+    this.#sharedCache = ctx[kParentSharedCache] ?? new Map();
 
     this.#ctx = ctx;
     this.#pluginStorages = new Map<keyof Plugins, PluginStorageFactory>();
 
     this.#initPromise = this.#init().then(() => this.#reload());
+  }
+
+  get #isMount() {
+    return this.#ctx[kParentSharedCache] !== undefined;
   }
 
   #updateWatch(
@@ -425,6 +435,7 @@ export class MiniflareCore<
       fetchMock,
       queueEventDispatcher,
       queueBroker,
+      sharedCache: this.#sharedCache,
     };
 
     // Log options and compatibility flags every time they might've changed
@@ -545,9 +556,9 @@ export class MiniflareCore<
                 ...rawOptions,
               };
         // - `"mounts" in mountOptions` detects nested mount options,
-        // - `this.#ctx.isMount` detects if `setOptions()` has been called on a
+        // - `this.#isMount` detects if `setOptions()` has been called on a
         //   mount with an object containing mount options
-        if ("mounts" in mountOptions || this.#ctx.isMount) {
+        if ("mounts" in mountOptions || this.#isMount) {
           throw new MiniflareCoreError(
             "ERR_MOUNT_NESTED",
             "Nested mounts are unsupported"
@@ -577,7 +588,7 @@ export class MiniflareCore<
             scriptRunForModuleExports: false,
             // Mark this as a mount, so we defer calling reload() hooks,
             // see #reload()
-            isMount: true,
+            [kParentSharedCache]: this.#sharedCache,
           };
           mount = new MiniflareCore(this.#originalPlugins, ctx, mountOptions);
           mount.addEventListener("reload", async (event) => {
@@ -707,11 +718,15 @@ export class MiniflareCore<
 
     // Run all before reload hooks, including mounts if we have any
     await this.#runAllBeforeReloads();
-    if (!this.#ctx.isMount) {
+    if (!this.#isMount) {
       // this.#mounts is set in #init() which is always called before this
       for (const mount of this.#mounts!.values()) {
         await mount.#runAllBeforeReloads();
       }
+      // Clear shared cache in parent after we've executed all `beforeReload()`s
+      // (i.e. clear references Durable Object instances which should cause them
+      // to get GCed)
+      this.#sharedCache.clear();
     }
 
     let script: ScriptBlueprint | undefined = undefined;
@@ -813,7 +828,7 @@ export class MiniflareCore<
     // called by the parent (us) once the root and all mounts have reloaded.
     // This ensures that if some mounts depend on other mounts, they'll
     // be ready when reload() hooks are called.
-    if (!this.#ctx.isMount) {
+    if (!this.#isMount) {
       // Run reload hooks, getting module exports for each mount (we await
       // getPlugins() for each mount before running #reload() so their scripts
       // must've been run)
@@ -1154,10 +1169,7 @@ export class MiniflareCore<
     // Start a new pipeline too.
     return new RequestContext({
       externalSubrequestLimit: usageModelExternalSubrequestLimit(usageModel),
-    }).runWith(() => {
-      const result = globalScope![kDispatchQueue]<WaitUntil>(batch);
-      return result;
-    });
+    }).runWith(() => globalScope![kDispatchQueue]<WaitUntil>(batch));
   }
 
   async dispose(): Promise<void> {
@@ -1183,5 +1195,6 @@ export class MiniflareCore<
       }
       this.#mounts.clear();
     }
+    if (!this.#isMount) this.#sharedCache.clear();
   }
 }

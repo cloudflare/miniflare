@@ -888,3 +888,76 @@ test("MiniflareCore: can access Durable Objects defined in parent or other mount
   //  meant for testing.
   t.is(await res.text(), "parent object 2:mount a object");
 });
+test("MiniflareCore: reuses same instances across mounts", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/461
+
+  const script = (name: string) => `export class ${name}Object {
+    uuid = crypto.randomUUID();
+    fetch() {
+      return new Response("from ${name}: " + this.uuid);
+    }
+  }
+  export default {
+    async fetch(request, env) {
+      const name = new URL(request.url).pathname.substring(1);
+      const OBJECT = env[name];
+      const id = OBJECT.idFromName("fixed");
+      const stub = OBJECT.get(id);
+      const res = await stub.fetch(request);
+      const text = await res.text();
+      return new Response("via ${name}: " + text);
+    }
+  }`;
+
+  const mf = useMiniflare(
+    { DurableObjectsPlugin },
+    {
+      name: "parent",
+      modules: true,
+      script: script("Parent"),
+      durableObjects: {
+        PARENT_OBJECT: { className: "ParentObject" },
+        MOUNT_OBJECT: { className: "MountObject", scriptName: "mount" },
+      },
+      mounts: {
+        mount: {
+          name: "mount",
+          modules: true,
+          script: script("Mount"),
+          durableObjects: {
+            PARENT_OBJECT: { className: "ParentObject", scriptName: "parent" },
+            MOUNT_OBJECT: { className: "MountObject" },
+          },
+          routes: ["http://mount.mf/*"],
+        },
+      },
+    }
+  );
+
+  const uuidRegexp =
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+  const extractUuid = (text: string) =>
+    text.substring(text.lastIndexOf(":") + 2);
+
+  // First access objects from parent...
+  let res = await mf.dispatchFetch("http://localhost/PARENT_OBJECT");
+  let text = await res.text();
+  const parentUuid = extractUuid(text);
+  t.regex(parentUuid, uuidRegexp);
+  t.is(text, `via Parent: from Parent: ${parentUuid}`);
+
+  res = await mf.dispatchFetch("http://localhost/MOUNT_OBJECT");
+  text = await res.text();
+  const mountUuid = extractUuid(text);
+  t.regex(mountUuid, uuidRegexp);
+  t.not(mountUuid, parentUuid);
+  t.is(text, `via Parent: from Mount: ${mountUuid}`);
+
+  // ...then access those same objects from a different mount, checking the
+  // same instances are used.
+  res = await mf.dispatchFetch("http://mount.mf/PARENT_OBJECT");
+  t.is(await res.text(), `via Mount: from Parent: ${parentUuid}`);
+
+  res = await mf.dispatchFetch("http://mount.mf/MOUNT_OBJECT");
+  t.is(await res.text(), `via Mount: from Mount: ${mountUuid}`);
+});

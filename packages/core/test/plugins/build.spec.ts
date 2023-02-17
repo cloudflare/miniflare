@@ -16,6 +16,7 @@ import {
   logPluginOptions,
   parsePluginArgv,
   parsePluginWranglerConfig,
+  unusable,
   useMiniflare,
   useTmp,
 } from "@miniflare/shared-test";
@@ -34,6 +35,7 @@ const ctx: PluginContext = {
   rootPath,
   queueBroker,
   queueEventDispatcher,
+  sharedCache: unusable(),
 };
 
 const rimrafPromise = promisify(rimraf);
@@ -118,7 +120,7 @@ test("BuildPlugin: beforeSetup: runs build successfully", async (t) => {
   const tmp = await useTmp(t);
   const log = new TestLog();
   const plugin = new BuildPlugin(
-    { log, compat, rootPath, queueBroker, queueEventDispatcher },
+    { ...ctx, log },
     {
       buildCommand: "echo test > test.txt",
       buildBasePath: tmp,
@@ -137,7 +139,7 @@ test("BuildPlugin: beforeSetup: builds in plugin context's rootPath", async (t) 
   const tmp = await useTmp(t);
   let plugin = new BuildPlugin(
     // This will be set to the mounted directory when mounting workers
-    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
+    { ...ctx, rootPath: tmp },
     { buildCommand: "echo test > test.txt" }
   );
   await plugin.beforeSetup();
@@ -148,7 +150,7 @@ test("BuildPlugin: beforeSetup: builds in plugin context's rootPath", async (t) 
   const dir = path.join(tmp, "dir");
   await fs.mkdir(dir);
   plugin = new BuildPlugin(
-    { log, compat, rootPath: tmp, queueBroker, queueEventDispatcher },
+    { ...ctx, rootPath: tmp },
     { buildCommand: "echo test > test.txt", buildBasePath: "dir" }
   );
   await plugin.beforeSetup();
