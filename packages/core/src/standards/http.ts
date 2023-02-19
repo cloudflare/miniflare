@@ -794,6 +794,13 @@ export async function fetch(
   // but undici considers it an error.
   // See https://github.com/cloudflare/miniflare/issues/193
 
+  // `duplex` is required when sending a body with RequestInit
+  // https://github.com/nodejs/node/issues/46221
+  // https://github.com/whatwg/fetch/pull/1457
+  if (init instanceof Request && init.body) {
+    req.duplex = "half";
+  }
+
   if (
     !methodsExpectingPayload.includes(req.method) &&
     req.headers.get("content-length") === "0"

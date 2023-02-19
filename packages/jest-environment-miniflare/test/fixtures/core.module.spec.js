@@ -27,14 +27,12 @@ test("reply callback options has expected data", async () => {
   });
   expect(await res.json()).toEqual({
     body: '{"foo":"bar"}',
-    bodyTimeout: 300000,
     headers: {
       "accept-encoding": "br, gzip, deflate",
       "content-length": "13",
       "content-type": "text/plain;charset=UTF-8",
-      "mf-loop": "1",
+      "MF-Loop": "1",
     },
-    headersTimeout: 300000,
     maxRedirections: 0,
     method: "POST",
     origin: "https://random.mf",

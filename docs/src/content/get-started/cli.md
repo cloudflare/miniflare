@@ -32,7 +32,7 @@ $ npx miniflare
 
 <Aside type="warning" header="Warning">
 
-Miniflare requires at least **Node.js 16.13.0**, as it makes extensive use of
+Miniflare requires at least **Node.js 16.17.0**, as it makes extensive use of
 recently added web standards. You should use the latest Node.js version if
 possible, as Cloudflare Workers use a very up-to-date version of V8. Consider
 using a Node.js version manager such as https://volta.sh/ or

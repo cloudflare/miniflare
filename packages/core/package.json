@@ -17,7 +17,7 @@
     "dist/src"
   ],
   "engines": {
-    "node": ">=16.13"
+    "node": ">=16.17"
   },
   "publishConfig": {
     "access": "public"
@@ -46,7 +46,7 @@
     "dotenv": "^10.0.0",
     "kleur": "^4.1.4",
     "set-cookie-parser": "^2.4.8",
-    "undici": "5.11.0",
+    "undici": "5.20.0",
     "urlpattern-polyfill": "^4.0.3"
   },
   "devDependencies": {
