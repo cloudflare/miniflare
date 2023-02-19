@@ -22,7 +22,7 @@
     "types:bundle": "npm run types:build && node scripts/types.mjs",
     "dev": "node scripts/build.mjs watch",
     "test": "npm run build && ava && rimraf ./.tmp",
-    "lint": "eslint 'packages/*/{src,test}/**/*.ts' 'packages/miniflare/bootstrap.js' 'scripts/**/*.{js,mjs}' 'types/**/*.ts'",
+    "lint": "eslint \"packages/*/{src,test}/**/*.ts\" \"packages/miniflare/bootstrap.js\" \"scripts/**/*.{js,mjs}\" \"types/**/*.ts\"",
     "lint:fix": "npm run lint -- --fix",
     "prepublishOnly": "npm run lint && npm run clean && npm run build && npm run types:bundle && npm run test",
     "helpers:scaffold": "node scripts/scaffold.mjs",
