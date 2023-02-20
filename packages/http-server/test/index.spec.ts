@@ -1098,7 +1098,6 @@ test("createServer: proxies redirect responses", async (t) => {
       .request({ port, method: "POST", path: "/redirect" }, resolve)
       .end("body")
   );
-  console.log(await text(res));
   t.is(res.statusCode, 302);
   t.is(res.headers.location, `/`);
   t.deepEqual(res.headers["set-cookie"], ["key=value"]);
