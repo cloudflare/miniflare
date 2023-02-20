@@ -57,6 +57,7 @@ import {
 import {
   _isByteStream,
   convertToRegularStream,
+  kBodyStreamBrand,
   kContentLength,
 } from "./streams";
 
@@ -162,7 +163,6 @@ export function _headersFromIncomingRequest(
 export const _kInner = Symbol("kInner");
 
 const kBodyStream = Symbol("kBodyStream");
-const kBodyStreamBrand = Symbol("kBodyStreamBrand");
 const kInputGated = Symbol("kInputGated");
 const kFormDataFiles = Symbol("kFormDataFiles");
 const kCloned = Symbol("kCloned");

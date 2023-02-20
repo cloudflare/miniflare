@@ -13,8 +13,10 @@ import {
   IdentityTransformStream,
   Request,
   Response,
+  _isBodyStream,
   _isByteStream,
   _isDisturbedStream,
+  _isFixedLengthStream,
 } from "@miniflare/core";
 import { utf8Decode, utf8Encode } from "@miniflare/shared-test";
 import test, { Macro, ThrowsExpectation } from "ava";
@@ -267,6 +269,24 @@ test("ReadableStream: tee: returns regular stream when teeing regular stream", a
   t.false(_isByteStream(stream2));
   t.is(await text(stream1 as any), "value");
   t.is(await text(stream2 as any), "value");
+});
+test("ReadableStream: tee: returns known length streams when teeing known length streams", async (t) => {
+  const fixedLengthStream = new FixedLengthStream(3);
+  let [stream1, stream2] = fixedLengthStream.readable.tee();
+  t.true(_isFixedLengthStream(stream1));
+  t.true(_isFixedLengthStream(stream2));
+
+  const req = new Request("http://localhost", { method: "POST", body: "body" });
+  assert(req.body !== null);
+  [stream1, stream2] = req.body.tee();
+  t.true(_isBodyStream(stream1));
+  t.true(_isBodyStream(stream2));
+
+  const res = new Response("body");
+  assert(res.body !== null);
+  [stream1, stream2] = res.body.tee();
+  t.true(_isBodyStream(stream1));
+  t.true(_isBodyStream(stream2));
 });
 test("ReadableStream: tee: throws on illegal invocation", (t) => {
   const stream = new ReadableStream<string>({
