@@ -1,3 +1,6 @@
+// noinspection ES6ConvertVarToLetConst
+
+import stream from "stream/web";
 import { QueueBroker } from "@miniflare/queues";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import {
@@ -56,9 +59,28 @@ function setupIsolatedStorage(storageFactory: StackedMemoryStorageFactory) {
   return wrappedChainable as typeof describe;
 }
 
+declare global {
+  // eslint-disable-next-line no-var
+  var ReadableStream: typeof stream.ReadableStream;
+  // eslint-disable-next-line no-var
+  var WritableStream: typeof stream.WritableStream;
+  // eslint-disable-next-line no-var
+  var TransformStream: typeof stream.TransformStream;
+}
+
 export default <Environment>{
   name: "miniflare",
   async setup(global, options) {
+    // Since `undici@5.14.0`, stream classes are loaded from the global scope
+    // if available (https://github.com/nodejs/undici/pull/1793). Make sure
+    // `undici` sets module variables for stream classes before we assign
+    // Miniflare's versions. Accessing these would throw if the
+    // `streams_enable_constructors` compatibility flag wasn't enabled.
+    globalThis.ReadableStream = stream.ReadableStream;
+    globalThis.WritableStream = stream.WritableStream;
+    globalThis.TransformStream = stream.TransformStream;
+    require("undici/lib/fetch");
+
     // Create a Miniflare instance
     const storageFactory = new StackedMemoryStorageFactory();
     const [mf, mfGlobalScope] = await createMiniflareEnvironment(

@@ -80,6 +80,27 @@ function convertToByteStream(
   });
 }
 
+export function convertToRegularStream(stream: ReadableStream<Uint8Array>) {
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
+  return new ReadableStream({
+    start() {
+      reader = stream.getReader();
+    },
+    async pull(controller) {
+      let result = await reader.read();
+      while (!result.done && result.value.byteLength === 0) {
+        result = await reader.read();
+      }
+      if (result.done) {
+        queueMicrotask(() => controller.close());
+      } else if (result.value.byteLength > 0) {
+        controller.enqueue(result.value);
+      }
+    },
+    cancel: (reason) => reader.cancel(reason),
+  });
+}
+
 export type ArrayBufferViewConstructor =
   | typeof Int8Array
   | typeof Uint8Array

@@ -19,7 +19,7 @@ jobs:
       - name: Setup Node.js 12.x
         uses: actions/setup-node@v3
         with:
-          node-version: 16.17
+          node-version: 16.13
 
       - name: Install Dependencies
         run: npm ci

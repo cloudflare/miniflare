@@ -126,18 +126,6 @@ test("convertNodeRequest: builds requests without bodies", async (t) => {
   const [req] = await buildConvertNodeRequest(t);
   t.is(req.body, null);
 });
-test("convertNodeRequest: builds byte stream for body", async (t) => {
-  const body = new Readable({ read() {} });
-  body.push("a");
-  body.push("b");
-  body.push(null);
-  const [request] = await buildConvertNodeRequest(t, {
-    method: "POST",
-    headers: { "content-length": "2" },
-    body,
-  });
-  t.true(_isByteStream(request[_kInner].body as any));
-});
 test("convertNodeRequest: sends non-chunked request bodies", async (t) => {
   // Start server to check transfer encoding and chunks received by upstream
   let headers: http.IncomingHttpHeaders | undefined;
@@ -1112,6 +1100,7 @@ test("createServer: proxies redirect responses", async (t) => {
       .request({ port, method: "POST", path: "/redirect" }, resolve)
       .end("body")
   );
+  console.log(await text(res));
   t.is(res.statusCode, 302);
   t.is(res.headers.location, `/`);
   t.deepEqual(res.headers["set-cookie"], ["key=value"]);
