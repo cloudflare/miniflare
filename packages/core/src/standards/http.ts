@@ -417,10 +417,12 @@ export class Request extends Body<BaseRequest> {
   #cf?: IncomingRequestCfProperties | RequestInitCfProperties;
 
   constructor(input: RequestInfo, init?: RequestInit) {
-    // If body is a FixedLengthStream, set Content-Length to its expected length
-    const contentLength: number | undefined = (init?.body as any)?.[
-      kContentLength
-    ];
+    // If body is a FixedLengthStream, set Content-Length to its expected
+    // length. We may replace `init.body` later on with a different stream, so
+    // extract `contentLength` now.
+    const contentLength: number | undefined = (
+      init?.body as { [kContentLength]?: number }
+    )?.[kContentLength];
 
     const cf = input instanceof Request ? input.#cf : init?.cf;
     if (input instanceof BaseRequest && !init) {
@@ -432,7 +434,7 @@ export class Request extends Body<BaseRequest> {
       if (init instanceof Request) init = init[_kInner] as RequestInit;
       // We may mutate some `init` properties below, make sure these aren't
       // visible to the caller
-      init = init && cloneRequestInit(init);
+      init = init ? cloneRequestInit(init) : undefined;
       // If body is an ArrayBuffer, clone it, so it doesn't get detached when
       // enqueuing the chunk to the body stream
       if (init?.body instanceof ArrayBuffer) {
@@ -627,7 +629,9 @@ export class Response<
     this.#webSocket = webSocket;
 
     // If body is a FixedLengthStream, set Content-Length to its expected length
-    const contentLength: number | undefined = (body as any)?.[kContentLength];
+    const contentLength: number | undefined = (
+      body as { [kContentLength]?: number }
+    )?.[kContentLength];
     if (contentLength !== undefined) {
       this.headers.set("content-length", contentLength.toString());
     }
