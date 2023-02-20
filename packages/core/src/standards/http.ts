@@ -54,7 +54,11 @@ import {
   buildNotBufferSourceError,
   isBufferSource,
 } from "./helpers";
-import { _isByteStream, kContentLength } from "./streams";
+import {
+  _isByteStream,
+  convertToRegularStream,
+  kContentLength,
+} from "./streams";
 
 // We need these for making Request's Headers immutable
 const fetchSymbols: {
@@ -370,12 +374,8 @@ export function _isBodyStream(stream: ReadableStream): boolean {
 export type RequestInfo = BaseRequestInfo | Request;
 
 export interface RequestInit extends BaseRequestInit {
-  readonly cf?: IncomingRequestCfProperties | RequestInitCfProperties;
+  cf?: IncomingRequestCfProperties | RequestInitCfProperties;
 }
-
-type Mutable<T> = {
-  -readonly [P in keyof T]: T[P];
-};
 
 const enumerableRequestKeys: (keyof Request)[] = [
   "cf",
@@ -384,11 +384,46 @@ const enumerableRequestKeys: (keyof Request)[] = [
   "url",
   "method",
 ];
+
+// These keys aren't marked enumerable on `BaseRequest`, so we can't use
+// `{...req}` to clone the init object. Instead, we use `in` checks and copy
+// them over if present.
+const requestInitKeys: (keyof RequestInit)[] = [
+  "method",
+  "keepalive",
+  "headers",
+  "body",
+  "redirect",
+  "integrity",
+  "signal",
+  "credentials",
+  "mode",
+  "referrer",
+  "referrerPolicy",
+  "window",
+  "dispatcher",
+  "duplex",
+];
+function cloneRequestInit(init: RequestInit): RequestInit {
+  const result: RequestInit = {};
+  for (const key of requestInitKeys) {
+    if (key in init) (result as Record<string, unknown>)[key] = init[key];
+  }
+  return result;
+}
+
 export class Request extends Body<BaseRequest> {
   // noinspection TypeScriptFieldCanBeMadeReadonly
   #cf?: IncomingRequestCfProperties | RequestInitCfProperties;
 
   constructor(input: RequestInfo, init?: RequestInit) {
+    // If body is a FixedLengthStream, set Content-Length to its expected
+    // length. We may replace `init.body` later on with a different stream, so
+    // extract `contentLength` now.
+    const contentLength: number | undefined = (
+      init?.body as { [kContentLength]?: number }
+    )?.[kContentLength];
+
     const cf = input instanceof Request ? input.#cf : init?.cf;
     if (input instanceof BaseRequest && !init) {
       // For cloning
@@ -397,19 +432,30 @@ export class Request extends Body<BaseRequest> {
       // Don't pass our strange hybrid Request to undici
       if (input instanceof Request) input = input[_kInner];
       if (init instanceof Request) init = init[_kInner] as RequestInit;
+      // We may mutate some `init` properties below, make sure these aren't
+      // visible to the caller
+      init = init ? cloneRequestInit(init) : undefined;
       // If body is an ArrayBuffer, clone it, so it doesn't get detached when
       // enqueuing the chunk to the body stream
       if (init?.body instanceof ArrayBuffer) {
-        (init as Mutable<RequestInit>).body = init.body.slice(0);
+        init.body = init.body.slice(0);
+      }
+      if (init?.body instanceof ReadableStream) {
+        init.duplex = "half";
+        if (_isByteStream(init.body)) {
+          // Since `undici@5.12.0`, cloning a body now invokes `structuredClone`
+          // on the underlying stream (https://github.com/nodejs/undici/pull/1697).
+          // Unfortunately, due to a bug in Node, byte streams cannot be
+          // `structuredClone`d (https://github.com/nodejs/undici/issues/1873,
+          // https://github.com/nodejs/node/pull/45955), leading to issues when
+          // attempting to clone incoming requests.
+          init.body = convertToRegularStream(init.body);
+        }
       }
       super(new BaseRequest(input, init));
     }
     this.#cf = cf ? nonCircularClone(cf) : undefined;
 
-    // If body is a FixedLengthStream, set Content-Length to its expected length
-    const contentLength: number | undefined = (init?.body as any)?.[
-      kContentLength
-    ];
     if (contentLength !== undefined) {
       this.headers.set("content-length", contentLength.toString());
     }
@@ -583,7 +629,9 @@ export class Response<
     this.#webSocket = webSocket;
 
     // If body is a FixedLengthStream, set Content-Length to its expected length
-    const contentLength: number | undefined = (body as any)?.[kContentLength];
+    const contentLength: number | undefined = (
+      body as { [kContentLength]?: number }
+    )?.[kContentLength];
     if (contentLength !== undefined) {
       this.headers.set("content-length", contentLength.toString());
     }
@@ -778,6 +826,11 @@ export async function fetch(
   // Don't pass our strange hybrid Request to undici
   if (input instanceof Request) input = input[_kInner];
   if (init instanceof Request) init = init[_kInner] as RequestInit;
+  if (!(init instanceof BaseRequest) && init?.body instanceof ReadableStream) {
+    // We mutate `init` here, make sure this isn't visible to the caller
+    init = cloneRequestInit(init);
+    init.duplex = "half";
+  }
 
   // Set the headers guard to "none" so we can delete the "Host" header
   const req = new BaseRequest(input, init);
@@ -793,7 +846,6 @@ export async function fetch(
   // Delete "content-length: 0" from bodyless requests. Some proxies add this,
   // but undici considers it an error.
   // See https://github.com/cloudflare/miniflare/issues/193
-
   if (
     !methodsExpectingPayload.includes(req.method) &&
     req.headers.get("content-length") === "0"

@@ -15,6 +15,7 @@ import {
   Response,
   _getBodyLength,
   _getURLList,
+  _isByteStream,
   createCompatFetch,
   fetch,
   logResponse,
@@ -443,6 +444,27 @@ test("Request: can construct new Request from existing Request", async (t) => {
   t.is(await req2.text(), "body");
   t.deepEqual(req2.cf, cf);
 });
+test("Request: can construct new Request with stream body", async (t) => {
+  let stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(utf8Encode("chunk1"));
+      controller.close();
+    },
+  });
+  let req = new Request("http://localhost", { method: "POST", body: stream });
+  t.is(await req.text(), "chunk1");
+
+  // Check again with byte stream
+  stream = new ReadableStream({
+    type: "bytes",
+    start(controller) {
+      controller.enqueue(utf8Encode("chunk2"));
+      controller.close();
+    },
+  });
+  req = new Request("http://localhost", { method: "POST", body: stream });
+  t.is(await req.text(), "chunk2");
+});
 test("Request: supports non-standard properties", (t) => {
   const req = new Request("http://localhost", {
     method: "POST",
@@ -484,6 +506,40 @@ test("Request: clones non-standard properties", (t) => {
   t.is(req3.method, "POST");
   t.deepEqual(req3.cf, cf);
   t.not(req3.cf, req2.cf);
+});
+test("Request: clones stream bodies", async (t) => {
+  let stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(utf8Encode("chunk1"));
+      controller.close();
+    },
+  });
+  const init = { method: "POST", body: stream };
+  const initClone = { ...init };
+  let req = new Request("http://localhost", init);
+  t.deepEqual(init, initClone);
+  let clone = req.clone();
+  assert(req.body !== null && clone.body !== null);
+  t.true(_isByteStream(req.body));
+  t.true(_isByteStream(clone.body));
+  t.is(await req.text(), "chunk1");
+  t.is(await clone.text(), "chunk1");
+
+  // Check again with byte stream
+  stream = new ReadableStream({
+    type: "bytes",
+    start(controller) {
+      controller.enqueue(utf8Encode("chunk2"));
+      controller.close();
+    },
+  });
+  req = new Request("http://localhost", { method: "POST", body: stream });
+  clone = req.clone();
+  assert(req.body !== null && clone.body !== null);
+  t.true(_isByteStream(req.body));
+  t.true(_isByteStream(clone.body));
+  t.is(await req.text(), "chunk2");
+  t.is(await clone.text(), "chunk2");
 });
 test("Request: can be input gated", async (t) => {
   const req = withInputGating(
@@ -1126,6 +1182,31 @@ test("fetch: removes default fetch headers from Request unless explicitly added"
     "user-agent": "miniflare-test3",
     "cf-ray": "ray3",
   });
+});
+test("fetch: accepts stream body", async (t) => {
+  const upstream = (await useServer(t, (req, res) => req.pipe(res))).http;
+
+  let stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(utf8Encode("chunk1"));
+      controller.close();
+    },
+  });
+  const init = { method: "POST", body: stream };
+  const initClone = { ...init };
+  let res = await fetch(upstream, init);
+  t.deepEqual(init, initClone);
+  t.is(await res.text(), "chunk1");
+
+  stream = new ReadableStream({
+    type: "bytes",
+    start(controller) {
+      controller.enqueue(utf8Encode("chunk2"));
+      controller.close();
+    },
+  });
+  res = await fetch(upstream, { method: "POST", body: stream });
+  t.is(await res.text(), "chunk2");
 });
 test('fetch: returns full Response for "manual" redirect', async (t) => {
   const upstream = (await useServer(t, redirectingServerListener)).http;

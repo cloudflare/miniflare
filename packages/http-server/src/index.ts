@@ -5,7 +5,6 @@ import http from "http";
 import https from "https";
 import net from "net";
 import { Transform, Writable } from "stream";
-import { ReadableStream } from "stream/web";
 import { URL } from "url";
 import zlib from "zlib";
 import {
@@ -62,37 +61,16 @@ export async function convertNodeRequest(
   const url = new URL(req.url ?? "", origin);
 
   let body: BodyInit | null = null;
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    // Adapted from https://github.com/nodejs/undici/blob/ebea0f7084bb1efdb66c46409d1bfc87054b2870/lib/core/util.js#L269-L304
-    // to create a byte stream instead of a regular one. This means we don't
-    // create another "byte-TransformStream" later on to allow byob reads.
-    let iterator: AsyncIterableIterator<any>;
-    body = new ReadableStream({
-      type: "bytes",
-      start() {
-        iterator = req[Symbol.asyncIterator]();
-      },
-      async pull(controller) {
-        const { done, value } = await iterator.next();
-        if (done) {
-          queueMicrotask(() => {
-            controller.close();
-            // Not documented in MDN but if there's an ongoing request that's waiting,
-            // we need to tell it that there were 0 bytes delivered so that it unblocks
-            // and notices the end of stream.
-            // @ts-expect-error `byobRequest` has type `undefined` in `@types/node`
-            controller.byobRequest?.respond(0);
-          });
-        } else {
-          const buffer = Buffer.isBuffer(value) ? value : Buffer.from(value);
-          controller.enqueue(new Uint8Array(buffer));
-        }
-      },
-      async cancel() {
-        await iterator.return?.();
-      },
-    });
-  }
+  // Previously, we performed an optimisation to convert this body to a "bytes"-
+  // stream, so we didn't have to do this later on when accessing the body in
+  // a Worker (request bodies must support BYOB reads). Since `undici@5.12.0`,
+  // cloning a body now invokes `structuredClone` on the underlying stream
+  // (https://github.com/nodejs/undici/pull/1697). Unfortunately, due to a bug
+  // in Node, byte streams cannot be `structuredClone`d
+  // (https://github.com/nodejs/undici/issues/1873,
+  // https://github.com/nodejs/node/pull/45955), leading to issues when
+  // attempting to clone incoming requests.
+  if (req.method !== "GET" && req.method !== "HEAD") body = req;
 
   // Add additional Cloudflare specific headers:
   // https://support.cloudflare.com/hc/en-us/articles/200170986-How-does-Cloudflare-handle-HTTP-Request-headers-
@@ -139,6 +117,12 @@ export async function convertNodeRequest(
     // Incoming requests always have their redirect mode set to manual:
     // https://developers.cloudflare.com/workers/runtime-apis/request#requestinit
     redirect: "manual",
+    // Technically, we're constructing a Miniflare `Request` here, so we
+    // shouldn't be passing `duplex`. However, we only automatically set
+    // `duplex` when we pass a `ReadableStream` body, whereas in this case
+    // we're passing a `http.IncomingMessage`. `undici` converts any
+    // `AsyncIterable` to a stream, so this is fine.
+    duplex: body === null ? undefined : "half",
   });
   return { request, url };
 }
