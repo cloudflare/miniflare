@@ -16,6 +16,8 @@ import {
   isBufferSource,
 } from "./helpers";
 
+export const kBodyStreamBrand = Symbol("kBodyStreamBrand");
+
 /** @internal */
 export function _isByteStream(
   stream: ReadableStream
@@ -177,18 +179,32 @@ ReadableStream.prototype.tee = function () {
   if (!(this instanceof ReadableStream)) {
     throw new TypeError("Illegal invocation");
   }
+  let [stream1, stream2] = originalTee.call(this);
   if (_isByteStream(this)) {
-    const [stream1, stream2] = originalTee.call(this);
     // We need to clone chunks here, as either of the tee()ed streams might be
     // passed to `new Response()`, which will detach array buffers when reading:
     // https://github.com/cloudflare/miniflare/issues/375
-    return [
-      convertToByteStream(stream1, true /* clone */),
-      convertToByteStream(stream2, true /* clone */),
-    ];
-  } else {
-    return originalTee.call(this);
+    stream1 = convertToByteStream(stream1, true /* clone */);
+    stream2 = convertToByteStream(stream2, true /* clone */);
   }
+
+  // Copy known-length stream markers
+  const branded = this as {
+    [kBodyStreamBrand]?: unknown;
+    [kContentLength]?: unknown;
+  };
+  const bodyBrand = branded[kBodyStreamBrand];
+  if (bodyBrand !== undefined) {
+    Object.defineProperty(stream1, kBodyStreamBrand, { value: bodyBrand });
+    Object.defineProperty(stream2, kBodyStreamBrand, { value: bodyBrand });
+  }
+  const contentLength = branded[kContentLength];
+  if (contentLength !== undefined) {
+    Object.defineProperty(stream1, kContentLength, { value: contentLength });
+    Object.defineProperty(stream2, kContentLength, { value: contentLength });
+  }
+
+  return [stream1, stream2];
 };
 
 const kTransformHook = Symbol("kTransformHook");

@@ -177,8 +177,9 @@ test("R2MultipartUpload: uploadPart", async (t) => {
   const response = new Response("value7");
   assert(request.body !== null && response.body !== null);
   await upload.uploadPart(5, readable);
-  await upload.uploadPart(6, request.body);
-  await upload.uploadPart(7, response.body);
+  // Check `tee()`ing body inherits known length
+  await upload.uploadPart(6, request.body.tee()[0]);
+  await upload.uploadPart(7, response.body.tee()[1]);
   const unknownLengthReadable = new ReadableStream({
     type: "bytes",
     pull(controller) {
