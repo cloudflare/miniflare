@@ -16,8 +16,6 @@ import {
   IncomingRequestCfProperties,
   Request,
   ScheduledEvent,
-  _isByteStream,
-  _kInner,
   fetch,
 } from "@miniflare/core";
 import { DurableObjectsPlugin } from "@miniflare/durable-objects";
