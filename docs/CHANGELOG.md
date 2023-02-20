@@ -11,7 +11,7 @@
   [GHSA-r6ch-mqf9-qc9w](https://github.com/advisories/GHSA-r6ch-mqf9-qc9w).
   Thanks [@WalshyDev](https://github.com/WalshyDev) and
   [@Cherry](https://github.com/Cherry) for
-  [the PR](https://github.com/cloudflare/miniflare/pull/508).
+  [the PR](https://github.com/cloudflare/miniflare/pull/510).
 - Ensure global uniqueness of Durable Objects across mounts. Previously, it was
   possible to have multiple Durable Object instances with the same ID if they
   were created from different mounts. Closes
