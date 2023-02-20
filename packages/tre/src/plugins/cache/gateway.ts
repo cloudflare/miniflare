@@ -166,7 +166,7 @@ class HttpParser {
     return HttpParser.INSTANCE;
   }
   private constructor() {
-    this.server = http.createServer(this.listen.bind(this));
+    this.server = http.createServer(this.listen.bind(this)).unref();
     this.connected = new Promise((accept) => {
       this.server.listen(0, "localhost", accept);
     });
