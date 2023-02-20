@@ -1,5 +1,31 @@
 # 🚧 Changelog
 
+## 2.12.1
+
+### ⚠️ Security Update
+
+### Fixes
+
+- Bump `undici` to `5.20.0`, addressing
+  [GHSA-5r9g-qh6m-jxff](https://github.com/advisories/GHSA-5r9g-qh6m-jxff) and
+  [GHSA-r6ch-mqf9-qc9w](https://github.com/advisories/GHSA-r6ch-mqf9-qc9w).
+  Thanks [@WalshyDev](https://github.com/WalshyDev) and
+  [@Cherry](https://github.com/Cherry) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/510).
+- Ensure global uniqueness of Durable Objects across mounts. Previously, it was
+  possible to have multiple Durable Object instances with the same ID if they
+  were created from different mounts. Closes
+  [#461](https://github.com/cloudflare/miniflare/issues/461), thanks
+  [@Finistere](https://github.com/Finistere).
+- Return a `R2MultipartUpload` instead of a `Promise<R2MultipartUpload>` from
+  `R2Bucket#resumeMultipartUpload()`. Thanks
+  [@notorca](https://github.com/notorca) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/505).
+- Copy known-lengths from `FixedLengthStream`s and `Request`/`Response` `body`
+  streams when calling `ReadableStream#tee()`. Closes
+  [issue #506](https://github.com/cloudflare/miniflare/issues/506), thanks
+  [@notorca](https://github.com/notorca).
+
 ## 2.12.0
 
 ### Features
