@@ -111,8 +111,8 @@ export const DURABLE_OBJECTS_PLUGIN: Plugin<
     );
   },
   async getServices({ sharedOptions, tmpPath, durableObjectClassNames }) {
-    // Check if even have any Durable Object bindings, if we don't, we can skip
-    // creating the storage directory
+    // Check if we even have any Durable Object bindings, if we don't, we can
+    // skip creating the storage directory
     let hasDurableObjects = false;
     for (const classNames of durableObjectClassNames.values()) {
       if (classNames.size > 0) {
