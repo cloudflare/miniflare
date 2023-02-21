@@ -1,7 +1,6 @@
 import { readFileSync } from "fs";
 import fs from "fs/promises";
 import { TextEncoder } from "util";
-import { DURABLE_OBJECTS_STORAGE_SERVICE_NAME } from "@miniflare/tre";
 import { bold } from "kleur/colors";
 import { z } from "zod";
 import {
@@ -12,6 +11,7 @@ import {
 } from "../../runtime";
 import { Awaitable, JsonSchema, Log, MiniflareCoreError } from "../../shared";
 import { getCacheServiceName } from "../cache";
+import { DURABLE_OBJECTS_STORAGE_SERVICE_NAME } from "../do";
 import {
   BINDING_SERVICE_LOOPBACK,
   CloudflareFetchSchema,
