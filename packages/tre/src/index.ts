@@ -386,13 +386,7 @@ export class Miniflare {
           const response = await this.#routers[key]?.route(request, url);
           if (response !== undefined) return response;
         } catch (e) {
-          if (e instanceof HttpError) {
-            return new Response(e.message, {
-              status: e.code,
-              // Custom statusMessage is required for runtime error messages
-              statusText: e.message.substring(0, 512),
-            });
-          }
+          if (e instanceof HttpError) return e.toResponse();
           throw e;
         }
       }
