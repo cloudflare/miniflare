@@ -36,9 +36,12 @@ import {
 } from "./plugins";
 import {
   HEADER_CUSTOM_SERVICE,
+  HEADER_ERROR_STACK,
+  JsonErrorSchema,
   SourceOptions,
   getUserServiceName,
   handlePrettyErrorRequest,
+  reviveError,
 } from "./plugins/core";
 import {
   Config,
@@ -396,6 +399,10 @@ export class Miniflare {
     }
   }
 
+  get #workerSrcOpts(): SourceOptions[] {
+    return this.#workerOpts.map<SourceOptions>(({ core }) => core);
+  }
+
   #handleLoopback = async (
     req: http.IncomingMessage,
     res?: http.ServerResponse
@@ -426,12 +433,9 @@ export class Miniflare {
           customService
         );
       } else if (url.pathname === "/core/error") {
-        const workerSrcOpts = this.#workerOpts.map<SourceOptions>(
-          ({ core }) => core
-        );
         response = await handlePrettyErrorRequest(
           this.#log,
-          workerSrcOpts,
+          this.#workerSrcOpts,
           request
         );
       } else {
@@ -705,7 +709,16 @@ export class Miniflare {
     if (forward.cf) {
       forward.headers.set(HEADER_CF_BLOB, JSON.stringify(forward.cf));
     }
-    return fetch(url, forward as RequestInit);
+    const response = await fetch(url, forward as RequestInit);
+
+    // If the Worker threw an uncaught exception, propagate it to the caller
+    const stack = response.headers.get(HEADER_ERROR_STACK);
+    if (response.status === 500 && stack !== null) {
+      const caught = JsonErrorSchema.parse(await response.json());
+      throw reviveError(this.#workerSrcOpts, caught);
+    }
+
+    return response;
   }
 
   async dispose(): Promise<void> {
