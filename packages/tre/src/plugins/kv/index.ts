@@ -1,13 +1,12 @@
 import { z } from "zod";
 import { Service, Worker_Binding } from "../../runtime";
-import { SERVICE_LOOPBACK } from "../core";
 import {
-  BINDING_SERVICE_LOOPBACK,
   BINDING_TEXT_NAMESPACE,
   BINDING_TEXT_PLUGIN,
   PersistenceSchema,
   Plugin,
   SCRIPT_PLUGIN_NAMESPACE_PERSIST,
+  WORKER_BINDING_SERVICE_LOOPBACK,
   encodePersist,
   namespaceEntries,
 } from "../shared";
@@ -72,10 +71,7 @@ export const KV_PLUGIN: Plugin<
           ...persistBinding,
           { name: BINDING_TEXT_PLUGIN, text: KV_PLUGIN_NAME },
           { name: BINDING_TEXT_NAMESPACE, text: id },
-          {
-            name: BINDING_SERVICE_LOOPBACK,
-            service: { name: SERVICE_LOOPBACK },
-          },
+          WORKER_BINDING_SERVICE_LOOPBACK,
         ],
       },
     }));

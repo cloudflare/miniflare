@@ -1,6 +1,4 @@
 import { z } from "zod";
-import { Worker_Binding } from "../../runtime";
-import { SERVICE_LOOPBACK } from "../core";
 import {
   BINDING_SERVICE_LOOPBACK,
   BINDING_TEXT_PERSIST,
@@ -9,6 +7,7 @@ import {
   HEADER_PERSIST,
   PersistenceSchema,
   Plugin,
+  WORKER_BINDING_SERVICE_LOOPBACK,
   encodePersist,
 } from "../shared";
 import { HEADER_CACHE_WARN_USAGE } from "./constants";
@@ -69,10 +68,6 @@ export const CACHE_PLUGIN: Plugin<
   },
   getServices({ sharedOptions, options, workerIndex }) {
     const persistBinding = encodePersist(sharedOptions.cachePersist);
-    const loopbackBinding: Worker_Binding = {
-      name: BINDING_SERVICE_LOOPBACK,
-      service: { name: SERVICE_LOOPBACK },
-    };
     return [
       {
         name: getCacheServiceName(workerIndex),
@@ -87,7 +82,7 @@ export const CACHE_PLUGIN: Plugin<
               name: BINDING_JSON_CACHE_WARN_USAGE,
               json: JSON.stringify(options.cacheWarnUsage ?? false),
             },
-            loopbackBinding,
+            WORKER_BINDING_SERVICE_LOOPBACK,
           ],
           compatibilityDate: "2022-09-01",
         },

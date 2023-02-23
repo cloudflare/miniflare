@@ -35,6 +35,7 @@ import {
   Plugins,
   SERVICE_ENTRY,
   SOCKET_ENTRY,
+  getGlobalServices,
   maybeGetSitesManifestModule,
   normaliseDurableObject,
 } from "./plugins";
@@ -100,6 +101,9 @@ function validateOptions(
   const sharedOpts = opts;
   const multipleWorkers = "workers" in opts;
   const workerOpts = multipleWorkers ? opts.workers : [opts];
+  if (workerOpts.length === 0) {
+    throw new MiniflareCoreError("ERR_NO_WORKERS", "No workers defined");
+  }
 
   // Initialise return values
   const pluginSharedOpts = {} as PluginSharedOptions;
@@ -117,6 +121,19 @@ function validateOptions(
       // @ts-expect-error pluginWorkerOpts[i][key] could be any plugin's
       pluginWorkerOpts[i][key] = plugin.options.parse(workerOpts[i], { path });
     }
+  }
+
+  // Validate names unique
+  const names = new Set<string>();
+  for (const opts of pluginWorkerOpts) {
+    const name = opts.core.name ?? "";
+    if (names.has(name)) {
+      throw new MiniflareCoreError(
+        "ERR_DUPLICATE_NAME",
+        `Multiple workers defined with the same name: "${name}"`
+      );
+    }
+    names.add(name);
   }
 
   return [pluginSharedOpts, pluginWorkerOpts];
@@ -148,6 +165,19 @@ function getDurableObjectClassNames(
     }
   }
   return serviceClassNames;
+}
+
+// Collects all routes from all worker services
+function getWorkerRoutes(
+  allWorkerOpts: PluginWorkerOptions[]
+): Map<string, string[]> {
+  const allRoutes = new Map<string, string[]>();
+  for (const workerOpts of allWorkerOpts) {
+    if (workerOpts.core.routes !== undefined) {
+      allRoutes.set(workerOpts.core.name ?? "", workerOpts.core.routes);
+    }
+  }
+  return allRoutes;
 }
 
 // ===== `Miniflare` Internal Storage & Routing =====
@@ -622,7 +652,16 @@ export class Miniflare {
 
     sharedOpts.core.cf = await setupCf(this.#log, sharedOpts.core.cf);
 
-    const services: Service[] = [];
+    const durableObjectClassNames = getDurableObjectClassNames(allWorkerOpts);
+    const allWorkerRoutes = getWorkerRoutes(allWorkerOpts);
+
+    const services: Service[] = getGlobalServices({
+      optionsVersion,
+      sharedOptions: sharedOpts.core,
+      allWorkerRoutes,
+      fallbackWorkerName: this.#workerOpts[0].core.name,
+      loopbackPort,
+    });
     const sockets: Socket[] = [
       {
         name: SOCKET_ENTRY,
@@ -633,10 +672,13 @@ export class Miniflare {
       },
     ];
 
-    const durableObjectClassNames = getDurableObjectClassNames(allWorkerOpts);
-
     // Dedupe services by name
     const serviceNames = new Set<string>();
+    for (const service of services) {
+      // Global services should all have unique names
+      assert(service.name !== undefined && !serviceNames.has(service.name));
+      serviceNames.add(service.name);
+    }
 
     for (let i = 0; i < allWorkerOpts.length; i++) {
       const workerOpts = allWorkerOpts[i];
@@ -662,13 +704,11 @@ export class Miniflare {
         const pluginServices = await plugin.getServices({
           log: this.#log,
           options: workerOpts[key],
-          optionsVersion,
           sharedOptions: sharedOpts[key],
           workerBindings,
           workerIndex: i,
           durableObjectClassNames,
           additionalModules,
-          loopbackPort,
           tmpPath: this.#tmpPath,
         });
         if (pluginServices !== undefined) {

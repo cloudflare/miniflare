@@ -23,7 +23,10 @@ export type MiniflareCoreErrorCode =
   | "ERR_PERSIST_UNSUPPORTED" // Unsupported storage persistence protocol
   | "ERR_PERSIST_REMOTE_UNAUTHENTICATED" // cloudflareFetch implementation not provided
   | "ERR_PERSIST_REMOTE_UNSUPPORTED" // Remote storage is not supported for this database
-  | "ERR_FUTURE_COMPATIBILITY_DATE"; // Compatibility date in the future
+  | "ERR_FUTURE_COMPATIBILITY_DATE" // Compatibility date in the future
+  | "ERR_NO_WORKERS" // No workers defined
+  | "ERR_DUPLICATE_NAME" // Multiple workers defined with same name
+  | "ERR_ROUTABLE_NO_SCRIPT"; // First or routable worker is missing code
 export class MiniflareCoreError extends MiniflareError<MiniflareCoreErrorCode> {}
 
 export class HttpError extends MiniflareError<number> {

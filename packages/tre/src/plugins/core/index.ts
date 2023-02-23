@@ -14,9 +14,14 @@ import { getCacheServiceName } from "../cache";
 import { DURABLE_OBJECTS_STORAGE_SERVICE_NAME } from "../do";
 import {
   BINDING_SERVICE_LOOPBACK,
+  CORE_PLUGIN_NAME,
   CloudflareFetchSchema,
   HEADER_CF_BLOB,
   Plugin,
+  SERVICE_LOOPBACK,
+  WORKER_BINDING_SERVICE_LOOPBACK,
+  matchRoutes,
+  parseRoutes,
 } from "../shared";
 import { HEADER_ERROR_STACK } from "./errors";
 import {
@@ -50,6 +55,8 @@ export const CoreOptionsSchema = z.object({
   compatibilityDate: z.string().optional(),
   compatibilityFlags: z.string().array().optional(),
 
+  routes: z.string().array().optional(),
+
   bindings: z.record(JsonSchema).optional(),
   wasmBindings: z.record(z.string()).optional(),
   textBlobBindings: z.record(z.string()).optional(),
@@ -74,10 +81,6 @@ export const CoreSharedOptionsSchema = z.object({
   liveReload: z.boolean().optional(),
 });
 
-export const CORE_PLUGIN_NAME = "core";
-
-// Service looping back to Miniflare's Node.js process (for storage, etc)
-export const SERVICE_LOOPBACK = `${CORE_PLUGIN_NAME}:loopback`;
 // Service for HTTP socket entrypoint (for checking runtime ready, routing, etc)
 export const SERVICE_ENTRY = `${CORE_PLUGIN_NAME}:entry`;
 // Service prefix for all regular user workers
@@ -102,9 +105,11 @@ export const HEADER_CUSTOM_SERVICE = "MF-Custom-Service";
 export const HEADER_ORIGINAL_URL = "MF-Original-URL";
 
 const BINDING_JSON_VERSION = "MINIFLARE_VERSION";
-const BINDING_SERVICE_USER = "MINIFLARE_USER";
+const BINDING_SERVICE_USER_ROUTE_PREFIX = "MINIFLARE_USER_ROUTE_";
+const BINDING_SERVICE_USER_FALLBACK = "MINIFLARE_USER_FALLBACK";
 const BINDING_TEXT_CUSTOM_SERVICE = "MINIFLARE_CUSTOM_SERVICE";
 const BINDING_JSON_CF_BLOB = "CF_BLOB";
+const BINDING_JSON_ROUTES = "MINIFLARE_ROUTES";
 const BINDING_DATA_LIVE_RELOAD_SCRIPT = "MINIFLARE_LIVE_RELOAD_SCRIPT";
 
 const LIVE_RELOAD_SCRIPT_TEMPLATE = (
@@ -129,7 +134,10 @@ const LIVE_RELOAD_SCRIPT_TEMPLATE = (
 
 // Using `>=` for version check to handle multiple `setOptions` calls before
 // reload complete.
-export const SCRIPT_ENTRY = `async function handleEvent(event) {
+export const SCRIPT_ENTRY = `
+const matchRoutes = ${matchRoutes.toString()};
+
+async function handleEvent(event) {
   const probe = event.request.headers.get("${HEADER_PROBE}");
   if (probe !== null) {
     const probeMin = parseInt(probe);
@@ -147,11 +155,16 @@ export const SCRIPT_ENTRY = `async function handleEvent(event) {
   });
   request.headers.delete("${HEADER_ORIGINAL_URL}");
 
-  if (globalThis.${BINDING_SERVICE_USER} === undefined) {
+  let service = globalThis.${BINDING_SERVICE_USER_FALLBACK};
+  const url = new URL(request.url);
+  const route = matchRoutes(${BINDING_JSON_ROUTES}, url);
+  if (route !== null) service = globalThis["${BINDING_SERVICE_USER_ROUTE_PREFIX}" + route];
+  if (service === undefined) {
     return new Response("No entrypoint worker found", { status: 404 });
   }
+  
   try {
-    let response = await ${BINDING_SERVICE_USER}.fetch(request);
+    let response = await service.fetch(request);
     
     if (
       response.status === 500 &&
@@ -319,60 +332,12 @@ export const CORE_PLUGIN: Plugin<
   async getServices({
     log,
     options,
-    optionsVersion,
     workerBindings,
     workerIndex,
-    sharedOptions,
     durableObjectClassNames,
     additionalModules,
-    loopbackPort,
   }) {
-    // Define core/shared services.
-    const loopbackBinding: Worker_Binding = {
-      name: BINDING_SERVICE_LOOPBACK,
-      service: { name: SERVICE_LOOPBACK },
-    };
-
-    // Services get de-duped by name, so only the first worker's
-    // SERVICE_LOOPBACK and SERVICE_ENTRY will be used
-    const serviceEntryBindings: Worker_Binding[] = [
-      loopbackBinding, // For converting stack-traces to pretty-error pages
-      { name: BINDING_JSON_VERSION, json: optionsVersion.toString() },
-      { name: BINDING_JSON_CF_BLOB, json: JSON.stringify(sharedOptions.cf) },
-    ];
-    if (sharedOptions.liveReload) {
-      const liveReloadScript = LIVE_RELOAD_SCRIPT_TEMPLATE(loopbackPort);
-      serviceEntryBindings.push({
-        name: BINDING_DATA_LIVE_RELOAD_SCRIPT,
-        data: encoder.encode(liveReloadScript),
-      });
-    }
-    const services: Service[] = [
-      {
-        name: SERVICE_LOOPBACK,
-        external: { http: { cfBlobHeader: HEADER_CF_BLOB } },
-      },
-      {
-        name: SERVICE_ENTRY,
-        worker: {
-          serviceWorkerScript: SCRIPT_ENTRY,
-          compatibilityDate: "2022-09-01",
-          bindings: serviceEntryBindings,
-        },
-      },
-      // Allow access to private/public addresses:
-      // https://github.com/cloudflare/miniflare/issues/412
-      {
-        name: "internet",
-        network: {
-          // Can't use `["public", "private"]` here because of
-          // https://github.com/cloudflare/workerd/issues/62
-          allow: ["0.0.0.0/0"],
-          deny: [],
-          tlsOptions: { trustBrowserCas: true },
-        },
-      },
-    ];
+    const services: Service[] = [];
 
     // Define regular user worker if script is set
     const workerScript = getWorkerScript(options, workerIndex);
@@ -412,10 +377,13 @@ export const CORE_PLUGIN: Plugin<
           cacheApiOutbound: { name: getCacheServiceName(workerIndex) },
         },
       });
-      serviceEntryBindings.push({
-        name: BINDING_SERVICE_USER,
-        service: { name },
-      });
+    } else if (workerIndex === 0 || options.routes?.length) {
+      throw new MiniflareCoreError(
+        "ERR_ROUTABLE_NO_SCRIPT",
+        `Worker [${workerIndex}] ${
+          options.name === undefined ? "" : `("${options.name}") `
+        }must have code defined as it's routable or the fallback`
+      );
     }
 
     // Define custom `fetch` services if set
@@ -433,7 +401,7 @@ export const CORE_PLUGIN: Plugin<
                   name: BINDING_TEXT_CUSTOM_SERVICE,
                   text: `${workerIndex}/${name}`,
                 },
-                loopbackBinding,
+                WORKER_BINDING_SERVICE_LOOPBACK,
               ],
             },
           });
@@ -450,6 +418,74 @@ export const CORE_PLUGIN: Plugin<
     return services;
   },
 };
+
+export interface GlobalServicesOptions {
+  optionsVersion: number;
+  sharedOptions: z.infer<typeof CoreSharedOptionsSchema>;
+  allWorkerRoutes: Map<string, string[]>;
+  fallbackWorkerName: string | undefined;
+  loopbackPort: number;
+}
+export function getGlobalServices({
+  optionsVersion,
+  sharedOptions,
+  allWorkerRoutes,
+  fallbackWorkerName,
+  loopbackPort,
+}: GlobalServicesOptions): Service[] {
+  // Collect list of workers we could route to, then parse and sort all routes
+  const routableWorkers = [...allWorkerRoutes.keys()];
+  const routes = parseRoutes(allWorkerRoutes);
+
+  // Define core/shared services.
+  const serviceEntryBindings: Worker_Binding[] = [
+    WORKER_BINDING_SERVICE_LOOPBACK, // For converting stack-traces to pretty-error pages
+    { name: BINDING_JSON_VERSION, json: optionsVersion.toString() },
+    { name: BINDING_JSON_ROUTES, json: JSON.stringify(routes) },
+    { name: BINDING_JSON_CF_BLOB, json: JSON.stringify(sharedOptions.cf) },
+    {
+      name: BINDING_SERVICE_USER_FALLBACK,
+      service: { name: getUserServiceName(fallbackWorkerName) },
+    },
+    ...routableWorkers.map((name) => ({
+      name: BINDING_SERVICE_USER_ROUTE_PREFIX + name,
+      service: { name: getUserServiceName(name) },
+    })),
+  ];
+  if (sharedOptions.liveReload) {
+    const liveReloadScript = LIVE_RELOAD_SCRIPT_TEMPLATE(loopbackPort);
+    serviceEntryBindings.push({
+      name: BINDING_DATA_LIVE_RELOAD_SCRIPT,
+      data: encoder.encode(liveReloadScript),
+    });
+  }
+  return [
+    {
+      name: SERVICE_LOOPBACK,
+      external: { http: { cfBlobHeader: HEADER_CF_BLOB } },
+    },
+    {
+      name: SERVICE_ENTRY,
+      worker: {
+        serviceWorkerScript: SCRIPT_ENTRY,
+        compatibilityDate: "2022-09-01",
+        bindings: serviceEntryBindings,
+      },
+    },
+    // Allow access to private/public addresses:
+    // https://github.com/cloudflare/miniflare/issues/412
+    {
+      name: "internet",
+      network: {
+        // Can't use `["public", "private"]` here because of
+        // https://github.com/cloudflare/workerd/issues/62
+        allow: ["0.0.0.0/0"],
+        deny: [],
+        tlsOptions: { trustBrowserCas: true },
+      },
+    },
+  ];
+}
 
 function getWorkerScript(
   options: z.infer<typeof CoreOptionsSchema>,

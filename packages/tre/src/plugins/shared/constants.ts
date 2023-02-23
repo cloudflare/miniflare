@@ -2,7 +2,12 @@ import { Headers } from "../../http";
 import { Worker_Binding } from "../../runtime";
 import { Persistence, PersistenceSchema } from "./gateway";
 
+export const CORE_PLUGIN_NAME = "core";
+
 export const SOCKET_ENTRY = "entry";
+
+// Service looping back to Miniflare's Node.js process (for storage, etc)
+export const SERVICE_LOOPBACK = `${CORE_PLUGIN_NAME}:loopback`;
 
 export const HEADER_PERSIST = "MF-Persist";
 // Even though we inject the `cf` blob in the entry script, we still need to
@@ -14,6 +19,11 @@ export const BINDING_SERVICE_LOOPBACK = "MINIFLARE_LOOPBACK";
 export const BINDING_TEXT_PLUGIN = "MINIFLARE_PLUGIN";
 export const BINDING_TEXT_NAMESPACE = "MINIFLARE_NAMESPACE";
 export const BINDING_TEXT_PERSIST = "MINIFLARE_PERSIST";
+
+export const WORKER_BINDING_SERVICE_LOOPBACK: Worker_Binding = {
+  name: BINDING_SERVICE_LOOPBACK,
+  service: { name: SERVICE_LOOPBACK },
+};
 
 // TODO: make this an inherited worker in core plugin
 export const SCRIPT_PLUGIN_NAMESPACE_PERSIST = `addEventListener("fetch", (event) => {
