@@ -9,7 +9,6 @@ const rewritePaths = Object.fromEntries(
 
 export default {
   files: ["packages/*/test/**/*.spec.ts"],
-  timeout: "5m",
   nodeArguments: ["--no-warnings", "--experimental-vm-modules"],
   typescript: {
     compile: false,
