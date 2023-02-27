@@ -14,7 +14,6 @@ import { z } from "zod";
 import { setupCf } from "./cf";
 import {
   Headers,
-  HeadersInit,
   Request,
   RequestInfo,
   RequestInit,
@@ -37,6 +36,7 @@ import {
 import {
   HEADER_CUSTOM_SERVICE,
   HEADER_ERROR_STACK,
+  HEADER_ORIGINAL_URL,
   JsonErrorSchema,
   SourceOptions,
   getUserServiceName,
@@ -162,6 +162,14 @@ type PluginRouters = {
 
 type StoppableServer = http.Server & stoppable.WithStop;
 
+const restrictedUndiciHeaders = [
+  // From Miniflare 2:
+  // https://github.com/cloudflare/miniflare/blob/9c135599dc21fe69080ada17fce6153692793bf1/packages/core/src/standards/http.ts#L129-L132
+  "transfer-encoding",
+  "connection",
+  "keep-alive",
+  "expect",
+];
 const restrictedWebSocketUpgradeHeaders = [
   "upgrade",
   "connection",
@@ -401,18 +409,36 @@ export class Miniflare {
     req: http.IncomingMessage,
     res?: http.ServerResponse
   ): Promise<Response | undefined> => {
-    const url = new URL(req.url ?? "", "http://127.0.0.1");
+    // Extract headers from request
+    const headers = new Headers();
+    for (const [name, values] of Object.entries(req.headers)) {
+      // These headers are unsupported in undici fetch requests, they're added
+      // automatically. For custom service bindings, we may pass this request
+      // straight through to another fetch so strip them now.
+      if (restrictedUndiciHeaders.includes(name)) continue;
+      if (Array.isArray(values)) {
+        for (const value of values) headers.append(name, value);
+      } else if (values !== undefined) {
+        headers.append(name, values);
+      }
+    }
 
     // Extract cf blob (if any) from headers
-    const cfBlobHeader = HEADER_CF_BLOB.toLowerCase();
-    const cfBlob = req.headers[cfBlobHeader];
-    delete req.headers[cfBlobHeader];
+    const cfBlob = headers.get(HEADER_CF_BLOB);
+    headers.delete(HEADER_CF_BLOB);
     assert(!Array.isArray(cfBlob)); // Only `Set-Cookie` headers are arrays
     const cf = cfBlob ? JSON.parse(cfBlob) : undefined;
 
+    // Extract original URL passed to `fetch`
+    const url = new URL(
+      headers.get(HEADER_ORIGINAL_URL) ?? req.url ?? "",
+      "http://127.0.0.1"
+    );
+    headers.delete(HEADER_ORIGINAL_URL);
+
     const request = new Request(url, {
       method: req.method,
-      headers: req.headers as HeadersInit,
+      headers,
       body: req.method === "GET" || req.method === "HEAD" ? undefined : req,
       duplex: "half",
       cf,
@@ -422,6 +448,7 @@ export class Miniflare {
     try {
       const customService = request.headers.get(HEADER_CUSTOM_SERVICE);
       if (customService !== null) {
+        request.headers.delete(HEADER_CUSTOM_SERVICE);
         response = await this.#handleLoopbackCustomService(
           request,
           customService
@@ -699,10 +726,21 @@ export class Miniflare {
     await this.ready;
     const forward = new Request(input, init);
     const url = new URL(forward.url);
+    forward.headers.set(HEADER_ORIGINAL_URL, url.toString());
+    url.protocol = this.#runtimeEntryURL!.protocol;
     url.host = this.#runtimeEntryURL!.host;
     if (forward.cf) {
       forward.headers.set(HEADER_CF_BLOB, JSON.stringify(forward.cf));
     }
+    // Remove `Content-Length: 0` headers from requests when a body is set to
+    // avoid `RequestContentLengthMismatch` errors
+    if (
+      forward.body !== null &&
+      forward.headers.get("Content-Length") === "0"
+    ) {
+      forward.headers.delete("Content-Length");
+    }
+
     const response = await fetch(url, forward as RequestInit);
 
     // If the Worker threw an uncaught exception, propagate it to the caller

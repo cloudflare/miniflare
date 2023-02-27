@@ -60,6 +60,7 @@ test("Miniflare: web socket kitchen sink", async (t) => {
       CUSTOM(request) {
         // Testing dispatchFetch custom cf injection
         t.deepEqual(request.cf, { country: "MF" });
+        t.is(request.headers.get("MF-Custom-Service"), null);
         // Testing WebSocket-upgrading fetch
         return fetch(`http://localhost:${port}`, request);
       },
@@ -94,4 +95,67 @@ test("Miniflare: web socket kitchen sink", async (t) => {
   t.is(serverMessageEvent.data, "hello from client");
   t.is(serverCloseEvent.code, 1000);
   t.is(serverCloseEvent.reason, "Test Closure");
+});
+
+test("Miniflare: custom service binding to another Miniflare instance", async (t) => {
+  const mfOther = new Miniflare({
+    port: await getPort(),
+    modules: true,
+    script: `export default {
+      async fetch(request) {
+        const { method, url } = request;
+        const body = request.body && await request.text();
+        return Response.json({ method, url, body });
+      }
+    }`,
+  });
+  t.teardown(() => mfOther.dispose());
+
+  const mf = new Miniflare({
+    port: await getPort(),
+    script: `addEventListener("fetch", (event) => {
+      event.respondWith(CUSTOM.fetch(event.request));
+    })`,
+    serviceBindings: {
+      async CUSTOM(request) {
+        // Check internal keys removed (e.g. `MF-Custom-Service`, `MF-Original-URL`)
+        // https://github.com/cloudflare/miniflare/issues/475
+        const keys = [...request.headers.keys()];
+        t.deepEqual(
+          keys.filter((key) => key.toLowerCase().startsWith("mf-")),
+          []
+        );
+
+        return await mfOther.dispatchFetch(request);
+      },
+    },
+  });
+  t.teardown(() => mf.dispose());
+
+  // Checking URL (including protocol/host) and body preserved through
+  // `dispatchFetch()` and custom service bindings
+  let res = await mf.dispatchFetch("https://custom1.mf/a");
+  t.deepEqual(await res.json(), {
+    method: "GET",
+    url: "https://custom1.mf/a",
+    body: null,
+  });
+
+  res = await mf.dispatchFetch("https://custom2.mf/b", {
+    method: "POST",
+    body: "body",
+  });
+  t.deepEqual(await res.json(), {
+    method: "POST",
+    url: "https://custom2.mf/b",
+    body: "body",
+  });
+
+  // https://github.com/cloudflare/miniflare/issues/476
+  res = await mf.dispatchFetch("https://custom3.mf/c", { method: "DELETE" });
+  t.deepEqual(await res.json(), {
+    method: "DELETE",
+    url: "https://custom3.mf/c",
+    body: null,
+  });
 });
