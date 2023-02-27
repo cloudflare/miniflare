@@ -404,6 +404,17 @@ test("D1PreparedStatement: all", async (t) => {
     .bind("yellow")
     .first("id");
   t.is(id, 4);
+
+  // Check with write statement that returns data
+  result = await db
+    .prepare(
+      `INSERT INTO ${tableColours} (id, name, rgb) VALUES (?, ?, ?) RETURNING id`
+    )
+    .bind(5, "orange", 0xff8000)
+    .all();
+  t.deepEqual(result.results, [{ id: 5 }]);
+  t.is(result.meta.last_row_id, 5);
+  t.is(result.meta.changes, 1);
 });
 test("D1PreparedStatement: raw", async (t) => {
   const { db, tableColours } = t.context;

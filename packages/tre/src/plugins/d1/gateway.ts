@@ -10,10 +10,21 @@ import { HttpError, Log } from "../../shared";
 import { Storage } from "../../storage";
 import splitSqlQuery from "./splitter";
 
+export const D1ValueSchema = z.union([
+  // https://github.com/cloudflare/workers-sdk/blob/f7d49ebabc242a645ea6f8b34a8a6a285e252740/packages/wrangler/templates/d1-beta-facade.js#L114-L146
+  z.number(),
+  z.string(),
+  z.null(),
+  z.number().array(),
+]);
+export type D1Value = z.infer<typeof D1ValueSchema>;
+// https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md#binding-parameters
+type SqliteValue = null | number | bigint | string | Buffer;
+
 // query
 export const D1SingleQuerySchema = z.object({
   sql: z.string(),
-  params: z.array(z.any()).nullable().optional(),
+  params: z.array(D1ValueSchema).nullable().optional(),
 });
 export type D1SingleQuery = z.infer<typeof D1SingleQuerySchema>;
 
@@ -37,7 +48,7 @@ export interface D1ResponseMeta {
   internal_stats: null;
 }
 export interface D1SuccessResponse {
-  results: any;
+  results: Record<string, D1Value>[] | null;
   duration: number;
   success: true;
   served_by: string;
@@ -54,7 +65,10 @@ interface OkMeta {
   last_row_id?: number;
   changes?: number;
 }
-function ok(results: any, meta: OkMeta): D1SuccessResponse {
+function ok(
+  results: Record<string, D1Value>[] | null,
+  meta: OkMeta
+): D1SuccessResponse {
   const duration = performance.now() - meta.start;
   return {
     results,
@@ -82,8 +96,8 @@ function err(error: unknown): D1ErrorResponse {
 }
 
 export class D1Error extends HttpError {
-  constructor(cause: unknown) {
-    super(500, undefined, cause as Error);
+  constructor(cause: Error) {
+    super(500, undefined, cause);
   }
 
   toResponse(): Response {
@@ -93,20 +107,30 @@ export class D1Error extends HttpError {
 
 type QueryRunner = (query: D1SingleQuery) => D1SuccessResponse;
 
-function normaliseParams(params: D1SingleQuery["params"]): any[] {
+function normaliseParams(params: D1SingleQuery["params"]): SqliteValue[] {
   return (params ?? []).map((param) =>
     // If `param` is an array, assume it's a byte array
-    Array.isArray(param) ? new Uint8Array(param) : param
+    Array.isArray(param) ? Buffer.from(param) : param
   );
 }
-function normaliseResults(rows: any[]): any[] {
+function normaliseResults(
+  rows: Record<string, SqliteValue>[]
+): Record<string, D1Value>[] {
   return rows.map((row) =>
     Object.fromEntries(
-      Object.entries(row).map(([key, value]) => [
-        key,
-        // If `value` is an array, convert it to a regular numeric array
-        value instanceof Buffer ? Array.from(value) : value,
-      ])
+      Object.entries(row).map(([key, value]) => {
+        let normalised: D1Value;
+        if (value instanceof Buffer) {
+          // If `value` is an array, convert it to a regular numeric array
+          normalised = Array.from(value);
+        } else if (typeof value === "bigint") {
+          // If `value` is a bigint, truncate it to a number
+          normalised = Number(value);
+        } else {
+          normalised = value;
+        }
+        return [key, normalised];
+      })
     )
   );
 }
@@ -128,11 +152,31 @@ function returnsData(stmt: Statement): boolean {
   }
 }
 
+const CHANGES_QUERY = "SELECT total_changes() AS totalChanges";
+const CHANGES_LAST_ROW_QUERY =
+  "SELECT total_changes() AS totalChanges, changes() AS changes, last_insert_rowid() AS lastRowId";
+interface ChangesResult {
+  totalChanges: number | bigint;
+}
+interface ChangesLastRowResult {
+  totalChanges: number | bigint;
+  changes: number | bigint;
+  lastRowId: number | bigint;
+}
+
 export class D1Gateway {
   private readonly db: DatabaseType;
 
   constructor(private readonly log: Log, private readonly storage: Storage) {
     this.db = storage.getSqliteDatabase();
+  }
+
+  #getTotalChanges(): number | bigint {
+    const result: ChangesResult = this.db.prepare(CHANGES_QUERY).get();
+    return result.totalChanges;
+  }
+  #getChangesLastRow(): ChangesLastRowResult {
+    return this.db.prepare(CHANGES_LAST_ROW_QUERY).get();
   }
 
   #query: QueryRunner = (query) => {
@@ -141,9 +185,19 @@ export class D1Gateway {
     const sql = splitSqlQuery(query.sql)[0];
     const stmt = this.db.prepare(sql);
     const params = normaliseParams(query.params);
-    let results: any[];
+    let results: Record<string, SqliteValue>[];
     if (returnsData(stmt)) {
+      // `better-sqlite3` doesn't return `last_row_id` and `changes` from `all`.
+      // We need to make extra queries to get them, but we only want to return
+      // them if this `stmt` made changes. So check total changes before and
+      // after querying `stmt`.
+      const initialTotalChanges = this.#getTotalChanges();
       results = stmt.all(params);
+      const { totalChanges, changes, lastRowId } = this.#getChangesLastRow();
+      if (totalChanges > initialTotalChanges) {
+        meta.last_row_id = Number(lastRowId);
+        meta.changes = Number(changes);
+      }
     } else {
       // `/query` does support queries that don't return data,
       // returning `[]` instead of `null`
@@ -196,7 +250,7 @@ export class D1Gateway {
   query(query: D1Query): D1SuccessResponse | D1SuccessResponse[] {
     try {
       return this.#queryExecute(query, this.#query);
-    } catch (e) {
+    } catch (e: any) {
       throw new D1Error(e);
     }
   }
@@ -204,7 +258,7 @@ export class D1Gateway {
   execute(query: D1Query): D1SuccessResponse | D1SuccessResponse[] {
     try {
       return this.#queryExecute(query, this.#execute);
-    } catch (e) {
+    } catch (e: any) {
       throw new D1Error(e);
     }
   }
@@ -219,7 +273,7 @@ export class D1Gateway {
       // Delete file in the background, ignore errors as they don't really matter
       void fs.unlink(tmpPath).catch(() => {});
       return buffer;
-    } catch (e) {
+    } catch (e: any) {
       throw new D1Error(e);
     }
   }
