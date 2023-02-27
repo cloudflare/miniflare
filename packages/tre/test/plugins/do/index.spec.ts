@@ -31,7 +31,7 @@ test("persists Durable Object data in-memory between options reloads", async (t)
     script: COUNTER_SCRIPT("Options #1: "),
     durableObjects: { COUNTER: "Counter" },
   };
-  const mf = new Miniflare(opts);
+  let mf = new Miniflare(opts);
   t.teardown(() => mf.dispose());
 
   let res = await mf.dispatchFetch("http://localhost");
@@ -53,6 +53,14 @@ test("persists Durable Object data in-memory between options reloads", async (t)
   await mf.setOptions(opts);
   res = await mf.dispatchFetch("http://localhost");
   t.is(await res.text(), "Options #4: 4");
+
+  // Check a `new Miniflare()` instance has its own in-memory storage
+  delete opts.durableObjectsPersist;
+  opts.script = COUNTER_SCRIPT("Options #5: ");
+  await mf.dispose();
+  mf = new Miniflare(opts);
+  res = await mf.dispatchFetch("http://localhost");
+  t.is(await res.text(), "Options #5: 1");
 });
 
 test("persists Durable Object data on file-system", async (t) => {
@@ -65,7 +73,7 @@ test("persists Durable Object data on file-system", async (t) => {
     durableObjects: { COUNTER: "Counter" },
     durableObjectsPersist: tmp,
   };
-  const mf = new Miniflare(opts);
+  let mf = new Miniflare(opts);
   t.teardown(() => mf.dispose());
 
   let res = await mf.dispatchFetch("http://localhost");
@@ -86,6 +94,12 @@ test("persists Durable Object data on file-system", async (t) => {
   await mf.setOptions(opts);
   res = await mf.dispatchFetch("http://localhost");
   t.is(await res.text(), "1");
+
+  // Check "restarting" keeps persisted data
+  await mf.dispose();
+  mf = new Miniflare(opts);
+  res = await mf.dispatchFetch("http://localhost");
+  t.is(await res.text(), "2");
 });
 
 test("multiple Workers access same Durable Object data", async (t) => {

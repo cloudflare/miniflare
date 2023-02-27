@@ -141,7 +141,8 @@ function getDurableObjectClassNames(
         normaliseDurableObject(designator);
       let classNames = serviceClassNames.get(serviceName);
       if (classNames === undefined) {
-        serviceClassNames.set(serviceName, (classNames = new Set()));
+        classNames = new Set();
+        serviceClassNames.set(serviceName, classNames);
       }
       classNames.add(className);
     }
@@ -283,6 +284,9 @@ export class Miniflare {
       }
     });
 
+    // Build path for temporary directory. We don't actually want to create this
+    // unless it's needed (i.e. we have Durable Objects enabled). This means we
+    // can't use `fs.mkdtemp()`, as that always creates the directory.
     this.#tmpPath = path.join(
       os.tmpdir(),
       `miniflare-${crypto.randomBytes(16).toString("hex")}`
