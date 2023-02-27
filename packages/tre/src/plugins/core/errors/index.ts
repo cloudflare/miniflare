@@ -205,37 +205,60 @@ export interface JsonError {
 }
 export const JsonErrorSchema: z.ZodType<JsonError> = z.lazy(() =>
   z.object({
-    message: z.ostring(),
-    name: z.ostring(),
-    stack: z.ostring(),
+    message: z.string().optional(),
+    name: z.string().optional(),
+    stack: z.string().optional(),
     cause: JsonErrorSchema.optional(),
   })
 );
 
+interface StandardErrorConstructor {
+  new (message?: string, options?: { cause?: Error }): Error;
+}
+const ALLOWED_ERROR_SUBCLASS_CONSTRUCTORS: StandardErrorConstructor[] = [
+  EvalError,
+  RangeError,
+  ReferenceError,
+  SyntaxError,
+  TypeError,
+  URIError,
+];
 export function reviveError(
   workerSrcOpts: SourceOptions[],
   jsonError: JsonError
 ): Error {
+  // At a high level, this function takes a JSON-serialisable representation of
+  // an `Error`, and converts it to an `Error`. `Error`s may have `cause`s, so
+  // we need to do this recursively.
   let cause: Error | undefined;
   if (jsonError.cause !== undefined) {
     cause = reviveError(workerSrcOpts, jsonError.cause);
   }
 
-  // If this is one of hte built-in error types, construct an instance of that
-  let ctor = Error;
+  // If this is one of the built-in error types, construct an instance of that.
+  // For example, if we threw a `TypeError` in the Worker, we'd like to
+  // construct a `TypeError` here, so it looks like the error has been thrown
+  // through a regular function call, not an HTTP request (i.e. we want
+  // `instanceof TypeError` to pass in Node for `TypeError`s thrown in Workers).
+  let ctor: StandardErrorConstructor = Error;
   if (jsonError.name !== undefined && jsonError.name in globalThis) {
-    const maybeCtor = (globalThis as Record<string, unknown>)[jsonError.name];
-    if (Object.getPrototypeOf(maybeCtor) === Error) {
-      ctor = maybeCtor as typeof Error;
+    const maybeCtor = (globalThis as Record<string, unknown>)[
+      jsonError.name
+    ] as StandardErrorConstructor;
+    if (ALLOWED_ERROR_SUBCLASS_CONSTRUCTORS.includes(maybeCtor)) {
+      ctor = maybeCtor;
     }
   }
 
-  // Construct the error, copying over the correct name and stack trace
+  // Construct the error, copying over the correct name and stack trace.
+  // Because constructing an `Error` captures the stack trace at point of
+  // construction, we override the stack trace to the one from the Worker in the
+  // JSON-serialised error.
   const error = new ctor(jsonError.message, { cause });
   if (jsonError.name !== undefined) error.name = jsonError.name;
   error.stack = jsonError.stack;
 
-  // Try to apply source-mapping
+  // Try to apply source-mapping to the stack trace
   error.stack = getSourceMappedStack(workerSrcOpts, error);
 
   return error;
