@@ -27,10 +27,9 @@
   "include": [
     "packages/*/src/**/*.ts",
     "packages/*/test/**/*.ts",
-    "packages/miniflare/bootstrap.js",
     "types"
   ],
   "exclude": [
-    "packages/core/test/fixtures/wrangler"
+    "packages/tre/test/fixtures"
   ]
 }
