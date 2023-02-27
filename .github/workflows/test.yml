@@ -7,9 +7,9 @@ name: Test
 
 on:
   push:
-    branches: [master]
+    branches: [master, tre]
   pull_request:
-    branches: [master]
+    branches: [master, tre]
 
 jobs:
   test:
@@ -18,14 +18,14 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        node: [16.13.0, 18.x]
+        os: [ubuntu-latest] # `windows-latest` not yet supported
+        node: [16.13.0, latest]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Use Node.js ${{ matrix.node }}
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node }}
       - run: npm ci
@@ -35,11 +35,11 @@ jobs:
     name: "Lint & Type Check"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Use Node.js 18.x
-        uses: actions/setup-node@v2
+      - uses: actions/checkout@v3
+      - name: Use Node.js LTS
+        uses: actions/setup-node@v3
         with:
-          node-version: 18.x
+          node-version: lts/*
       - run: npm ci
       - run: npm run lint
-      - run: npm run types:build
+      - run: npm run types:bundle

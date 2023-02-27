@@ -16,6 +16,7 @@
     "packages/*"
   ],
   "scripts": {
+    "postinstall": "patch-package",
     "build": "node scripts/build.mjs",
     "capnp:workerd": "capnpc -o ts packages/tre/src/runtime/config/workerd.capnp",
     "clean": "rimraf './packages/*/dist' './dist'",
