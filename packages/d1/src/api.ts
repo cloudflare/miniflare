@@ -92,22 +92,8 @@ function normaliseResults(rows: any[]): any[] {
   );
 }
 
-const DOESNT_RETURN_DATA_MESSAGE =
-  "The columns() method is only for statements that return data";
 const EXECUTE_RETURNS_DATA_MESSAGE =
   "SQL execute error: Execute returned results - did you mean to call query?";
-function returnsData(stmt: SqliteStatement): boolean {
-  try {
-    stmt.columns();
-    return true;
-  } catch (e) {
-    // `columns()` fails on statements that don't return data
-    if (e instanceof TypeError && e.message === DOESNT_RETURN_DATA_MESSAGE) {
-      return false;
-    }
-    throw e;
-  }
-}
 
 export class D1DatabaseAPI {
   constructor(private readonly db: SqliteDB) {}
@@ -119,7 +105,7 @@ export class D1DatabaseAPI {
     const stmt = this.db.prepare(sql);
     const params = normaliseParams(query.params);
     let results: any[];
-    if (returnsData(stmt)) {
+    if (stmt.reader) {
       results = stmt.all(params);
     } else {
       // `/query` does support queries that don't return data,
@@ -138,7 +124,7 @@ export class D1DatabaseAPI {
     const sql = splitSqlQuery(query.sql)[0];
     const stmt = this.db.prepare(sql);
     // `/execute` only supports queries that don't return data
-    if (returnsData(stmt)) throw new Error(EXECUTE_RETURNS_DATA_MESSAGE);
+    if (stmt.reader) throw new Error(EXECUTE_RETURNS_DATA_MESSAGE);
     const params = normaliseParams(query.params);
     const result = stmt.run(params);
     meta.last_row_id = Number(result.lastInsertRowid);
