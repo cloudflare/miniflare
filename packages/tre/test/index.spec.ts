@@ -34,7 +34,7 @@ test("Miniflare: validates options", async (t) => {
     {
       instanceOf: MiniflareCoreError,
       code: "ERR_DUPLICATE_NAME",
-      message: 'Multiple workers defined with the same name: ""',
+      message: "Multiple workers defined without a `name`",
     }
   );
   t.throws(
@@ -50,7 +50,7 @@ test("Miniflare: validates options", async (t) => {
     {
       instanceOf: MiniflareCoreError,
       code: "ERR_DUPLICATE_NAME",
-      message: 'Multiple workers defined with the same name: "a"',
+      message: 'Multiple workers defined with the same `name`: "a"',
     }
   );
 });

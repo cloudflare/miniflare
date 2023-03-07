@@ -124,7 +124,9 @@ function validateOptions(
     if (names.has(name)) {
       throw new MiniflareCoreError(
         "ERR_DUPLICATE_NAME",
-        `Multiple workers defined with the same name: "${name}"`
+        name === ""
+          ? "Multiple workers defined without a `name`"
+          : `Multiple workers defined with the same \`name\`: "${name}"`
       );
     }
     names.add(name);
