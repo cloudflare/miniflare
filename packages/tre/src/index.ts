@@ -653,13 +653,21 @@ export class Miniflare {
     const durableObjectClassNames = getDurableObjectClassNames(allWorkerOpts);
     const allWorkerRoutes = getWorkerRoutes(allWorkerOpts);
 
-    const services: Service[] = getGlobalServices({
+    // Use Map to dedupe services by name
+    const services = new Map<string, Service>();
+    const globalServices = getGlobalServices({
       optionsVersion,
       sharedOptions: sharedOpts.core,
       allWorkerRoutes,
       fallbackWorkerName: this.#workerOpts[0].core.name,
       loopbackPort,
     });
+    for (const service of globalServices) {
+      // Global services should all have unique names
+      assert(service.name !== undefined && !services.has(service.name));
+      services.set(service.name, service);
+    }
+
     const sockets: Socket[] = [
       {
         name: SOCKET_ENTRY,
@@ -669,14 +677,6 @@ export class Miniflare {
         http: { cfBlobHeader: HEADER_CF_BLOB },
       },
     ];
-
-    // Dedupe services by name
-    const serviceNames = new Set<string>();
-    for (const service of services) {
-      // Global services should all have unique names
-      assert(service.name !== undefined && !serviceNames.has(service.name));
-      serviceNames.add(service.name);
-    }
 
     for (let i = 0; i < allWorkerOpts.length; i++) {
       const workerOpts = allWorkerOpts[i];
@@ -715,16 +715,15 @@ export class Miniflare {
         });
         if (pluginServices !== undefined) {
           for (const service of pluginServices) {
-            if (service.name !== undefined && !serviceNames.has(service.name)) {
-              serviceNames.add(service.name);
-              services.push(service);
+            if (service.name !== undefined && !services.has(service.name)) {
+              services.set(service.name, service);
             }
           }
         }
       }
     }
 
-    return { services, sockets };
+    return { services: Array.from(services.values()), sockets };
   }
 
   get ready(): Promise<URL> {
