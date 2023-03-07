@@ -68,7 +68,7 @@ test("Miniflare: routes to multiple workers with fallback", async (t) => {
       },
       {
         name: "b",
-        routes: ["*/api*"], // Less specific than "a"'s
+        routes: ["*/api/*"], // Less specific than "a"'s
         script: `addEventListener("fetch", (event) => {
           event.respondWith(new Response("b"));
         })`,
@@ -82,7 +82,7 @@ test("Miniflare: routes to multiple workers with fallback", async (t) => {
   t.is(await res.text(), "a");
 
   // Check "b" still accessible
-  res = await mf.dispatchFetch("http://localhost/api2");
+  res = await mf.dispatchFetch("http://localhost/api/2");
   t.is(await res.text(), "b");
 
   // Check fallback to first
