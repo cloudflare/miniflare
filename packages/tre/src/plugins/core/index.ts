@@ -1,3 +1,4 @@
+import assert from "assert";
 import { readFileSync } from "fs";
 import fs from "fs/promises";
 import { TextEncoder } from "util";
@@ -25,9 +26,9 @@ import {
 } from "../shared";
 import { HEADER_ERROR_STACK } from "./errors";
 import {
-  ModuleDefinitionSchema,
   ModuleLocator,
-  ModuleRuleSchema,
+  SourceOptions,
+  SourceOptionsSchema,
   buildStringScriptPath,
   convertModuleDefinition,
 } from "./modules";
@@ -36,33 +37,23 @@ import { ServiceDesignatorSchema } from "./services";
 const encoder = new TextEncoder();
 const numericCompare = new Intl.Collator(undefined, { numeric: true }).compare;
 
-export const CoreOptionsSchema = z.object({
-  name: z.string().optional(),
-  script: z.string().optional(),
-  scriptPath: z.string().optional(),
-  modules: z
-    .union([
-      // Automatically collect modules by parsing `script`/`scriptPath`...
-      z.boolean(),
-      // ...or manually define modules
-      // (used by Wrangler which has its own module collection code)
-      z.array(ModuleDefinitionSchema),
-    ])
-    .optional(),
-  modulesRoot: z.string().optional(),
-  modulesRules: z.array(ModuleRuleSchema).optional(),
+export const CoreOptionsSchema = z.intersection(
+  SourceOptionsSchema,
+  z.object({
+    name: z.string().optional(),
 
-  compatibilityDate: z.string().optional(),
-  compatibilityFlags: z.string().array().optional(),
+    compatibilityDate: z.string().optional(),
+    compatibilityFlags: z.string().array().optional(),
 
-  routes: z.string().array().optional(),
+    routes: z.string().array().optional(),
 
-  bindings: z.record(JsonSchema).optional(),
-  wasmBindings: z.record(z.string()).optional(),
-  textBlobBindings: z.record(z.string()).optional(),
-  dataBlobBindings: z.record(z.string()).optional(),
-  serviceBindings: z.record(ServiceDesignatorSchema).optional(),
-});
+    bindings: z.record(JsonSchema).optional(),
+    wasmBindings: z.record(z.string()).optional(),
+    textBlobBindings: z.record(z.string()).optional(),
+    dataBlobBindings: z.record(z.string()).optional(),
+    serviceBindings: z.record(ServiceDesignatorSchema).optional(),
+  })
+);
 
 export const CoreSharedOptionsSchema = z.object({
   host: z.string().optional(),
@@ -337,26 +328,24 @@ export const CORE_PLUGIN: Plugin<
     durableObjectClassNames,
     additionalModules,
   }) {
-    const services: Service[] = [];
-
-    // Define regular user worker if script is set
+    // Define regular user worker
     const workerScript = getWorkerScript(options, workerIndex);
-    if (workerScript !== undefined) {
-      // Add additional modules (e.g. "__STATIC_CONTENT_MANIFEST") if any
-      if ("modules" in workerScript) {
-        workerScript.modules.push(...additionalModules);
-      }
+    // Add additional modules (e.g. "__STATIC_CONTENT_MANIFEST") if any
+    if ("modules" in workerScript) {
+      workerScript.modules.push(...additionalModules);
+    }
 
-      const name = getUserServiceName(options.name);
-      const classNames = Array.from(
-        durableObjectClassNames.get(name) ?? new Set<string>()
-      );
-      const compatibilityDate = validateCompatibilityDate(
-        log,
-        options.compatibilityDate ?? FALLBACK_COMPATIBILITY_DATE
-      );
+    const name = getUserServiceName(options.name);
+    const classNames = Array.from(
+      durableObjectClassNames.get(name) ?? new Set<string>()
+    );
+    const compatibilityDate = validateCompatibilityDate(
+      log,
+      options.compatibilityDate ?? FALLBACK_COMPATIBILITY_DATE
+    );
 
-      services.push({
+    const services: Service[] = [
+      {
         name,
         worker: {
           ...workerScript,
@@ -376,15 +365,8 @@ export const CORE_PLUGIN: Plugin<
               : { localDisk: DURABLE_OBJECTS_STORAGE_SERVICE_NAME },
           cacheApiOutbound: { name: getCacheServiceName(workerIndex) },
         },
-      });
-    } else if (workerIndex === 0 || options.routes?.length) {
-      throw new MiniflareCoreError(
-        "ERR_ROUTABLE_NO_SCRIPT",
-        `Worker [${workerIndex}] ${
-          options.name === undefined ? "" : `("${options.name}") `
-        }must have code defined as it's routable or the fallback`
-      );
-    }
+      },
+    ];
 
     // Define custom `fetch` services if set
     if (options.serviceBindings !== undefined) {
@@ -488,12 +470,13 @@ export function getGlobalServices({
 }
 
 function getWorkerScript(
-  options: z.infer<typeof CoreOptionsSchema>,
+  options: SourceOptions,
   workerIndex: number
-): { serviceWorkerScript: string } | { modules: Worker_Module[] } | undefined {
+): { serviceWorkerScript: string } | { modules: Worker_Module[] } {
   if (Array.isArray(options.modules)) {
     // If `modules` is a manually defined modules array, use that
-    const modulesRoot = options.modulesRoot ?? "";
+    const modulesRoot =
+      ("modulesRoot" in options ? options.modulesRoot : undefined) ?? "";
     return {
       modules: options.modules.map((module) =>
         convertModuleDefinition(modulesRoot, module)
@@ -503,14 +486,15 @@ function getWorkerScript(
 
   // Otherwise get code, preferring string `script` over `scriptPath`
   let code;
-  if (options.script !== undefined) {
+  if ("script" in options && options.script !== undefined) {
     code = options.script;
-  } else if (options.scriptPath !== undefined) {
+  } else if ("scriptPath" in options && options.scriptPath !== undefined) {
     code = readFileSync(options.scriptPath, "utf8");
   } else {
     // If neither `script`, `scriptPath` nor `modules` is defined, this worker
-    // doesn't have any code
-    return;
+    // doesn't have any code. `SourceOptionsSchema` should've validated against
+    // this.
+    assert.fail("Unreachable: Workers must have code");
   }
 
   if (options.modules) {

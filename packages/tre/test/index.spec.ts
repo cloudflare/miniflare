@@ -26,45 +26,31 @@ test("Miniflare: validates options", async (t) => {
   });
 
   // Check workers with the same name rejected
-  t.throws(() => new Miniflare({ workers: [{}, {}] }), {
-    instanceOf: MiniflareCoreError,
-    code: "ERR_DUPLICATE_NAME",
-    message: 'Multiple workers defined with the same name: ""',
-  });
   t.throws(
     () =>
       new Miniflare({
-        workers: [{}, { name: "a" }, { name: "b" }, { name: "a" }],
+        workers: [{ script: "" }, { script: "" }],
+      }),
+    {
+      instanceOf: MiniflareCoreError,
+      code: "ERR_DUPLICATE_NAME",
+      message: 'Multiple workers defined with the same name: ""',
+    }
+  );
+  t.throws(
+    () =>
+      new Miniflare({
+        workers: [
+          { script: "" },
+          { script: "", name: "a" },
+          { script: "", name: "b" },
+          { script: "", name: "a" },
+        ],
       }),
     {
       instanceOf: MiniflareCoreError,
       code: "ERR_DUPLICATE_NAME",
       message: 'Multiple workers defined with the same name: "a"',
-    }
-  );
-
-  // // Check entrypoint worker must have script
-  await t.throwsAsync(() => new Miniflare({ name: "worker" }).ready, {
-    instanceOf: MiniflareCoreError,
-    code: "ERR_ROUTABLE_NO_SCRIPT",
-    message:
-      'Worker [0] ("worker") must have code defined as it\'s routable or the fallback',
-  });
-  // Check routable workers must have scripts
-  await t.throwsAsync(
-    () =>
-      new Miniflare({
-        workers: [
-          { name: "entry", script: "" },
-          { name: "no-routes", routes: [] },
-          { routes: ["*/*"] },
-        ],
-      }).ready,
-    {
-      instanceOf: MiniflareCoreError,
-      code: "ERR_ROUTABLE_NO_SCRIPT",
-      message:
-        "Worker [2] must have code defined as it's routable or the fallback",
     }
   );
 });

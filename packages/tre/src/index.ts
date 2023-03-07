@@ -35,6 +35,8 @@ import {
   Plugins,
   SERVICE_ENTRY,
   SOCKET_ENTRY,
+  SharedOptions,
+  WorkerOptions,
   getGlobalServices,
   maybeGetSitesManifestModule,
   normaliseDurableObject,
@@ -69,20 +71,12 @@ import {
   Mutex,
   NoOpLog,
   OptionalZodTypeOf,
-  UnionToIntersection,
-  ValueOf,
   defaultClock,
 } from "./shared";
 import { anyAbortSignal } from "./shared/signal";
 import { waitForRequest } from "./wait";
 
 // ===== `Miniflare` User Options =====
-export type WorkerOptions = UnionToIntersection<
-  z.infer<ValueOf<Plugins>["options"]>
->;
-export type SharedOptions = UnionToIntersection<
-  z.infer<Exclude<ValueOf<Plugins>["sharedOptions"], undefined>>
->;
 export type MiniflareOptions = SharedOptions &
   (WorkerOptions | { workers: WorkerOptions[] });
 
@@ -113,12 +107,12 @@ function validateOptions(
 
   // Validate all options
   for (const [key, plugin] of PLUGIN_ENTRIES) {
-    // @ts-expect-error pluginSharedOpts[key] could be any plugin's
     pluginSharedOpts[key] = plugin.sharedOptions?.parse(sharedOpts);
     for (let i = 0; i < workerOpts.length; i++) {
       // Make sure paths are correct in validation errors
       const path = multipleWorkers ? ["workers", i] : undefined;
-      // @ts-expect-error pluginWorkerOpts[i][key] could be any plugin's
+      // @ts-expect-error `CoreOptionsSchema` has required options which are
+      //  missing in other plugins' options.
       pluginWorkerOpts[i][key] = plugin.options.parse(workerOpts[i], { path });
     }
   }
@@ -687,6 +681,8 @@ export class Miniflare {
       const workerBindings: Worker_Binding[] = [];
       const additionalModules: Worker_Module[] = [];
       for (const [key, plugin] of PLUGIN_ENTRIES) {
+        // @ts-expect-error `CoreOptionsSchema` has required options which are
+        //  missing in other plugins' options.
         const pluginBindings = await plugin.getBindings(workerOpts[key], i);
         if (pluginBindings !== undefined) {
           workerBindings.push(...pluginBindings);
@@ -703,6 +699,8 @@ export class Miniflare {
       for (const [key, plugin] of PLUGIN_ENTRIES) {
         const pluginServices = await plugin.getServices({
           log: this.#log,
+          // @ts-expect-error `CoreOptionsSchema` has required options which are
+          //  missing in other plugins' options.
           options: workerOpts[key],
           sharedOptions: sharedOpts[key],
           workerBindings,
