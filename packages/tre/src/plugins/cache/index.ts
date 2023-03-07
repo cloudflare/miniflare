@@ -24,6 +24,7 @@ export const CacheSharedOptionsSchema = z.object({
 
 const BINDING_JSON_CACHE_WARN_USAGE = "MINIFLARE_CACHE_WARN_USAGE";
 
+const CACHE_SCRIPT_COMPAT_DATE = "2022-09-01";
 export const CACHE_LOOPBACK_SCRIPT = `addEventListener("fetch", (event) => {
   const request = new Request(event.request);
   const url = new URL(request.url);
@@ -84,7 +85,7 @@ export const CACHE_PLUGIN: Plugin<
             },
             WORKER_BINDING_SERVICE_LOOPBACK,
           ],
-          compatibilityDate: "2022-09-01",
+          compatibilityDate: CACHE_SCRIPT_COMPAT_DATE,
         },
       },
     ];

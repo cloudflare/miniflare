@@ -1,5 +1,5 @@
 import { Headers } from "../../http";
-import { Worker_Binding } from "../../runtime";
+import { Worker, Worker_Binding } from "../../runtime";
 import { Persistence, PersistenceSchema } from "./gateway";
 
 export const SOCKET_ENTRY = "entry";
@@ -24,7 +24,8 @@ export const WORKER_BINDING_SERVICE_LOOPBACK: Worker_Binding = {
 };
 
 // TODO: make this an inherited worker in core plugin
-export const SCRIPT_PLUGIN_NAMESPACE_PERSIST = `addEventListener("fetch", (event) => {
+const SCRIPT_PLUGIN_NAMESPACE_PERSIST_COMPAT_DATE = "2022-09-01";
+const SCRIPT_PLUGIN_NAMESPACE_PERSIST = `addEventListener("fetch", (event) => {
   let request = event.request;
   const url = new URL(request.url);
   url.pathname = \`/\${${BINDING_TEXT_PLUGIN}}/\${${BINDING_TEXT_NAMESPACE}}\${url.pathname}\`;
@@ -45,6 +46,23 @@ export function decodePersist(headers: Headers): Persistence {
   return header === null
     ? undefined
     : PersistenceSchema.parse(JSON.parse(header));
+}
+
+export function pluginNamespacePersistWorker(
+  plugin: string,
+  namespace: string,
+  persist: Persistence
+): Worker {
+  return {
+    serviceWorkerScript: SCRIPT_PLUGIN_NAMESPACE_PERSIST,
+    compatibilityDate: SCRIPT_PLUGIN_NAMESPACE_PERSIST_COMPAT_DATE,
+    bindings: [
+      ...encodePersist(persist),
+      { name: BINDING_TEXT_PLUGIN, text: plugin },
+      { name: BINDING_TEXT_NAMESPACE, text: namespace },
+      WORKER_BINDING_SERVICE_LOOPBACK,
+    ],
+  };
 }
 
 export enum CfHeader {
