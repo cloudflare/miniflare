@@ -8,6 +8,7 @@ export class RouterError extends MiniflareError<RouterErrorCode> {}
 export interface WorkerRoute {
   target: string;
   route: string;
+  specificity: number;
 
   protocol?: string;
   allowHostnamePrefix: boolean;
@@ -16,8 +17,18 @@ export interface WorkerRoute {
   allowPathSuffix: boolean;
 }
 
-const A_MORE_SPECIFIC = -1;
-const B_MORE_SPECIFIC = 1;
+function routeSpecificity(url: URL) {
+  // Adapted from internal config service routing table implementation
+  const hostParts = url.host.split(".");
+  let hostScore = hostParts.length;
+  if (hostParts[0] === "*") hostScore -= 2;
+
+  const pathParts = url.pathname.split("/");
+  let pathScore = pathParts.length;
+  if (pathParts[pathParts.length - 1] === "*") pathScore -= 2;
+
+  return hostScore * 26 + pathScore;
+}
 
 export function parseRoutes(allRoutes: Map<string, string[]>): WorkerRoute[] {
   const routes: WorkerRoute[] = [];
@@ -29,6 +40,7 @@ export function parseRoutes(allRoutes: Map<string, string[]>): WorkerRoute[] {
       // If route is missing a protocol, give it one so it parses
       if (!hasProtocol) urlInput = `https://${urlInput}`;
       const url = new URL(urlInput);
+      const specificity = routeSpecificity(url);
 
       const protocol = hasProtocol ? url.protocol : undefined;
 
@@ -68,6 +80,7 @@ export function parseRoutes(allRoutes: Map<string, string[]>): WorkerRoute[] {
       routes.push({
         target,
         route,
+        specificity,
 
         protocol,
         allowHostnamePrefix,
@@ -80,39 +93,12 @@ export function parseRoutes(allRoutes: Map<string, string[]>): WorkerRoute[] {
 
   // Sort with the highest specificity first
   routes.sort((a, b) => {
-    // 1. If one route matches on protocol, it is more specific
-    const aHasProtocol = a.protocol !== undefined;
-    const bHasProtocol = b.protocol !== undefined;
-    if (aHasProtocol && !bHasProtocol) return A_MORE_SPECIFIC;
-    if (!aHasProtocol && bHasProtocol) return B_MORE_SPECIFIC;
-
-    // 2. If one route allows hostname prefixes, it is less specific
-    if (!a.allowHostnamePrefix && b.allowHostnamePrefix) return A_MORE_SPECIFIC;
-    if (a.allowHostnamePrefix && !b.allowHostnamePrefix) return B_MORE_SPECIFIC;
-
-    // 3. If one route allows path suffixes, it is less specific
-    if (!a.allowPathSuffix && b.allowPathSuffix) return A_MORE_SPECIFIC;
-    if (a.allowPathSuffix && !b.allowPathSuffix) return B_MORE_SPECIFIC;
-
-    // 4. If one route has more path segments, it is more specific
-    const aPathSegments = a.path.split("/");
-    const bPathSegments = b.path.split("/");
-
-    // Specifically handle known route specificity issue here:
-    // https://developers.cloudflare.com/workers/platform/known-issues#route-specificity
-    const aLastSegmentEmpty = aPathSegments[aPathSegments.length - 1] === "";
-    const bLastSegmentEmpty = bPathSegments[bPathSegments.length - 1] === "";
-    if (aLastSegmentEmpty && !bLastSegmentEmpty) return B_MORE_SPECIFIC;
-    if (!aLastSegmentEmpty && bLastSegmentEmpty) return A_MORE_SPECIFIC;
-
-    if (aPathSegments.length !== bPathSegments.length)
-      return bPathSegments.length - aPathSegments.length;
-
-    // 5. If one route has a longer path, it is more specific
-    if (a.path.length !== b.path.length) return b.path.length - a.path.length;
-
-    // 6. Finally, if one route has a longer hostname, it is more specific
-    return b.hostname.length - a.hostname.length;
+    if (a.specificity === b.specificity) {
+      // If routes are equally specific, sort by longest route first
+      return b.route.length - a.route.length;
+    } else {
+      return b.specificity - a.specificity;
+    }
   });
 
   return routes;
