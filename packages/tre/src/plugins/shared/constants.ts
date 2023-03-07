@@ -2,12 +2,10 @@ import { Headers } from "../../http";
 import { Worker_Binding } from "../../runtime";
 import { Persistence, PersistenceSchema } from "./gateway";
 
-export const CORE_PLUGIN_NAME = "core";
-
 export const SOCKET_ENTRY = "entry";
 
 // Service looping back to Miniflare's Node.js process (for storage, etc)
-export const SERVICE_LOOPBACK = `${CORE_PLUGIN_NAME}:loopback`;
+export const SERVICE_LOOPBACK = "loopback";
 
 export const HEADER_PERSIST = "MF-Persist";
 // Even though we inject the `cf` blob in the entry script, we still need to

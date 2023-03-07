@@ -1,12 +1,11 @@
 import { z } from "zod";
 import { ValueOf } from "../shared";
 import { CACHE_PLUGIN, CACHE_PLUGIN_NAME } from "./cache";
-import { CORE_PLUGIN } from "./core";
+import { CORE_PLUGIN, CORE_PLUGIN_NAME } from "./core";
 import { D1_PLUGIN, D1_PLUGIN_NAME } from "./d1";
 import { DURABLE_OBJECTS_PLUGIN, DURABLE_OBJECTS_PLUGIN_NAME } from "./do";
 import { KV_PLUGIN, KV_PLUGIN_NAME } from "./kv";
 import { R2_PLUGIN, R2_PLUGIN_NAME } from "./r2";
-import { CORE_PLUGIN_NAME } from "./shared";
 
 export const PLUGINS = {
   [CORE_PLUGIN_NAME]: CORE_PLUGIN,

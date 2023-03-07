@@ -15,7 +15,6 @@ import { getCacheServiceName } from "../cache";
 import { DURABLE_OBJECTS_STORAGE_SERVICE_NAME } from "../do";
 import {
   BINDING_SERVICE_LOOPBACK,
-  CORE_PLUGIN_NAME,
   CloudflareFetchSchema,
   HEADER_CF_BLOB,
   Plugin,
@@ -71,6 +70,8 @@ export const CoreSharedOptionsSchema = z.object({
 
   liveReload: z.boolean().optional(),
 });
+
+export const CORE_PLUGIN_NAME = "core";
 
 // Service for HTTP socket entrypoint (for checking runtime ready, routing, etc)
 export const SERVICE_ENTRY = `${CORE_PLUGIN_NAME}:entry`;
