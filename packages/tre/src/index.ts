@@ -168,7 +168,9 @@ function getWorkerRoutes(
   const allRoutes = new Map<string, string[]>();
   for (const workerOpts of allWorkerOpts) {
     if (workerOpts.core.routes !== undefined) {
-      allRoutes.set(workerOpts.core.name ?? "", workerOpts.core.routes);
+      const name = workerOpts.core.name ?? "";
+      assert(!allRoutes.has(name));
+      allRoutes.set(name, workerOpts.core.routes);
     }
   }
   return allRoutes;
