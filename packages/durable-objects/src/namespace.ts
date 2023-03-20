@@ -230,6 +230,11 @@ export class DurableObjectNamespace {
     this.#ctx = ctx;
   }
 
+  jurisdiction(_name: string): DurableObjectNamespace {
+    // Ignore jurisdiction restrictions in local mode
+    return this;
+  }
+
   newUniqueId(_options?: NewUniqueIdOptions): DurableObjectId {
     // Create new zero-filled 32 byte buffer
     const id = new Uint8Array(32);
