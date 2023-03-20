@@ -702,6 +702,12 @@ test("DurableObjectStub: hides implementation details", async (t) => {
   t.deepEqual(getObjectProperties(stub), ["fetch", "id", "name"]);
 });
 
+test("DurableObjectNamespace: jurisdiction: returns DurableObjectNamespace", (t) => {
+  const namespace = new DurableObjectNamespace("OBJECT", throws);
+  const jurisdictionNamespace = namespace.jurisdiction('eu')
+  t.is(namespace, jurisdictionNamespace);
+});
+
 test("DurableObjectNamespace: newUniqueId: generates unique IDs", (t) => {
   const namespace = new DurableObjectNamespace("OBJECT", throws);
   const id1 = namespace.newUniqueId();
@@ -818,6 +824,7 @@ test("DurableObjectNamespace: hides implementation details", (t) => {
     "get",
     "idFromName",
     "idFromString",
+    "jurisdiction",
     "newUniqueId",
   ]);
 });
