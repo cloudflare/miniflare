@@ -1,5 +1,14 @@
 # 🚧 Changelog
 
+## 2.12.2
+
+### Fixes
+
+- Fix detection of read-only D1 SQL statements in Jest. Closes
+  [issue #529](https://github.com/cloudflare/miniflare/issues/529), thanks
+  [@jschlesser](https://github.com/jschlesser) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/533).
+
 ## 2.12.1
 
 ### ⚠️ Security Update
