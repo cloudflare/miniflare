@@ -30,6 +30,13 @@ function hexEncode(value: Uint8Array): string {
     .join("");
 }
 
+function checkJurisdiction(jurisdiction?: string): boolean {
+  const allowedJurisdictions = ["eu", "fedramp"];
+  return (
+    jurisdiction === undefined || allowedJurisdictions.includes(jurisdiction)
+  );
+}
+
 export const kObjectName = Symbol("kObjectName");
 
 export class DurableObjectId {
@@ -231,7 +238,7 @@ export class DurableObjectNamespace {
   }
 
   jurisdiction(name: string): DurableObjectNamespace {
-    if (name !== "eu" && name !== "fedramp") {
+    if (!checkJurisdiction(name)) {
       throw new TypeError(
         `jurisdiction called with an unsupported jurisdiction: "${name}"`
       );
@@ -240,7 +247,13 @@ export class DurableObjectNamespace {
     return this;
   }
 
-  newUniqueId(_options?: NewUniqueIdOptions): DurableObjectId {
+  newUniqueId(options?: NewUniqueIdOptions): DurableObjectId {
+    if (!checkJurisdiction(options?.jurisdiction)) {
+      throw new TypeError(
+        `newUniqueId called with an unsupported jurisdiction: "${options?.jurisdiction}"`
+      );
+    }
+
     // Create new zero-filled 32 byte buffer
     const id = new Uint8Array(32);
     // Leave first byte as 0, ensuring no intersection with named IDs
