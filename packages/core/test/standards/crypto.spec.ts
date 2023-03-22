@@ -189,7 +189,7 @@ test("crypto: timingSafeEqual equals", (t) => {
   array1.fill(0, 0);
   const array2 = new Uint8Array(12);
   array2.fill(0, 0);
-  t.is(crypto.subtle.timingSafeEqual(array1, array2), true);
+  t.true(crypto.subtle.timingSafeEqual(array1, array2));
 });
 test("crypto: timingSafeEqual not equals", (t) => {
   const array1 = new Uint8Array(12);
@@ -197,7 +197,7 @@ test("crypto: timingSafeEqual not equals", (t) => {
   const array2 = new Uint8Array(12);
   array2.fill(0, 0);
   array2[7] = 1;
-  t.is(crypto.subtle.timingSafeEqual(array1, array2), false);
+  t.false(crypto.subtle.timingSafeEqual(array1, array2));
 });
 
 // Checking other functions aren't broken by proxy...
