@@ -1,4 +1,4 @@
-import { createHash, webcrypto } from "crypto";
+import { createHash, timingSafeEqual, webcrypto } from "crypto";
 import { WritableStream } from "stream/web";
 import { DOMException } from "@miniflare/core";
 import { viewToBuffer } from "@miniflare/shared";
@@ -215,6 +215,7 @@ export function createCrypto(blockGlobalRandom = false): WorkerCrypto {
       if (propertyKey === "importKey") return importKey;
       if (propertyKey === "exportKey") return exportKey;
       if (propertyKey === "sign") return sign;
+      if (propertyKey === "timingSafeEqual") return timingSafeEqual;
       if (propertyKey === "verify") return verify;
 
       let result = Reflect.get(target, propertyKey, receiver);
