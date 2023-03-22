@@ -184,6 +184,22 @@ test("crypto: sign/verify: supports other algorithm", async (t) => {
   t.true(await crypto.subtle.verify("HMAC", key, signature, data));
 });
 
+test("crypto: timingSafeEqual equals", (t) => {
+  const array1 = new Uint8Array(12);
+  array1.fill(0, 0);
+  const array2 = new Uint8Array(12);
+  array2.fill(0, 0);
+  t.true(crypto.subtle.timingSafeEqual(array1, array2));
+});
+test("crypto: timingSafeEqual not equals", (t) => {
+  const array1 = new Uint8Array(12);
+  array1.fill(0, 0);
+  const array2 = new Uint8Array(12);
+  array2.fill(0, 0);
+  array2[7] = 1;
+  t.false(crypto.subtle.timingSafeEqual(array1, array2));
+});
+
 // Checking other functions aren't broken by proxy...
 
 test("crypto: gets random values", (t) => {
