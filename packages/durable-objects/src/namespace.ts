@@ -230,7 +230,12 @@ export class DurableObjectNamespace {
     this.#ctx = ctx;
   }
 
-  jurisdiction(_name: string): DurableObjectNamespace {
+  jurisdiction(name: string): DurableObjectNamespace {
+    if (name !== "eu" && name !== "fedramp") {
+      throw new TypeError(
+        `jurisdiction called with an unsupported jurisdiction: "${name}"`
+      );
+    }
     // Ignore jurisdiction restrictions in local mode
     return this;
   }
