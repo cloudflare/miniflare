@@ -128,21 +128,6 @@ test("Body: same body instance is always returned", (t) => {
   t.not(body.body, null);
   t.is(body.body, body.body);
 });
-test("Body: reuses byte stream if not input gated", (t) => {
-  const bodyStream = new ReadableStream({
-    type: "bytes",
-    pull(controller) {
-      controller.enqueue(utf8Encode("chunk"));
-      controller.close();
-    },
-  });
-
-  let res = new Response(bodyStream);
-  t.is(res.body, bodyStream);
-
-  res = withInputGating(new Response(bodyStream));
-  t.not(res.body, bodyStream);
-});
 test("Body: body isn't locked until read from", async (t) => {
   const res = new Response("body");
   // noinspection SuspiciousTypeOfGuard
@@ -844,6 +829,37 @@ test("Response: clones non-standard properties", async (t) => {
   t.is(await res.text(), "body");
   t.is(await res2.text(), "body");
   t.is(await res3.text(), "body");
+});
+test("Response: clones stream bodies", async (t) => {
+  let stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(utf8Encode("chunk1"));
+      controller.close();
+    },
+  });
+  let res = new Response(stream);
+  let clone = res.clone();
+  assert(res.body !== null && clone.body !== null);
+  t.true(_isByteStream(res.body));
+  t.true(_isByteStream(clone.body));
+  t.is(await res.text(), "chunk1");
+  t.is(await clone.text(), "chunk1");
+
+  // Check again with byte stream
+  stream = new ReadableStream({
+    type: "bytes",
+    start(controller) {
+      controller.enqueue(utf8Encode("chunk2"));
+      controller.close();
+    },
+  });
+  res = new Response(stream);
+  clone = res.clone();
+  assert(res.body !== null && clone.body !== null);
+  t.true(_isByteStream(res.body));
+  t.true(_isByteStream(clone.body));
+  t.is(await res.text(), "chunk2");
+  t.is(await clone.text(), "chunk2");
 });
 test("Response: constructing from Response copies non-standard properties", (t) => {
   const pair = new WebSocketPair();

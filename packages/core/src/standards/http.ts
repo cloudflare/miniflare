@@ -570,6 +570,13 @@ export class Response<
   [kWaitUntil]?: Promise<WaitUntil>;
 
   constructor(body?: BodyInit, init?: ResponseInit | Response | BaseResponse) {
+    // If body is a FixedLengthStream, set Content-Length to its expected
+    // length. We may replace `body` later on with a different stream, so
+    // extract `contentLength` now.
+    const contentLength: number | undefined = (
+      body as { [kContentLength]?: number }
+    )?.[kContentLength];
+
     let encodeBody: string | undefined;
     let status: number | undefined;
     let webSocket: WebSocket | undefined;
@@ -581,6 +588,15 @@ export class Response<
       // enqueuing the chunk to the body stream
       if (body instanceof ArrayBuffer) {
         body = body.slice(0);
+      }
+      if (body instanceof ReadableStream && _isByteStream(body)) {
+        // Since `undici@5.12.0`, cloning a body now invokes `structuredClone`
+        // on the underlying stream (https://github.com/nodejs/undici/pull/1697).
+        // Unfortunately, due to a bug in Node, byte streams cannot be
+        // `structuredClone`d (https://github.com/nodejs/undici/issues/1873,
+        // https://github.com/nodejs/node/pull/45955), leading to issues when
+        // constructing bodies with byte streams.
+        body = convertToRegularStream(body);
       }
 
       if (init instanceof Response) {
@@ -628,10 +644,6 @@ export class Response<
     this.#status = status;
     this.#webSocket = webSocket;
 
-    // If body is a FixedLengthStream, set Content-Length to its expected length
-    const contentLength: number | undefined = (
-      body as { [kContentLength]?: number }
-    )?.[kContentLength];
     if (contentLength !== undefined) {
       this.headers.set("content-length", contentLength.toString());
     }
