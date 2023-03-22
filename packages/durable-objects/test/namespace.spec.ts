@@ -702,6 +702,25 @@ test("DurableObjectStub: hides implementation details", async (t) => {
   t.deepEqual(getObjectProperties(stub), ["fetch", "id", "name"]);
 });
 
+test("DurableObjectNamespace: jurisdiction: returns DurableObjectNamespace", (t) => {
+  const namespace = new DurableObjectNamespace("OBJECT", throws);
+  const jurisdictionNamespace = namespace.jurisdiction("eu");
+  t.is(namespace, jurisdictionNamespace);
+});
+test("DurableObjectNamespace: jurisdiction: throws TypeError on unsupported value", (t) => {
+  const namespace = new DurableObjectNamespace("OBJECT", throws);
+  t.throws(
+    () => {
+      namespace.jurisdiction("miniflare");
+    },
+    {
+      instanceOf: TypeError,
+      message:
+        'jurisdiction called with an unsupported jurisdiction: "miniflare"',
+    }
+  );
+});
+
 test("DurableObjectNamespace: newUniqueId: generates unique IDs", (t) => {
   const namespace = new DurableObjectNamespace("OBJECT", throws);
   const id1 = namespace.newUniqueId();
@@ -724,6 +743,25 @@ test("DurableObjectNamespace: newUniqueId: IDs tied to generating object", (t) =
     instanceOf: TypeError,
     message: "ID is not for this Durable Object class.",
   });
+});
+test("DurableObjectNamespace: newUniqueId: allows jurisdiction as option", (t) => {
+  const namespace = new DurableObjectNamespace("OBJECT", throws);
+  t.notThrows(() => {
+    namespace.newUniqueId({ jurisdiction: "eu" });
+  });
+});
+test("DurableObjectNamespace: newUniqueId: throws TypeError on unsupported jurisdiction", (t) => {
+  const namespace = new DurableObjectNamespace("OBJECT", throws);
+  t.throws(
+    () => {
+      namespace.newUniqueId({ jurisdiction: "miniflare" });
+    },
+    {
+      instanceOf: TypeError,
+      message:
+        'newUniqueId called with an unsupported jurisdiction: "miniflare"',
+    }
+  );
 });
 test("DurableObjectNamespace: idFromName: generates same ID for same name and object", (t) => {
   const namespace = new DurableObjectNamespace("OBJECT", throws);
@@ -818,6 +856,7 @@ test("DurableObjectNamespace: hides implementation details", (t) => {
     "get",
     "idFromName",
     "idFromString",
+    "jurisdiction",
     "newUniqueId",
   ]);
 });
