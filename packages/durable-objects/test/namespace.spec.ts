@@ -704,7 +704,7 @@ test("DurableObjectStub: hides implementation details", async (t) => {
 
 test("DurableObjectNamespace: jurisdiction: returns DurableObjectNamespace", (t) => {
   const namespace = new DurableObjectNamespace("OBJECT", throws);
-  const jurisdictionNamespace = namespace.jurisdiction("eu")
+  const jurisdictionNamespace = namespace.jurisdiction("eu");
   t.is(namespace, jurisdictionNamespace);
 });
 
