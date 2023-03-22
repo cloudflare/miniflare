@@ -708,6 +708,20 @@ test("DurableObjectNamespace: jurisdiction: returns DurableObjectNamespace", (t)
   t.is(namespace, jurisdictionNamespace);
 });
 
+test("DurableObjectNamespace: jurisdiction: throws TypeError on unsupported value", (t) => {
+  const namespace = new DurableObjectNamespace("OBJECT", throws);
+  t.throws(
+    () => {
+      namespace.jurisdiction("miniflare");
+    },
+    {
+      instanceOf: TypeError,
+      message:
+        'jurisdiction called with an unsupported jurisdiction: "miniflare"',
+    }
+  );
+});
+
 test("DurableObjectNamespace: newUniqueId: generates unique IDs", (t) => {
   const namespace = new DurableObjectNamespace("OBJECT", throws);
   const id1 = namespace.newUniqueId();
