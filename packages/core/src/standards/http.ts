@@ -424,7 +424,7 @@ export class Request extends Body<BaseRequest> {
       init?.body as { [kContentLength]?: number }
     )?.[kContentLength];
 
-    const cf = input instanceof Request ? input.#cf : init?.cf;
+    const cf = input instanceof Request ? init?.cf ?? input.#cf : init?.cf;
     if (input instanceof BaseRequest && !init) {
       // For cloning
       super(input);
