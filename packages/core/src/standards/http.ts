@@ -270,6 +270,17 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
     // TODO: maybe set { highWaterMark: 0 } as a strategy here?
     bodyStream = new ReadableStream(source);
     Object.defineProperty(bodyStream, kBodyStreamBrand, { value: true });
+
+    // If this body has a known content length, attach it to the body
+    // https://github.com/cloudflare/miniflare/issues/522
+    // (note `parseInt(null)` is `NaN`)
+    const maybeContentLength = parseInt(this.headers.get("Content-Length")!);
+    if (!isNaN(maybeContentLength)) {
+      Object.defineProperty(bodyStream, kContentLength, {
+        value: maybeContentLength,
+      });
+    }
+
     return (this[kBodyStream] = bodyStream);
   }
   get bodyUsed(): boolean {
@@ -823,17 +834,8 @@ export async function fetch(
 
   await waitForOpenOutputGate();
 
-  // Don't pass our strange hybrid Request to undici
-  if (input instanceof Request) input = input[_kInner];
-  if (init instanceof Request) init = init[_kInner] as RequestInit;
-  if (!(init instanceof BaseRequest) && init?.body instanceof ReadableStream) {
-    // We mutate `init` here, make sure this isn't visible to the caller
-    init = cloneRequestInit(init);
-    init.duplex = "half";
-  }
-
   // Set the headers guard to "none" so we can delete the "Host" header
-  const req = new BaseRequest(input, init);
+  const req = new Request(input, init);
   // @ts-expect-error internal kGuard isn't included in type definitions
   req.headers[fetchSymbols.kGuard] = "none";
   // Delete the "Host" header, the correct value will be added by undici
@@ -865,7 +867,8 @@ export async function fetch(
     this instanceof Dispatcher ? this : getGlobalDispatcher(),
     removeHeaders
   );
-  const baseRes = await baseFetch(req, { dispatcher });
+  // Don't pass our strange hybrid Request to undici
+  const baseRes = await baseFetch(req[_kInner], { dispatcher });
 
   // Increment the subrequest count by the number of redirects
   // TODO (someday): technically we should check the subrequest count before

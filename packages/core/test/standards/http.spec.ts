@@ -1208,6 +1208,28 @@ test("fetch: accepts stream body", async (t) => {
   res = await fetch(upstream, { method: "POST", body: stream });
   t.is(await res.text(), "chunk2");
 });
+test("fetch: uses known content length if possible", async (t) => {
+  // https://github.com/cloudflare/miniflare/issues/522
+  const upstream = (
+    await useServer(t, (req, res) => {
+      res.end(String(req.headers["transfer-encoding"]));
+    })
+  ).http;
+
+  const body = new ReadableStream({
+    start(controller) {
+      controller.enqueue(utf8Encode("chunk"));
+      controller.close();
+    },
+  });
+  const request = new Request("http://localhost", {
+    method: "POST",
+    headers: { "Content-Length": "5" },
+    body,
+  });
+  const res = await fetch(upstream, { method: "POST", body: request.body });
+  t.is(await res.text(), "undefined");
+});
 test('fetch: returns full Response for "manual" redirect', async (t) => {
   const upstream = (await useServer(t, redirectingServerListener)).http;
   const url = new URL("/?n=3", upstream);
