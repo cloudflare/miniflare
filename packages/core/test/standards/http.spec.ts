@@ -12,6 +12,7 @@ import {
   Body,
   IncomingRequestCfProperties,
   Request,
+  RequestInitCfProperties,
   Response,
   _getBodyLength,
   _getURLList,
@@ -474,6 +475,29 @@ test("Request: supports non-standard properties", (t) => {
   t.deepEqual(req.cf, cf);
   // Check cf has been cloned
   t.not(req.cf, cf);
+});
+test("Request: cf defaults to input.cf", (t) => {
+  const req = new Request("http://localhost", {
+    method: "POST",
+    cf,
+  });
+  const req2 = new Request(req);
+  t.deepEqual(req.cf, req2.cf);
+  // Check cf has been cloned
+  t.not(req.cf, req2.cf);
+});
+test("Request: init.cf overrides input.cf", (t) => {
+  const req = new Request("http://localhost", {
+    method: "POST",
+    cf,
+  });
+  const req2 = new Request(req, {
+    cf: {
+      cacheKey: "test",
+    },
+  });
+  t.notDeepEqual(req.cf, req2.cf);
+  t.is((req2.cf as RequestInitCfProperties).cacheKey, "test");
 });
 test("Request: doesn't detach ArrayBuffers", async (t) => {
   // Check with ArrayBuffer
