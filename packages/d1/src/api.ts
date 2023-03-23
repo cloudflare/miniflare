@@ -5,7 +5,6 @@ import path from "path";
 import { performance } from "perf_hooks";
 import { Request, RequestInfo, RequestInit, Response } from "@miniflare/core";
 import type { SqliteDB } from "@miniflare/shared";
-import type { Statement as SqliteStatement } from "better-sqlite3";
 import splitSqlQuery from "./splitter";
 
 // query
@@ -98,19 +97,37 @@ const EXECUTE_RETURNS_DATA_MESSAGE =
 export class D1DatabaseAPI {
   constructor(private readonly db: SqliteDB) {}
 
-  #query: QueryRunner = (query) => {
-    const meta: OkMeta = { start: performance.now() };
+  #prepareAndBind(query: SingleQuery) {
     // D1 only respects the first statement
     const sql = splitSqlQuery(query.sql)[0];
     const stmt = this.db.prepare(sql);
     const params = normaliseParams(query.params);
+    if (params.length === 0) return stmt;
+
+    try {
+      return stmt.bind(params);
+    } catch (e) {
+      // For statements using ?1, ?2, etc, we want to pass them as an array but
+      // `better-sqlite3` expects an object with the shape:
+      // `{ 1: params[0], 2: params[1], ... }`. Try bind like that instead.
+      try {
+        return stmt.bind(Object.fromEntries(params.map((v, i) => [i + 1, v])));
+      } catch {}
+      // If that still failed, re-throw the original error
+      throw e;
+    }
+  }
+
+  #query: QueryRunner = (query) => {
+    const meta: OkMeta = { start: performance.now() };
+    const stmt = this.#prepareAndBind(query);
     let results: any[];
     if (stmt.reader) {
-      results = stmt.all(params);
+      results = stmt.all();
     } else {
       // `/query` does support queries that don't return data,
       // returning `[]` instead of `null`
-      const result = stmt.run(params);
+      const result = stmt.run();
       results = [];
       meta.last_row_id = Number(result.lastInsertRowid);
       meta.changes = result.changes;
@@ -120,13 +137,10 @@ export class D1DatabaseAPI {
 
   #execute: QueryRunner = (query) => {
     const meta: OkMeta = { start: performance.now() };
-    // D1 only respects the first statement
-    const sql = splitSqlQuery(query.sql)[0];
-    const stmt = this.db.prepare(sql);
+    const stmt = this.#prepareAndBind(query);
     // `/execute` only supports queries that don't return data
     if (stmt.reader) throw new Error(EXECUTE_RETURNS_DATA_MESSAGE);
-    const params = normaliseParams(query.params);
-    const result = stmt.run(params);
+    const result = stmt.run();
     meta.last_row_id = Number(result.lastInsertRowid);
     meta.changes = result.changes;
     return ok(null, meta);
