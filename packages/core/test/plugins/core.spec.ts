@@ -623,7 +623,13 @@ test("CorePlugin: nodejs_compat compatibility flag includes Node.js modules", as
   let plugin = new CorePlugin({ ...ctx, compat });
   let modules = (await plugin.setup()).additionalModules!;
   const names = Object.keys(modules).sort();
-  t.deepEqual(names, ["node:async_hooks", "node:events"]);
+  t.deepEqual(names, [
+    "node:assert",
+    "node:async_hooks",
+    "node:buffer",
+    "node:events",
+    "node:util",
+  ]);
 
   compat = new Compatibility(undefined, ["nodejs_compat", "experimental"]);
   plugin = new CorePlugin({ ...ctx, compat });
@@ -631,7 +637,7 @@ test("CorePlugin: nodejs_compat compatibility flag includes Node.js modules", as
   const experimentalNames = Object.keys(modules).filter(
     (name) => !names.includes(name)
   );
-  t.deepEqual(experimentalNames, ["node:assert", "node:buffer", "node:util"]);
+  t.deepEqual(experimentalNames, []);
 
   // We're using Node's implementations of these modules' exports, so don't
   // bother testing their functionality. Instead, just check we've got the
