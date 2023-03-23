@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/d1",
-  "version": "2.12.2",
+  "version": "2.13.0",
   "description": "Workers D1 module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -36,10 +36,10 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/core": "2.12.2",
-    "@miniflare/shared": "2.12.2"
+    "@miniflare/core": "2.13.0",
+    "@miniflare/shared": "2.13.0"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.12.2"
+    "@miniflare/shared-test": "2.13.0"
   }
 }

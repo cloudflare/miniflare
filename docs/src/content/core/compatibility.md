@@ -69,8 +69,8 @@ const mf = new Miniflare({
 
 Specifically Miniflare supports the following flags:
 
-- `nodejs_compat` (specifically the _`node:assert`_\*, `node:async_hooks`,
-  _`node:buffer`_\*, `node:events`, _`node:util`_\* modules)
+- `nodejs_compat` (specifically the `node:assert`, `node:async_hooks`,
+  `node:buffer`, `node:events`, `node:util` modules)
 - [`transformstream_enable_standard_constructor`/`transformstream_disable_standard_constructor`](https://developers.cloudflare.com/workers/platform/compatibility-dates#compliant-transformstream-constructor)
 - [`streams_enable_constructors`/`streams_disable_constructors`](https://developers.cloudflare.com/workers/platform/compatibility-dates#streams-constructors)
 - [`export_commonjs_default`/`export_commonjs_namespace`](https://developers.cloudflare.com/workers/platform/compatibility-dates#commonjs-modules-do-not-export-a-module-namespace)
@@ -80,5 +80,3 @@ Specifically Miniflare supports the following flags:
 - [`fetch_refuses_unknown_protocols`/`fetch_treats_unknown_protocols_as_http`](https://developers.cloudflare.com/workers/platform/compatibility-dates#fetch-improperly-interprets-unknown-protocols-as-http)
 - [`formdata_parser_supports_files`/`formdata_parser_converts_files_to_strings`](https://developers.cloudflare.com/workers/platform/compatibility-dates#formdata-parsing-supports-file)
 - [`html_rewriter_treats_esi_include_as_void_tag`](https://developers.cloudflare.com/workers/platform/compatibility-dates#htmlrewriter-handling-of-esiinclude)
-
-\* _Additionally requires the `experimental` compatibility flag to be set_
