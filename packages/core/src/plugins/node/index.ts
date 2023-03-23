@@ -6,18 +6,14 @@ import * as buffer from "./buffer";
 import * as events from "./events";
 import * as util from "./util";
 
-export function additionalNodeModules(experimental: boolean) {
+export function additionalNodeModules(_experimental: boolean) {
   const modules: AdditionalModules = {
+    "node:assert": assert,
     "node:async_hooks": async_hooks,
+    "node:buffer": buffer,
     "node:events": events,
+    "node:util": util,
   };
-
-  if (experimental) {
-    // TODO(soon): remove experimental designations when removed in `workerd`
-    modules["node:assert"] = assert;
-    modules["node:buffer"] = buffer;
-    modules["node:util"] = util;
-  }
 
   return modules;
 }
