@@ -23,13 +23,13 @@
     "dev": "node scripts/build.mjs watch",
     "helpers:scaffold": "node scripts/scaffold.mjs",
     "helpers:version": "node scripts/version.mjs",
-    "lint": "eslint 'packages/*/{src,test}/**/*.ts' 'scripts/**/*.{js,mjs}' 'types/**/*.ts'",
+    "lint": "eslint \"packages/*/{src,test}/**/*.ts\" \"scripts/**/*.{js,mjs}\" \"types/**/*.ts\"",
     "lint:fix": "npm run lint -- --fix",
     "prepublishOnly": "npm run lint && npm run clean && npm run build && npm run types:bundle && npm run test",
     "test": "npm run build && ava && rimraf ./.tmp",
     "types:build": "tsc",
     "___$comment:types:bundle": "api-extractor doesn't know to load index.ts instead of index.d.ts when resolving imported types",
-    "types:bundle": "cp node_modules/@cloudflare/workers-types/experimental/index.ts node_modules/@cloudflare/workers-types/experimental/index.d.ts && npm run types:build && node scripts/types.mjs"
+    "types:bundle": "node scripts/copy.mjs node_modules/@cloudflare/workers-types/experimental/index.ts node_modules/@cloudflare/workers-types/experimental/index.d.ts && npm run types:build && node scripts/types.mjs"
   },
   "devDependencies": {
     "@ava/get-port": "^2.0.0",
