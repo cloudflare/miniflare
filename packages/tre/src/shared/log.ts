@@ -82,11 +82,11 @@ export class Log {
     this.#suffix = suffix ? ":" + suffix : "";
   }
 
-  log(message: string): void {
+  protected log(message: string): void {
     console.log(message);
   }
 
-  logWithLevel(level: LogLevel, message: string): void {
+  protected logWithLevel(level: LogLevel, message: string): void {
     if (level <= this.level) {
       const prefix = `[${this.#prefix}${LEVEL_PREFIX[level]}${this.#suffix}]`;
       this.log(LEVEL_COLOUR[level](`${prefix} ${message}`));
@@ -127,19 +127,15 @@ export class Log {
 }
 
 export class NoOpLog extends Log {
-  log(): void {}
+  constructor() {
+    super(LogLevel.NONE);
+  }
+
+  protected log(): void {}
 
   error(message: Error): void {
     throw message;
   }
-}
-
-export interface ResponseInfo {
-  status: number;
-  statusText: string;
-  method: string;
-  url: string;
-  time: number;
 }
 
 const ResponseInfoSchema = z.object({
@@ -154,13 +150,14 @@ export async function formatResponse(request: Request) {
   const info = ResponseInfoSchema.parse(await request.json());
   const url = new URL(info.url);
 
-  return [
+  const lines = [
     `${bold(info.method)} ${url.pathname} `,
     colourFromHTTPStatus(info.status)(
       `${bold(info.status)} ${info.statusText} `
     ),
     grey(`(${info.time}ms)`),
-  ].join("");
+  ];
+  return reset(lines.join(""));
 }
 
 function colourFromHTTPStatus(status: number): Colorize {
