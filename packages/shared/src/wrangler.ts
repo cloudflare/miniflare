@@ -124,7 +124,7 @@ export interface WranglerConfig extends WranglerEnvironmentConfig {
   build?: {
     command?: string;
     cwd?: string;
-    watch_dir?: string;
+    watch_dir?: string | string[];
     upload?: {
       format?: "service-worker" | "modules";
       dir?: string;
