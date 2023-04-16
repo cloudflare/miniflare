@@ -98,6 +98,18 @@ test("BuildPlugin: parses options from wrangler config", (t) => {
     buildBasePath: undefined,
     buildWatchPaths: undefined,
   });
+  // build.watch_dir should accept an array of strings
+  options = parsePluginWranglerConfig(BuildPlugin, {
+    build: {
+      watch_dir: ["source", "source1"],
+    },
+    miniflare: {
+      build_watch_dirs: ["source2", "source3"],
+    },
+  });
+  t.like(options, {
+    buildWatchPaths: ["source2", "source3", "source", "source1"],
+  });
 });
 test("BuildPlugin: logs options", (t) => {
   const logs = logPluginOptions(BuildPlugin, {
