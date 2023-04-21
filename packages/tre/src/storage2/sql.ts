@@ -13,7 +13,7 @@ export type TypedStatement<
 };
 
 export type TypedDatabase = Omit<Database, "prepare"> & {
-  prepare<Params, SingleResult = unknown>(
+  prepare<Params = any[], SingleResult = unknown>(
     source: string
   ): Params extends any[]
     ? TypedStatement<Params, SingleResult>
