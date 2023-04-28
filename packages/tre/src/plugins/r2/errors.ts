@@ -14,13 +14,17 @@ enum CfCode {
   InternalError = 10001,
   NoSuchObjectKey = 10007,
   EntityTooLarge = 100100,
+  EntityTooSmall = 10011,
   MetadataTooLarge = 10012,
   InvalidObjectName = 10020,
   InvalidMaxKeys = 10022,
+  NoSuchUpload = 10024,
+  InvalidPart = 10025,
   InvalidArgument = 10029,
   PreconditionFailed = 10031,
   BadDigest = 10037,
   InvalidRange = 10039,
+  BadUpload = 10048,
 }
 
 export class R2Error extends HttpError {
@@ -110,6 +114,16 @@ export class EntityTooLarge extends R2Error {
   }
 }
 
+export class EntityTooSmall extends R2Error {
+  constructor() {
+    super(
+      Status.BadRequest,
+      "Your proposed upload is smaller than the minimum allowed object size.",
+      CfCode.EntityTooSmall
+    );
+  }
+}
+
 export class MetadataTooLarge extends R2Error {
   constructor() {
     super(
@@ -160,6 +174,26 @@ export class InvalidMaxKeys extends R2Error {
   }
 }
 
+export class NoSuchUpload extends R2Error {
+  constructor() {
+    super(
+      Status.BadRequest,
+      "The specified multipart upload does not exist.",
+      CfCode.NoSuchUpload
+    );
+  }
+}
+
+export class InvalidPart extends R2Error {
+  constructor() {
+    super(
+      Status.BadRequest,
+      "One or more of the specified parts could not be found.",
+      CfCode.InvalidPart
+    );
+  }
+}
+
 export class PreconditionFailed extends R2Error {
   constructor() {
     super(
@@ -176,6 +210,16 @@ export class InvalidRange extends R2Error {
       Status.RangeNotSatisfiable,
       "The requested range is not satisfiable",
       CfCode.InvalidRange
+    );
+  }
+}
+
+export class BadUpload extends R2Error {
+  constructor() {
+    super(
+      Status.RangeNotSatisfiable,
+      "There was a problem with the multipart upload.",
+      CfCode.BadUpload
     );
   }
 }
