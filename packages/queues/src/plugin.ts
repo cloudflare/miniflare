@@ -122,6 +122,9 @@ export class QueuesPlugin
         binding.queueName
       );
     }
-    return { bindings };
+
+    const requiresModuleExports =
+      this.queueConsumers !== undefined && this.queueConsumers.length > 0;
+    return { bindings, requiresModuleExports };
   }
 }

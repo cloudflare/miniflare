@@ -146,3 +146,18 @@ test("QueuesPlugin: setup: includes queues in bindings", async (t) => {
   t.true(result.bindings?.QUEUE1 instanceof WorkerQueue);
   t.true(result.bindings?.QUEUE2 instanceof WorkerQueue);
 });
+
+test("QueuesPlugin: setup: requires module exports if consuming", async (t) => {
+  const queueBroker = new QueueBroker();
+  const pluginCtx: PluginContext = { ...ctx, queueBroker };
+  let plugin = new QueuesPlugin(pluginCtx, {
+    queueBindings: [{ name: "QUEUE", queueName: "queue" }],
+  });
+  let result = await plugin.setup(factory);
+  t.false(result.requiresModuleExports);
+  plugin = new QueuesPlugin(pluginCtx, {
+    queueConsumers: ["queue"],
+  });
+  result = await plugin.setup(factory);
+  t.true(result.requiresModuleExports);
+});
