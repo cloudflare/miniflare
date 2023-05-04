@@ -160,11 +160,12 @@ function getMatchResponse(
   return new Response(resBody, { status: resStatus, headers: resHeaders });
 }
 
-class HttpParser {
-  private static INSTANCE: HttpParser;
-  static get(): HttpParser {
-    HttpParser.INSTANCE ??= new HttpParser();
-    return HttpParser.INSTANCE;
+/** @internal */
+export class _HttpParser {
+  private static INSTANCE: _HttpParser;
+  static get(): _HttpParser {
+    _HttpParser.INSTANCE ??= new _HttpParser();
+    return _HttpParser.INSTANCE;
   }
 
   readonly #responses: Map<string, ReadableStream<Uint8Array>> = new Map();
@@ -285,7 +286,7 @@ export class CacheGateway {
     // Never cache Workers Sites requests, so we always return on-disk files.
     if (isSitesRequest(request)) return new Response(null, { status: 204 });
 
-    const response = await HttpParser.get().parse(value);
+    const response = await _HttpParser.get().parse(value);
     let body = response.body;
     assert(body !== null);
 

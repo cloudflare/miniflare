@@ -1,8 +1,15 @@
-import { text } from "stream/consumers";
+import { Blob } from "buffer";
+import net from "net";
+import { arrayBuffer, text } from "stream/consumers";
 import { ReadableStream } from "stream/web";
-import { _RemoveTransformEncodingChunkedStream } from "@miniflare/tre";
+import {
+  DeferredPromise,
+  Response,
+  _HttpParser,
+  _RemoveTransformEncodingChunkedStream,
+} from "@miniflare/tre";
 import test from "ava";
-import { utf8Encode } from "../../test-shared";
+import { useServer, utf8Encode } from "../../test-shared";
 
 function createChunkedStream(chunks: string[]) {
   return new ReadableStream<Uint8Array>({
@@ -84,4 +91,69 @@ test('_RemoveTransformEncodingChunkedStream: removes "Transfer-Encoding: chunked
     output,
     "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n"
   );
+});
+
+test("_RemoveTransformEncodingChunkedStream/HttpParser: parses HTTP messages sent by workerd", async (t) => {
+  // Obtained by setting `workerd`'s `cacheApiOutbound` to an external `nc -l` service
+  const bufferedMessage = [
+    "PUT / HTTP/1.1",
+    "Content-Length: 111",
+    "Host: localhost",
+    "",
+    "HTTP/1.1 200 OK",
+    "Content-Length: 4",
+    "Content-Type: text/plain;charset=UTF-8",
+    "Cache-Control: max-age=3600",
+    "",
+    "body",
+  ].join("\r\n");
+  const streamedMessage = [
+    "PUT / HTTP/1.1",
+    "Transfer-Encoding: chunked",
+    "Host: localhost",
+    "",
+    "4c",
+    "HTTP/1.1 200 OK",
+    "Transfer-Encoding: chunked",
+    "Cache-Control: max-age=3600",
+    "",
+    "",
+    "2",
+    "hi",
+    "5",
+    "cache",
+    "0",
+    "",
+    "",
+  ].join("\r\n");
+
+  let deferred: DeferredPromise<Response> | undefined;
+  const server = await useServer(t, async (req, res) => {
+    const array = new Uint8Array(await arrayBuffer(req));
+    const stream = new Blob([array]).stream();
+    const remover = new _RemoveTransformEncodingChunkedStream();
+    const response = await _HttpParser.get().parse(stream.pipeThrough(remover));
+    deferred?.resolve(response);
+    res.end();
+  });
+
+  function parse(message: string) {
+    deferred = new DeferredPromise();
+    const socket = net.createConnection(
+      { host: server.http.hostname, port: parseInt(server.http.port) },
+      () => {
+        socket.write(message);
+        socket.end();
+      }
+    );
+    return deferred;
+  }
+
+  const bufferedResponse = await parse(bufferedMessage);
+  t.is(bufferedResponse.headers.get("Cache-Control"), "max-age=3600");
+  t.is(await bufferedResponse.text(), "body");
+
+  const streamedResponse = await parse(streamedMessage);
+  t.is(streamedResponse.headers.get("Cache-Control"), "max-age=3600");
+  t.is(await streamedResponse.text(), "hicache");
 });
