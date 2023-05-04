@@ -3,7 +3,7 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import { performance } from "perf_hooks";
-import { Database as DatabaseType } from "better-sqlite3";
+import type { Database as DatabaseType } from "better-sqlite3";
 import { z } from "zod";
 import { Response } from "../../http";
 import { HttpError, Log } from "../../shared";
