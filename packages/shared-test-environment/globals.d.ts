@@ -78,6 +78,12 @@ declare global {
   function getMiniflareDurableObjectIds(
     namespace: string
   ): Promise<DurableObjectId[]>;
+
+  // eslint-disable-next-line no-var
+  var ExecutionContext: {
+    prototype: ExecutionContext;
+    new (): ExecutionContext;
+  };
 }
 
 // Taken from `undici` (https://github.com/nodejs/undici/tree/main/types) with
