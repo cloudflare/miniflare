@@ -230,11 +230,7 @@ class SizingStream extends TransformStream<Uint8Array, Uint8Array> {
 export class CacheGateway {
   private readonly storage: KeyValueStorage<CacheMetadata>;
 
-  constructor(
-    private readonly log: Log,
-    legacyStorage: Storage,
-    private readonly clock: Clock
-  ) {
+  constructor(log: Log, legacyStorage: Storage, private readonly clock: Clock) {
     const storage = legacyStorage.getNewStorage();
     this.storage = new KeyValueStorage(storage, clock);
   }
