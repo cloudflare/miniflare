@@ -100,8 +100,8 @@ test("crypto: generateKey/exportKey: supports NODE-ED25519 algorithm", async (t)
     true,
     ["sign", "verify"]
   );
-  t.is(keyPair.publicKey.algorithm.name, "NODE-ED25519");
-  t.is(keyPair.privateKey.algorithm.name, "NODE-ED25519");
+  t.is(keyPair.publicKey.algorithm.name, "Ed25519");
+  t.is(keyPair.privateKey.algorithm.name, "Ed25519");
   const exported = await crypto.subtle.exportKey("raw", keyPair.publicKey);
   t.is(exported.byteLength, 32);
 });
@@ -126,7 +126,7 @@ test("crypto: importKey/exportKey: supports NODE-ED25519 public keys", async (t)
     true,
     ["verify"]
   );
-  t.is(publicKey.algorithm.name, "NODE-ED25519");
+  t.is(publicKey.algorithm.name, "Ed25519");
   const exported = await crypto.subtle.exportKey("raw", publicKey);
   t.is(Buffer.from(exported).toString("hex"), keyData);
 });

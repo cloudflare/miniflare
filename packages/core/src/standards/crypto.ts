@@ -70,6 +70,20 @@ const usesModernEd25519 = (async () => {
 async function ensureValidNodeAlgorithm(
   algorithm: webcrypto.AlgorithmIdentifier | webcrypto.EcKeyAlgorithm
 ): Promise<webcrypto.AlgorithmIdentifier | webcrypto.EcKeyAlgorithm> {
+  // "X448" and "Ed448" are not supported by Workers
+  if (
+    typeof algorithm === "object" &&
+    (algorithm.name === "X448" || algorithm.name === "Ed448")
+  ) {
+    throw new DOMException("Unrecognized name.", "NotSupportedError");
+  }
+  if (
+    typeof algorithm === "object" &&
+    algorithm.name === "Ed25519" &&
+    !(await usesModernEd25519)
+  ) {
+    return { name: "NODE-ED25519", namedCurve: "NODE-ED25519" };
+  }
   if (
     typeof algorithm === "object" &&
     algorithm.name === "NODE-ED25519" &&
@@ -83,19 +97,19 @@ async function ensureValidNodeAlgorithm(
 }
 
 function ensureValidWorkerKey(key: webcrypto.CryptoKey): webcrypto.CryptoKey {
-  // Users' workers will expect to see the `NODE-ED25519` algorithm, even if
-  // we're using "Ed25519" internally (https://github.com/panva/jose/issues/446)
-  if (key.algorithm.name === "Ed25519") key.algorithm.name = "NODE-ED25519";
+  // Users' workers will expect to see the `Ed25519` algorithm, even if we're
+  // using on an old Node version and using "Ed25519" internally
+  if (key.algorithm.name === "NODE-ED25519") key.algorithm.name = "Ed25519";
   return key;
 }
 
 async function ensureValidNodeKey(
   key: webcrypto.CryptoKey
 ): Promise<webcrypto.CryptoKey> {
-  if (key.algorithm.name === "NODE-ED25519" && (await usesModernEd25519)) {
+  if (key.algorithm.name === "Ed25519" && !(await usesModernEd25519)) {
     return new Proxy(key, {
       get(target, property, receiver) {
-        if (property === "algorithm") return { name: "Ed25519" };
+        if (property === "algorithm") return { name: "NODE-ED25519" };
         return Reflect.get(target, property, receiver);
       },
     });
