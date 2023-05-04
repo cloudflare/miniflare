@@ -103,27 +103,27 @@ function parseUTCDate(value: string): number {
   return utcDateRegexp.test(value) ? Date.parse(value) : NaN;
 }
 
-function getMatchResponse(
-  reqHeaders: Headers,
-  resStatus: number,
-  resHeaders: Headers,
-  resRanges: InclusiveRange[],
-  resBody: ReadableStream<Uint8Array> | MultipartReadableStream,
-  resTotalSize: number
-): Response {
+interface CachedResponse {
+  status: number;
+  headers: Headers;
+  ranges: InclusiveRange[];
+  body: ReadableStream<Uint8Array> | MultipartReadableStream;
+  totalSize: number;
+}
+function getMatchResponse(reqHeaders: Headers, res: CachedResponse): Response {
   // If `If-None-Match` is set, perform a conditional request:
   // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match
   const reqIfNoneMatchHeader = reqHeaders.get("If-None-Match");
-  const resETagHeader = resHeaders.get("ETag");
+  const resETagHeader = res.headers.get("ETag");
   if (reqIfNoneMatchHeader !== null && resETagHeader !== null) {
     const resETag = parseETag(resETagHeader);
     if (resETag !== undefined) {
       if (reqIfNoneMatchHeader.trim() === "*") {
-        return new Response(null, { status: 304, headers: resHeaders });
+        return new Response(null, { status: 304, headers: res.headers });
       }
       for (const reqIfNoneMatch of reqIfNoneMatchHeader.split(",")) {
         if (resETag === parseETag(reqIfNoneMatch)) {
-          return new Response(null, { status: 304, headers: resHeaders });
+          return new Response(null, { status: 304, headers: res.headers });
         }
       }
     }
@@ -132,32 +132,35 @@ function getMatchResponse(
   // If `If-Modified-Since` is set, perform a conditional request:
   // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-Modified-Since
   const reqIfModifiedSinceHeader = reqHeaders.get("If-Modified-Since");
-  const resLastModifiedHeader = resHeaders.get("Last-Modified");
+  const resLastModifiedHeader = res.headers.get("Last-Modified");
   if (reqIfModifiedSinceHeader !== null && resLastModifiedHeader !== null) {
     const reqIfModifiedSince = parseUTCDate(reqIfModifiedSinceHeader);
     const resLastModified = parseUTCDate(resLastModifiedHeader);
     // Comparison of NaN's (invalid dates), will always result in `false`
     if (resLastModified <= reqIfModifiedSince) {
-      return new Response(null, { status: 304, headers: resHeaders });
+      return new Response(null, { status: 304, headers: res.headers });
     }
   }
 
   // If `Range` was set, return a partial response:
   // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Range
-  if (resRanges.length > 0) {
-    resStatus = 206; // Partial Content
-    if (resRanges.length > 1) {
-      assert(!(resBody instanceof ReadableStream)); // assert(isMultipart)
-      resHeaders.set("Content-Type", resBody.multipartContentType);
+  if (res.ranges.length > 0) {
+    res.status = 206; // Partial Content
+    if (res.ranges.length > 1) {
+      assert(!(res.body instanceof ReadableStream)); // assert(isMultipart)
+      res.headers.set("Content-Type", res.body.multipartContentType);
     } else {
-      const { start, end } = resRanges[0];
-      resHeaders.set("Content-Range", `bytes ${start}-${end}/${resTotalSize}`);
-      resHeaders.set("Content-Length", `${end - start + 1}`);
+      const { start, end } = res.ranges[0];
+      res.headers.set(
+        "Content-Range",
+        `bytes ${start}-${end}/${res.totalSize}`
+      );
+      res.headers.set("Content-Length", `${end - start + 1}`);
     }
   }
 
-  if (!(resBody instanceof ReadableStream)) resBody = resBody.body;
-  return new Response(resBody, { status: resStatus, headers: resHeaders });
+  if (!(res.body instanceof ReadableStream)) res.body = res.body.body;
+  return new Response(res.body, { status: res.status, headers: res.headers });
 }
 
 /** @internal */
@@ -268,14 +271,13 @@ export class CacheGateway {
     resHeaders.set("CF-Cache-Status", "HIT");
     resRanges ??= [];
 
-    return getMatchResponse(
-      request.headers,
-      cached.metadata.status,
-      resHeaders,
-      resRanges,
-      cached.value,
-      cached.metadata.size
-    );
+    return getMatchResponse(request.headers, {
+      status: cached.metadata.status,
+      headers: resHeaders,
+      ranges: resRanges,
+      body: cached.value,
+      totalSize: cached.metadata.size,
+    });
   }
 
   async put(
