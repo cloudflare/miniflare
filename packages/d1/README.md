@@ -7,10 +7,11 @@ fun, full-featured, fully-local simulator for Cloudflare Workers. See
 ## Example
 
 ```js
-import { BetaDatabase } from "@miniflare/d1";
 import { createSQLiteDB } from "@miniflare/shared";
+import { D1Database, D1DatabaseAPI } from "@miniflare/d1";
 
-const db = new BetaDatabase(await createSQLiteDB(":memory:"));
+const sqliteDb = await createSQLiteDB(":memory:");
+const db = new D1Database(new D1DatabaseAPI(sqliteDb));
 await db.exec(
   `CREATE TABLE my_table (cid INTEGER PRIMARY KEY, name TEXT NOT NULL);`
 );
