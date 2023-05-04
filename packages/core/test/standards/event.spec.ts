@@ -483,13 +483,11 @@ test("FetchEvent: hides implementation details", (t) => {
   const event = new FetchEvent("fetch", {
     request: new Request("http://localhost:8787"),
   });
-  t.deepEqual(getObjectProperties(event), [
-    "isTrusted",
-    "passThroughOnException",
-    "request",
-    "respondWith",
-    "waitUntil",
-  ]);
+  t.deepEqual(
+    // `isTrusted` no longer included as of Node 20
+    getObjectProperties(event).filter((name) => name !== "isTrusted"),
+    ["passThroughOnException", "request", "respondWith", "waitUntil"]
+  );
 });
 test("FetchEvent: methods throw if this is incorrectly bound", (t) => {
   const { respondWith, passThroughOnException, waitUntil } = new FetchEvent(
@@ -505,12 +503,11 @@ test("ScheduledEvent: hides implementation details", (t) => {
     scheduledTime: 1000,
     cron: "30 * * * *",
   });
-  t.deepEqual(getObjectProperties(event), [
-    "cron",
-    "isTrusted",
-    "scheduledTime",
-    "waitUntil",
-  ]);
+  t.deepEqual(
+    // `isTrusted` no longer included as of Node 20
+    getObjectProperties(event).filter((name) => name !== "isTrusted"),
+    ["cron", "scheduledTime", "waitUntil"]
+  );
 });
 test("ScheduledEvent: methods throw if this is incorrectly bound", (t) => {
   const { waitUntil } = new ScheduledEvent("scheduled", {
