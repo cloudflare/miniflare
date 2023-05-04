@@ -171,18 +171,12 @@ export class KeyValueStorage<Metadata = unknown> {
       // stream
       const value = await this.storage.blob.get(row.blob_id, opts?.ranges?.[0]);
       if (value === null) return null;
-
-      const valueEntry = entry as KeyValueEntry<Metadata>;
-      valueEntry.value = value;
-      return valueEntry;
+      return { ...entry, value };
     } else {
       // Otherwise, if multiple ranges were requested, return a multipart stream
       const value = await this.storage.blob.get(row.blob_id, opts.ranges, opts);
       if (value === null) return null;
-
-      const valueEntry = entry as KeyMultipartValueEntry<Metadata>;
-      valueEntry.value = value;
-      return valueEntry;
+      return { ...entry, value };
     }
   }
 
