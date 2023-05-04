@@ -82,6 +82,8 @@ export class QueuesPlugin
   })
   queueConsumers?: (string | ConsumerOptions)[];
 
+  readonly #consumers: Consumer[];
+
   constructor(ctx: PluginContext, options?: QueuesOptions) {
     super(ctx);
     this.assignOptions(options);
@@ -90,10 +92,8 @@ export class QueuesPlugin
         "Queues are experimental. There may be breaking changes in the future."
       );
     }
-  }
 
-  async setup(_storageFactory: StorageFactory): Promise<SetupResult> {
-    for (const entry of this.queueConsumers ?? []) {
+    this.#consumers = (this.queueConsumers ?? []).map((entry) => {
       let opts: ConsumerOptions;
       if (typeof entry === "string") {
         opts = {
@@ -103,7 +103,7 @@ export class QueuesPlugin
         opts = entry;
       }
 
-      const consumer: Consumer = {
+      return {
         queueName: opts.queueName,
         maxBatchSize: opts.maxBatchSize ?? DEFAULT_BATCH_SIZE,
         maxWaitMs: opts.maxWaitMs ?? DEFAULT_WAIT_MS,
@@ -111,11 +111,10 @@ export class QueuesPlugin
         deadLetterQueue: opts.deadLetterQueue,
         dispatcher: this.ctx.queueEventDispatcher,
       };
+    });
+  }
 
-      const queue = this.ctx.queueBroker.getOrCreateQueue(opts.queueName);
-      this.ctx.queueBroker.setConsumer(queue, consumer);
-    }
-
+  async setup(_storageFactory: StorageFactory): Promise<SetupResult> {
     const bindings: Context = {};
     for (const binding of this.queueBindings ?? []) {
       bindings[binding.name] = this.ctx.queueBroker.getOrCreateQueue(
@@ -123,8 +122,17 @@ export class QueuesPlugin
       );
     }
 
-    const requiresModuleExports =
-      this.queueConsumers !== undefined && this.queueConsumers.length > 0;
+    const requiresModuleExports = this.#consumers.length > 0;
     return { bindings, requiresModuleExports };
+  }
+
+  beforeReload() {
+    // Register consumers on every reload, we'll reset them all before running
+    // `beforeReload()` hooks. This allows us to detect duplicate consumers
+    // across mounts with different `QueuesPlugin` instances.
+    for (const consumer of this.#consumers) {
+      const queue = this.ctx.queueBroker.getOrCreateQueue(consumer.queueName);
+      this.ctx.queueBroker.setConsumer(queue, consumer);
+    }
   }
 }

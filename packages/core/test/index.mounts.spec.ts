@@ -11,12 +11,18 @@ import {
   MiniflareCore,
   MiniflareCoreContext,
   MiniflareCoreError,
+  MiniflareCoreOptions,
   ReloadEvent,
 } from "@miniflare/core";
 import { DurableObjectsPlugin } from "@miniflare/durable-objects";
 import { HTTPPlugin, createServer } from "@miniflare/http-server";
 import { KVPlugin } from "@miniflare/kv";
-import { QueueBroker } from "@miniflare/queues";
+import {
+  MessageBatch,
+  QueueBroker,
+  QueueError,
+  QueuesPlugin,
+} from "@miniflare/queues";
 import { VMScriptRunner } from "@miniflare/runner-vm";
 import { LogLevel, NoOpLog, StoredValueMeta } from "@miniflare/shared";
 import {
@@ -24,6 +30,7 @@ import {
   MemoryStorageFactory,
   TestLog,
   TestPlugin,
+  triggerPromise,
   useMiniflare,
   useTmp,
   waitForReload,
@@ -524,6 +531,61 @@ test("MiniflareCore: dispatches scheduled event to mount", async (t) => {
     "https://test.mf/cdn-cgi/mf/scheduled"
   );
   t.deepEqual(waitUntil, ["mount", 1000, "* * * * *"]);
+});
+
+test("MiniflareCore: consumes queue in mount", async (t) => {
+  const opts: MiniflareCoreOptions<{
+    CorePlugin: typeof CorePlugin;
+    BindingsPlugin: typeof BindingsPlugin;
+    QueuesPlugin: typeof QueuesPlugin;
+  }> = {
+    queueBindings: [{ name: "QUEUE", queueName: "queue" }],
+    modules: true,
+    script: `export default {
+      async fetch(request, env, ctx) {
+        env.QUEUE.send("message");
+        return new Response();
+      }
+    }`,
+    mounts: {
+      a: {
+        bindings: {
+          REPORTER(batch: MessageBatch) {
+            trigger(batch);
+          },
+        },
+        queueConsumers: [{ queueName: "queue", maxWaitMs: 0 }],
+        modules: true,
+        script: `export default {
+          queue(batch, env, ctx) {
+            env.REPORTER(batch);
+          }
+        }`,
+      },
+    },
+  };
+
+  // Check consumes messages sent in different mount
+  let [trigger, promise] = triggerPromise<MessageBatch>();
+  const mf = useMiniflare({ BindingsPlugin, QueuesPlugin }, opts);
+  await mf.dispatchFetch("http://localhost");
+  let batch = await promise;
+  t.is(batch.messages.length, 1);
+  t.is(batch.messages[0].body, "message");
+  // ...even after reload (https://github.com/cloudflare/miniflare/issues/560)
+  await mf.reload();
+  [trigger, promise] = triggerPromise<MessageBatch>();
+  await mf.dispatchFetch("http://localhost");
+  batch = await promise;
+  t.is(batch.messages.length, 1);
+  t.is(batch.messages[0].body, "message");
+
+  // Check queue can have at most one consumer
+  opts.queueConsumers = ["queue"]; // (adding parent as consumer too)
+  await t.throwsAsync(mf.setOptions(opts), {
+    instanceOf: QueueError,
+    code: "ERR_CONSUMER_ALREADY_SET",
+  });
 });
 
 // Shared storage persistence tests

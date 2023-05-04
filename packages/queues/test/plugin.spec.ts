@@ -57,6 +57,7 @@ test("QueuesPlugin: parses options from argv", async (t) => {
   const queueBroker = new QueueBroker();
   const plugin = new QueuesPlugin({ ...ctx, queueBroker }, options);
   await plugin.setup(factory);
+  await plugin.beforeReload();
 
   const queue1 = queueBroker.getOrCreateQueue("queue1");
   t.deepEqual(queue1[kGetConsumer]()?.maxBatchSize, DEFAULT_BATCH_SIZE);
@@ -103,6 +104,7 @@ test("QueuesPlugin: parses options from wrangler config", async (t) => {
   const queueBroker = new QueueBroker();
   const plugin = new QueuesPlugin({ ...ctx, queueBroker }, options);
   await plugin.setup(factory);
+  await plugin.beforeReload();
 
   // queue1 uses defaults
   const queue1 = queueBroker.getOrCreateQueue("queue1");

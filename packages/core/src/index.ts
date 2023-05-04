@@ -716,6 +716,9 @@ export class MiniflareCore<
     const newWatchPaths = new Set<string>();
     if (this.#wranglerConfigPath) newWatchPaths.add(this.#wranglerConfigPath);
 
+    // Reset all queue consumers, they'll be added back in `beforeReload()`s
+    this.#ctx.queueBroker.resetConsumers();
+
     // Run all before reload hooks, including mounts if we have any
     await this.#runAllBeforeReloads();
     if (!this.#isMount) {

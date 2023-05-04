@@ -124,7 +124,14 @@ export class WorkerQueue<Body = unknown> implements QueueInterface<Body> {
     }
   }
 
-  [kSetConsumer](consumer: Consumer) {
+  [kSetConsumer](consumer?: Consumer) {
+    if (consumer === undefined) {
+      clearTimeout(this.#timeout);
+      this.#pendingFlush = FlushType.NONE;
+      this.#consumer = undefined;
+      return;
+    }
+
     // only allow one subscription per queue (for now)
     if (this.#consumer) {
       throw new QueueError("ERR_CONSUMER_ALREADY_SET");
@@ -277,6 +284,10 @@ export class QueueBroker implements QueueBrokerInterface {
       this.#queues.set(name, (queue = new WorkerQueue(this, name, this.#log)));
     }
     return queue;
+  }
+
+  resetConsumers() {
+    for (const queue of this.#queues.values()) queue[kSetConsumer]();
   }
 
   setConsumer(queue: WorkerQueue, consumer: Consumer) {

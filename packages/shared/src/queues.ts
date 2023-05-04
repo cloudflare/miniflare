@@ -9,6 +9,7 @@ export interface QueueBroker {
   getOrCreateQueue(name: string): Queue;
 
   setConsumer(queue: Queue, consumer: Consumer): void;
+  resetConsumers(): void;
 }
 
 export interface Consumer {
@@ -33,7 +34,7 @@ export interface Queue<Body = unknown> {
   send(message: Body, options?: MessageSendOptions): Promise<void>;
   sendBatch(batch: Iterable<MessageSendRequest<Body>>): Promise<void>;
 
-  [kSetConsumer](consumer: Consumer): void;
+  [kSetConsumer](consumer?: Consumer): void;
   [kGetConsumer](): Consumer | null;
 }
 
