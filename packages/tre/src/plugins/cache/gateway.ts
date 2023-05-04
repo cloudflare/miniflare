@@ -262,8 +262,10 @@ export class CacheGateway {
     });
     if (cached?.metadata === undefined) throw new CacheMiss();
 
-    // Avoid re-constructing headers if we already extracted multipart options
-    resHeaders ??= new Headers(cached.metadata.headers);
+    // Should've constructed headers when we extracted range options (the only
+    // time we don't do this is when the entry isn't found, or expired, in which
+    // case, we just threw a `CacheMiss`)
+    assert(resHeaders !== undefined);
     resHeaders.set("CF-Cache-Status", "HIT");
     resRanges ??= [];
 
