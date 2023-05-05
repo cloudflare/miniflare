@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/r2",
-  "version": "2.13.0",
+  "version": "2.14.0",
   "description": "Workers R2 module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -35,11 +35,11 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/core": "2.13.0",
-    "@miniflare/shared": "2.13.0",
+    "@miniflare/core": "2.14.0",
+    "@miniflare/shared": "2.14.0",
     "undici": "5.20.0"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.13.0"
+    "@miniflare/shared-test": "2.14.0"
   }
 }

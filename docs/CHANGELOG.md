@@ -1,5 +1,35 @@
 # 🚧 Changelog
 
+## 2.14.0
+
+### Features
+
+- Add support for the
+  [`Ed25519` algorithm](https://github.com/cloudflare/workerd/pull/500) and mark
+  `X448`/`Ed448` algorithms as unsupported. Thanks
+  [@panva](https://github.com/panva) for
+  [`jose`'s comprehensive test suite](https://github.com/panva/jose/tree/main/tap).
+- Add `ExecutionContext` as a global _value_ to Miniflare's unit testing
+  environments' global types. Miniflare injects the `ExecutionContext` class
+  into testing environments, so they can be constructed and passed to imported
+  module event handlers. This change ensures `new ExecutionContext()` isn't a
+  type error.
+- Allow `wrangler.toml` `build.watch_dir` to be an array of directories. Thanks
+  [@sj-e2digital](https://github.com/sj-e2digital) for
+  [the PR](https://github.com/cloudflare/miniflare/issues/557).
+
+### Fixes
+
+- Ensure queue consumers are registered when using Miniflare's unit testing
+  environments.
+- Fix crash when calling `Miniflare#reload()` with queue consumers set. Closes
+  [issue #560](https://github.com/cloudflare/miniflare/issues/560), thanks
+  [@calebmer](https://github.com/calebmer).
+- Add `@miniflare/core` as a dependency of `@miniflare/r2`. Closes
+  [issue #559](https://github.com/cloudflare/miniflare/issues/559), thanks
+  [@calebmer](https://github.com/calebmer).
+- Update `@miniflare/d1` `README` with new API
+
 ## 2.13.0
 
 ### Features
