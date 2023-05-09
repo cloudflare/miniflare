@@ -27,9 +27,8 @@
     "lint:fix": "npm run lint -- --fix",
     "prepublishOnly": "npm run lint && npm run clean && npm run build && npm run types:bundle && npm run test",
     "test": "npm run build && ava && rimraf ./.tmp",
-    "types:build": "tsc",
-    "___$comment:types:bundle": "api-extractor doesn't know to load index.ts instead of index.d.ts when resolving imported types",
-    "types:bundle": "node scripts/copy.mjs node_modules/@cloudflare/workers-types/experimental/index.ts node_modules/@cloudflare/workers-types/experimental/index.d.ts && npm run types:build && node scripts/types.mjs"
+    "types:build": "tsc && tsc -p packages/tre/src/workers/tsconfig.json",
+    "types:bundle": "npm run types:build && node scripts/types.mjs"
   },
   "devDependencies": {
     "@ava/get-port": "^2.0.0",
@@ -43,7 +42,7 @@
     "ava": "^5.2.0",
     "capnp-ts": "^0.7.0",
     "capnpc-ts": "^0.7.0",
-    "esbuild": "^0.12.20",
+    "esbuild": "^0.16.17",
     "eslint": "^8.6.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-es": "^4.1.0",

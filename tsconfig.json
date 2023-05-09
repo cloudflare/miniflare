@@ -15,13 +15,12 @@
     "declaration": true,
     "declarationMap": true,
     "emitDeclarationOnly": true,
-    "baseUrl": ".",
     "rootDir": ".",
     "checkJs": true,
     "allowJs": true,
     "paths": {
-      "miniflare": ["packages/miniflare/src"],
-      "@miniflare/*": ["packages/*/src"]
+      "miniflare": ["./packages/miniflare/src"],
+      "@miniflare/*": ["./packages/*/src"]
     }
   },
   "include": [
@@ -30,6 +29,7 @@
     "types"
   ],
   "exclude": [
+    "packages/tre/src/workers/**/*.worker.ts",
     "packages/tre/test/fixtures"
   ]
 }

@@ -1,3 +1,4 @@
+import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
 import esbuild from "esbuild";
@@ -39,6 +40,55 @@ function getPackageDependencies(pkg, includeDev) {
   ];
 }
 
+const workersRoot = path.join(projectRoot, "packages", "tre", "src", "workers");
+/**
+ * @type {Map<string, esbuild.BuildResult>}
+ */
+const workersBuilders = new Map();
+/**
+ * @type {esbuild.Plugin}
+ */
+const embedWorkersPlugin = {
+  name: "embed-workers",
+  setup(build) {
+    const namespace = "embed-worker";
+    build.onResolve({ filter: /^worker:/ }, async (args) => {
+      let name = args.path.substring("worker:".length);
+      // Allow `.worker` to be omitted
+      if (!name.endsWith(".worker")) name += ".worker";
+      // Use `build.resolve()` API so Workers can be written as `m?[jt]s` files
+      const result = await build.resolve("./" + name, {
+        kind: "import-statement",
+        resolveDir: workersRoot,
+      });
+      if (result.errors.length > 0) return { errors: result.errors };
+      return { path: result.path, namespace };
+    });
+    build.onLoad({ filter: /.*/, namespace }, async (args) => {
+      let builder = workersBuilders.get(args.path);
+      if (builder === undefined) {
+        builder = await esbuild.build({
+          platform: "node", // Marks `node:*` imports as external
+          format: "esm",
+          target: "esnext",
+          bundle: true,
+          write: false,
+          metafile: true,
+          incremental: watch, // Allow `rebuild()` calls if watching
+          entryPoints: [args.path],
+        });
+      } else {
+        builder = await builder.rebuild();
+      }
+      workersBuilders.set(args.path, builder);
+      assert.strictEqual(builder.outputFiles.length, 1);
+      const contents = builder.outputFiles[0].contents;
+      const watchFiles = Object.keys(builder.metafile.inputs);
+      return { contents, loader: "text", watchFiles };
+    });
+  },
+};
+
 /**
  * Common build options for all packages
  * @type {esbuild.BuildOptions}
@@ -64,6 +114,7 @@ const buildOptions = {
     // Mark sites manifest as external, it's added by SitesPlugin
     "__STATIC_CONTENT_MANIFEST",
   ],
+  plugins: [embedWorkersPlugin],
   logLevel: watch ? "info" : "warning",
   watch,
 };
