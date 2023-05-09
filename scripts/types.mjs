@@ -106,8 +106,28 @@ async function buildTypes() {
       "\x1b[39m",
     ].join("")
   );
-  if (failed) process.exit(1);
+  if (failed) process.exitCode = 1;
 }
 
-// Bundle all packages' types
-await buildTypes();
+// `api-extractor` doesn't know to load `index.ts` instead of `index.d.ts` when
+// resolving imported types, so copy `index.ts` to `index.d.ts`, bundle types,
+// then restore the original contents. We need the original `index.d.ts` for
+// typing the `packages/tre/src/workers` directory.
+const workersTypesExperimental = path.join(
+  projectRoot,
+  "node_modules",
+  "@cloudflare",
+  "workers-types",
+  "experimental"
+);
+const indexTsPath = path.join(workersTypesExperimental, "index.ts");
+const indexDtsPath = path.join(workersTypesExperimental, "index.d.ts");
+const originalDtsContent = await fs.readFile(indexDtsPath);
+await fs.copyFile(indexTsPath, indexDtsPath);
+
+try {
+  // Bundle all packages' types
+  await buildTypes();
+} finally {
+  await fs.writeFile(indexDtsPath, originalDtsContent);
+}
