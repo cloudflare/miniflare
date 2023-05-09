@@ -30,6 +30,7 @@
   ],
   "exclude": [
     "packages/tre/src/workers/**/*.worker.ts",
+    "packages/tre/src/workers/node.d.ts",
     "packages/tre/test/fixtures"
   ]
 }
