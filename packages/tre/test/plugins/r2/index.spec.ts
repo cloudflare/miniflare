@@ -33,10 +33,10 @@ import {
   Miniflare,
   MiniflareOptions,
   MultipartPartRow,
-  NewStorage,
   ObjectRow,
   R2Gateway,
   Response,
+  Storage,
   TypedDatabase,
   createFileStorage,
   viewToArray,
@@ -387,7 +387,7 @@ class TestR2MultipartUpload implements R2MultipartUpload {
 interface Context extends MiniflareTestContext {
   ns: string;
   r2: TestR2Bucket;
-  storage: NewStorage;
+  storage: Storage;
 }
 
 const opts: Partial<MiniflareOptions> = {
