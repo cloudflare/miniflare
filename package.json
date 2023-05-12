@@ -31,7 +31,6 @@
     "types:bundle": "npm run types:build && node scripts/types.mjs"
   },
   "devDependencies": {
-    "@ava/get-port": "^2.0.0",
     "@ava/typescript": "^4.0.0",
     "@microsoft/api-extractor": "^7.33.6",
     "@types/node": "^18.11.9",
@@ -48,7 +47,6 @@
     "eslint-plugin-es": "^4.1.0",
     "eslint-plugin-import": "^2.24.2",
     "eslint-plugin-prettier": "^3.4.1",
-    "esm": "^3.2.25",
     "expect-type": "^0.15.0",
     "patch-package": "^6.4.7",
     "prettier": "^2.3.2",
