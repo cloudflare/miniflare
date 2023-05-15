@@ -59,14 +59,14 @@ async function buildTypes() {
     console.log(`\n--> Bundling ${name}'s types...`);
     const pkgRoot = path.join(pkgsDir, name);
 
-    if (name === "tre") {
+    if (name === "miniflare") {
       await fs.copyFile(
         path.join(pkgRoot, "src", "runtime", "config", "workerd.capnp.d.ts"),
         path.join(
           projectRoot,
           "dist",
           "packages",
-          "tre",
+          "miniflare",
           "src",
           "runtime",
           "config",
@@ -112,7 +112,7 @@ async function buildTypes() {
 // `api-extractor` doesn't know to load `index.ts` instead of `index.d.ts` when
 // resolving imported types, so copy `index.ts` to `index.d.ts`, bundle types,
 // then restore the original contents. We need the original `index.d.ts` for
-// typing the `packages/tre/src/workers` directory.
+// typing the `packages/miniflare/src/workers` directory.
 const workersTypesExperimental = path.join(
   projectRoot,
   "node_modules",

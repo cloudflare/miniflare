@@ -40,7 +40,13 @@ function getPackageDependencies(pkg, includeDev) {
   ];
 }
 
-const workersRoot = path.join(projectRoot, "packages", "tre", "src", "workers");
+const workersRoot = path.join(
+  projectRoot,
+  "packages",
+  "miniflare",
+  "src",
+  "workers"
+);
 /**
  * @type {Map<string, esbuild.BuildResult>}
  */

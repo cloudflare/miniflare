@@ -7,9 +7,9 @@ name: Test
 
 on:
   push:
-    branches: [master, tre]
+    branches: [master, miniflare]
   pull_request:
-    branches: [master, tre]
+    branches: [master, miniflare]
 
 jobs:
   test:

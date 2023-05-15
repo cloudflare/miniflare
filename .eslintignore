@@ -1,2 +1,2 @@
 dist
-packages/tre/src/runtime/config/workerd.*
+packages/miniflare/src/runtime/config/workerd.*

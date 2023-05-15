@@ -29,8 +29,8 @@
     "types"
   ],
   "exclude": [
-    "packages/tre/src/workers/**/*.worker.ts",
-    "packages/tre/src/workers/node.d.ts",
-    "packages/tre/test/fixtures"
+    "packages/miniflare/src/workers/**/*.worker.ts",
+    "packages/miniflare/src/workers/node.d.ts",
+    "packages/miniflare/test/fixtures"
   ]
 }
