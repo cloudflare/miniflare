@@ -22,16 +22,16 @@ release. However, they are on the roadmap, and will be added soon:
 
 ## CLI Changes
 
-Miniflare v3 no longer includes a standalone CLI. To get the same functionality
-you'll need to switch over to using
+Miniflare v3 no longer includes a standalone CLI. To get the same functionality,
+you will need to switch over to using
 [Wrangler](https://developers.cloudflare.com/workers/wrangler/). Wrangler v3
-uses Miniflare v3 by default—all you need to do is run:
+uses Miniflare v3 by default. To use Wrangler, run:
 
 ```sh
 $ npx wrangler@3 dev
 ```
 
-If there are features from the Miniflare CLI you'd like to see in Wrangler,
+If there are features from the Miniflare CLI you would like to see in Wrangler,
 please open an issue on
 [GitHub](https://github.com/cloudflare/workers-sdk/issues/new/choose).
 
