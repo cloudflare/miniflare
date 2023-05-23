@@ -45,6 +45,25 @@ import {
 } from "./modules";
 import { ServiceDesignatorSchema } from "./services";
 
+// `workerd`'s `trustBrowserCas` should probably be named `trustSystemCas`.
+// Rather than using a bundled CA store like Node, it uses
+// `SSL_CTX_set_default_verify_paths()` to use the system CA store:
+// https://github.com/capnproto/capnproto/blob/6e26d260d1d91e0465ca12bbb5230a1dfa28f00d/c%2B%2B/src/kj/compat/tls.c%2B%2B#L745
+// Unfortunately, this doesn't work on Windows. Luckily, Node exposes its own
+// bundled CA store's certificates, so we just use those.
+const trustedCertificates =
+  process.platform === "win32" ? Array.from(tls.rootCertificates) : [];
+if (process.env.NODE_EXTRA_CA_CERTS !== undefined) {
+  // Try load extra CA certs if defined, ignoring errors. Node will log a
+  // warning if it fails to load this anyway. Note, this we only load this once
+  // at process startup to match Node's behaviour:
+  // https://nodejs.org/api/cli.html#node_extra_ca_certsfile
+  try {
+    const extra = readFileSync(process.env.NODE_EXTRA_CA_CERTS, "utf8");
+    trustedCertificates.push(extra);
+  } catch {}
+}
+
 const encoder = new TextEncoder();
 const numericCompare = new Intl.Collator(undefined, { numeric: true }).compare;
 
@@ -368,16 +387,10 @@ export function getGlobalServices({
         // https://github.com/cloudflare/miniflare/issues/412
         allow: ["public", "private"],
         deny: [],
-        // `trustBrowserCas` should probably be named `trustSystemCas`.
-        // Rather than using a bundled CA store like Node, it uses
-        // `SSL_CTX_set_default_verify_paths()` to use the system CA store:
-        // https://github.com/capnproto/capnproto/blob/6e26d260d1d91e0465ca12bbb5230a1dfa28f00d/c%2B%2B/src/kj/compat/tls.c%2B%2B#L745
-        // Unfortunately, this doesn't work on Windows. Luckily, Node exposes
-        // its own bundled CA store's certificates, so we just pass those.
-        tlsOptions:
-          process.platform === "win32"
-            ? { trustedCertificates: tls.rootCertificates as string[] }
-            : { trustBrowserCas: true },
+        tlsOptions: {
+          trustBrowserCas: true,
+          trustedCertificates,
+        },
       },
     },
   ];
