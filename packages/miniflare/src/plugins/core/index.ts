@@ -1,6 +1,7 @@
 import assert from "assert";
 import { readFileSync } from "fs";
 import fs from "fs/promises";
+import tls from "tls";
 import { TextEncoder } from "util";
 import { bold } from "kleur/colors";
 import SCRIPT_ENTRY from "worker:core/entry";
@@ -360,14 +361,23 @@ export function getGlobalServices({
         bindings: serviceEntryBindings,
       },
     },
-    // Allow access to private/public addresses:
-    // https://github.com/cloudflare/miniflare/issues/412
     {
       name: "internet",
       network: {
+        // Allow access to private/public addresses:
+        // https://github.com/cloudflare/miniflare/issues/412
         allow: ["public", "private"],
         deny: [],
-        tlsOptions: { trustBrowserCas: true },
+        // `trustBrowserCas` should probably be named `trustSystemCas`.
+        // Rather than using a bundled CA store like Node, it uses
+        // `SSL_CTX_set_default_verify_paths()` to use the system CA store:
+        // https://github.com/capnproto/capnproto/blob/6e26d260d1d91e0465ca12bbb5230a1dfa28f00d/c%2B%2B/src/kj/compat/tls.c%2B%2B#L745
+        // Unfortunately, this doesn't work on Windows. Luckily, Node exposes
+        // its own bundled CA store's certificates, so we just pass those.
+        tlsOptions:
+          process.platform === "win32"
+            ? { trustedCertificates: tls.rootCertificates as string[] }
+            : { trustBrowserCas: true },
       },
     },
   ];
