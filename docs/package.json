@@ -18,7 +18,7 @@
   },
   "devDependencies": {
     "chokidar": "^3.5.2",
-    "cloudflare-docs-engine": "cloudflare/cloudflare-docs-engine#94e11df8eaef70d7f97ece41eedadc0e2bec70e3",
+    "cloudflare-docs-engine": "cloudflare/cloudflare-docs-engine#b85e04f9613a1eef376a58082af9af22578f654d",
     "concurrently": "^6.5.0",
     "rimraf": "^3.0.2"
   },
