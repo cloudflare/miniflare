@@ -243,6 +243,11 @@ open-source `workerd` runtime. See the
 - `getKVNamespace()/getR2Bucket()/getCaches()/getDurableObjectNamespace()`
   - Similarly, these methods return instances of Workers runtime classes that
     are defined in a different process, and can no longer be supported.
+- `addEventListener()`/`removeEventListener()`
+  - Miniflare no longer emits `reload` events. As Miniflare no longer watches
+    files, reloads are only triggered by initialisation or `setOptions()` calls.
+    In these cases, it's possible to wait for the reload with either
+    `await mf.ready` or `await mf.setOptions()` respectively.
 - `Response#waitUntil()`
   - [`workerd`](https://github.com/cloudflare/workerd) does not support waiting
     for all `waitUntil()`ed promises yet.
