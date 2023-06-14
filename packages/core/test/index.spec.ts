@@ -1384,3 +1384,37 @@ test("MiniflareCore: dispose: cleans up watcher", async (t) => {
   await setTimeout(100); // Shouldn't reload here
   t.is(log.logsAtLevel(LogLevel.DEBUG).length, 0);
 });
+test("MiniflareCore: dispatchFetch: awaits nested waitUntil", async (t) => {
+  const mf = useMiniflare(
+    {},
+    {
+      script: `
+        const delay = (n) => new Promise((res) => setTimeout(res, n))
+
+        export default {
+          async fetch(req, env, ctx) {
+            const fn = async () => {
+              await delay(2000);
+
+              ctx.waitUntil(delay(2000).then(()=>{
+                console.log("nested waitUntil promise resolved")
+              }))
+
+              console.log("fn resolved")
+            };
+
+            ctx.waitUntil(fn())
+
+            return new Response("ok", { status: 200 })
+          }
+        }
+      `,
+      modules: true,
+    },
+    log
+  );
+
+  const res = await mf.dispatchFetch("https://test", { method: "GET" });
+  const arr = await res.waitUntil();
+  t.is(arr.length, 2);
+});

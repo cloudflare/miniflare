@@ -9,6 +9,7 @@ import {
   prefixError,
 } from "@miniflare/shared";
 import { Response as BaseResponse } from "undici";
+import { waitUntilAll } from "../wait-until-all";
 import { DOMException } from "./domexception";
 import { Request, Response, fetch, withWaitUntil } from "./http";
 
@@ -404,7 +405,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
       }
 
       // noinspection ES6MissingAwait
-      const waitUntil = Promise.all(event[kWaitUntil]) as Promise<WaitUntil>;
+      const waitUntil = waitUntilAll<WaitUntil>(event[kWaitUntil]);
       return withWaitUntil(res, waitUntil);
     }
 
@@ -436,7 +437,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
     }
 
     // noinspection ES6MissingAwait
-    const waitUntil = Promise.all(event[kWaitUntil]) as Promise<WaitUntil>;
+    const waitUntil = waitUntilAll<WaitUntil>(event[kWaitUntil]);
     return withWaitUntil(await fetch(request), waitUntil);
   }
 
@@ -449,7 +450,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
       cron: cron ?? "",
     });
     super.dispatchEvent(event);
-    return (await Promise.all(event[kWaitUntil])) as WaitUntil;
+    return await waitUntilAll<WaitUntil>(event[kWaitUntil]);
   }
 
   async [kDispatchQueue]<WaitUntil extends any[] = any[]>(
@@ -457,7 +458,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
   ): Promise<WaitUntil> {
     const event = new QueueEvent("queue", { batch });
     super.dispatchEvent(event);
-    return (await Promise.all(event[kWaitUntil])) as WaitUntil;
+    return await waitUntilAll<WaitUntil>(event[kWaitUntil]);
   }
 
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types

@@ -3,6 +3,7 @@ import {
   MiniflareCore,
   ScheduledEvent,
   kWaitUntil,
+  waitUntilAll,
 } from "@miniflare/core";
 import {
   DurableObject,
@@ -88,7 +89,7 @@ export async function createMiniflareEnvironmentUtilities(
     getMiniflareWaitUntil<WaitUntil extends any[] = unknown[]>(
       event: FetchEvent | ScheduledEvent | ExecutionContext
     ): Promise<WaitUntil> {
-      return Promise.all(event[kWaitUntil]) as Promise<WaitUntil>;
+      return waitUntilAll<WaitUntil>(event[kWaitUntil]);
     },
     async flushMiniflareDurableObjectAlarms(ids?: DurableObjectId[]) {
       const plugin = (await mf.getPlugins()).DurableObjectsPlugin;
