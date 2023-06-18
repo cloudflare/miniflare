@@ -455,6 +455,17 @@ export class Miniflare {
     // noinspection JSObjectNullOrUndefined
     this.#loopbackPort = address.port;
 
+    await this.#startRuntime();
+
+    // Update config and wait for runtime to start
+    await this.#assembleAndUpdateConfig(/* initial */ true);
+  }
+
+  async #startRuntime() {
+    await this.#runtime?.dispose();
+
+    assert(this.#loopbackPort !== undefined);
+
     // Start runtime
     const port = this.#sharedOpts.core.port ?? 0;
     const opts: RuntimeOptions = {
@@ -466,9 +477,6 @@ export class Miniflare {
     };
     this.#runtime = new Runtime(opts);
     this.#removeRuntimeExitHook = exitHook(() => void this.#runtime?.dispose());
-
-    // Update config and wait for runtime to start
-    await this.#assembleAndUpdateConfig(/* initial */ true);
   }
 
   async #handleLoopbackCustomService(
@@ -847,6 +855,8 @@ export class Miniflare {
     this.#sharedOpts = sharedOpts;
     this.#workerOpts = workerOpts;
     this.#log = this.#sharedOpts.core.log ?? this.#log;
+
+    await this.#startRuntime();
 
     // Send to runtime and wait for updates to process
     await this.#assembleAndUpdateConfig();
