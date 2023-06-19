@@ -455,17 +455,6 @@ export class Miniflare {
     // noinspection JSObjectNullOrUndefined
     this.#loopbackPort = address.port;
 
-    await this.#startRuntime();
-
-    // Update config and wait for runtime to start
-    await this.#assembleAndUpdateConfig(/* initial */ true);
-  }
-
-  async #startRuntime() {
-    await this.#runtime?.dispose();
-
-    assert(this.#loopbackPort !== undefined);
-
     // Start runtime
     const port = this.#sharedOpts.core.port ?? 0;
     const opts: RuntimeOptions = {
@@ -477,6 +466,9 @@ export class Miniflare {
     };
     this.#runtime = new Runtime(opts);
     this.#removeRuntimeExitHook = exitHook(() => void this.#runtime?.dispose());
+
+    // Update config and wait for runtime to start
+    await this.#assembleAndUpdateConfig(/* initial */ true);
   }
 
   async #handleLoopbackCustomService(
@@ -793,9 +785,18 @@ export class Miniflare {
     assert(this.#runtime !== undefined);
     const config = await this.#assembleConfig();
     const configBuffer = serializeConfig(config);
-    const maybePort = await this.#runtime.updateConfig(configBuffer, {
-      signal: this.#disposeController.signal,
-    });
+    const maybePort = await this.#runtime.updateConfig(
+      configBuffer,
+      {
+        signal: this.#disposeController.signal,
+      },
+      !initial && this.#runtimeEntryURL !== undefined
+        ? {
+            entryHost: this.#runtimeEntryURL.host,
+            entryPort: parseInt(this.#runtimeEntryURL.port),
+          }
+        : {}
+    );
     if (this.#disposeController.signal.aborted) return;
     if (maybePort === undefined) {
       throw new MiniflareCoreError(
@@ -855,8 +856,6 @@ export class Miniflare {
     this.#sharedOpts = sharedOpts;
     this.#workerOpts = workerOpts;
     this.#log = this.#sharedOpts.core.log ?? this.#log;
-
-    await this.#startRuntime();
 
     // Send to runtime and wait for updates to process
     await this.#assembleAndUpdateConfig();
