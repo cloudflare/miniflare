@@ -112,7 +112,7 @@ export class Runtime {
     await this.dispose();
     // TODO: what happens if runtime crashes?
 
-    if (options?.entryPort) {
+    if (options?.entryPort !== undefined) {
       this.opts.entryPort = options.entryPort;
     }
 
