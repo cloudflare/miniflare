@@ -69,6 +69,7 @@ import {
   Timers,
   defaultTimers,
   formatResponse,
+  maybeApply,
 } from "./shared";
 import { Storage } from "./storage";
 import { CoreHeaders } from "./workers";
@@ -468,7 +469,7 @@ export class Miniflare {
     this.#removeRuntimeExitHook = exitHook(() => void this.#runtime?.dispose());
 
     // Update config and wait for runtime to start
-    await this.#assembleAndUpdateConfig(/* initial */ true);
+    await this.#assembleAndUpdateConfig();
   }
 
   async #handleLoopbackCustomService(
@@ -781,22 +782,15 @@ export class Miniflare {
     return { services: Array.from(services.values()), sockets };
   }
 
-  async #assembleAndUpdateConfig(initial = false) {
+  async #assembleAndUpdateConfig() {
+    const initial = !this.#runtimeEntryURL;
     assert(this.#runtime !== undefined);
     const config = await this.#assembleConfig();
     const configBuffer = serializeConfig(config);
-    const maybePort = await this.#runtime.updateConfig(
-      configBuffer,
-      {
-        signal: this.#disposeController.signal,
-      },
-      !initial && this.#runtimeEntryURL !== undefined
-        ? {
-            entryHost: this.#runtimeEntryURL.host,
-            entryPort: parseInt(this.#runtimeEntryURL.port),
-          }
-        : {}
-    );
+    const maybePort = await this.#runtime.updateConfig(configBuffer, {
+      signal: this.#disposeController.signal,
+      entryPort: maybeApply(parseInt, this.#runtimeEntryURL?.port),
+    });
     if (this.#disposeController.signal.aborted) return;
     if (maybePort === undefined) {
       throw new MiniflareCoreError(

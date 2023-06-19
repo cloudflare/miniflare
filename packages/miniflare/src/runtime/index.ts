@@ -106,18 +106,15 @@ export class Runtime {
 
   async updateConfig(
     configBuffer: Buffer,
-    options?: Abortable,
-    {
-      entryHost = this.opts.entryHost,
-      entryPort = this.opts.entryPort,
-    }: Partial<Pick<RuntimeOptions, "entryHost" | "entryPort">> = {}
+    options?: Abortable & Partial<Pick<RuntimeOptions, "entryPort">>
   ): Promise<number | undefined> {
     // 1. Stop existing process (if any) and wait for exit
     await this.dispose();
     // TODO: what happens if runtime crashes?
 
-    this.opts.entryHost = entryHost;
-    this.opts.entryPort = entryPort;
+    if (options?.entryPort) {
+      this.opts.entryPort = options.entryPort;
+    }
 
     // 2. Start new process
     const runtimeProcess = childProcess.spawn(this.#command, this.#args, {
