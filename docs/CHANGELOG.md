@@ -1,5 +1,14 @@
 # 🚧 Changelog
 
+## `3.0.1`
+
+### Fixes
+
+- Trust CA root certificates on Windows and `NODE_EXTRA_CA_CERTS`
+  (https://github.com/cloudflare/miniflare/pull/587)
+- Make process exits/server stops more aggressive to prevent test hangs
+  (https://github.com/cloudflare/miniflare/pull/590)
+
 ## `3.0.0`
 
 Miniflare v3 now uses [`workerd`](https://github.com/cloudflare/workerd), the
