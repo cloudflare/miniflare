@@ -187,7 +187,7 @@ level will be logged.
 - `maxRetries?: number`
 
   Maximum number of times to retry dispatching a message, if handling it throws,
-  or it is explicitly retired. Defaults to `2`.
+  or it is explicitly retried. Defaults to `2`.
 
 - `deadLetterQueue?: string`
 
