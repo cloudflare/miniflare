@@ -435,11 +435,11 @@ Options shared between all Workers/"nanoservices".
 
 - `https?: boolean`
 
-  Start an HTTPS server using a pre-generated self-signed certificate for
-  `localhost`. Note this certificate is not valid for any other hostnames or IP
-  addresses. If you need to access the HTTPS server from another device, you'll
-  need to generate your own certificate and use the other `https*` options
-  below.
+  If `true`, start an HTTPS server using a pre-generated self-signed certificate
+  for `localhost`. Note this certificate is not valid for any other hostnames or
+  IP addresses. If you need to access the HTTPS server from another device,
+  you'll need to generate your own certificate and use the other `https*`
+  options below.
 
   ```shell
   $ openssl req -newkey rsa:2048 -nodes -keyout key.pem -x509 -days 365 -out cert.pem
