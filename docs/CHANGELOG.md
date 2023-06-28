@@ -1,5 +1,54 @@
 # 🚧 Changelog
 
+## `3.0.0`
+
+Miniflare v3 now uses [`workerd`](https://github.com/cloudflare/workerd), the
+open-source Cloudflare Workers runtime. This is the same runtime that's deployed
+on Cloudflare’s network, giving bug-for-bug compatibility and practically
+eliminating behavior mismatches. Refer to the
+[Miniflare v3](https://blog.cloudflare.com/miniflare-and-workerd/) and
+[Wrangler v3 announcements](https://blog.cloudflare.com/wrangler3/) for more
+information.
+
+### Missing Features
+
+Several features from Miniflare v2 are not supported in Miniflare v3's initial
+release. However, they are on the roadmap, and will be added back soon:
+
+- Step-through debugging
+- Automatically triggering scheduled events via CRON schedules, or manually
+  triggering them via `/.mf/scheduled` or `/cdn-cgi/mf/scheduled` (manually
+  triggering events is supported via the `--test-scheduled` Wrangler flag and
+  visiting `/__scheduled`)
+- Starting an HTTPS server
+- Mocking outbound `fetch()` requests
+- The `get{Bindings,KVNamespace,R2Bucket,Caches,DurableObjectNamespace}()`
+  methods
+
+### CLI Changes
+
+Miniflare v3 no longer includes a standalone CLI. To get the same functionality,
+you will need to switch over to
+[Wrangler](https://developers.cloudflare.com/workers/wrangler/). Wrangler v3
+uses Miniflare v3 by default. To start a local development server, run:
+
+```sh
+$ npx wrangler@3 dev
+```
+
+If there are features from the Miniflare CLI you would like to see in Wrangler,
+please open an issue on
+[GitHub](https://github.com/cloudflare/workers-sdk/issues/new/choose).
+
+### API Changes
+
+We have tried to keep Miniflare v3's API close to Miniflare v2 where possible,
+but many options and methods have been removed or changed with the switch to the
+open-source `workerd` runtime. See the
+[**📚 GitHub `README` for the new API docs**](https://github.com/cloudflare/miniflare/blob/tre/packages/miniflare/README.md),
+and the [**⬆️ Migration Guide**](https://miniflare.dev/get-started/migrating)
+for the full list of removals and changes.
+
 ## 2.14.0
 
 ### Features
