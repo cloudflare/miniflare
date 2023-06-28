@@ -1,5 +1,12 @@
 # 🚧 Changelog
 
+## `3.0.2`
+
+### Fixes
+
+- When `port: 0` is specified, preserve randomly assigned port between
+  `setOptions()` calls (https://github.com/cloudflare/miniflare/pull/610)
+
 ## `3.0.1`
 
 ### Fixes
