@@ -5,8 +5,7 @@
 [`workerd`](https://github.com/cloudflare/workerd).
 
 > :warning: Miniflare 3 is API-only, and does not expose a CLI. Use Wrangler
-> with `wrangler dev --experimental-local` to develop your Workers locally with
-> Miniflare 3.
+> with `wrangler dev` to develop your Workers locally with Miniflare 3.
 
 ## Quick Start
 
