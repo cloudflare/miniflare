@@ -536,7 +536,7 @@ Options shared between all Workers/"nanoservices".
 
   Where to persist data stored in D1 databases. See docs for `Persistence`.
 
-#### Analytics Engine and Queues
+#### Analytics Engine
 
 _Not yet supported_
 
