@@ -522,8 +522,7 @@ Options shared between all Workers/"nanoservices".
 
 - `durableObjectsPersist?: Persistence`
 
-  _Not yet supported_, Miniflare will throw if this is truthy and Durable Object
-  bindings are specified.
+  Where to persist data stored in Durable Objects. See docs for `Persistence`.
 
 - `kvPersist?: Persistence`
 
