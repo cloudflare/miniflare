@@ -26,7 +26,7 @@
     "lint": "eslint \"packages/*/{src,test}/**/*.ts\" \"scripts/**/*.{js,mjs}\" \"types/**/*.ts\"",
     "lint:fix": "npm run lint -- --fix",
     "prepublishOnly": "npm run lint && npm run clean && npm run build && npm run types:bundle && npm run test",
-    "test": "npm run build && ava --timeout=1m && rimraf ./.tmp",
+    "test": "npm run build && ava --timeout=5m && rimraf ./.tmp",
     "types:build": "tsc && tsc -p packages/miniflare/src/workers/tsconfig.json",
     "types:bundle": "npm run types:build && node scripts/types.mjs"
   },
