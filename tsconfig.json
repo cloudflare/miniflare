@@ -4,7 +4,7 @@
     "target": "esnext",
     "lib": ["esnext"],
     "strict": true,
-    "moduleResolution": "node16",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "isolatedModules": true,
     "experimentalDecorators": true,
