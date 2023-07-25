@@ -901,6 +901,38 @@ export class Miniflare {
       }
     }
 
+    // For testing proxy client serialisation, add an API that just returns its
+    // arguments. Note without the `.pipeThrough(new TransformStream())` below,
+    // we'll see `TypeError: Inter-TransformStream ReadableStream.pipeTo() is
+    // not implemented.`. `IdentityTransformStream` doesn't work here.
+    // TODO(soon): add support for wrapped bindings and remove this. The API
+    //  will probably look something like `{ wrappedBindings: { A: "a" } }`
+    //  where `"a"` is the name of a "worker" in `workers`.
+    const extensions: Extension[] = [
+      {
+        modules: [
+          {
+            name: "miniflare-internal:identity",
+            internal: true, // Not accessible to user code
+            esModule: `
+            class Identity {
+              async asyncIdentity(...args) {
+                const i = args.findIndex((arg) => arg instanceof ReadableStream);
+                if (i !== -1) args[i] = args[i].pipeThrough(new TransformStream());
+                return args;
+              }
+            }
+            export default function() { return new Identity(); }
+            `,
+          },
+        ],
+      },
+    ];
+    proxyBindings.push({
+      name: "IDENTITY",
+      wrapped: { moduleName: "miniflare-internal:identity" },
+    });
+
     const globalServices = getGlobalServices({
       sharedOptions: sharedOpts.core,
       allWorkerRoutes,
@@ -915,7 +947,7 @@ export class Miniflare {
       services.set(service.name, service);
     }
 
-    return { services: Array.from(services.values()), sockets };
+    return { services: Array.from(services.values()), sockets, extensions };
   }
 
   async #assembleAndUpdateConfig() {
