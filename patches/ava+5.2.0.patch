@@ -1,0 +1,17 @@
+diff --git a/node_modules/ava/lib/worker/base.js b/node_modules/ava/lib/worker/base.js
+index cdd3c4a..b03152b 100644
+--- a/node_modules/ava/lib/worker/base.js
++++ b/node_modules/ava/lib/worker/base.js
+@@ -126,7 +126,11 @@ const run = async options => {
+ 
+ 		nowAndTimers.setImmediate(() => {
+ 			for (const rejection of currentlyUnhandled()) {
+-				channel.send({type: 'unhandled-rejection', err: serializeError('Unhandled rejection', true, rejection.reason, runner.file)});
++        channel.send({type: 'unhandled-rejection', err: serializeError('Unhandled rejection', true, rejection.reason, runner.file)});
++        // The `cause` is often much more useful than the error itself, especially for `TypeError: fetch failed`s from `undici`
++        if (rejection.reason?.cause !== undefined) {
++          channel.send({type: 'unhandled-rejection', err: serializeError('Unhandled rejection', true, rejection.reason.cause, runner.file)});
++        }
+ 			}
+ 
+ 			exit(0);
