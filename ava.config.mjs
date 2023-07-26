@@ -16,4 +16,7 @@ export default {
     compile: false,
     rewritePaths,
   },
+  environmentVariables: {
+    MINIFLARE_ASSERT_BODIES_CONSUMED: "true",
+  },
 };
