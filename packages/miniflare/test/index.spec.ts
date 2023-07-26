@@ -494,6 +494,7 @@ test("Miniflare: HTTPS fetches using browser CA certificates", async (t) => {
   t.teardown(() => mf.dispose());
   const res = await mf.dispatchFetch("http://localhost");
   t.true(res.ok);
+  await res.arrayBuffer();
 });
 
 test("Miniflare: accepts https requests", async (t) => {
@@ -513,6 +514,7 @@ test("Miniflare: accepts https requests", async (t) => {
 
   const res = await mf.dispatchFetch("https://localhost");
   t.true(res.ok);
+  await res.arrayBuffer();
 
   t.assert(log.logs[0][1].startsWith("Ready on https://"));
 });
