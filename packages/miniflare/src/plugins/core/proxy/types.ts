@@ -14,6 +14,7 @@ import type {
   KVNamespace as WorkerKVNamespace,
   KVNamespaceGetOptions as WorkerKVNamespaceGetOptions,
   KVNamespaceGetWithMetadataResult as WorkerKVNamespaceGetWithMetadataResult,
+  KVNamespacePutOptions as WorkerKVNamespacePutOptions,
   R2Bucket as WorkerR2Bucket,
   R2Conditional as WorkerR2Conditional,
   R2HTTPMetadata as WorkerR2HTTPMetadata,
@@ -95,7 +96,10 @@ export type DurableObjectNamespace = Omit<
 };
 
 // Replacing `ReadableStream`
-export type KVNamespace = Omit<WorkerKVNamespace, "get" | "getWithMetadata"> & {
+export type KVNamespace = Omit<
+  WorkerKVNamespace,
+  "get" | "getWithMetadata" | "put"
+> & {
   get(
     key: string,
     options?: Partial<WorkerKVNamespaceGetOptions<undefined>>
@@ -160,6 +164,12 @@ export type KVNamespace = Omit<WorkerKVNamespace, "get" | "getWithMetadata"> & {
     key: string,
     options: WorkerKVNamespaceGetOptions<"stream">
   ): Promise<WorkerKVNamespaceGetWithMetadataResult<ReadableStream, Metadata>>;
+
+  put(
+    key: string,
+    value: string | ArrayBuffer | ArrayBufferView | ReadableStream,
+    options?: WorkerKVNamespacePutOptions
+  ): Promise<void>;
 };
 
 // Replacing `Headers`, `ReadableStream`, `Blob`

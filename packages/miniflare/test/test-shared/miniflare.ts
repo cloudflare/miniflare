@@ -89,6 +89,35 @@ export interface MiniflareTestContext {
   setOptions(opts: Partial<MiniflareOptions>): Promise<void>;
 }
 
+export type Namespaced<T> = T & { ns: string };
+// Automatically prefix all keys with the specified namespace, assuming keys
+// are always specified as the first parameter (true for `KVNamespace`s and
+// `R2Bucket`s)
+export function namespace<T>(ns: string, binding: T): Namespaced<T> {
+  return new Proxy(binding as Namespaced<T>, {
+    get(target, key, receiver) {
+      if (key === "ns") return ns;
+      const value = Reflect.get(target, key, receiver);
+      if (typeof value === "function" && key !== "list") {
+        return (keys: unknown, ...args: unknown[]) => {
+          if (typeof keys === "string") keys = ns + keys;
+          if (Array.isArray(keys)) keys = keys.map((key) => ns + key);
+          return (value as (...args: unknown[]) => unknown)(keys, ...args);
+        };
+      }
+      return value;
+    },
+    set(target, key, newValue, receiver) {
+      if (key === "ns") {
+        ns = newValue;
+        return true;
+      } else {
+        return Reflect.set(target, key, newValue, receiver);
+      }
+    },
+  });
+}
+
 export function miniflareTest<
   Env,
   Context extends MiniflareTestContext = MiniflareTestContext
