@@ -16,6 +16,7 @@ import type {
 import exitHook from "exit-hook";
 import { splitCookiesString } from "set-cookie-parser";
 import stoppable from "stoppable";
+import { Client } from "undici";
 import { WebSocketServer } from "ws";
 import { z } from "zod";
 import { fallbackCf, setupCf } from "./cf";
@@ -24,10 +25,10 @@ import {
   Request,
   RequestInit,
   Response,
-  allowUnauthorizedAgent,
   configureEntrySocket,
   coupleWebSocket,
   fetch,
+  registerAllowUnauthorizedDispatcher,
 } from "./http";
 import {
   CacheStorage,
@@ -460,6 +461,7 @@ export class Miniflare {
   #runtime?: Runtime;
   #removeRuntimeExitHook?: () => void;
   #runtimeEntryURL?: URL;
+  #runtimeClient?: Client;
   #proxyClient?: ProxyClient;
 
   // Path to temporary directory for use as scratch space/"in-memory" Durable
@@ -972,9 +974,16 @@ export class Miniflare {
     const secure = entrySocket !== undefined && "https" in entrySocket;
 
     // noinspection HttpUrlsUsage
+    const previousEntry = this.#runtimeEntryURL;
     this.#runtimeEntryURL = new URL(
       `${secure ? "https" : "http"}://${this.#accessibleHost}:${maybePort}`
     );
+    if (previousEntry?.toString() !== this.#runtimeEntryURL.toString()) {
+      this.#runtimeClient = new Client(this.#runtimeEntryURL, {
+        connect: { rejectUnauthorized: false },
+      });
+      registerAllowUnauthorizedDispatcher(this.#runtimeClient);
+    }
     if (this.#proxyClient === undefined) {
       this.#proxyClient = new ProxyClient(
         this.#runtimeEntryURL,
@@ -1049,11 +1058,14 @@ export class Miniflare {
     this.#checkDisposed();
     await this.ready;
 
+    assert(this.#runtimeEntryURL !== undefined);
+    assert(this.#runtimeClient !== undefined);
+
     const forward = new Request(input, init);
     const url = new URL(forward.url);
     forward.headers.set(CoreHeaders.ORIGINAL_URL, url.toString());
-    url.protocol = this.#runtimeEntryURL!.protocol;
-    url.host = this.#runtimeEntryURL!.host;
+    url.protocol = this.#runtimeEntryURL.protocol;
+    url.host = this.#runtimeEntryURL.host;
     if (forward.cf) {
       const cf = { ...fallbackCf, ...forward.cf };
       forward.headers.set(HEADER_CF_BLOB, JSON.stringify(cf));
@@ -1068,10 +1080,7 @@ export class Miniflare {
     }
 
     const forwardInit = forward as RequestInit;
-    if (url.protocol === "https:") {
-      forwardInit.dispatcher = allowUnauthorizedAgent;
-    }
-
+    forwardInit.dispatcher = this.#runtimeClient;
     const response = await fetch(url, forwardInit);
 
     // If the Worker threw an uncaught exception, propagate it to the caller
@@ -1079,6 +1088,25 @@ export class Miniflare {
     if (response.status === 500 && stack !== null) {
       const caught = JsonErrorSchema.parse(await response.json());
       throw reviveError(this.#workerSrcOpts, caught);
+    }
+
+    if (
+      process.env.MINIFLARE_ASSERT_BODIES_CONSUMED !== undefined &&
+      response.body !== null
+    ) {
+      // Throw an uncaught exception if the body from this response isn't
+      // consumed "immediately". `undici` may hang or throw socket errors if we
+      // don't remember to do this:
+      // https://github.com/nodejs/undici/issues/583#issuecomment-1577468249
+      const originalLimit = Error.stackTraceLimit;
+      Error.stackTraceLimit = Infinity;
+      const error = new Error(
+        "`body` returned from `Miniflare#dispatchFetch()` not consumed immediately"
+      );
+      Error.stackTraceLimit = originalLimit;
+      setImmediate(() => {
+        if (!response.bodyUsed) throw error;
+      });
     }
 
     return response;
@@ -1099,7 +1127,8 @@ export class Miniflare {
   async _getProxyClient(): Promise<ProxyClient> {
     this.#checkDisposed();
     await this.ready;
-    return this.#proxyClient!;
+    assert(this.#proxyClient !== undefined);
+    return this.#proxyClient;
   }
 
   async getBindings<

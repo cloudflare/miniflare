@@ -1,14 +1,19 @@
 import http from "http";
-import { Agent, Headers, RequestInfo, fetch as baseFetch } from "undici";
+import { Dispatcher, Headers, RequestInfo, fetch as baseFetch } from "undici";
 import NodeWebSocket from "ws";
 import { DeferredPromise } from "../shared";
 import { Request, RequestInit } from "./request";
 import { Response } from "./response";
 import { WebSocketPair, coupleWebSocket } from "./websocket";
 
-export const allowUnauthorizedAgent = new Agent({
-  connect: { rejectUnauthorized: false },
-});
+// `Dispatcher`s don't expose whether they had `rejectUnauthorized` set when
+// constructed, but we need to know whether to pass this when constructing
+// WebSockets. Instead, we add all known `rejectUnauthorized` dispatchers to
+// a weak map, and check that before constructing WebSockets.
+const allowUnauthorizedDispatchers = new WeakSet<Dispatcher>();
+export function registerAllowUnauthorizedDispatcher(dispatcher: Dispatcher) {
+  allowUnauthorizedDispatchers.add(dispatcher);
+}
 
 const ignored = ["transfer-encoding", "connection", "keep-alive", "expect"];
 function headersFromIncomingRequest(req: http.IncomingMessage): Headers {
@@ -54,7 +59,8 @@ export async function fetch(
     }
 
     const rejectUnauthorized =
-      requestInit?.dispatcher === allowUnauthorizedAgent
+      requestInit?.dispatcher !== undefined &&
+      allowUnauthorizedDispatchers.has(requestInit?.dispatcher)
         ? { rejectUnauthorized: false }
         : {};
 
