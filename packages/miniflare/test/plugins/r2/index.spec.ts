@@ -26,8 +26,10 @@ import {
 } from "miniflare";
 import {
   MiniflareTestContext,
+  Namespaced,
   isWithin,
   miniflareTest,
+  namespace,
   useTmp,
 } from "../../test-shared";
 
@@ -48,37 +50,9 @@ function hash(value: string, algorithm = "md5") {
   return crypto.createHash(algorithm).update(value).digest("hex");
 }
 
-type NamespacedR2Bucket = R2Bucket & { ns: string };
-
-// Automatically prefix all keys with the specified namespace
-function nsBucket(ns: string, bucket: R2Bucket): NamespacedR2Bucket {
-  return new Proxy(bucket as NamespacedR2Bucket, {
-    get(target, key, receiver) {
-      if (key === "ns") return ns;
-      const value = Reflect.get(target, key, receiver);
-      if (typeof value === "function" && key !== "list") {
-        return (keys: string | string[], ...args: unknown[]) => {
-          if (typeof keys === "string") keys = ns + keys;
-          if (Array.isArray(keys)) keys = keys.map((key) => ns + key);
-          return value(keys, ...args);
-        };
-      }
-      return value;
-    },
-    set(target, key, newValue, receiver) {
-      if (key === "ns") {
-        ns = newValue;
-        return true;
-      } else {
-        return Reflect.set(target, key, newValue, receiver);
-      }
-    },
-  });
-}
-
 interface Context extends MiniflareTestContext {
   ns: string;
-  r2: NamespacedR2Bucket;
+  r2: Namespaced<R2Bucket>;
   storage: Storage;
 }
 
@@ -100,7 +74,7 @@ test.beforeEach(async (t) => {
     Math.random() * Number.MAX_SAFE_INTEGER
   )}`;
   t.context.ns = ns;
-  t.context.r2 = nsBucket(ns, await t.context.mf.getR2Bucket("BUCKET"));
+  t.context.r2 = namespace(ns, await t.context.mf.getR2Bucket("BUCKET"));
   t.context.storage = t.context.mf._getPluginStorage("r2", "bucket");
 });
 
@@ -108,7 +82,7 @@ const validatesKeyMacro: Macro<
   [
     {
       method: string;
-      f: (r2: NamespacedR2Bucket, key?: any) => Promise<unknown>;
+      f: (r2: R2Bucket, key?: any) => Promise<unknown>;
     }
   ],
   Context
@@ -928,7 +902,7 @@ test.serial("operations persist stored data", async (t) => {
   // Set option, then reset after test
   await t.context.setOptions({ ...opts, r2Persist: tmp });
   t.teardown(() => t.context.setOptions(opts));
-  const r2 = nsBucket(ns, await mf.getR2Bucket("BUCKET"));
+  const r2 = namespace(ns, await mf.getR2Bucket("BUCKET"));
 
   // Check put respects persist
   await r2.put("key", "value");
@@ -972,7 +946,7 @@ test.serial("operations permit strange bucket names", async (t) => {
   const id = "my/ Bucket";
   await t.context.setOptions({ ...opts, r2Buckets: { BUCKET: id } });
   t.teardown(() => t.context.setOptions(opts));
-  const r2 = nsBucket(ns, await mf.getR2Bucket("BUCKET"));
+  const r2 = namespace(ns, await mf.getR2Bucket("BUCKET"));
 
   // Check basic operations work
   await r2.put("key", "value");

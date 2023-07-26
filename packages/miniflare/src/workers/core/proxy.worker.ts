@@ -190,6 +190,7 @@ export class ProxyServer implements DurableObject {
 
     let status = 200;
     let result;
+    let unbufferedRest: ReadableStream | undefined;
     if (opHeader === ProxyOps.GET) {
       // If no key header is specified, just return the target
       result = keyHeader === null ? target : target[keyHeader];
@@ -232,6 +233,7 @@ export class ProxyServer implements DurableObject {
         assert(!Number.isNaN(argsSize));
         assert(request.body !== null);
         const [encodedArgs, rest] = await readPrefix(request.body, argsSize);
+        unbufferedRest = rest;
         const stringifiedArgs = DECODER.decode(encodedArgs);
         args = parseWithReadableStreams(
           WORKERS_PLATFORM_IMPL,
@@ -269,6 +271,15 @@ export class ProxyServer implements DurableObject {
         result = e;
       }
       headers.append(CoreHeaders.OP_RESULT_TYPE, "Promise");
+    }
+    // Make sure we fully-consume the request body if it wasn't used (e.g. key
+    // validation failed). Without this, we'll get a `TypeError: Can't read from
+    // request stream after response has been sent.`
+    // TODO(soon): remove once https://github.com/cloudflare/workerd/issues/918 fixed
+    if (unbufferedRest !== undefined && !unbufferedRest.locked) {
+      try {
+        await unbufferedRest.pipeTo(new WritableStream());
+      } catch {}
     }
     if (result instanceof ReadableStream) {
       // If this was also a resolve `Promise`, the result type header will end
