@@ -43,6 +43,8 @@ const exceptionQueueResponse: QueueResponse = {
   explicitRetries: [],
   explicitAcks: [],
 };
+export type GatewayMessage = { body: Buffer; contentType?: QueueContentType };
+export type QueueContentType = "text" | "json" | "bytes" | "v8";
 
 export class Message {
   #failedAttempts = 0;
@@ -82,7 +84,7 @@ interface PendingFlush {
 export type QueueEnqueueOn = (
   queueName: string,
   consumer: QueueConsumer,
-  messages: (Message | Buffer)[]
+  messages: (Message | GatewayMessage)[]
 ) => void;
 
 // `QueuesGateway` slightly misrepresents what this class does. Each queue will
@@ -225,7 +227,7 @@ export class QueuesGateway {
   enqueue(
     enqueueOn: QueueEnqueueOn,
     consumer: QueueConsumer,
-    messages: (Message | Buffer)[]
+    messages: (Message | GatewayMessage)[]
   ) {
     for (const message of messages) {
       if (message instanceof Message) {
@@ -233,7 +235,16 @@ export class QueuesGateway {
       } else {
         const id = crypto.randomBytes(16).toString("hex");
         const timestamp = this.timers.now();
-        const body = v8.deserialize(message);
+        let body: string | Buffer | ArrayBufferLike;
+        if (message.contentType === "text") {
+          body = Buffer.from(message.body).toString();
+        } else if (message.contentType === "json") {
+          body = JSON.parse(Buffer.from(message.body).toString());
+        } else if (message.contentType === "bytes") {
+          body = message.body.buffer;
+        } else {
+          body = v8.deserialize(new Uint8Array(message.body));
+        }
         this.#messages.push(new Message(id, timestamp, body));
       }
     }

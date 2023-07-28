@@ -657,3 +657,78 @@ test("operations permit strange queue names", async (t) => {
     { queue: id, id: batch[1].id, body: "msg2" },
   ]);
 });
+
+test("supports message contentTypes", async (t) => {
+  const MessageContentTypeTestSchema = z.object({
+    stringified: MessageArraySchema,
+    bytesEqual: z.boolean(),
+    dateEqual: z.boolean(),
+  });
+  const promise = new DeferredPromise<
+    z.infer<typeof MessageContentTypeTestSchema>
+  >();
+  const timers = new TestTimers();
+  const id = "my/ Queue";
+  const log = new TestLog(t);
+  const mf = new Miniflare({
+    log,
+    timers,
+    verbose: true,
+    queueProducers: { QUEUE: id },
+    queueConsumers: [id],
+    serviceBindings: {
+      async REPORTER(request) {
+        promise.resolve(
+          (await request.json()) as z.infer<typeof MessageContentTypeTestSchema>
+        );
+        return new Response();
+      },
+    },
+    modules: true,
+    script: `export default {
+      async fetch(request, env, ctx) {
+        await env.QUEUE.send("msg1", {contentType: "text"});
+        await env.QUEUE.send([{"message": "msg2"}], {contentType: "json"});
+        const arrayBuffer = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]);
+        await env.QUEUE.send(arrayBuffer, {contentType: "bytes"});
+        await env.QUEUE.send(new Date(1600000000000), {contentType: "v8"});
+        return new Response();
+      },
+      async queue(batch, env, ctx) {
+        let bytesEqual = true;
+        const comparisonBufferView = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]);
+        const bufferView = new Uint8Array(batch.messages[2].body)
+        for (let i = 0; i < 8; i++) {
+            if (bufferView[i] !== comparisonBufferView[i]) {
+                bytesEqual = false;
+                break;
+            }
+        }
+        await env.REPORTER.fetch("http://localhost", {
+          method: "POST",
+          body: JSON.stringify({stringified: batch.messages.map(({ id, body }) => ({ queue: batch.queue, id, body })), bytesEqual, dateEqual: batch.messages[3].body.toISOString() === new Date(1600000000000).toISOString()}),
+        });
+      }
+    }`,
+  });
+  await mf.dispatchFetch("http://localhost");
+  timers.timestamp += 1000;
+  await timers.waitForTasks();
+  const batch = await promise;
+  t.deepEqual(batch.stringified, [
+    { queue: id, id: batch.stringified[0].id, body: "msg1" },
+    { queue: id, id: batch.stringified[1].id, body: [{ message: "msg2" }] },
+    {
+      queue: id,
+      id: batch.stringified[2].id,
+      body: {}, // JSON stringify doesn't serialize the ArrayBuffer
+    },
+    {
+      queue: id,
+      id: batch.stringified[3].id,
+      body: "2020-09-13T12:26:40.000Z",
+    }, // JSON stringify from the reporter fetch converts from date object to string
+  ]);
+  t.deepEqual(batch.bytesEqual, true);
+  t.deepEqual(batch.dateEqual, true);
+});

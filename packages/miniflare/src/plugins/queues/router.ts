@@ -9,7 +9,7 @@ import {
   RouteHandler,
   Router,
 } from "../shared";
-import { QueueEnqueueOn, QueuesGateway } from "./gateway";
+import { QueueContentType, QueueEnqueueOn, QueuesGateway } from "./gateway";
 
 const MAX_MESSAGE_SIZE_BYTES = 128 * 1000;
 const MAX_MESSAGE_BATCH_COUNT = 100;
@@ -26,6 +26,22 @@ function validateMessageSize(headers: Headers) {
   if (size !== null && parseInt(size) > MAX_MESSAGE_SIZE_BYTES) {
     throw new PayloadTooLargeError(
       `message length of ${size} bytes exceeds limit of ${MAX_MESSAGE_SIZE_BYTES}`
+    );
+  }
+}
+
+function validateContentType(headers: Headers) {
+  const format = headers.get("X-Msg-Fmt");
+  if (
+    format &&
+    format !== "text" &&
+    format !== "json" &&
+    format !== "bytes" &&
+    format !== "v8"
+  ) {
+    throw new HttpError(
+      400,
+      `message content type ${format} is invalid; if specified, must be one of 'text', 'json', 'bytes', or 'v8'`
     );
   }
 }
@@ -63,7 +79,12 @@ async function decodeQueueConsumer(
 }
 
 const QueuesBatchRequestSchema = z.object({
-  messages: z.array(z.object({ body: Base64DataSchema })),
+  messages: z.array(
+    z.object({
+      body: Base64DataSchema,
+      contentType: z.optional(z.enum(["text", "json", "bytes", "v8"])),
+    })
+  ),
 });
 
 export interface QueuesParams {
@@ -78,6 +99,7 @@ export class QueuesRouter extends Router<QueuesGateway> {
   @POST("/:queue/message")
   message: RouteHandler<QueuesParams> = async (req, params) => {
     validateMessageSize(req.headers);
+    validateContentType(req.headers);
 
     // Get consumer from persistence header, if we don't have a consumer,
     // drop the message
@@ -85,8 +107,14 @@ export class QueuesRouter extends Router<QueuesGateway> {
     if (consumer === undefined) return new Response();
 
     const queue = decodeURIComponent(params.queue);
-    const serialisedBody = Buffer.from(await req.arrayBuffer());
-    this.#enqueueOn(queue, consumer, [serialisedBody]);
+    this.#enqueueOn(queue, consumer, [
+      {
+        body: Buffer.from(await req.arrayBuffer()),
+        contentType: (req.headers.get("X-Msg-Fmt") ?? undefined) as
+          | QueueContentType
+          | undefined,
+      },
+    ]);
     return new Response();
   };
 
@@ -101,7 +129,10 @@ export class QueuesRouter extends Router<QueuesGateway> {
 
     const queue = decodeURIComponent(params.queue);
     const body = QueuesBatchRequestSchema.parse(await req.json());
-    const messages = body.messages.map(({ body }) => body);
+    const messages = body.messages.map(({ body, contentType }) => ({
+      body,
+      contentType,
+    }));
     this.#enqueueOn(queue, consumer, messages);
     return new Response();
   };
