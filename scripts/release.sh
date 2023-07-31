@@ -21,6 +21,9 @@ npm install --workspace miniflare "workerd@${WORKERD_VERSION}"
 # bump version and commit and tag release
 npm version "$MINIFLARE_VERSION" --force --include-workspace-root --workspace miniflare -m "Bump versions to %s"
 
+git push -u "${USER}/v${MINIFLARE_VERSION}"
+git push --tags
+
 # publish to npm
 npm run prepublishOnly
 npm publish -ws
