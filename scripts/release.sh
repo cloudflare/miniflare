@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 MINOR="$1"
 
