@@ -9,7 +9,11 @@ import {
   RouteHandler,
   Router,
 } from "../shared";
-import { QueueContentType, QueueEnqueueOn, QueuesGateway } from "./gateway";
+import {
+  QueueContentTypeSchema,
+  QueueEnqueueOn,
+  QueuesGateway,
+} from "./gateway";
 
 const MAX_MESSAGE_SIZE_BYTES = 128 * 1000;
 const MAX_MESSAGE_BATCH_COUNT = 100;
@@ -30,19 +34,18 @@ function validateMessageSize(headers: Headers) {
   }
 }
 
-function validateContentType(headers: Headers) {
-  const format = headers.get("X-Msg-Fmt");
-  if (
-    format &&
-    format !== "text" &&
-    format !== "json" &&
-    format !== "bytes" &&
-    format !== "v8"
-  ) {
+function validateContentType(
+  headers: Headers
+): z.infer<typeof QueueContentTypeSchema> {
+  const format = headers.get("X-Msg-Fmt") ?? undefined; // zod will throw if null
+  const result = QueueContentTypeSchema.safeParse(format);
+  if (!result.success) {
     throw new HttpError(
       400,
       `message content type ${format} is invalid; if specified, must be one of 'text', 'json', 'bytes', or 'v8'`
     );
+  } else {
+    return result.data;
   }
 }
 
@@ -82,7 +85,7 @@ const QueuesBatchRequestSchema = z.object({
   messages: z.array(
     z.object({
       body: Base64DataSchema,
-      contentType: z.optional(z.enum(["text", "json", "bytes", "v8"])),
+      contentType: z.optional(QueueContentTypeSchema),
     })
   ),
 });
@@ -99,7 +102,7 @@ export class QueuesRouter extends Router<QueuesGateway> {
   @POST("/:queue/message")
   message: RouteHandler<QueuesParams> = async (req, params) => {
     validateMessageSize(req.headers);
-    validateContentType(req.headers);
+    const contentType = validateContentType(req.headers);
 
     // Get consumer from persistence header, if we don't have a consumer,
     // drop the message
@@ -110,9 +113,7 @@ export class QueuesRouter extends Router<QueuesGateway> {
     this.#enqueueOn(queue, consumer, [
       {
         body: Buffer.from(await req.arrayBuffer()),
-        contentType: (req.headers.get("X-Msg-Fmt") ?? undefined) as
-          | QueueContentType
-          | undefined,
+        contentType,
       },
     ]);
     return new Response();
@@ -129,11 +130,7 @@ export class QueuesRouter extends Router<QueuesGateway> {
 
     const queue = decodeURIComponent(params.queue);
     const body = QueuesBatchRequestSchema.parse(await req.json());
-    const messages = body.messages.map(({ body, contentType }) => ({
-      body,
-      contentType,
-    }));
-    this.#enqueueOn(queue, consumer, messages);
+    this.#enqueueOn(queue, consumer, body.messages);
     return new Response();
   };
 }

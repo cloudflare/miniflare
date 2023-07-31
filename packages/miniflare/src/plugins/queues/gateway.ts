@@ -4,7 +4,7 @@ import v8 from "v8";
 import { stringify } from "devalue";
 import { Colorize, bold, green, grey, red, reset, yellow } from "kleur/colors";
 import { z } from "zod";
-import { Log, Timers } from "../../shared";
+import { Log, Timers, viewToBuffer } from "../../shared";
 import { Storage } from "../../storage";
 import { CoreHeaders, structuredSerializableReducers } from "../../workers";
 import { DispatchFetch, QueueConsumer } from "../shared";
@@ -43,8 +43,14 @@ const exceptionQueueResponse: QueueResponse = {
   explicitRetries: [],
   explicitAcks: [],
 };
-export type GatewayMessage = { body: Buffer; contentType?: QueueContentType };
-export type QueueContentType = "text" | "json" | "bytes" | "v8";
+
+export const QueueContentTypeSchema = z
+  .enum(["text", "json", "bytes", "v8"])
+  .default("v8");
+export const GatewayMessageSchema = z.object({
+  body: z.instanceof(Buffer),
+  contentType: z.optional(QueueContentTypeSchema),
+});
 
 export class Message {
   #failedAttempts = 0;
@@ -84,7 +90,7 @@ interface PendingFlush {
 export type QueueEnqueueOn = (
   queueName: string,
   consumer: QueueConsumer,
-  messages: (Message | GatewayMessage)[]
+  messages: (Message | z.infer<typeof GatewayMessageSchema>)[]
 ) => void;
 
 // `QueuesGateway` slightly misrepresents what this class does. Each queue will
@@ -227,7 +233,7 @@ export class QueuesGateway {
   enqueue(
     enqueueOn: QueueEnqueueOn,
     consumer: QueueConsumer,
-    messages: (Message | GatewayMessage)[]
+    messages: (Message | z.infer<typeof GatewayMessageSchema>)[]
   ) {
     for (const message of messages) {
       if (message instanceof Message) {
@@ -235,15 +241,15 @@ export class QueuesGateway {
       } else {
         const id = crypto.randomBytes(16).toString("hex");
         const timestamp = this.timers.now();
-        let body: string | Buffer | ArrayBufferLike;
+        let body: unknown;
         if (message.contentType === "text") {
-          body = Buffer.from(message.body).toString();
+          body = message.body.toString();
         } else if (message.contentType === "json") {
-          body = JSON.parse(Buffer.from(message.body).toString());
+          body = JSON.parse(message.body.toString());
         } else if (message.contentType === "bytes") {
-          body = message.body.buffer;
+          body = viewToBuffer(message.body);
         } else {
-          body = v8.deserialize(new Uint8Array(message.body));
+          body = v8.deserialize(message.body);
         }
         this.#messages.push(new Message(id, timestamp, body));
       }

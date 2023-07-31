@@ -659,11 +659,9 @@ test("operations permit strange queue names", async (t) => {
 });
 
 test("supports message contentTypes", async (t) => {
-  const MessageContentTypeTestSchema = z.object({
-    stringified: MessageArraySchema,
-    bytesEqual: z.boolean(),
-    dateEqual: z.boolean(),
-  });
+  const MessageContentTypeTestSchema = z
+    .object({ queue: z.string(), id: z.string(), body: z.any() })
+    .array();
   const promise = new DeferredPromise<
     z.infer<typeof MessageContentTypeTestSchema>
   >();
@@ -679,56 +677,63 @@ test("supports message contentTypes", async (t) => {
     serviceBindings: {
       async REPORTER(request) {
         promise.resolve(
-          (await request.json()) as z.infer<typeof MessageContentTypeTestSchema>
+          MessageContentTypeTestSchema.parse(await request.json())
         );
         return new Response();
       },
     },
     modules: true,
     script: `export default {
-      async fetch(request, env, ctx) {
-        await env.QUEUE.send("msg1", {contentType: "text"});
-        await env.QUEUE.send([{"message": "msg2"}], {contentType: "json"});
-        const arrayBuffer = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]);
-        await env.QUEUE.send(arrayBuffer, {contentType: "bytes"});
-        await env.QUEUE.send(new Date(1600000000000), {contentType: "v8"});
-        return new Response();
-      },
-      async queue(batch, env, ctx) {
-        let bytesEqual = true;
-        const comparisonBufferView = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]);
-        const bufferView = new Uint8Array(batch.messages[2].body)
-        for (let i = 0; i < 8; i++) {
-            if (bufferView[i] !== comparisonBufferView[i]) {
-                bytesEqual = false;
-                break;
-            }
-        }
-        await env.REPORTER.fetch("http://localhost", {
-          method: "POST",
-          body: JSON.stringify({stringified: batch.messages.map(({ id, body }) => ({ queue: batch.queue, id, body })), bytesEqual, dateEqual: batch.messages[3].body.toISOString() === new Date(1600000000000).toISOString()}),
-        });
-      }
-    }`,
+  async fetch(request, env, ctx) {
+    await env.QUEUE.send("msg1", { contentType: "text" });
+    await env.QUEUE.send([{ message: "msg2" }], { contentType: "json" });
+    const arrayBuffer = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]);
+    await env.QUEUE.send(arrayBuffer, { contentType: "bytes" });
+    await env.QUEUE.send(new Date(1600000000000), { contentType: "v8" });
+    return new Response();
+  },
+  async queue(batch, env, ctx) {
+    delete Date.prototype.toJSON; // JSON.stringify calls .toJSON before the replacer
+    await env.REPORTER.fetch("http://localhost", {
+      method: "POST",
+      body: JSON.stringify(
+        batch.messages.map(({ id, body }) => ({
+          queue: batch.queue,
+          id,
+          body,
+        })),
+        (_, value) => {
+          if (value instanceof ArrayBuffer) {
+            return {
+              $type: "Uint8Array",
+              value: Array.from(new Uint8Array(value)),
+            };
+          } else if (value instanceof Date) {
+            return { $type: "Date", value: value.getTime() };
+          }
+          return value;
+        },
+      ),
+    });
+  },
+};`,
   });
   await mf.dispatchFetch("http://localhost");
   timers.timestamp += 1000;
   await timers.waitForTasks();
   const batch = await promise;
-  t.deepEqual(batch.stringified, [
-    { queue: id, id: batch.stringified[0].id, body: "msg1" },
-    { queue: id, id: batch.stringified[1].id, body: [{ message: "msg2" }] },
+  t.deepEqual(batch, [
+    { queue: id, id: batch[0].id, body: "msg1" },
+    { queue: id, id: batch[1].id, body: [{ message: "msg2" }] },
     {
       queue: id,
-      id: batch.stringified[2].id,
-      body: {}, // JSON stringify doesn't serialize the ArrayBuffer
+      id: batch[2].id,
+      body: { $type: "Uint8Array", value: [0, 1, 2, 3, 4, 5, 6, 7] },
     },
     {
       queue: id,
-      id: batch.stringified[3].id,
-      body: "2020-09-13T12:26:40.000Z",
-    }, // JSON stringify from the reporter fetch converts from date object to string
+      id: batch[3].id,
+      body: { $type: "Date", value: 1600000000000 },
+    },
   ]);
-  t.deepEqual(batch.bytesEqual, true);
-  t.deepEqual(batch.dateEqual, true);
 });
