@@ -1,7 +1,7 @@
 import { parse } from "devalue";
 import { z } from "zod";
 import { Headers, Response } from "../../http";
-import { Base64DataSchema, HttpError } from "../../shared";
+import { HttpError } from "../../shared";
 import {
   HEADER_PERSIST,
   POST,
@@ -10,6 +10,7 @@ import {
   Router,
 } from "../shared";
 import {
+  GatewayMessageSchema,
   QueueContentTypeSchema,
   QueueEnqueueOn,
   QueuesGateway,
@@ -82,12 +83,7 @@ async function decodeQueueConsumer(
 }
 
 const QueuesBatchRequestSchema = z.object({
-  messages: z.array(
-    z.object({
-      body: Base64DataSchema,
-      contentType: z.optional(QueueContentTypeSchema),
-    })
-  ),
+  messages: z.array(GatewayMessageSchema),
 });
 
 export interface QueuesParams {

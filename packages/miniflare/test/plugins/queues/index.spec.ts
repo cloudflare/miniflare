@@ -705,7 +705,7 @@ test("supports message contentTypes", async (t) => {
         (_, value) => {
           if (value instanceof ArrayBuffer) {
             return {
-              $type: "Uint8Array",
+              $type: "ArrayBuffer",
               value: Array.from(new Uint8Array(value)),
             };
           } else if (value instanceof Date) {
@@ -728,7 +728,7 @@ test("supports message contentTypes", async (t) => {
     {
       queue: id,
       id: batch[2].id,
-      body: { $type: "Uint8Array", value: [0, 1, 2, 3, 4, 5, 6, 7] },
+      body: { $type: "ArrayBuffer", value: [0, 1, 2, 3, 4, 5, 6, 7] },
     },
     {
       queue: id,

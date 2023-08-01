@@ -4,7 +4,7 @@ import v8 from "v8";
 import { stringify } from "devalue";
 import { Colorize, bold, green, grey, red, reset, yellow } from "kleur/colors";
 import { z } from "zod";
-import { Log, Timers, viewToBuffer } from "../../shared";
+import { Base64DataSchema, Log, Timers, viewToBuffer } from "../../shared";
 import { Storage } from "../../storage";
 import { CoreHeaders, structuredSerializableReducers } from "../../workers";
 import { DispatchFetch, QueueConsumer } from "../shared";
@@ -48,9 +48,10 @@ export const QueueContentTypeSchema = z
   .enum(["text", "json", "bytes", "v8"])
   .default("v8");
 export const GatewayMessageSchema = z.object({
-  body: z.instanceof(Buffer),
-  contentType: z.optional(QueueContentTypeSchema),
+  body: Base64DataSchema,
+  contentType: QueueContentTypeSchema,
 });
+export type GatewayMessage = z.infer<typeof GatewayMessageSchema>;
 
 export class Message {
   #failedAttempts = 0;
@@ -90,7 +91,7 @@ interface PendingFlush {
 export type QueueEnqueueOn = (
   queueName: string,
   consumer: QueueConsumer,
-  messages: (Message | z.infer<typeof GatewayMessageSchema>)[]
+  messages: (Message | GatewayMessage)[]
 ) => void;
 
 // `QueuesGateway` slightly misrepresents what this class does. Each queue will
@@ -233,7 +234,7 @@ export class QueuesGateway {
   enqueue(
     enqueueOn: QueueEnqueueOn,
     consumer: QueueConsumer,
-    messages: (Message | z.infer<typeof GatewayMessageSchema>)[]
+    messages: (Message | GatewayMessage)[]
   ) {
     for (const message of messages) {
       if (message instanceof Message) {
