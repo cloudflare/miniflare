@@ -6,9 +6,6 @@ import {
   Log,
   Timers,
   WaitGroup,
-  base64Decode,
-  base64Encode,
-  maybeApply,
   prefixError,
 } from "../../shared";
 import {
@@ -18,6 +15,7 @@ import {
   TypedDatabase,
   escapeLike,
 } from "../../storage";
+import { base64Decode, base64Encode, maybeApply } from "../../workers";
 import {
   BadUpload,
   EntityTooSmall,

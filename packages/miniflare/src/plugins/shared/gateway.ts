@@ -3,14 +3,9 @@ import { URLSearchParams, fileURLToPath } from "url";
 import type { IncomingRequestCfProperties } from "@cloudflare/workers-types/experimental";
 import { z } from "zod";
 import { RequestInfo, RequestInit, Response } from "../../http";
-import {
-  Awaitable,
-  Log,
-  MiniflareCoreError,
-  Timers,
-  sanitisePath,
-} from "../../shared";
+import { Log, MiniflareCoreError, Timers } from "../../shared";
 import { Storage, createFileStorage, createMemoryStorage } from "../../storage";
+import { Awaitable, sanitisePath } from "../../workers";
 
 // TODO: explain why persist passed as header, want options set to be atomic,
 //  if set gateway before script update, may be using new persist before new script

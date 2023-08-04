@@ -6,8 +6,9 @@ import type { ServiceWorkerGlobalScope } from "@cloudflare/workers-types/experim
 import { stringify } from "devalue";
 import { Headers } from "undici";
 import { Request, Response } from "../../../http";
-import { Awaitable, prefixStream, readPrefix } from "../../../shared";
+import { prefixStream, readPrefix } from "../../../shared";
 import {
+  Awaitable,
   CoreHeaders,
   ProxyAddresses,
   ProxyOps,

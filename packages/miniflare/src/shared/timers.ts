@@ -1,4 +1,4 @@
-import { Awaitable } from "./types";
+import { Awaitable } from "../workers";
 
 export interface Timers<TimeoutHandle = unknown> {
   now(): number; // milliseconds

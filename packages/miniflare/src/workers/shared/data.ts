@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+
 export function lexicographicCompare(x: string, y: string): number {
   if (x < y) return -1;
   if (x === y) return 0;
