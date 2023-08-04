@@ -1,6 +1,11 @@
+import SCRIPT_OBJECT_ENTRY from "worker:shared/object-entry";
 import { Headers } from "../../http";
-import { Worker, Worker_Binding } from "../../runtime";
-import { CoreBindings } from "../../workers";
+import {
+  Worker,
+  Worker_Binding,
+  Worker_Binding_DurableObjectNamespaceDesignator,
+} from "../../runtime";
+import { CoreBindings, SharedBindings } from "../../workers";
 import { Persistence, PersistenceSchema } from "./gateway";
 
 export const SOCKET_ENTRY = "entry";
@@ -61,6 +66,25 @@ export function pluginNamespacePersistWorker(
       { name: BINDING_TEXT_PLUGIN, text: plugin },
       { name: BINDING_TEXT_NAMESPACE, text: namespace },
       WORKER_BINDING_SERVICE_LOOPBACK,
+    ],
+  };
+}
+
+export function objectEntryWorker(
+  durableObjectNamespace: Worker_Binding_DurableObjectNamespaceDesignator,
+  namespace: string
+): Worker {
+  return {
+    compatibilityDate: "2023-07-24",
+    modules: [
+      { name: "object-entry.worker.js", esModule: SCRIPT_OBJECT_ENTRY },
+    ],
+    bindings: [
+      { name: SharedBindings.TEXT_NAMESPACE, text: namespace },
+      {
+        name: SharedBindings.DURABLE_OBJECT_NAMESPACE_OBJECT,
+        durableObjectNamespace,
+      },
     ],
   };
 }
