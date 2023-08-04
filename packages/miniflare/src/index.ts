@@ -305,6 +305,23 @@ function buildProxyBinding(
   }
   return proxyBinding;
 }
+// Gets an array of proxy bindings for internal Durable Objects, only used in
+// testing for accessing internal methods
+function getInternalDurableObjectProxyBindings(
+  plugin: string,
+  service: Service
+): Worker_Binding[] | undefined {
+  if (!("worker" in service)) return;
+  assert(service.worker !== undefined);
+  return service.worker.durableObjectNamespaces?.map(({ className }) => {
+    assert(service.name !== undefined);
+    assert(className !== undefined);
+    return {
+      name: getProxyBindingName(`${plugin}-internal`, service.name, className),
+      durableObjectNamespace: { serviceName: service.name, className },
+    };
+  });
+}
 
 // ===== `Miniflare` Internal Storage & Routing =====
 type OptionalGatewayFactoryType<
@@ -895,6 +912,15 @@ export class Miniflare {
           for (const service of pluginServices) {
             if (service.name !== undefined && !services.has(service.name)) {
               services.set(service.name, service);
+              if (key !== DURABLE_OBJECTS_PLUGIN_NAME) {
+                const maybeBindings = getInternalDurableObjectProxyBindings(
+                  key,
+                  service
+                );
+                if (maybeBindings !== undefined) {
+                  proxyBindings.push(...maybeBindings);
+                }
+              }
             }
           }
         }
@@ -1223,6 +1249,15 @@ export class Miniflare {
   }
   getR2Bucket(bindingName: string, workerName?: string): Promise<R2Bucket> {
     return this.#getProxy(R2_PLUGIN_NAME, bindingName, workerName);
+  }
+
+  /** @internal */
+  _getInternalDurableObjectNamespace(
+    pluginName: string,
+    serviceName: string,
+    className: string
+  ): Promise<DurableObjectNamespace> {
+    return this.#getProxy(`${pluginName}-internal`, className, serviceName);
   }
 
   async dispose(): Promise<void> {
