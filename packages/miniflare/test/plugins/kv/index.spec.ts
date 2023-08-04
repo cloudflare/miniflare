@@ -1,32 +1,38 @@
 import assert from "assert";
 import { Blob } from "buffer";
-import { text } from "stream/consumers";
+import fs from "fs/promises";
 import type {
   KVNamespaceListOptions,
   KVNamespaceListResult,
 } from "@cloudflare/workers-types/experimental";
 import { Macro, ThrowsExpectation } from "ava";
-import { KVNamespace, KeyValueStorage, MiniflareOptions } from "miniflare";
+import {
+  KVNamespace,
+  KV_PLUGIN_NAME,
+  Miniflare,
+  MiniflareOptions,
+  secondsToMillis,
+} from "miniflare";
 import {
   MiniflareTestContext,
   Namespaced,
+  TimersStub,
   createJunkStream,
   miniflareTest,
   namespace,
+  useTmp,
 } from "../../test-shared";
 
-// Stored expiration value to signal an expired key.
-export const TIME_EXPIRED = 500;
-// Time in seconds the testClock always returns:
-// TIME_EXPIRED < TIME_NOW < TIME_EXPIRING
+// Time in seconds the fake `Date.now()` always returns
 export const TIME_NOW = 1000;
-// Stored expiration value to signal a key that will expire in the future.
-export const TIME_EXPIRING = 1500;
+// Expiration value to signal a key that will expire in the future
+export const TIME_FUTURE = 1500;
 
 interface Context extends MiniflareTestContext {
   ns: string;
   kv: Namespaced<KVNamespace>; // :D
-  storage: KeyValueStorage;
+  // storage: KeyValueStorage;
+  objectTimers: TimersStub;
 }
 
 const opts: Partial<MiniflareOptions> = {
@@ -44,8 +50,19 @@ test.beforeEach(async (t) => {
   )}`;
   t.context.ns = ns;
   t.context.kv = namespace(ns, await t.context.mf.getKVNamespace("NAMESPACE"));
-  const storage = t.context.mf._getPluginStorage("kv", "namespace");
-  t.context.storage = new KeyValueStorage(storage, t.context.timers);
+  // const storage = t.context.mf._getPluginStorage("kv", "namespace");
+  // t.context.storage = new KeyValueStorage(storage, t.context.timers);
+
+  // Enable fake timers
+  const objectNamespace = await t.context.mf._getInternalDurableObjectNamespace(
+    KV_PLUGIN_NAME,
+    "kv:ns",
+    "KVNamespaceObject"
+  );
+  const objectId = objectNamespace.idFromName("namespace");
+  const objectStub = objectNamespace.get(objectId);
+  t.context.objectTimers = new TimersStub(objectStub);
+  await t.context.objectTimers.enableFakeTimers(secondsToMillis(TIME_NOW));
 });
 
 const validatesKeyMacro: Macro<
@@ -81,12 +98,8 @@ test(validatesKeyMacro, "get", async (kv, key) => {
   await kv.get(key);
 });
 test("get: returns value", async (t) => {
-  const { storage, kv, ns } = t.context;
-  await storage.put({
-    key: `${ns}key`,
-    value: new Blob(["value"]).stream(),
-    metadata: { testing: true },
-  });
+  const { kv } = t.context;
+  await kv.put("key", "value");
   const result = await kv.get("key");
   t.is(result, "value");
 });
@@ -94,21 +107,16 @@ test("get: returns null for non-existent keys", async (t) => {
   const { kv } = t.context;
   t.is(await kv.get("key"), null);
 });
-test("get: returns null for expired keys", async (t) => {
-  const { storage, kv, ns } = t.context;
-  await storage.put({
-    key: `${ns}key`,
-    value: new Blob(["value"]).stream(),
-    expiration: TIME_EXPIRED,
-  });
+test.serial("get: returns null for expired keys", async (t) => {
+  const { kv, objectTimers } = t.context;
+  await kv.put("key", "value", { expirationTtl: 60 });
+  t.not(await kv.get("key"), null);
+  await objectTimers.advanceFakeTime(60_000);
   t.is(await kv.get("key"), null);
 });
 test("get: validates but ignores cache ttl", async (t) => {
-  const { storage, kv } = t.context;
-  await storage.put({
-    key: "key",
-    value: new Blob(["value"]).stream(),
-  });
+  const { kv } = t.context;
+  await kv.put("key", "value");
   await t.throwsAsync(kv.get("key", { cacheTtl: "not a number" as any }), {
     instanceOf: Error,
     message:
@@ -123,45 +131,36 @@ test("get: validates but ignores cache ttl", async (t) => {
 });
 
 test(validatesKeyMacro, "put", async (kv, key) => {
-  await kv.put(key, new Blob(["value"]).stream());
+  await kv.put(key, "value");
 });
 test("put: puts value", async (t) => {
-  const { storage, kv, ns } = t.context;
-  await kv.put("key", new Blob(["value"]).stream(), {
-    expiration: TIME_EXPIRING,
+  const { kv, ns } = t.context;
+  await kv.put("key", "value", {
+    expiration: TIME_FUTURE,
     metadata: { testing: true },
   });
-  const result = await storage.get(`${ns}key`);
-  assert(result !== null);
-  t.deepEqual(result, {
-    key: `${ns}key`,
-    value: result.value,
-    expiration: TIME_EXPIRING * 1000,
-    metadata: { testing: true },
-  });
-  t.is(await text(result.value), "value");
+  const result = await kv.getWithMetadata("key");
+  t.is(result.value, "value");
+  t.deepEqual(result.metadata, { testing: true });
+  // Check expiration set too
+  const results = await kv.list({ prefix: ns });
+  t.is(results.keys[0]?.expiration, TIME_FUTURE);
 });
 test("put: overrides existing keys", async (t) => {
-  const { storage, kv, ns } = t.context;
-  await kv.put("key", new Blob(["value1"]).stream());
-  await kv.put("key", new Blob(["value2"]).stream(), {
-    expiration: TIME_EXPIRING,
+  const { kv } = t.context;
+  await kv.put("key", "value1");
+  await kv.put("key", "value2", {
+    expiration: TIME_FUTURE,
     metadata: { testing: true },
   });
-  const result = await storage.get(`${ns}key`);
-  assert(result !== null);
-  t.deepEqual(result, {
-    key: `${ns}key`,
-    value: result.value,
-    expiration: TIME_EXPIRING * 1000,
-    metadata: { testing: true },
-  });
-  t.is(await text(result.value), "value2");
+  const result = await kv.getWithMetadata("key");
+  t.is(result.value, "value2");
+  t.deepEqual(result.metadata, { testing: true });
 });
 test("put: keys are case-sensitive", async (t) => {
   const { kv } = t.context;
-  await kv.put("key", new Blob(["lower"]).stream());
-  await kv.put("KEY", new Blob(["upper"]).stream());
+  await kv.put("key", "lower");
+  await kv.put("KEY", "upper");
   let result = await kv.get("key");
   t.is(result, "lower");
   result = await kv.get("KEY");
@@ -169,22 +168,20 @@ test("put: keys are case-sensitive", async (t) => {
 });
 test("put: validates expiration ttl", async (t) => {
   const { kv } = t.context;
-  const blob = new Blob(["value1"]);
-  const value = () => blob.stream();
   await t.throwsAsync(
-    kv.put("key", value(), { expirationTtl: "nan" as unknown as number }),
+    kv.put("key", "value", { expirationTtl: "nan" as unknown as number }),
     {
       instanceOf: Error,
       message:
         "KV PUT failed: 400 Invalid expiration_ttl of 0. Please specify integer greater than 0.",
     }
   );
-  await t.throwsAsync(kv.put("key", value(), { expirationTtl: 0 }), {
+  await t.throwsAsync(kv.put("key", "value", { expirationTtl: 0 }), {
     instanceOf: Error,
     message:
       "KV PUT failed: 400 Invalid expiration_ttl of 0. Please specify integer greater than 0.",
   });
-  await t.throwsAsync(kv.put("key", value(), { expirationTtl: 30 }), {
+  await t.throwsAsync(kv.put("key", "value", { expirationTtl: 30 }), {
     instanceOf: Error,
     message:
       "KV PUT failed: 400 Invalid expiration_ttl of 30. Expiration TTL must be at least 60.",
@@ -192,22 +189,19 @@ test("put: validates expiration ttl", async (t) => {
 });
 test("put: validates expiration", async (t) => {
   const { kv } = t.context;
-  const blob = new Blob(["value"]);
-  const value = () => blob.stream();
   await t.throwsAsync(
-    kv.put("key", value(), { expiration: "nan" as unknown as number }),
+    kv.put("key", "value", { expiration: "nan" as unknown as number }),
     {
       instanceOf: Error,
       message:
         "KV PUT failed: 400 Invalid expiration of 0. Please specify integer greater than the current number of seconds since the UNIX epoch.",
     }
   );
-  await t.throwsAsync(kv.put("key", value(), { expiration: TIME_NOW }), {
+  await t.throwsAsync(kv.put("key", "value", { expiration: TIME_NOW }), {
     instanceOf: Error,
-
     message: `KV PUT failed: 400 Invalid expiration of ${TIME_NOW}. Please specify integer greater than the current number of seconds since the UNIX epoch.`,
   });
-  await t.throwsAsync(kv.put("key", value(), { expiration: TIME_NOW + 30 }), {
+  await t.throwsAsync(kv.put("key", "value", { expiration: TIME_NOW + 30 }), {
     instanceOf: Error,
     message: `KV PUT failed: 400 Invalid expiration of ${
       TIME_NOW + 30
@@ -252,14 +246,11 @@ test(validatesKeyMacro, "delete", async (kv, key) => {
   await kv.delete(key);
 });
 test("delete: deletes existing keys", async (t) => {
-  const { storage, kv, ns } = t.context;
-  await storage.put({
-    key: `${ns}key`,
-    value: new Blob(["value"]).stream(),
-  });
-  t.not(await storage.get(`${ns}key`), null);
+  const { kv } = t.context;
+  await kv.put("key", "value");
+  t.not(await kv.get("key"), null);
   await kv.delete("key");
-  t.is(await storage.get(`${ns}key`), null);
+  t.is(await kv.get("key"), null);
 });
 test("delete: does nothing for non-existent keys", async (t) => {
   const { kv } = t.context;
@@ -284,13 +275,10 @@ const listMacro: Macro<
     return `list: ${providedTitle}`;
   },
   async exec(t, { values, options = {}, pages }) {
-    const { storage, kv, ns } = t.context;
+    const { kv, ns } = t.context;
     for (const [key, value] of Object.entries(values)) {
-      await storage.put({
-        key: ns + key,
-        value: new Blob([value.value]).stream(),
-        expiration:
-          value.expiration === undefined ? undefined : value.expiration * 1000,
+      await kv.put(key, value.value, {
+        expiration: value.expiration,
         metadata: value.metadata,
       });
     }
@@ -361,15 +349,15 @@ test("prefix permits special characters", listMacro, {
 });
 test("lists keys with expiration", listMacro, {
   values: {
-    key1: { value: "value1", expiration: TIME_EXPIRING },
-    key2: { value: "value2", expiration: TIME_EXPIRING + 100 },
-    key3: { value: "value3", expiration: TIME_EXPIRING + 200 },
+    key1: { value: "value1", expiration: TIME_FUTURE },
+    key2: { value: "value2", expiration: TIME_FUTURE + 100 },
+    key3: { value: "value3", expiration: TIME_FUTURE + 200 },
   },
   pages: [
     [
-      { name: "key1", expiration: TIME_EXPIRING },
-      { name: "key2", expiration: TIME_EXPIRING + 100 },
-      { name: "key3", expiration: TIME_EXPIRING + 200 },
+      { name: "key1", expiration: TIME_FUTURE },
+      { name: "key2", expiration: TIME_FUTURE + 100 },
+      { name: "key3", expiration: TIME_FUTURE + 200 },
     ],
   ],
 });
@@ -391,17 +379,17 @@ test("lists keys with expiration and metadata", listMacro, {
   values: {
     key1: {
       value: "value1",
-      expiration: TIME_EXPIRING,
+      expiration: TIME_FUTURE,
       metadata: { testing: 1 },
     },
     key2: {
       value: "value2",
-      expiration: TIME_EXPIRING + 100,
+      expiration: TIME_FUTURE + 100,
       metadata: { testing: 2 },
     },
     key3: {
       value: "value3",
-      expiration: TIME_EXPIRING + 200,
+      expiration: TIME_FUTURE + 200,
       metadata: { testing: 3 },
     },
   },
@@ -409,17 +397,17 @@ test("lists keys with expiration and metadata", listMacro, {
     [
       {
         name: "key1",
-        expiration: TIME_EXPIRING,
+        expiration: TIME_FUTURE,
         metadata: { testing: 1 },
       },
       {
         name: "key2",
-        expiration: TIME_EXPIRING + 100,
+        expiration: TIME_FUTURE + 100,
         metadata: { testing: 2 },
       },
       {
         name: "key3",
-        expiration: TIME_EXPIRING + 200,
+        expiration: TIME_FUTURE + 200,
         metadata: { testing: 3 },
       },
     ],
@@ -461,10 +449,10 @@ test("paginates keys matching prefix", listMacro, {
   ],
 });
 test("list: paginates with variable limit", async (t) => {
-  const { storage, kv, ns } = t.context;
-  await storage.put({ key: `${ns}key1`, value: new Blob(["value1"]).stream() });
-  await storage.put({ key: `${ns}key2`, value: new Blob(["value2"]).stream() });
-  await storage.put({ key: `${ns}key3`, value: new Blob(["value3"]).stream() });
+  const { kv, ns } = t.context;
+  await kv.put("key1", "value1");
+  await kv.put("key2", "value2");
+  await kv.put("key3", "value3");
 
   // Get first page
   let page = await kv.list({ prefix: ns, limit: 1 });
@@ -478,10 +466,10 @@ test("list: paginates with variable limit", async (t) => {
   assert(page.list_complete);
 });
 test("list: returns keys inserted whilst paginating", async (t) => {
-  const { storage, kv, ns } = t.context;
-  await storage.put({ key: `${ns}key1`, value: new Blob(["value1"]).stream() });
-  await storage.put({ key: `${ns}key3`, value: new Blob(["value3"]).stream() });
-  await storage.put({ key: `${ns}key5`, value: new Blob(["value5"]).stream() });
+  const { kv, ns } = t.context;
+  await kv.put("key1", "value1");
+  await kv.put("key3", "value3");
+  await kv.put("key5", "value5");
 
   // Get first page
   let page = await kv.list({ prefix: ns, limit: 2 });
@@ -490,33 +478,30 @@ test("list: returns keys inserted whilst paginating", async (t) => {
   t.not(page.cursor, undefined);
 
   // Insert key2 and key4
-  await storage.put({ key: `${ns}key2`, value: new Blob(["value2"]).stream() });
-  await storage.put({ key: `${ns}key4`, value: new Blob(["value4"]).stream() });
+  await kv.put("key2", "value2");
+  await kv.put("key4", "value4");
 
   // Get second page, expecting to see key4 but not key2
   page = await kv.list({ prefix: ns, limit: 2, cursor: page.cursor });
   t.deepEqual(page.keys, [{ name: `${ns}key4` }, { name: `${ns}key5` }]);
   assert(page.list_complete);
 });
-test("list: ignores expired keys", async (t) => {
-  const { storage, kv, ns } = t.context;
+test.serial("list: ignores expired keys", async (t) => {
+  const { kv, ns, objectTimers } = t.context;
   for (let i = 1; i <= 3; i++) {
-    await storage.put({
-      key: `${ns}key${i}`,
-      value: new Blob([`value${i}`]).stream(),
-      expiration: i * 100 * 1000,
-    });
+    await kv.put(`key${i}`, `value${i}`, { expiration: TIME_NOW + i * 60 });
   }
+  await objectTimers.advanceFakeTime(130_000 /* 2m10s */);
   t.deepEqual(await kv.list({ prefix: ns }), {
-    keys: [],
+    keys: [{ name: `${ns}key3`, expiration: TIME_NOW + 3 * 60 }],
     list_complete: true,
     cacheStatus: null,
   });
 });
 test("list: sorts lexicographically", async (t) => {
-  const { storage, kv, ns } = t.context;
-  await storage.put({ key: `${ns}, `, value: new Blob(["value"]).stream() });
-  await storage.put({ key: `${ns}!`, value: new Blob(["value"]).stream() });
+  const { kv, ns } = t.context;
+  await kv.put(", ", "value");
+  await kv.put("!", "value");
   t.deepEqual(await kv.list({ prefix: ns }), {
     keys: [{ name: `${ns}!` }, { name: `${ns}, ` }],
     list_complete: true,
@@ -531,4 +516,66 @@ test("list: validates limit", async (t) => {
     message:
       "KV GET failed: 400 Invalid key_count_limit of 1001. Please specify an integer less than 1000.",
   });
+});
+
+test("persists in-memory between options reloads", async (t) => {
+  const opts = {
+    modules: true,
+    script: `export default {
+      async fetch(request, env) {
+        return Response.json({ version: env.VERSION, key: await env.NAMESPACE.get("key") });
+      }
+    }`,
+    bindings: { VERSION: 1 },
+    kvNamespaces: { NAMESPACE: "namespace" },
+  } satisfies MiniflareOptions;
+  const mf1 = new Miniflare(opts);
+  t.teardown(() => mf1.dispose());
+
+  const kv1 = await mf1.getKVNamespace("NAMESPACE");
+  await kv1.put("key", "value1");
+  let res = await mf1.dispatchFetch("http://placeholder");
+  t.deepEqual(await res.json(), { version: 1, key: "value1" });
+
+  opts.bindings.VERSION = 2;
+  await mf1.setOptions(opts);
+  res = await mf1.dispatchFetch("http://placeholder");
+  t.deepEqual(await res.json(), { version: 2, key: "value1" });
+
+  // Check a `new Miniflare()` instance has its own in-memory storage
+  opts.bindings.VERSION = 3;
+  const mf2 = new Miniflare(opts);
+  t.teardown(() => mf2.dispose());
+  const kv2 = await mf2.getKVNamespace("NAMESPACE");
+  await kv2.put("key", "value2");
+
+  res = await mf1.dispatchFetch("http://placeholder");
+  t.deepEqual(await res.json(), { version: 2, key: "value1" });
+  res = await mf2.dispatchFetch("http://placeholder");
+  t.deepEqual(await res.json(), { version: 3, key: "value2" });
+});
+test("persists on file-system", async (t) => {
+  const tmp = await useTmp(t);
+  const opts: MiniflareOptions = {
+    modules: true,
+    script: "",
+    kvNamespaces: { NAMESPACE: "namespace" },
+    kvPersist: tmp,
+  };
+  let mf = new Miniflare(opts);
+  t.teardown(() => mf.dispose());
+
+  let kv = await mf.getKVNamespace("NAMESPACE");
+  await kv.put("key", "value");
+  t.is(await kv.get("key"), "value");
+
+  // Check directory created for namespace
+  const names = await fs.readdir(tmp);
+  t.true(names.includes("miniflare-KVNamespaceObject"));
+
+  // Check "restarting" keeps persisted data
+  await mf.dispose();
+  mf = new Miniflare(opts);
+  kv = await mf.getKVNamespace("NAMESPACE");
+  t.is(await kv.get("key"), "value");
 });
