@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-export type Awaitable<T> = T | Promise<T>;
-
 export function zAwaitable<T extends z.ZodTypeAny>(
   type: T
 ): z.ZodUnion<[T, z.ZodPromise<T>]> {
@@ -26,13 +24,6 @@ export type Json = Literal | { [key: string]: Json } | Json[];
 export const JsonSchema: z.ZodType<Json> = z.lazy(() =>
   z.union([LiteralSchema, z.array(JsonSchema), z.record(JsonSchema)])
 );
-
-export function maybeApply<From, To>(
-  f: (value: From) => To,
-  maybeValue: From | undefined
-): To | undefined {
-  return maybeValue === undefined ? undefined : f(maybeValue);
-}
 
 export const HEX_REGEXP = /^[0-9a-f]*$/i;
 // https://github.com/capnproto/capnproto/blob/6b5bcc2c6e954bc6e167ac581eb628e5a462a469/c%2B%2B/src/kj/encoding.c%2B%2B#L719-L720

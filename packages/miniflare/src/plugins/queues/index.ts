@@ -2,7 +2,7 @@ import { stringify } from "devalue";
 import semiver from "semiver";
 import { z } from "zod";
 import { Service, Worker_Binding } from "../../runtime";
-import { maybeApply } from "../../shared";
+import { maybeApply } from "../../workers";
 import {
   Plugin,
   QueueConsumerOptionsSchema,

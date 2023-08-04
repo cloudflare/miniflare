@@ -90,10 +90,9 @@ import {
   Timers,
   defaultTimers,
   formatResponse,
-  maybeApply,
 } from "./shared";
 import { Storage } from "./storage";
-import { CoreBindings, CoreHeaders } from "./workers";
+import { CoreBindings, CoreHeaders, maybeApply } from "./workers";
 
 // ===== `Miniflare` User Options =====
 export type MiniflareOptions = SharedOptions &

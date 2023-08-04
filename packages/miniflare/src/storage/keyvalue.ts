@@ -1,12 +1,7 @@
 import assert from "assert";
 import { ReadableStream } from "stream/web";
-import {
-  Awaitable,
-  Timers,
-  base64Decode,
-  base64Encode,
-  defaultTimers,
-} from "../shared";
+import { Timers, defaultTimers } from "../shared";
+import { Awaitable, base64Decode, base64Encode } from "../workers";
 import {
   InclusiveRange,
   MultipartOptions,

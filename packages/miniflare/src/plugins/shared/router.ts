@@ -1,6 +1,7 @@
 import type { RequestInitCfProperties } from "@cloudflare/workers-types/experimental";
 import { Request, Response } from "../../http";
-import { Awaitable, Log } from "../../shared";
+import { Log } from "../../shared";
+import { Awaitable } from "../../workers";
 import { GatewayFactory } from "./gateway";
 
 export type RouteHandler<Params = unknown> = (

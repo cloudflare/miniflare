@@ -1,5 +1,5 @@
 import assert from "assert";
-import { Awaitable } from "./types";
+import { Awaitable } from "../workers";
 
 export type DeferredPromiseResolve<T> = (value: T | PromiseLike<T>) => void;
 export type DeferredPromiseReject = (reason?: any) => void;

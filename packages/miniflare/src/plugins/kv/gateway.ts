@@ -3,11 +3,11 @@ import {
   HttpError,
   Log,
   Timers,
-  maybeApply,
   millisToSeconds,
   secondsToMillis,
 } from "../../shared";
 import { KeyValueStorage, Storage } from "../../storage";
+import { maybeApply } from "../../workers";
 import {
   MAX_KEY_SIZE,
   MAX_LIST_KEYS,
