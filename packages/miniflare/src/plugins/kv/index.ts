@@ -25,7 +25,7 @@ import {
   SitesOptions,
   getSitesBindings,
   getSitesNodeBindings,
-  getSitesService,
+  getSitesServices,
 } from "./sites";
 
 export const KVOptionsSchema = z.object({
@@ -151,7 +151,7 @@ export const KV_PLUGIN: Plugin<
     }
 
     if (isWorkersSitesEnabled(options)) {
-      services.push(getSitesService(options));
+      services.push(...getSitesServices(options));
     }
 
     return services;
