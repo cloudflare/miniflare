@@ -1,20 +1,27 @@
 import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
+import SCRIPT_KV_SITES from "worker:kv/sites";
 import { Request } from "../../http";
 import { Service, Worker_Binding, Worker_Module } from "../../runtime";
+import { globsToRegExps } from "../../shared";
+import { createFileReadableStream } from "../../storage";
 import {
-  MatcherRegExps,
+  CoreBindings,
+  SITES_NO_CACHE_PREFIX,
+  SharedBindings,
+  SiteBindings,
+  SiteMatcherRegExps,
   base64Decode,
   base64Encode,
+  decodeSitesKey,
   deserialiseRegExps,
-  globsToRegExps,
+  encodeSitesKey,
   lexicographicCompare,
-  serialiseRegExps,
+  serialiseSiteRegExps,
   testRegExps,
-} from "../../shared";
-import { createFileReadableStream } from "../../storage";
-import { CoreBindings } from "../../workers";
+  testSiteRegExps,
+} from "../../workers";
 import {
   BINDING_TEXT_PERSIST,
   HEADER_PERSIST,
@@ -63,37 +70,9 @@ export interface SitesOptions {
   siteInclude?: string[];
   siteExclude?: string[];
 }
-export interface SiteMatcherRegExps {
-  include?: MatcherRegExps;
-  exclude?: MatcherRegExps;
-}
+
 // Cache glob RegExps between `getBindings` and `getServices` calls
 const sitesRegExpsCache = new WeakMap<SitesOptions, SiteMatcherRegExps>();
-
-function testSiteRegExps(regExps: SiteMatcherRegExps, key: string): boolean {
-  return (
-    // Either include globs undefined, or name matches them
-    (regExps.include === undefined || testRegExps(regExps.include, key)) &&
-    // Either exclude globs undefined, or name doesn't match them
-    (regExps.exclude === undefined || !testRegExps(regExps.exclude, key))
-  );
-}
-
-// Magic prefix: if a URLs pathname starts with this, it shouldn't be cached.
-// This ensures edge caching of Workers Sites files is disabled, and the latest
-// local version is always served.
-const SITES_NO_CACHE_PREFIX = "$__MINIFLARE_SITES__$/";
-
-function encodeSitesKey(key: string): string {
-  // `encodeURIComponent()` ensures `ETag`s used by `@cloudflare/kv-asset-handler`
-  // are always byte strings.
-  return SITES_NO_CACHE_PREFIX + encodeURIComponent(key);
-}
-function decodeSitesKey(key: string): string {
-  return key.startsWith(SITES_NO_CACHE_PREFIX)
-    ? decodeURIComponent(key.substring(SITES_NO_CACHE_PREFIX.length))
-    : key;
-}
 
 export function isSitesRequest(request: Request) {
   const url = new URL(request.url);
@@ -101,10 +80,6 @@ export function isSitesRequest(request: Request) {
 }
 
 const SERVICE_NAMESPACE_SITE = `${KV_PLUGIN_NAME}:site`;
-
-const BINDING_KV_NAMESPACE_SITE = "__STATIC_CONTENT";
-const BINDING_JSON_SITE_MANIFEST = "__STATIC_CONTENT_MANIFEST";
-const BINDING_JSON_SITE_FILTER = "MINIFLARE_SITE_FILTER";
 
 const SCRIPT_SITE = `
 // Inject key encoding/decoding functions
@@ -118,7 +93,7 @@ const testRegExps = ${testRegExps.toString()};
 const testSiteRegExps = ${testSiteRegExps.toString()};
 
 // Deserialise glob matching RegExps
-const serialisedSiteRegExps = ${BINDING_JSON_SITE_FILTER};
+const serialisedSiteRegExps = ${SiteBindings.JSON_SITE_FILTER};
 const siteRegExps = {
   include: serialisedSiteRegExps.include && deserialiseRegExps(serialisedSiteRegExps.include),
   exclude: serialisedSiteRegExps.exclude && deserialiseRegExps(serialisedSiteRegExps.exclude),
@@ -148,7 +123,9 @@ async function handleRequest(request) {
   
   // Re-encode key
   key = encodeURIComponent(key);
-  url.pathname = \`/${KV_PLUGIN_NAME}/${BINDING_KV_NAMESPACE_SITE}/\${key}\`;
+  url.pathname = \`/${KV_PLUGIN_NAME}/${
+  SiteBindings.KV_NAMESPACE_SITE
+}/\${key}\`;
   url.searchParams.set("${PARAM_URL_ENCODED}", "true"); // Always URL encoded now
   
   // Send request to loopback server
@@ -211,11 +188,11 @@ export async function getSitesBindings(
 
   return [
     {
-      name: BINDING_KV_NAMESPACE_SITE,
+      name: SiteBindings.KV_NAMESPACE_SITE,
       kvNamespace: { name: SERVICE_NAMESPACE_SITE },
     },
     {
-      name: BINDING_JSON_SITE_MANIFEST,
+      name: SiteBindings.JSON_SITE_MANIFEST,
       json: JSON.stringify(__STATIC_CONTENT_MANIFEST),
     },
   ];
@@ -230,8 +207,8 @@ export async function getSitesNodeBindings(
     siteRegExps
   );
   return {
-    [BINDING_KV_NAMESPACE_SITE]: kProxyNodeBinding,
-    [BINDING_JSON_SITE_MANIFEST]: __STATIC_CONTENT_MANIFEST,
+    [SiteBindings.KV_NAMESPACE_SITE]: kProxyNodeBinding,
+    [SiteBindings.JSON_SITE_MANIFEST]: __STATIC_CONTENT_MANIFEST,
   };
 }
 
@@ -239,29 +216,59 @@ export function maybeGetSitesManifestModule(
   bindings: Worker_Binding[]
 ): Worker_Module | undefined {
   for (const binding of bindings) {
-    if (binding.name === BINDING_JSON_SITE_MANIFEST) {
+    if (binding.name === SiteBindings.JSON_SITE_MANIFEST) {
       assert("json" in binding && binding.json !== undefined);
-      return { name: BINDING_JSON_SITE_MANIFEST, text: binding.json };
+      return { name: SiteBindings.JSON_SITE_MANIFEST, text: binding.json };
     }
   }
 }
 
-export function getSitesService(options: SitesOptions): Service {
+export function getSitesServices(options: SitesOptions): Service[] {
   // `siteRegExps` should've been set in `getSitesBindings()`, and `options`
   // should be the same object reference as before.
   const siteRegExps = sitesRegExpsCache.get(options);
   assert(siteRegExps !== undefined);
   // Ensure `siteRegExps` is JSON-serialisable
-  const serialisedSiteRegExps = {
-    include: siteRegExps.include && serialiseRegExps(siteRegExps.include),
-    exclude: siteRegExps.exclude && serialiseRegExps(siteRegExps.exclude),
-  };
+  const serialisedSiteRegExps = serialiseSiteRegExps(siteRegExps);
 
   // Use unsanitised file storage to ensure file names containing e.g. dots
   // resolve correctly.
   const persist = path.resolve(options.sitePath);
 
-  return {
+  const useDurableObjects = !!process.env.MINIFLARE_DURABLE_OBJECT_SIMULATORS;
+  if (useDurableObjects) {
+    const storageServiceName = `${SERVICE_NAMESPACE_SITE}:storage`;
+    const storageService: Service = {
+      name: storageServiceName,
+      disk: { path: persist, writable: true },
+    };
+    const namespaceService: Service = {
+      name: SERVICE_NAMESPACE_SITE,
+      worker: {
+        compatibilityDate: "2023-07-24",
+        compatibilityFlags: ["nodejs_compat"],
+        modules: [
+          {
+            name: "site.worker.js",
+            esModule: SCRIPT_KV_SITES,
+          },
+        ],
+        bindings: [
+          {
+            name: SharedBindings.SERVICE_BLOBS,
+            service: { name: storageServiceName },
+          },
+          {
+            name: SiteBindings.JSON_SITE_FILTER,
+            json: JSON.stringify(serialisedSiteRegExps),
+          },
+        ],
+      },
+    };
+    return [storageService, namespaceService];
+  }
+
+  const service = {
     name: SERVICE_NAMESPACE_SITE,
     worker: {
       serviceWorkerScript: SCRIPT_SITE,
@@ -273,12 +280,13 @@ export function getSitesService(options: SitesOptions): Service {
           text: JSON.stringify(persist),
         },
         {
-          name: BINDING_JSON_SITE_FILTER,
+          name: SiteBindings.JSON_SITE_FILTER,
           json: JSON.stringify(serialisedSiteRegExps),
         },
       ],
     },
   };
+  return [service];
 }
 
 // Define Workers Sites specific KV gateway functions. We serve directly from
