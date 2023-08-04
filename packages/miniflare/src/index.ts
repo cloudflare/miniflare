@@ -1270,8 +1270,8 @@ export class Miniflare {
       this.#removeRuntimeExitHook?.();
 
       // Cleanup as much as possible even if `#init()` threw
-      await this.#runtime?.dispose();
       await this.#proxyClient?.dispose();
+      await this.#runtime?.dispose();
       await this.#stopLoopbackServer();
       // `rm -rf ${#tmpPath}`, this won't throw if `#tmpPath` doesn't exist
       await fs.promises.rm(this.#tmpPath, { force: true, recursive: true });
