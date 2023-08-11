@@ -144,7 +144,7 @@ export class R2Router extends Router<R2Gateway> {
         valueSize,
         metadata
       );
-      return encodeResult(result);
+      return encodeJSONResult(result);
     } else if (metadata.method === "createMultipartUpload") {
       const result = await gateway.createMultipartUpload(
         metadata.object,
