@@ -55,7 +55,7 @@ export class Timers {
     const result = closure();
     if (result instanceof Promise) {
       this.#fakeRunningTasks.add(result);
-      result.then(() => this.#fakeRunningTasks.delete(result));
+      result.finally(() => this.#fakeRunningTasks.delete(result));
     }
   }
 
@@ -89,6 +89,8 @@ export class Timers {
   }
 
   async waitForFakeTasks() {
-    await Promise.all(this.#fakeRunningTasks);
+    while (this.#fakeRunningTasks.size > 0) {
+      await Promise.all(this.#fakeRunningTasks);
+    }
   }
 }

@@ -18,6 +18,5 @@ export default {
   },
   environmentVariables: {
     MINIFLARE_ASSERT_BODIES_CONSUMED: "true",
-    MINIFLARE_DURABLE_OBJECT_SIMULATORS: "true",
   },
 };

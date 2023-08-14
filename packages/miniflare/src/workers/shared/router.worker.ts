@@ -50,13 +50,14 @@ export class Router {
   }
 }
 
-export type RouteHandler<Params = unknown> = (
-  req: Request<unknown, unknown>,
+export type RouteHandler<Params = unknown, Cf = unknown> = (
+  req: Request<unknown, Cf>,
   params: Params,
   url: URL
 ) => Awaitable<Response>;
 
-function pathToRegexp(path: string): RegExp {
+function pathToRegexp(path?: string): RegExp {
+  if (path === undefined) return /^.*$/;
   // Optionally allow trailing slashes
   if (!path.endsWith("/")) path += "/?";
   // Escape forward slashes
@@ -69,7 +70,7 @@ function pathToRegexp(path: string): RegExp {
 
 const createRouteDecorator =
   (method: string) =>
-  (path: string) =>
+  (path?: string) =>
   (prototype: typeof Router.prototype, key: PropertyKey) => {
     const route = [pathToRegexp(path), key] as const;
     const routes = (prototype._routes ??= new Map());

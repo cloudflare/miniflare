@@ -13,7 +13,6 @@ export type {
   RequestCredentials,
   RequestDestination,
   RequestDuplex,
-  RequestInfo,
   RequestMode,
   RequestRedirect,
   ResponseRedirectStatus,

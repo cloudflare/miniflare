@@ -1,6 +1,7 @@
 export type Awaitable<T> = T | Promise<T>;
 
-export type Abortable = { signal?: AbortSignal };
+// { a: A, b: B, ... } => A | B | ...
+export type ValueOf<T> = T[keyof T];
 
 export function maybeApply<From, To>(
   f: (value: From) => To,

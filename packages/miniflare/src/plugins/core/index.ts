@@ -16,7 +16,7 @@ import {
   kVoid,
   supportedCompatibilityDate,
 } from "../../runtime";
-import { JsonSchema, Log, MiniflareCoreError, Timers } from "../../shared";
+import { JsonSchema, Log, MiniflareCoreError } from "../../shared";
 import {
   Awaitable,
   CoreBindings,
@@ -131,7 +131,6 @@ export const CoreSharedOptionsSchema = z.object({
   verbose: z.boolean().optional(),
 
   log: z.instanceof(Log).optional(),
-  timers: z.custom<Timers>().optional(),
 
   upstream: z.string().optional(),
   // TODO: add back validation of cf object

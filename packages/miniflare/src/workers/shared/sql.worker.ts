@@ -3,6 +3,15 @@
 export type TypedValue = ArrayBuffer | string | number | null;
 export type TypedResult = Record<string, TypedValue>;
 
+export function isTypedValue(value: unknown): value is TypedValue {
+  return (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    value instanceof ArrayBuffer
+  );
+}
+
 export interface TypedSqlStorage {
   exec<R = TypedResult>(
     query: string,
@@ -35,12 +44,22 @@ export function createTransactionFactory(
 }
 
 export function get<R>(cursor: TypedSqlStorageCursor<R>): R | undefined {
-  // noinspection LoopStatementThatDoesntLoopJS,UnnecessaryLocalVariableJS
-  for (const row of cursor) return row;
+  let result: R | undefined;
+  for (const row of cursor) result ??= row;
+  return result;
+}
+
+export function all<R>(cursor: TypedSqlStorageCursor<R>): R[] {
+  return Array.from(cursor);
 }
 
 export function drain(cursor: TypedSqlStorageCursor<any>) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   for (const _ of cursor) {
   }
+}
+
+export function escapeLike(prefix: string) {
+  // Prefix all instances of `\`, `_` and `%` with `\`
+  return prefix.replace(/[\\_%]/g, "\\$&");
 }

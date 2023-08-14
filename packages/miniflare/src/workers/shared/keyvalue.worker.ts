@@ -1,10 +1,16 @@
 import assert from "node:assert";
-import { BlobId, BlobStore, InclusiveRange } from "./blob.worker";
+import {
+  BlobId,
+  BlobStore,
+  MultipartOptions,
+  MultipartReadableStream,
+} from "./blob.worker";
 import { base64Decode, base64Encode } from "./data";
 import { MiniflareDurableObject } from "./object.worker";
+import { InclusiveRange } from "./range";
 import { TransactionFactory, TypedSqlStorage, drain, get } from "./sql.worker";
 import { Timers } from "./timers.worker";
-import { Abortable, Awaitable } from "./types";
+import { Awaitable } from "./types";
 
 export interface KeyEntry<Metadata = unknown> {
   key: string;
@@ -13,6 +19,10 @@ export interface KeyEntry<Metadata = unknown> {
 }
 export interface KeyValueEntry<Metadata = unknown> extends KeyEntry<Metadata> {
   value: ReadableStream<Uint8Array>;
+}
+export interface KeyMultipartValueEntry<Metadata = unknown>
+  extends KeyEntry<Metadata> {
+  value: MultipartReadableStream;
 }
 
 export interface KeyEntriesQuery {
@@ -107,6 +117,10 @@ function rowEntry<Metadata>(entry: Omit<Row, "blob_id">): KeyEntry<Metadata> {
   };
 }
 
+export type KeyValueRangesFactory<Metadata> = (
+  metadata: Metadata
+) => { ranges?: InclusiveRange[] } & MultipartOptions;
+
 export class KeyValueStorage<Metadata = unknown> {
   readonly #stmts: ReturnType<typeof sqlStmts>;
   readonly #blob: BlobStore;
@@ -135,11 +149,17 @@ export class KeyValueStorage<Metadata = unknown> {
     );
   }
 
-  // TODO(soon): may need to add back multipart support here for caches
+  get(key: string): Promise<KeyValueEntry<Metadata> | null>;
+  get(
+    key: string,
+    optsFactory?: KeyValueRangesFactory<Metadata>
+  ): Promise<KeyMultipartValueEntry<Metadata> | null>;
   async get(
     key: string,
-    range?: InclusiveRange | InclusiveRange[]
-  ): Promise<KeyValueEntry<Metadata> | null> {
+    optsFactory?: KeyValueRangesFactory<Metadata>
+  ): Promise<
+    KeyValueEntry<Metadata> | KeyMultipartValueEntry<Metadata> | null
+  > {
     // Try to get key from metadata store, returning null if not found
     const row = get(this.#stmts.getByKey(key));
     if (row === undefined) return null;
@@ -159,13 +179,23 @@ export class KeyValueStorage<Metadata = unknown> {
 
     // Return the blob as a stream
     const entry = rowEntry<Metadata>(row);
-    const value = await this.#blob.get(row.blob_id, range);
-    if (value === null) return null;
-    return { ...entry, value };
+    const opts = entry.metadata && optsFactory?.(entry.metadata);
+    if (opts?.ranges === undefined || opts.ranges.length <= 1) {
+      // If no range was requested, or just a single one was, return a regular
+      // stream
+      const value = await this.#blob.get(row.blob_id, opts?.ranges?.[0]);
+      if (value === null) return null;
+      return { ...entry, value };
+    } else {
+      // Otherwise, if multiple ranges were requested, return a multipart stream
+      const value = await this.#blob.get(row.blob_id, opts.ranges, opts);
+      if (value === null) return null;
+      return { ...entry, value };
+    }
   }
 
   async put(
-    entry: KeyValueEntry<Awaitable<Metadata>> & Abortable
+    entry: KeyValueEntry<Awaitable<Metadata>> & { signal?: AbortSignal }
   ): Promise<void> {
     // (NOTE: `Awaitable` allows metadata to be a `Promise`, this is used by
     // the Cache gateway to include `size` in the metadata, which may only be

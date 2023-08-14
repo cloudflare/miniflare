@@ -8,11 +8,7 @@ import path from "path";
 import { Duplex, Transform, Writable } from "stream";
 import { ReadableStream } from "stream/web";
 import zlib from "zlib";
-import type {
-  D1Database,
-  Queue,
-  RequestInitCfProperties,
-} from "@cloudflare/workers-types/experimental";
+import type { D1Database, Queue } from "@cloudflare/workers-types/experimental";
 import exitHook from "exit-hook";
 import stoppable from "stoppable";
 import { Client } from "undici";
@@ -20,6 +16,7 @@ import { WebSocketServer } from "ws";
 import { z } from "zod";
 import { fallbackCf, setupCf } from "./cf";
 import {
+  DispatchFetch,
   Headers,
   Request,
   RequestInit,
@@ -33,16 +30,12 @@ import {
   CacheStorage,
   D1_PLUGIN_NAME,
   DURABLE_OBJECTS_PLUGIN_NAME,
-  DispatchFetch,
   DurableObjectClassNames,
   DurableObjectNamespace,
-  GatewayConstructor,
-  GatewayFactory,
   HEADER_CF_BLOB,
   KVNamespace,
   KV_PLUGIN_NAME,
   PLUGIN_ENTRIES,
-  Persistence,
   PluginServicesOptions,
   Plugins,
   ProxyClient,
@@ -80,10 +73,8 @@ import {
   serializeConfig,
 } from "./runtime";
 import {
-  HttpError,
   Log,
   MiniflareCoreError,
-  Mutex,
   NoOpLog,
   OptionalZodTypeOf,
   ResponseInfoSchema,
@@ -91,8 +82,14 @@ import {
   defaultTimers,
   formatResponse,
 } from "./shared";
-import { Storage } from "./storage";
-import { CoreBindings, CoreHeaders, maybeApply } from "./workers";
+import {
+  CoreBindings,
+  CoreHeaders,
+  LogLevel,
+  Mutex,
+  SharedHeaders,
+  maybeApply,
+} from "./workers";
 
 // ===== `Miniflare` User Options =====
 export type MiniflareOptions = SharedOptions &
@@ -323,22 +320,6 @@ function getInternalDurableObjectProxyBindings(
   });
 }
 
-// ===== `Miniflare` Internal Storage & Routing =====
-type OptionalGatewayFactoryType<
-  Gateway extends GatewayConstructor<any> | undefined
-> = Gateway extends GatewayConstructor<any>
-  ? GatewayFactory<InstanceType<Gateway>>
-  : undefined;
-type OptionalInstanceType<
-  T extends (abstract new (...args: any) => any) | undefined
-> = T extends abstract new (...args: any) => any ? InstanceType<T> : undefined;
-type PluginGatewayFactories = {
-  [Key in keyof Plugins]: OptionalGatewayFactoryType<Plugins[Key]["gateway"]>;
-};
-type PluginRouters = {
-  [Key in keyof Plugins]: OptionalInstanceType<Plugins[Key]["router"]>;
-};
-
 type StoppableServer = http.Server & stoppable.WithStop;
 
 const restrictedUndiciHeaders = [
@@ -464,12 +445,9 @@ function safeReadableStreamFrom(iterable: AsyncIterable<Uint8Array>) {
 }
 
 export class Miniflare {
-  readonly #gatewayFactories: PluginGatewayFactories;
-  readonly #routers: PluginRouters;
   #sharedOpts: PluginSharedOptions;
   #workerOpts: PluginWorkerOptions[];
   #log: Log;
-  readonly #timers: Timers;
   readonly #host: string;
   readonly #accessibleHost: string;
 
@@ -503,20 +481,14 @@ export class Miniflare {
   readonly #webSocketExtraHeaders: WeakMap<http.IncomingMessage, Headers>;
 
   constructor(opts: MiniflareOptions) {
-    // Initialise plugin gateway factories and routers
-    this.#gatewayFactories = {} as PluginGatewayFactories;
-    this.#routers = {} as PluginRouters;
-
     // Split and validate options
     const [sharedOpts, workerOpts] = validateOptions(opts);
     this.#sharedOpts = sharedOpts;
     this.#workerOpts = workerOpts;
     this.#log = this.#sharedOpts.core.log ?? new NoOpLog();
-    this.#timers = this.#sharedOpts.core.timers ?? defaultTimers;
     this.#host = this.#sharedOpts.core.host ?? "127.0.0.1";
     this.#accessibleHost =
       this.#host === "*" || this.#host === "0.0.0.0" ? "127.0.0.1" : this.#host;
-    this.#initPlugins();
 
     this.#liveReloadServer = new WebSocketServer({ noServer: true });
     this.#webSocketServer = new WebSocketServer({
@@ -554,25 +526,6 @@ export class Miniflare {
     this.#disposeController = new AbortController();
     this.#runtimeMutex = new Mutex();
     this.#initPromise = this.#runtimeMutex.runWith(() => this.#init());
-  }
-
-  #initPlugins() {
-    for (const [key, plugin] of PLUGIN_ENTRIES) {
-      if (plugin.gateway !== undefined && plugin.router !== undefined) {
-        const gatewayFactory = new GatewayFactory<any>(
-          this.#log,
-          this.#timers,
-          this.dispatchFetch,
-          key,
-          plugin.gateway
-        );
-        const router = new plugin.router(this.#log, gatewayFactory);
-        // @ts-expect-error this.#gatewayFactories[key] could be any plugin's
-        this.#gatewayFactories[key] = gatewayFactory;
-        // @ts-expect-error this.#routers[key] could be any plugin's
-        this.#routers[key] = router;
-      }
-    }
   }
 
   #handleReload() {
@@ -643,28 +596,6 @@ export class Miniflare {
       // TODO: do we need to add `CF-Exception` header or something here?
       //  check what runtime does
       return new Response(e?.stack ?? e, { status: 500 });
-    }
-  }
-
-  async #handleLoopbackPlugins(
-    request: Request<RequestInitCfProperties>,
-    url: URL
-  ): Promise<Response | undefined> {
-    const pathname = url.pathname;
-    for (const [key] of PLUGIN_ENTRIES) {
-      const pluginPrefix = `/${key}`;
-      if (pathname.startsWith(pluginPrefix)) {
-        // Reuse existing URL object, just remove prefix from pathname
-        url.pathname = pathname.substring(pluginPrefix.length);
-        // Try route using this plugin, and respond if matched
-        try {
-          const response = await this.#routers[key]?.route(request, url);
-          if (response !== undefined) return response;
-        } catch (e) {
-          if (e instanceof HttpError) return e.toResponse();
-          throw e;
-        }
-      }
     }
   }
 
@@ -739,9 +670,6 @@ export class Miniflare {
           this.#log.debug(`Error parsing response log: ${String(e)}`);
         }
         response = new Response(null, { status: 204 });
-      } else {
-        // TODO: check for proxying/outbound fetch header first (with plans for fetch mocking)
-        response = await this.#handleLoopbackPlugins(request, url);
       }
     } catch (e: any) {
       this.#log.error(e);
@@ -849,6 +777,7 @@ export class Miniflare {
     const durableObjectClassNames = getDurableObjectClassNames(allWorkerOpts);
     const queueConsumers = getQueueConsumers(allWorkerOpts);
     const allWorkerRoutes = getWorkerRoutes(allWorkerOpts);
+    const workerNames = [...allWorkerRoutes.keys()];
 
     // Use Map to dedupe services by name
     const services = new Map<string, Service>();
@@ -896,6 +825,7 @@ export class Miniflare {
         workerIndex: i,
         additionalModules,
         tmpPath: this.#tmpPath,
+        workerNames,
         durableObjectClassNames,
         queueConsumers,
       };
@@ -1115,7 +1045,7 @@ export class Miniflare {
     }
 
     if (
-      process.env.MINIFLARE_ASSERT_BODIES_CONSUMED !== undefined &&
+      process.env.MINIFLARE_ASSERT_BODIES_CONSUMED === "true" &&
       response.body !== null
     ) {
       // Throw an uncaught exception if the body from this response isn't
@@ -1135,17 +1065,6 @@ export class Miniflare {
 
     return response;
   };
-
-  /** @internal */
-  _getPluginStorage(
-    plugin: keyof Plugins,
-    namespace: string,
-    persist?: Persistence
-  ): Storage {
-    const factory = this.#gatewayFactories[plugin];
-    assert(factory !== undefined);
-    return factory.getStorage(namespace, persist);
-  }
 
   /** @internal */
   async _getProxyClient(): Promise<ProxyClient> {
@@ -1283,5 +1202,4 @@ export * from "./http";
 export * from "./plugins";
 export * from "./runtime";
 export * from "./shared";
-export * from "./storage";
 export * from "./workers";

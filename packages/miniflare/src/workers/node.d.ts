@@ -2,10 +2,41 @@
 // TODO(soon): remove once these types are part of `@cloudflare/workers-types`
 
 declare module "node:assert" {
-  export default function (
-    value: boolean,
-    message?: string | Error
-  ): asserts value;
+  type AssertPredicate =
+    | RegExp
+    | (new () => object)
+    | ((thrown: unknown) => boolean)
+    | object
+    | Error;
+
+  function assert(value: boolean, message?: string | Error): asserts value;
+
+  namespace assert {
+    function fail(message?: string | Error): never;
+    function strictEqual(
+      actual: unknown,
+      expected: unknown,
+      message?: string | Error
+    ): void;
+    function deepStrictEqual<T>(
+      actual: unknown,
+      expected: T,
+      message?: string | Error
+    ): asserts actual is T;
+
+    function throws(
+      block: () => unknown,
+      error: AssertPredicate,
+      message?: string | Error
+    ): void;
+    function rejects(
+      block: (() => Promise<unknown>) | Promise<unknown>,
+      error: AssertPredicate,
+      message?: string | Error
+    ): Promise<void>;
+  }
+
+  export default assert;
 }
 
 declare module "node:buffer" {
@@ -17,6 +48,7 @@ declare module "node:buffer" {
     ): Buffer;
     static alloc(length: number): Buffer;
     static byteLength(value: string, encoding?: string): number;
+    static concat(buffers: Uint8Array[], totalLength?: number): Buffer;
 
     compare(
       target: Uint8Array,
@@ -106,4 +138,17 @@ declare module "node:buffer" {
     writeUintBE(value: number, offset?: number, byteLength?: number): number;
     writeUintLE(value: number, offset?: number, byteLength?: number): number;
   }
+}
+
+declare module "node:crypto" {
+  import { Buffer } from "node:buffer";
+
+  class Hash {
+    update(data: string | ArrayBufferView): Hash;
+    update(data: string, encoding: string): Hash;
+    digest(): Buffer;
+    digest(encoding: string): string;
+  }
+
+  export function createHash(algorithm: string): Hash;
 }
