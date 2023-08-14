@@ -12,7 +12,9 @@ const extractorCfgObject = {
   projectFolder: "<lookup>",
   mainEntryPointFilePath:
     "<projectFolder>/dist/packages/<unscopedPackageName>/src/index.d.ts",
-  compiler: { tsconfigFilePath: path.join(projectRoot, "tsconfig.json") },
+  compiler: {
+    tsconfigFilePath: path.join(projectRoot, "tsconfig.bundle.json"),
+  },
   apiReport: {
     enabled: false,
     reportFileName: "<unscopedPackageName>.api.md",

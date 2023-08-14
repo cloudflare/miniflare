@@ -4,6 +4,7 @@
 .tmp
 node_modules
 dist
+*.metafile.json
 
 # wrangler build artifacts
 test/fixtures/wrangler/rust/pkg
