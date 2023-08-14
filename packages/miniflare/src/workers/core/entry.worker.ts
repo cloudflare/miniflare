@@ -159,9 +159,27 @@ async function handleQueue(
   const flattened = await request.json<number | unknown[]>();
   const messages = unflatten(flattened, structuredSerializableRevivers);
   const queueResponse = await service.queue(queueName, messages);
-  (queueResponse as QueueResponse & { time: number }).time =
+  (queueResponse as FetcherQueueResult & { time: number }).time =
     Date.now() - startTime;
   return Response.json(queueResponse);
+}
+
+async function handleScheduled(
+  params: URLSearchParams,
+  service: Fetcher
+): Promise<Response> {
+  const time = params.get("time");
+  const scheduledTime = time ? new Date(parseInt(time)) : undefined;
+  const cron = params.get("cron") ?? undefined;
+
+  const result = await service.scheduled({
+    scheduledTime,
+    cron,
+  });
+
+  return new Response(result.outcome, {
+    status: result.outcome === "ok" ? 200 : 500,
+  });
 }
 
 export default <ExportedHandler<Env>>{
@@ -183,9 +201,12 @@ export default <ExportedHandler<Env>>{
 
     try {
       const customEvent = request.headers.get(CoreHeaders.CUSTOM_EVENT);
-      // TODO(soon): support scheduled events, requires support from workerd
       if (customEvent === "queue") {
         return await handleQueue(request, url, service, startTime);
+      }
+
+      if (url.pathname === "/cdn-cgi/mf/scheduled") {
+        return await handleScheduled(url.searchParams, service);
       }
 
       let response = await service.fetch(request);
