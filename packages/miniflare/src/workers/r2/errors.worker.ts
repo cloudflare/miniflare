@@ -1,31 +1,24 @@
-import { Response } from "../../http";
-import { HttpError } from "../../shared";
-import { CfHeader } from "../shared/constants";
-import { InternalR2Object } from "./r2Object";
+import { Buffer } from "node:buffer";
+import { HttpError } from "miniflare:shared";
+import { R2Headers } from "./constants";
+import { InternalR2Object } from "./r2Object.worker";
 
-enum Status {
-  BadRequest = 400,
-  NotFound = 404,
-  PreconditionFailed = 412,
-  RangeNotSatisfiable = 416,
-  InternalError = 500,
-}
-enum CfCode {
-  InternalError = 10001,
-  NoSuchObjectKey = 10007,
-  EntityTooLarge = 100100,
-  EntityTooSmall = 10011,
-  MetadataTooLarge = 10012,
-  InvalidObjectName = 10020,
-  InvalidMaxKeys = 10022,
-  NoSuchUpload = 10024,
-  InvalidPart = 10025,
-  InvalidArgument = 10029,
-  PreconditionFailed = 10031,
-  BadDigest = 10037,
-  InvalidRange = 10039,
-  BadUpload = 10048,
-}
+const R2ErrorCode = {
+  INTERNAL_ERROR: 10001,
+  NO_SUCH_OBJECT_KEY: 10007,
+  ENTITY_TOO_LARGE: 100100,
+  ENTITY_TOO_SMALL: 10011,
+  METADATA_TOO_LARGE: 10012,
+  INVALID_OBJECT_NAME: 10020,
+  INVALID_MAX_KEYS: 10022,
+  NO_SUCH_UPLOAD: 10024,
+  INVALID_PART: 10025,
+  INVALID_ARGUMENT: 10029,
+  PRECONDITION_FAILED: 10031,
+  BAD_DIGEST: 10037,
+  INVALID_RANGE: 10039,
+  BAD_UPLOAD: 10048,
+} as const;
 
 export class R2Error extends HttpError {
   object?: InternalR2Object;
@@ -40,9 +33,9 @@ export class R2Error extends HttpError {
       return new Response(value, {
         status: this.code,
         headers: {
-          [CfHeader.MetadataSize]: `${metadataSize}`,
+          [R2Headers.METADATA_SIZE]: `${metadataSize}`,
           "Content-Type": "application/json",
-          [CfHeader.Error]: JSON.stringify({
+          [R2Headers.ERROR]: JSON.stringify({
             message: this.message,
             version: 1,
             // Note the lowercase 'c', which the runtime expects
@@ -54,7 +47,7 @@ export class R2Error extends HttpError {
     return new Response(null, {
       status: this.code,
       headers: {
-        [CfHeader.Error]: JSON.stringify({
+        [R2Headers.ERROR]: JSON.stringify({
           message: this.message,
           version: 1,
           // Note the lowercase 'c', which the runtime expects
@@ -77,29 +70,25 @@ export class R2Error extends HttpError {
 
 export class InvalidMetadata extends R2Error {
   constructor() {
-    super(
-      Status.BadRequest,
-      "Metadata missing or invalid",
-      CfCode.InvalidArgument
-    );
+    super(400, "Metadata missing or invalid", R2ErrorCode.INVALID_ARGUMENT);
   }
 }
 
 export class InternalError extends R2Error {
   constructor() {
     super(
-      Status.InternalError,
+      500,
       "We encountered an internal error. Please try again.",
-      CfCode.InternalError
+      R2ErrorCode.INTERNAL_ERROR
     );
   }
 }
 export class NoSuchKey extends R2Error {
   constructor() {
     super(
-      Status.NotFound,
+      404,
       "The specified key does not exist.",
-      CfCode.NoSuchObjectKey
+      R2ErrorCode.NO_SUCH_OBJECT_KEY
     );
   }
 }
@@ -107,9 +96,9 @@ export class NoSuchKey extends R2Error {
 export class EntityTooLarge extends R2Error {
   constructor() {
     super(
-      Status.BadRequest,
+      400,
       "Your proposed upload exceeds the maximum allowed object size.",
-      CfCode.EntityTooLarge
+      R2ErrorCode.ENTITY_TOO_LARGE
     );
   }
 }
@@ -117,9 +106,9 @@ export class EntityTooLarge extends R2Error {
 export class EntityTooSmall extends R2Error {
   constructor() {
     super(
-      Status.BadRequest,
+      400,
       "Your proposed upload is smaller than the minimum allowed object size.",
-      CfCode.EntityTooSmall
+      R2ErrorCode.ENTITY_TOO_SMALL
     );
   }
 }
@@ -127,9 +116,9 @@ export class EntityTooSmall extends R2Error {
 export class MetadataTooLarge extends R2Error {
   constructor() {
     super(
-      Status.BadRequest,
+      400,
       "Your metadata headers exceed the maximum allowed metadata size.",
-      CfCode.MetadataTooLarge
+      R2ErrorCode.METADATA_TOO_LARGE
     );
   }
 }
@@ -141,7 +130,7 @@ export class BadDigest extends R2Error {
     calculated: Buffer
   ) {
     super(
-      Status.BadRequest,
+      400,
       [
         `The ${algorithm} checksum you specified did not match what we received.`,
         `You provided a ${algorithm} checksum with value: ${provided.toString(
@@ -149,7 +138,7 @@ export class BadDigest extends R2Error {
         )}`,
         `Actual ${algorithm} was: ${calculated.toString("hex")}`,
       ].join("\n"),
-      CfCode.BadDigest
+      R2ErrorCode.BAD_DIGEST
     );
   }
 }
@@ -157,9 +146,9 @@ export class BadDigest extends R2Error {
 export class InvalidObjectName extends R2Error {
   constructor() {
     super(
-      Status.BadRequest,
+      400,
       "The specified object name is not valid.",
-      CfCode.InvalidObjectName
+      R2ErrorCode.INVALID_OBJECT_NAME
     );
   }
 }
@@ -167,9 +156,9 @@ export class InvalidObjectName extends R2Error {
 export class InvalidMaxKeys extends R2Error {
   constructor() {
     super(
-      Status.BadRequest,
+      400,
       "MaxKeys params must be positive integer <= 1000.",
-      CfCode.InvalidMaxKeys
+      R2ErrorCode.INVALID_MAX_KEYS
     );
   }
 }
@@ -177,9 +166,9 @@ export class InvalidMaxKeys extends R2Error {
 export class NoSuchUpload extends R2Error {
   constructor() {
     super(
-      Status.BadRequest,
+      400,
       "The specified multipart upload does not exist.",
-      CfCode.NoSuchUpload
+      R2ErrorCode.NO_SUCH_UPLOAD
     );
   }
 }
@@ -187,9 +176,9 @@ export class NoSuchUpload extends R2Error {
 export class InvalidPart extends R2Error {
   constructor() {
     super(
-      Status.BadRequest,
+      400,
       "One or more of the specified parts could not be found.",
-      CfCode.InvalidPart
+      R2ErrorCode.INVALID_PART
     );
   }
 }
@@ -197,9 +186,9 @@ export class InvalidPart extends R2Error {
 export class PreconditionFailed extends R2Error {
   constructor() {
     super(
-      Status.PreconditionFailed,
+      412,
       "At least one of the pre-conditions you specified did not hold.",
-      CfCode.PreconditionFailed
+      R2ErrorCode.PRECONDITION_FAILED
     );
   }
 }
@@ -207,9 +196,9 @@ export class PreconditionFailed extends R2Error {
 export class InvalidRange extends R2Error {
   constructor() {
     super(
-      Status.RangeNotSatisfiable,
+      416,
       "The requested range is not satisfiable",
-      CfCode.InvalidRange
+      R2ErrorCode.INVALID_RANGE
     );
   }
 }
@@ -217,9 +206,9 @@ export class InvalidRange extends R2Error {
 export class BadUpload extends R2Error {
   constructor() {
     super(
-      Status.RangeNotSatisfiable,
+      500,
       "There was a problem with the multipart upload.",
-      CfCode.BadUpload
+      R2ErrorCode.BAD_UPLOAD
     );
   }
 }
