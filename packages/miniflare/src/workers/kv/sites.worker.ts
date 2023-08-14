@@ -1,9 +1,4 @@
-import {
-  SharedBindings,
-  base64Decode,
-  base64Encode,
-  lexicographicCompare,
-} from "../shared";
+import { SharedBindings, base64Decode, base64Encode } from "miniflare:shared";
 import {
   KVLimits,
   KVParams,
@@ -15,10 +10,10 @@ import {
   encodeSitesKey,
   testSiteRegExps,
 } from "./constants";
-import { decodeListOptions, validateListOptions } from "./namespace.worker";
+import { decodeListOptions, validateListOptions } from "./validator.worker";
 
 interface Env {
-  [SharedBindings.SERVICE_BLOBS]: Fetcher;
+  [SharedBindings.MAYBE_SERVICE_BLOBS]: Fetcher;
   [SiteBindings.JSON_SITE_FILTER]: SerialisableSiteMatcherRegExps;
 }
 
@@ -69,6 +64,12 @@ async function* walkDirectory(
       yield entryPath;
     }
   }
+}
+
+function lexicographicCompare(x: string, y: string): number {
+  if (x < y) return -1;
+  if (x === y) return 0;
+  return 1;
 }
 
 async function handleListRequest(
@@ -143,7 +144,7 @@ export default <ExportedHandler<Env>>{
       });
     }
 
-    const blobsService = env[SharedBindings.SERVICE_BLOBS];
+    const blobsService = env[SharedBindings.MAYBE_SERVICE_BLOBS];
     if (key === "") {
       return handleListRequest(url, blobsService, siteRegExps);
     } else {

@@ -1,35 +1,43 @@
-import assert from "assert";
-import crypto from "crypto";
-import { ReadableStream, TransformStream } from "stream/web";
-import {
-  DeferredPromise,
-  Log,
-  Timers,
-  WaitGroup,
-  prefixError,
-} from "../../shared";
+import assert from "node:assert";
+import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import {
   BlobId,
+  DeferredPromise,
+  GET,
   InclusiveRange,
-  Storage,
-  TypedDatabase,
+  MiniflareDurableObject,
+  MiniflareDurableObjectEnv,
+  PUT,
+  RouteHandler,
+  TransactionFactory,
+  TypedSqlStorage,
+  WaitGroup,
+  all,
+  base64Decode,
+  base64Encode,
   escapeLike,
-} from "../../storage";
-import { base64Decode, base64Encode, maybeApply } from "../../workers";
+  get,
+  maybeApply,
+  readPrefix,
+} from "miniflare:shared";
+import { R2Headers, R2Limits } from "./constants";
 import {
   BadUpload,
   EntityTooSmall,
   InternalError,
+  InvalidMetadata,
   InvalidPart,
   NoSuchKey,
   NoSuchUpload,
   PreconditionFailed,
-} from "./errors";
+} from "./errors.worker";
 import {
+  EncodedMetadata,
   InternalR2Object,
   InternalR2ObjectBody,
   InternalR2Objects,
-} from "./r2Object";
+} from "./r2Object.worker";
 import {
   InternalR2CreateMultipartUploadOptions,
   InternalR2GetOptions,
@@ -39,19 +47,18 @@ import {
   MultipartUploadRow,
   MultipartUploadState,
   ObjectRow,
+  R2BindingRequestSchema,
   R2Conditional,
   R2CreateMultipartUploadResponse,
   R2PublishedPart,
-  R2Range,
   R2UploadPartResponse,
   SQL_SCHEMA,
-} from "./schemas";
+} from "./schemas.worker";
 import {
-  MAX_LIST_KEYS,
-  R2Hashes,
+  DigestAlgorithm,
   R2_HASH_ALGORITHMS,
   Validator,
-} from "./validator";
+} from "./validator.worker";
 
 // This file implements Miniflare's R2 simulator, supporting both single and
 // multipart uploads.
@@ -89,22 +96,27 @@ import {
 // uploads.
 
 class DigestingStream<
-  Algorithm extends string = string
+  Algorithm extends DigestAlgorithm = DigestAlgorithm
 > extends TransformStream<Uint8Array, Uint8Array> {
   readonly digests: Promise<Map<Algorithm, Buffer>>;
 
   constructor(algorithms: Algorithm[]) {
     const digests = new DeferredPromise<Map<Algorithm, Buffer>>();
-    const hashes = algorithms.map((alg) => crypto.createHash(alg));
+    const hashes = algorithms.map((alg) => {
+      const stream = new crypto.DigestStream(alg);
+      const writer = stream.getWriter();
+      return { stream, writer };
+    });
     super({
-      transform(chunk, controller) {
-        for (const hash of hashes) hash.update(chunk);
+      async transform(chunk, controller) {
+        for (const hash of hashes) await hash.writer.write(chunk);
         controller.enqueue(chunk);
       },
-      flush() {
+      async flush() {
         const result = new Map<Algorithm, Buffer>();
         for (let i = 0; i < hashes.length; i++) {
-          result.set(algorithms[i], hashes[i].digest());
+          await hashes[i].writer.close();
+          result.set(algorithms[i], Buffer.from(await hashes[i].stream.digest));
         }
         digests.resolve(result);
       },
@@ -114,16 +126,22 @@ class DigestingStream<
 }
 
 const validate = new Validator();
+const decoder = new TextDecoder();
 
 function generateVersion() {
-  return crypto.randomBytes(16).toString("hex");
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString(
+    "hex"
+  );
 }
 function generateId() {
-  return crypto.randomBytes(128).toString("base64url");
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(128))).toString(
+    "base64url"
+  );
 }
 function generateMultipartEtag(md5Hexes: string[]) {
   // https://stackoverflow.com/a/19896823
-  const hash = crypto.createHash("md5");
+  const hash = createHash("md5");
+  // TODO: hash.update(md5Hex, "hex")
   for (const md5Hex of md5Hexes) hash.update(Buffer.from(md5Hex, "hex"));
   return `${hash.digest("hex")}-${md5Hexes.length}`;
 }
@@ -132,24 +150,83 @@ function rangeOverlaps(a: InclusiveRange, b: InclusiveRange): boolean {
   return a.start <= b.end && b.start <= a.end;
 }
 
-function sqlStmts(db: TypedDatabase) {
+async function decodeMetadata(req: Request<unknown, unknown>) {
+  // Safety of `!`: `parseInt(null)` is `NaN`
+  const metadataSize = parseInt(req.headers.get(R2Headers.METADATA_SIZE)!);
+  if (Number.isNaN(metadataSize)) throw new InvalidMetadata();
+
+  assert(req.body !== null);
+  const body = req.body as ReadableStream<Uint8Array>;
+
+  // Read just metadata from body stream
+  const [metadataBuffer, value] = await readPrefix(body, metadataSize);
+  const metadataJson = decoder.decode(metadataBuffer);
+  const metadata = R2BindingRequestSchema.parse(JSON.parse(metadataJson));
+
+  return { metadata, metadataSize, value };
+}
+function decodeHeaderMetadata(req: Request<unknown, unknown>) {
+  const header = req.headers.get(R2Headers.REQUEST);
+  if (header === null) throw new InvalidMetadata();
+  return R2BindingRequestSchema.parse(JSON.parse(header));
+}
+
+function encodeResult(
+  result: InternalR2Object | InternalR2ObjectBody | InternalR2Objects
+) {
+  let encoded: EncodedMetadata;
+  if (result instanceof InternalR2Object) {
+    encoded = result.encode();
+  } else {
+    encoded = InternalR2Object.encodeMultiple(result);
+  }
+
+  return new Response(encoded.value, {
+    headers: {
+      [R2Headers.METADATA_SIZE]: `${encoded.metadataSize}`,
+      "Content-Type": "application/json",
+    },
+  });
+}
+function encodeJSONResult(result: unknown) {
+  const encoded = JSON.stringify(result);
+  return new Response(encoded, {
+    headers: {
+      [R2Headers.METADATA_SIZE]: `${Buffer.byteLength(encoded)}`,
+      "Content-Type": "application/json",
+    },
+  });
+}
+
+function sqlStmts(db: TypedSqlStorage, txn: TransactionFactory) {
   const stmtGetPreviousByKey = db.prepare<
-    Pick<ObjectRow, "key">,
+    [key_1: string],
     Pick<ObjectRow, "blob_id" | "etag" | "uploaded">
-  >("SELECT blob_id, etag, uploaded FROM _mf_objects WHERE key = :key");
+  >("SELECT blob_id, etag, uploaded FROM _mf_objects WHERE key = ?1");
   // Regular statements
-  const stmtGetByKey = db.prepare<Pick<ObjectRow, "key">, ObjectRow>(`
+  const stmtGetByKey = db.prepare<[key_1: string], ObjectRow>(`
     SELECT key, blob_id, version, size, etag, uploaded, checksums, http_metadata, custom_metadata
-    FROM _mf_objects WHERE key = :key
+    FROM _mf_objects WHERE key = ?1
   `);
-  const stmtPut = db.prepare<ObjectRow>(`
+  const stmtPut = db.prepare<
+    [
+      key_1: string,
+      blob_id_2: string | null,
+      version_3: string,
+      size_4: number,
+      etag_5: string,
+      uploaded_6: number,
+      checksums_7: string,
+      http_metadata_8: string,
+      custom_metadata_9: string
+    ]
+  >(`
     INSERT OR REPLACE INTO _mf_objects (key, blob_id, version, size, etag, uploaded, checksums, http_metadata, custom_metadata)
-    VALUES (:key, :blob_id, :version, :size, :etag, :uploaded, :checksums, :http_metadata, :custom_metadata)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
   `);
-  const stmtDelete = db.prepare<
-    Pick<ObjectRow, "key">,
-    Pick<ObjectRow, "blob_id">
-  >("DELETE FROM _mf_objects WHERE key = :key RETURNING blob_id");
+  const stmtDelete = db.prepare<[key_1: string], Pick<ObjectRow, "blob_id">>(
+    "DELETE FROM _mf_objects WHERE key = ?1 RETURNING blob_id"
+  );
 
   function stmtListWithoutDelimiter<ExtraColumns extends (keyof ObjectRow)[]>(
     ...extraColumns: ExtraColumns
@@ -165,136 +242,155 @@ function sqlStmts(db: TypedDatabase) {
     ];
     // TODO: consider applying same `:start_after IS NULL` trick to KeyValueStore
     return db.prepare<
-      { limit: number; escaped_prefix: string; start_after: string | null },
+      [limit_1: number, escaped_prefix_2: string, start_after_3: string | null],
       Omit<ObjectRow, "blob_id"> & Pick<ObjectRow, ExtraColumns[number]>
     >(`
       SELECT ${columns.join(", ")}
       FROM _mf_objects
-      WHERE key LIKE :escaped_prefix || '%' ESCAPE '\\'
-      AND (:start_after IS NULL OR key > :start_after)
-      ORDER BY key LIMIT :limit
+      WHERE key LIKE ?2 || '%' ESCAPE '\\'
+      AND (?3 IS NULL OR key > ?3)
+      ORDER BY key LIMIT ?1
     `);
   }
 
   // Multipart upload statements
   const stmtGetUploadState = db.prepare<
-    Pick<MultipartUploadRow, "upload_id" | "key">,
+    [upload_id_1: string, key_2: string],
     Pick<MultipartUploadRow, "state">
   >(
     // For checking current upload state
-    "SELECT state FROM _mf_multipart_uploads WHERE upload_id = :upload_id AND key = :key"
+    "SELECT state FROM _mf_multipart_uploads WHERE upload_id = ?1 AND key = ?2"
   );
   const stmtGetUploadMetadata = db.prepare<
-    Pick<MultipartUploadRow, "upload_id" | "key">,
+    [upload_id_1: string, key_2: string],
     Pick<MultipartUploadRow, "http_metadata" | "custom_metadata" | "state">
   >(
     // For checking current upload state, and getting metadata for completion
-    "SELECT http_metadata, custom_metadata, state FROM _mf_multipart_uploads WHERE upload_id = :upload_id AND key = :key"
+    "SELECT http_metadata, custom_metadata, state FROM _mf_multipart_uploads WHERE upload_id = ?1 AND key = ?2"
   );
   const stmtUpdateUploadState = db.prepare<
-    Pick<MultipartUploadRow, "upload_id" | "state">
+    [upload_id_1: string, state_2: MultipartUploadRow["state"]]
   >(
     // For completing/aborting uploads
-    "UPDATE _mf_multipart_uploads SET state = :state WHERE upload_id = :upload_id"
+    "UPDATE _mf_multipart_uploads SET state = ?2 WHERE upload_id = ?1"
   );
   // Multipart part statements
   const stmtGetPreviousPartByNumber = db.prepare<
-    Pick<MultipartPartRow, "upload_id" | "part_number">,
+    [upload_id_1: string, part_number_2: number],
     Pick<MultipartPartRow, "blob_id">
   >(
     // For getting part number's previous blob ID to garbage collect
-    "SELECT blob_id FROM _mf_multipart_parts WHERE upload_id = :upload_id AND part_number = :part_number"
+    "SELECT blob_id FROM _mf_multipart_parts WHERE upload_id = ?1 AND part_number = ?2"
   );
-  const stmtPutPart = db.prepare<Omit<MultipartPartRow, "object_key">>(
+  const stmtPutPart = db.prepare<
+    [
+      upload_id_1: string,
+      part_number_2: number,
+      blob_id_3: BlobId,
+      size_4: number,
+      etag_5: string,
+      checksum_md5_6: string
+    ]
+  >(
     // For recording metadata when uploading parts
     `INSERT OR REPLACE INTO _mf_multipart_parts (upload_id, part_number, blob_id, size, etag, checksum_md5)
-    VALUES (:upload_id, :part_number, :blob_id, :size, :etag, :checksum_md5)`
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
   );
   const stmtLinkPart = db.prepare<
-    Pick<MultipartPartRow, "upload_id" | "part_number" | "object_key">
+    [upload_id_1: string, part_number_2: number, object_key_3: string]
   >(
     // For linking parts with an object when completing uploads
-    `UPDATE _mf_multipart_parts SET object_key = :object_key
-    WHERE upload_id = :upload_id AND part_number = :part_number`
+    `UPDATE _mf_multipart_parts SET object_key = ?3
+    WHERE upload_id = ?1 AND part_number = ?2`
   );
   const stmtDeletePartsByUploadId = db.prepare<
-    Pick<MultipartPartRow, "upload_id">,
+    [upload_id_1: string],
     Pick<MultipartPartRow, "blob_id">
   >(
     // For deleting parts when aborting uploads
-    "DELETE FROM _mf_multipart_parts WHERE upload_id = :upload_id RETURNING blob_id"
+    "DELETE FROM _mf_multipart_parts WHERE upload_id = ?1 RETURNING blob_id"
   );
   const stmtDeleteUnlinkedPartsByUploadId = db.prepare<
-    Pick<MultipartPartRow, "upload_id">,
+    [upload_id_1: string],
     Pick<MultipartPartRow, "blob_id">
   >(
     // For deleting unused parts when completing uploads
-    "DELETE FROM _mf_multipart_parts WHERE upload_id = :upload_id AND object_key IS NULL RETURNING blob_id"
+    "DELETE FROM _mf_multipart_parts WHERE upload_id = ?1 AND object_key IS NULL RETURNING blob_id"
   );
   const stmtDeletePartsByKey = db.prepare<
-    Pick<MultipartPartRow, "object_key">,
+    [object_key_1: string],
     Pick<MultipartPartRow, "blob_id">
   >(
     // For deleting dangling parts when overwriting an existing key
-    "DELETE FROM _mf_multipart_parts WHERE object_key = :object_key RETURNING blob_id"
+    "DELETE FROM _mf_multipart_parts WHERE object_key = ?1 RETURNING blob_id"
   );
   const stmtListPartsByUploadId = db.prepare<
-    Pick<MultipartPartRow, "upload_id">,
+    [upload_id_1: string],
     Omit<MultipartPartRow, "blob_id">
   >(
     // For getting part metadata when completing uploads
     `SELECT upload_id, part_number, blob_id, size, etag, checksum_md5, object_key
-    FROM _mf_multipart_parts WHERE upload_id = :upload_id`
+    FROM _mf_multipart_parts WHERE upload_id = ?1`
   );
   const stmtListPartsByKey = db.prepare<
-    Pick<MultipartPartRow, "object_key">,
+    [object_key_1: string],
     Pick<MultipartPartRow, "blob_id" | "size">
   >(
     // For getting part metadata when getting values, size included for range
     // requests, so we only need to read blobs containing the required data
-    "SELECT blob_id, size FROM _mf_multipart_parts WHERE object_key = :object_key ORDER BY part_number"
+    "SELECT blob_id, size FROM _mf_multipart_parts WHERE object_key = ?1 ORDER BY part_number"
   );
 
   return {
     getByKey: stmtGetByKey,
-    getPartsByKey: db.transaction((key: string) => {
-      const row = stmtGetByKey.get({ key });
+    getPartsByKey: txn((key: string) => {
+      const row = get(stmtGetByKey(key));
       if (row === undefined) return;
       if (row.blob_id === null) {
         // If this is a multipart object, also return the parts
-        const partsRows = stmtListPartsByKey.all({ object_key: key });
+        const partsRows = all(stmtListPartsByKey(key));
         return { row, parts: partsRows };
       } else {
         // Otherwise, just return the row
         return { row };
       }
     }),
-    put: db.transaction((newRow: ObjectRow, onlyIf?: R2Conditional) => {
+    put: txn((newRow: ObjectRow, onlyIf?: R2Conditional) => {
       const key = newRow.key;
-      const row = stmtGetPreviousByKey.get({ key });
+      const row = get(stmtGetPreviousByKey(key));
       if (onlyIf !== undefined) validate.condition(row, onlyIf);
-      stmtPut.run(newRow);
+      stmtPut(
+        newRow.key,
+        newRow.blob_id,
+        newRow.version,
+        newRow.size,
+        newRow.etag,
+        newRow.uploaded,
+        newRow.checksums,
+        newRow.http_metadata,
+        newRow.custom_metadata
+      );
       const maybeOldBlobId = row?.blob_id;
       if (maybeOldBlobId === undefined) {
         return [];
       } else if (maybeOldBlobId === null) {
         // If blob_id is null, this was a multipart object, so delete all
         // multipart parts
-        const rows = stmtDeletePartsByKey.all({ object_key: key });
+        const rows = all(stmtDeletePartsByKey(key));
         return rows.map(({ blob_id }) => blob_id);
       } else {
         return [maybeOldBlobId];
       }
     }),
-    deleteByKeys: db.transaction((keys: string[]) => {
+    deleteByKeys: txn((keys: string[]) => {
       const oldBlobIds: string[] = [];
       for (const key of keys) {
-        const row = stmtDelete.get({ key });
+        const row = get(stmtDelete(key));
         const maybeOldBlobId = row?.blob_id;
         if (maybeOldBlobId === null) {
           // If blob_id is null, this was a multipart object, so delete all
           // multipart parts
-          const partRows = stmtDeletePartsByKey.all({ object_key: key });
+          const partRows = stmtDeletePartsByKey(key);
           for (const partRow of partRows) oldBlobIds.push(partRow.blob_id);
         } else if (maybeOldBlobId !== undefined) {
           oldBlobIds.push(maybeOldBlobId);
@@ -312,13 +408,13 @@ function sqlStmts(db: TypedDatabase) {
       "custom_metadata"
     ),
     listMetadata: db.prepare<
-      {
-        limit: number;
-        escaped_prefix: string;
-        start_after: string | null;
-        prefix: string;
-        delimiter: string;
-      },
+      [
+        limit_1: number,
+        escaped_prefix_2: string,
+        start_after_3: string | null,
+        prefix_4: string,
+        delimiter_5: string
+      ],
       Omit<ObjectRow, "key" | "blob_id"> & {
         last_key: string;
         delimited_prefix_or_key: `dlp:${string}` | `key:${string}`;
@@ -332,49 +428,64 @@ function sqlStmts(db: TypedDatabase) {
         max(key) AS last_key,
         iif(
             -- Try get 1-indexed position \`i\` of :delimiter in rest of key after :prefix...
-                                                       instr(substr(key, length(:prefix) + 1), :delimiter),
+                                                  instr(substr(key, length(?4) + 1), ?5),
             -- ...if found, we have a delimited prefix of the :prefix followed by the rest of key up to and including the :delimiter
-            'dlp:' || substr(key, 1, length(:prefix) + instr(substr(key, length(:prefix) + 1), :delimiter) + length(:delimiter) - 1),
+            'dlp:' || substr(key, 1, length(?4) + instr(substr(key, length(?4) + 1), ?5) + length(?5) - 1),
             -- ...otherwise, we just have a regular key
             'key:' || key
         ) AS delimited_prefix_or_key,
         -- NOTE: we'll ignore metadata for delimited prefix rows, so it doesn't matter which keys' we return
         version, size, etag, uploaded, checksums, http_metadata, custom_metadata
       FROM _mf_objects
-      WHERE key LIKE :escaped_prefix || '%' ESCAPE '\\'
-      AND (:start_after IS NULL OR key > :start_after)
-      GROUP BY delimited_prefix_or_key -- Group keys with same delimited prefix into a row, leaving otherS in their own rows
-      ORDER BY last_key LIMIT :limit;
+      WHERE key LIKE ?2 || '%' ESCAPE '\\'
+      AND (?3 IS NULL OR key > ?3)
+      GROUP BY delimited_prefix_or_key -- Group keys with same delimited prefix into a row, leaving others in their own rows
+      ORDER BY last_key LIMIT ?1;
     `),
 
-    createMultipartUpload: db.prepare<Omit<MultipartUploadRow, "state">>(`
+    createMultipartUpload: db.prepare<
+      [
+        upload_id_1: string,
+        key_2: string,
+        http_metadata_3: string,
+        custom_metadata_4: string
+      ]
+    >(`
       INSERT INTO _mf_multipart_uploads (upload_id, key, http_metadata, custom_metadata)
-      VALUES (:upload_id, :key, :http_metadata, :custom_metadata)
+      VALUES (?1, ?2, ?3, ?4)
     `),
-    putPart: db.transaction(
+    putPart: txn(
       (key: string, newRow: Omit<MultipartPartRow, "object_key">) => {
         // 1. Check the upload exists and is in-progress
-        const uploadRow = stmtGetUploadState.get({
-          key,
-          upload_id: newRow.upload_id,
-        });
+        const uploadRow = get(stmtGetUploadState(newRow.upload_id, key));
         if (uploadRow?.state !== MultipartUploadState.IN_PROGRESS) {
           throw new NoSuchUpload();
         }
 
         // 2. Check if we have an existing part with this number, then upsert
-        const partRow = stmtGetPreviousPartByNumber.get({
-          upload_id: newRow.upload_id,
-          part_number: newRow.part_number,
-        });
-        stmtPutPart.run(newRow);
+        const partRow = get(
+          stmtGetPreviousPartByNumber(newRow.upload_id, newRow.part_number)
+        );
+        stmtPutPart(
+          newRow.upload_id,
+          newRow.part_number,
+          newRow.blob_id,
+          newRow.size,
+          newRow.etag,
+          newRow.checksum_md5
+        );
         return partRow?.blob_id;
       }
     ),
-    completeMultipartUpload: db.transaction(
-      (key: string, upload_id: string, selectedParts: R2PublishedPart[]) => {
+    completeMultipartUpload: txn(
+      (
+        key: string,
+        upload_id: string,
+        selectedParts: R2PublishedPart[],
+        minPartSize: number
+      ) => {
         // 1. Check the upload exists and is in-progress
-        const uploadRow = stmtGetUploadMetadata.get({ key, upload_id });
+        const uploadRow = get(stmtGetUploadMetadata(upload_id, key));
         if (uploadRow === undefined) {
           throw new InternalError();
         } else if (uploadRow.state > MultipartUploadState.IN_PROGRESS) {
@@ -390,7 +501,7 @@ function sqlStmts(db: TypedDatabase) {
 
         // 3. Get metadata for all uploaded parts, checking all selected parts
         //    exist
-        const uploadedPartRows = stmtListPartsByUploadId.all({ upload_id });
+        const uploadedPartRows = stmtListPartsByUploadId(upload_id);
         const uploadedParts = new Map<
           /* part number */ number,
           Omit<MultipartPartRow, "blob_id">
@@ -415,7 +526,7 @@ function sqlStmts(db: TypedDatabase) {
         // 4. Check all but last part meets minimum size requirements. First
         //    check this in argument order, throwing a friendly error...
         for (const part of parts.slice(0, -1)) {
-          if (part.size < R2Gateway._MIN_MULTIPART_PART_SIZE) {
+          if (part.size < minPartSize) {
             throw new EntityTooSmall();
           }
         }
@@ -429,10 +540,7 @@ function sqlStmts(db: TypedDatabase) {
         for (const part of parts.slice(0, -1)) {
           // noinspection JSUnusedAssignment
           partSize ??= part.size;
-          if (
-            part.size < R2Gateway._MIN_MULTIPART_PART_SIZE ||
-            part.size !== partSize
-          ) {
+          if (part.size < minPartSize || part.size !== partSize) {
             throw new BadUpload();
           }
         }
@@ -444,12 +552,12 @@ function sqlStmts(db: TypedDatabase) {
 
         // 5. Get existing upload if any, and delete previous multipart parts
         const oldBlobIds: string[] = [];
-        const existingRow = stmtGetPreviousByKey.get({ key });
+        const existingRow = get(stmtGetPreviousByKey(key));
         const maybeOldBlobId = existingRow?.blob_id;
         if (maybeOldBlobId === null) {
           // If blob_id is null, this was a multipart object, so delete all
           // multipart parts
-          const partRows = stmtDeletePartsByKey.all({ object_key: key });
+          const partRows = stmtDeletePartsByKey(key);
           for (const partRow of partRows) oldBlobIds.push(partRow.blob_id);
         } else if (maybeOldBlobId !== undefined) {
           oldBlobIds.push(maybeOldBlobId);
@@ -471,31 +579,34 @@ function sqlStmts(db: TypedDatabase) {
           http_metadata: uploadRow.http_metadata,
           custom_metadata: uploadRow.custom_metadata,
         };
-        stmtPut.run(newRow);
+        stmtPut(
+          newRow.key,
+          newRow.blob_id,
+          newRow.version,
+          newRow.size,
+          newRow.etag,
+          newRow.uploaded,
+          newRow.checksums,
+          newRow.http_metadata,
+          newRow.custom_metadata
+        );
         for (const part of parts) {
-          stmtLinkPart.run({
-            upload_id,
-            part_number: part.part_number,
-            object_key: key,
-          });
+          stmtLinkPart(upload_id, part.part_number, key);
         }
 
         // 7. Delete unlinked, unused parts
-        const partRows = stmtDeleteUnlinkedPartsByUploadId.all({ upload_id });
+        const partRows = stmtDeleteUnlinkedPartsByUploadId(upload_id);
         for (const partRow of partRows) oldBlobIds.push(partRow.blob_id);
 
         // 8. Mark the upload as completed
-        stmtUpdateUploadState.run({
-          upload_id,
-          state: MultipartUploadState.COMPLETED,
-        });
+        stmtUpdateUploadState(upload_id, MultipartUploadState.COMPLETED);
 
         return { newRow, oldBlobIds };
       }
     ),
-    abortMultipartUpload: db.transaction((key: string, upload_id: string) => {
+    abortMultipartUpload: txn((key: string, upload_id: string) => {
       // 1. Make sure this multipart upload exists, ignoring finalised states
-      const uploadRow = stmtGetUploadState.get({ key, upload_id });
+      const uploadRow = get(stmtGetUploadState(upload_id, key));
       if (uploadRow === undefined) {
         throw new InternalError();
       } else if (uploadRow.state > MultipartUploadState.IN_PROGRESS) {
@@ -506,27 +617,19 @@ function sqlStmts(db: TypedDatabase) {
       }
 
       // 2. Delete all parts in the upload
-      const partRows = stmtDeletePartsByUploadId.all({ upload_id });
+      const partRows = all(stmtDeletePartsByUploadId(upload_id));
       const oldBlobIds = partRows.map(({ blob_id }) => blob_id);
 
       // 3. Mark the uploaded as aborted
-      stmtUpdateUploadState.run({
-        upload_id,
-        state: MultipartUploadState.ABORTED,
-      });
+      stmtUpdateUploadState(upload_id, MultipartUploadState.ABORTED);
 
       return oldBlobIds;
     }),
   };
 }
 
-export class R2Gateway {
-  // Minimum multipart part upload size is configurable, so we can use smaller
-  // values in tests
-  /** @internal */
-  static _MIN_MULTIPART_PART_SIZE = 5 * 1024 * 1024;
-
-  readonly #storage: Storage;
+// noinspection JSUnusedGlobalSymbols
+export class R2BucketObject extends MiniflareDurableObject {
   readonly #stmts: ReturnType<typeof sqlStmts>;
 
   // Multipart uploads are stored as multiple blobs. Therefore, when reading a
@@ -551,15 +654,11 @@ export class R2Gateway {
   // some inter-process signalling/subscription system.
   readonly #inUseBlobs = new Map<BlobId, WaitGroup>();
 
-  constructor(
-    private readonly log: Log,
-    storage: Storage,
-    private readonly timers: Timers
-  ) {
-    this.#storage = storage;
-    this.#storage.db.pragma("case_sensitive_like = TRUE");
-    this.#storage.db.exec(SQL_SCHEMA);
-    this.#stmts = sqlStmts(this.#storage.db);
+  constructor(state: DurableObjectState, env: MiniflareDurableObjectEnv) {
+    super(state, env);
+    this.db.exec("PRAGMA case_sensitive_like = TRUE");
+    this.db.exec(SQL_SCHEMA);
+    this.#stmts = sqlStmts(this.db, this.txn);
   }
 
   #acquireBlob(blobId: BlobId) {
@@ -583,14 +682,13 @@ export class R2Gateway {
     this.timers.queueMicrotask(async () => {
       // Wait for all multipart gets using this blob to complete
       await this.#inUseBlobs.get(blobId)?.wait();
-      return this.#storage.blob.delete(blobId).catch((e) => {
-        this.log.error(prefixError("Deleting Blob", e));
+      return this.blob.delete(blobId).catch((e) => {
+        console.error("R2BucketObject##backgroundDelete():", e);
       });
     });
   }
 
   #assembleMultipartValue(
-    storage: Storage,
     parts: Pick<MultipartPartRow, "blob_id" | "size">[],
     queryRange: InclusiveRange
   ): ReadableStream<Uint8Array> {
@@ -615,6 +713,13 @@ export class R2Gateway {
     // Stream required parts, the `Promise`s returned from `pipeTo()` won't
     // resolve until a reader starts reading, so run this in the background as
     // an async IIFE.
+    //
+    // NOTE: we can't use `IdentityTransformStream` here as piping the readable
+    // side of an `IdentityTransformStream` to the writable side of another
+    // `IdentityTransformStream` is not supported:
+    // https://github.com/cloudflare/workerd/blob/c6f439ca37c5fa34acc54a6df79214ae029ddf9f/src/workerd/api/streams/internal.c%2B%2B#L169
+    // We'll be piping to an `IdentityTransformStream` when we encode the
+    // metadata followed by this stream as the response body.
     const identity = new TransformStream<Uint8Array, Uint8Array>();
     (async () => {
       let i = 0;
@@ -625,7 +730,7 @@ export class R2Gateway {
         // that blob (and the rest) will be released in the `finally`.
         for (; i < requiredParts.length; i++) {
           const { blobId, range } = requiredParts[i];
-          const value = await storage.blob.get(blobId, range);
+          const value = await this.blob.get(blobId, range);
           const msg = `Expected to find blob "${blobId}" for multipart value`;
           assert(value !== null, msg);
           await value.pipeTo(identity.writable, { preventClose: true });
@@ -633,7 +738,7 @@ export class R2Gateway {
         }
         await identity.writable.close();
       } catch (e) {
-        identity.writable.abort(e);
+        await identity.writable.abort(e);
       } finally {
         for (; i < requiredParts.length; i++) {
           this.#releaseBlob(requiredParts[i].blobId);
@@ -643,19 +748,19 @@ export class R2Gateway {
     return identity.readable;
   }
 
-  async head(key: string): Promise<InternalR2Object> {
+  async #head(key: string): Promise<InternalR2Object> {
     validate.key(key);
 
-    const row = this.#stmts.getByKey.get({ key });
+    const row = get(this.#stmts.getByKey(key));
     if (row === undefined) throw new NoSuchKey();
 
     const range: R2Range = { offset: 0, length: row.size };
     return new InternalR2Object(row, range);
   }
 
-  async get(
+  async #get(
     key: string,
-    options: InternalR2GetOptions = {}
+    opts: InternalR2GetOptions
   ): Promise<InternalR2ObjectBody | InternalR2Object> {
     validate.key(key);
 
@@ -667,7 +772,7 @@ export class R2Gateway {
     // Validate pre-condition
     const defaultR2Range: R2Range = { offset: 0, length: row.size };
     try {
-      validate.condition(row, options.onlyIf);
+      validate.condition(row, opts.onlyIf);
     } catch (e) {
       if (e instanceof PreconditionFailed) {
         e.attach(new InternalR2Object(row, defaultR2Range));
@@ -676,7 +781,7 @@ export class R2Gateway {
     }
 
     // Validate range, and convert to R2 range for return
-    const range = validate.range(options, row.size);
+    const range = validate.range(opts, row.size);
     let r2Range: R2Range;
     if (range === undefined) {
       r2Range = defaultR2Range;
@@ -691,45 +796,41 @@ export class R2Gateway {
       // If this is a multipart object, we should've fetched multipart parts
       assert(parts !== undefined);
       const defaultRange = { start: 0, end: row.size - 1 };
-      value = this.#assembleMultipartValue(
-        this.#storage,
-        parts,
-        range ?? defaultRange
-      );
+      value = this.#assembleMultipartValue(parts, range ?? defaultRange);
     } else {
       // Otherwise, just return a single part value
-      value = await this.#storage.blob.get(row.blob_id, range);
+      value = await this.blob.get(row.blob_id, range);
       if (value === null) throw new NoSuchKey();
     }
 
     return new InternalR2ObjectBody(row, value, r2Range);
   }
 
-  async put(
+  async #put(
     key: string,
     value: ReadableStream<Uint8Array>,
     valueSize: number,
-    options: InternalR2PutOptions
+    opts: InternalR2PutOptions
   ): Promise<InternalR2Object> {
     // Store value in the blob store, computing required digests as we go
     // (this means we don't have to buffer the entire stream to compute them)
-    const algorithms: (keyof R2Hashes)[] = [];
-    for (const { field } of R2_HASH_ALGORITHMS) {
+    const algorithms: DigestAlgorithm[] = [];
+    for (const { name, field } of R2_HASH_ALGORITHMS) {
       // Always compute MD5 digest
-      if (field === "md5" || field in options) algorithms.push(field);
+      if (field === "md5" || opts[field] !== undefined) algorithms.push(name);
     }
     const digesting = new DigestingStream(algorithms);
-    const blobId = await this.#storage.blob.put(value.pipeThrough(digesting));
+    const blobId = await this.blob.put(value.pipeThrough(digesting));
     const digests = await digesting.digests;
-    const md5Digest = digests.get("md5");
+    const md5Digest = digests.get("MD5");
     assert(md5Digest !== undefined);
     const md5DigestHex = md5Digest.toString("hex");
 
     const checksums = validate
       .key(key)
       .size(valueSize)
-      .metadataSize(options.customMetadata)
-      .hash(digests, options);
+      .metadataSize(opts.customMetadata)
+      .hash(digests, opts);
     const row: ObjectRow = {
       key,
       blob_id: blobId,
@@ -738,12 +839,12 @@ export class R2Gateway {
       etag: md5DigestHex,
       uploaded: Date.now(),
       checksums: JSON.stringify(checksums),
-      http_metadata: JSON.stringify(options.httpMetadata ?? {}),
-      custom_metadata: JSON.stringify(options.customMetadata ?? {}),
+      http_metadata: JSON.stringify(opts.httpMetadata ?? {}),
+      custom_metadata: JSON.stringify(opts.customMetadata ?? {}),
     };
     let oldBlobIds: string[] | undefined;
     try {
-      oldBlobIds = this.#stmts.put(row, options.onlyIf);
+      oldBlobIds = this.#stmts.put(row, opts.onlyIf);
     } catch (e) {
       // Probably precondition failed. In any case, the put transaction failed,
       // so we're not storing a reference to the blob ID
@@ -756,7 +857,7 @@ export class R2Gateway {
     return new InternalR2Object(row);
   }
 
-  async delete(keys: string | string[]) {
+  #delete(keys: string | string[]) {
     if (!Array.isArray(keys)) keys = [keys];
     for (const key of keys) validate.key(key);
     const oldBlobIds = this.#stmts.deleteByKeys(keys);
@@ -770,10 +871,10 @@ export class R2Gateway {
     return this.#stmts.listHttpCustomMetadataWithoutDelimiter;
   }
 
-  async list(opts: InternalR2ListOptions = {}): Promise<InternalR2Objects> {
+  async #list(opts: InternalR2ListOptions): Promise<InternalR2Objects> {
     const prefix = opts.prefix ?? "";
 
-    let limit = opts.limit ?? MAX_LIST_KEYS;
+    let limit = opts.limit ?? R2Limits.MAX_LIST_KEYS;
     validate.limit(limit);
 
     // If metadata is requested, R2 may return fewer than `limit` results to
@@ -826,11 +927,15 @@ export class R2Gateway {
     let nextCursorStartAfter: string | undefined;
 
     if (delimiter !== undefined) {
-      const rows = this.#stmts.listMetadata.all({
-        ...params,
-        prefix,
-        delimiter,
-      });
+      const rows = all(
+        this.#stmts.listMetadata(
+          params.limit,
+          params.escaped_prefix,
+          params.start_after,
+          prefix,
+          delimiter
+        )
+      );
 
       // If there are more results, we'll be returning a cursor
       const hasMoreRows = rows.length === limit + 1;
@@ -849,7 +954,9 @@ export class R2Gateway {
     } else {
       // If we don't have a delimiter, we can use a more efficient query
       const query = this.#listWithoutDelimiterQuery(excludeHttp, excludeCustom);
-      const rows = query.all(params);
+      const rows = all(
+        query(params.limit, params.escaped_prefix, params.start_after)
+      );
 
       // If there are more results, we'll be returning a cursor
       const hasMoreRows = rows.length === limit + 1;
@@ -872,23 +979,23 @@ export class R2Gateway {
     };
   }
 
-  async createMultipartUpload(
+  async #createMultipartUpload(
     key: string,
     opts: InternalR2CreateMultipartUploadOptions
   ): Promise<R2CreateMultipartUploadResponse> {
     validate.key(key);
 
     const uploadId = generateId();
-    this.#stmts.createMultipartUpload.run({
+    this.#stmts.createMultipartUpload(
+      uploadId,
       key,
-      upload_id: uploadId,
-      http_metadata: JSON.stringify(opts.httpMetadata ?? {}),
-      custom_metadata: JSON.stringify(opts.customMetadata ?? {}),
-    });
+      JSON.stringify(opts.httpMetadata ?? {}),
+      JSON.stringify(opts.customMetadata ?? {})
+    );
     return { uploadId };
   }
 
-  async uploadPart(
+  async #uploadPart(
     key: string,
     uploadId: string,
     partNumber: number,
@@ -898,10 +1005,10 @@ export class R2Gateway {
     validate.key(key);
 
     // Store value in the blob store, computing MD5 digest as we go
-    const digesting = new DigestingStream(["md5"]);
-    const blobId = await this.#storage.blob.put(value.pipeThrough(digesting));
+    const digesting = new DigestingStream(["MD5"]);
+    const blobId = await this.blob.put(value.pipeThrough(digesting));
     const digests = await digesting.digests;
-    const md5Digest = digests.get("md5");
+    const md5Digest = digests.get("MD5");
     assert(md5Digest !== undefined);
 
     // Generate random ETag for this part
@@ -930,24 +1037,105 @@ export class R2Gateway {
     return { etag };
   }
 
-  async completeMultipartUpload(
+  async #completeMultipartUpload(
     key: string,
     uploadId: string,
     parts: R2PublishedPart[]
   ): Promise<InternalR2Object> {
     validate.key(key);
+    const minPartSize = this.beingTested
+      ? R2Limits.MIN_MULTIPART_PART_SIZE_TEST
+      : R2Limits.MIN_MULTIPART_PART_SIZE;
     const { newRow, oldBlobIds } = this.#stmts.completeMultipartUpload(
       key,
       uploadId,
-      parts
+      parts,
+      minPartSize
     );
     for (const blobId of oldBlobIds) this.#backgroundDelete(blobId);
     return new InternalR2Object(newRow);
   }
 
-  async abortMultipartUpload(key: string, uploadId: string): Promise<void> {
+  async #abortMultipartUpload(key: string, uploadId: string): Promise<void> {
     validate.key(key);
     const oldBlobIds = this.#stmts.abortMultipartUpload(key, uploadId);
     for (const blobId of oldBlobIds) this.#backgroundDelete(blobId);
   }
+
+  @GET("/")
+  get: RouteHandler = async (req) => {
+    const metadata = decodeHeaderMetadata(req);
+
+    let result: InternalR2Object | InternalR2ObjectBody | InternalR2Objects;
+    if (metadata.method === "head") {
+      result = await this.#head(metadata.object);
+    } else if (metadata.method === "get") {
+      result = await this.#get(metadata.object, metadata);
+    } else if (metadata.method === "list") {
+      result = await this.#list(metadata);
+    } else {
+      throw new InternalError();
+    }
+
+    return encodeResult(result);
+  };
+
+  @PUT("/")
+  put: RouteHandler = async (req) => {
+    const { metadata, metadataSize, value } = await decodeMetadata(req);
+
+    if (metadata.method === "delete") {
+      await this.#delete(
+        "object" in metadata ? metadata.object : metadata.objects
+      );
+      return new Response();
+    } else if (metadata.method === "put") {
+      // Safety of `!`: `parseInt(null)` is `NaN`
+      const contentLength = parseInt(req.headers.get("Content-Length")!);
+      // `workerd` requires a known value size for R2 put requests:
+      // - https://github.com/cloudflare/workerd/blob/e3479895a2ace28e4fd5f1399cea4c92291966ab/src/workerd/api/r2-rpc.c%2B%2B#L154-L156
+      // - https://github.com/cloudflare/workerd/blob/e3479895a2ace28e4fd5f1399cea4c92291966ab/src/workerd/api/r2-rpc.c%2B%2B#L188-L189
+      assert(!isNaN(contentLength));
+      const valueSize = contentLength - metadataSize;
+      const result = await this.#put(
+        metadata.object,
+        value,
+        valueSize,
+        metadata
+      );
+      return encodeResult(result);
+    } else if (metadata.method === "createMultipartUpload") {
+      const result = await this.#createMultipartUpload(
+        metadata.object,
+        metadata
+      );
+      return encodeJSONResult(result);
+    } else if (metadata.method === "uploadPart") {
+      // Safety of `!`: `parseInt(null)` is `NaN`
+      const contentLength = parseInt(req.headers.get("Content-Length")!);
+      // `workerd` requires a known value size for R2 put requests as above
+      assert(!isNaN(contentLength));
+      const valueSize = contentLength - metadataSize;
+      const result = await this.#uploadPart(
+        metadata.object,
+        metadata.uploadId,
+        metadata.partNumber,
+        value,
+        valueSize
+      );
+      return encodeJSONResult(result);
+    } else if (metadata.method === "completeMultipartUpload") {
+      const result = await this.#completeMultipartUpload(
+        metadata.object,
+        metadata.uploadId,
+        metadata.parts
+      );
+      return encodeResult(result);
+    } else if (metadata.method === "abortMultipartUpload") {
+      await this.#abortMultipartUpload(metadata.object, metadata.uploadId);
+      return new Response();
+    } else {
+      throw new InternalError(); // Unknown method: should never be reached
+    }
+  };
 }

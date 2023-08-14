@@ -8,10 +8,14 @@
     "isolatedModules": true,
     "noEmit": true,
     "types": ["@cloudflare/workers-types/experimental"],
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "paths": {
+      "miniflare:shared": ["./shared/index.worker.ts"],
+      "miniflare:zod": ["./shared/zod.worker.ts"],
+    }
   },
   "include": [
     "node.d.ts",
     "**/*.worker.ts"
-  ]
+  ],
 }

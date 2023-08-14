@@ -16,11 +16,8 @@ import {
   namespaceEntries,
   namespaceKeys,
   objectEntryWorker,
-  pluginNamespacePersistWorker,
 } from "../shared";
 import { KV_PLUGIN_NAME } from "./constants";
-import { KVGateway } from "./gateway";
-import { KVRouter } from "./router";
 import {
   SitesOptions,
   getSitesBindings,
@@ -56,11 +53,8 @@ function isWorkersSitesEnabled(
 
 export const KV_PLUGIN: Plugin<
   typeof KVOptionsSchema,
-  typeof KVSharedOptionsSchema,
-  KVGateway
+  typeof KVSharedOptionsSchema
 > = {
-  gateway: KVGateway,
-  router: KVRouter,
   options: KVOptionsSchema,
   sharedOptions: KVSharedOptionsSchema,
   async getBindings(options) {
@@ -87,22 +81,14 @@ export const KV_PLUGIN: Plugin<
     return bindings;
   },
   async getServices({ options, sharedOptions, tmpPath, log }) {
-    const useDurableObjects = !!process.env.MINIFLARE_DURABLE_OBJECT_SIMULATORS;
-
     const persist = sharedOptions.kvPersist;
     const namespaces = namespaceEntries(options.kvNamespaces);
     const services = namespaces.map<Service>(([_, id]) => ({
       name: `${SERVICE_NAMESPACE_PREFIX}:${id}`,
-      worker: useDurableObjects
-        ? objectEntryWorker(KV_NAMESPACE_OBJECT, id)
-        : pluginNamespacePersistWorker(
-            KV_PLUGIN_NAME,
-            encodeURIComponent(id),
-            persist
-          ),
+      worker: objectEntryWorker(KV_NAMESPACE_OBJECT, id),
     }));
 
-    if (useDurableObjects && services.length > 0) {
+    if (services.length > 0) {
       const uniqueKey = `miniflare-${KV_NAMESPACE_OBJECT_CLASS_NAME}`;
       const persistPath = getPersistPath(KV_PLUGIN_NAME, tmpPath, persist);
       await fs.mkdir(persistPath, { recursive: true });
@@ -118,21 +104,18 @@ export const KV_PLUGIN: Plugin<
           modules: [
             {
               name: "namespace.worker.js",
-              esModule: SCRIPT_KV_NAMESPACE_OBJECT,
+              esModule: SCRIPT_KV_NAMESPACE_OBJECT(),
             },
           ],
           durableObjectNamespaces: [
-            {
-              className: KV_NAMESPACE_OBJECT_CLASS_NAME,
-              uniqueKey,
-            },
+            { className: KV_NAMESPACE_OBJECT_CLASS_NAME, uniqueKey },
           ],
           // Store Durable Object SQL databases in persist path
           durableObjectStorage: { localDisk: KV_STORAGE_SERVICE_NAME },
           // Bind blob disk directory service to object
           bindings: [
             {
-              name: SharedBindings.SERVICE_BLOBS,
+              name: SharedBindings.MAYBE_SERVICE_BLOBS,
               service: { name: KV_STORAGE_SERVICE_NAME },
             },
           ],
@@ -158,6 +141,5 @@ export const KV_PLUGIN: Plugin<
   },
 };
 
-export * from "./gateway";
-export { maybeGetSitesManifestModule, isSitesRequest } from "./sites";
+export { maybeGetSitesManifestModule } from "./sites";
 export { KV_PLUGIN_NAME };

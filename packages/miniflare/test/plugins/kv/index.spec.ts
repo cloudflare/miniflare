@@ -11,17 +11,20 @@ import {
   KV_PLUGIN_NAME,
   Miniflare,
   MiniflareOptions,
-  secondsToMillis,
 } from "miniflare";
 import {
+  MiniflareDurableObjectControlStub,
   MiniflareTestContext,
   Namespaced,
-  TimersStub,
   createJunkStream,
   miniflareTest,
   namespace,
   useTmp,
 } from "../../test-shared";
+
+function secondsToMillis(seconds: number): number {
+  return seconds * 1000;
+}
 
 // Time in seconds the fake `Date.now()` always returns
 export const TIME_NOW = 1000;
@@ -31,8 +34,7 @@ export const TIME_FUTURE = 1500;
 interface Context extends MiniflareTestContext {
   ns: string;
   kv: Namespaced<KVNamespace>; // :D
-  // storage: KeyValueStorage;
-  objectTimers: TimersStub;
+  object: MiniflareDurableObjectControlStub;
 }
 
 const opts: Partial<MiniflareOptions> = {
@@ -50,8 +52,6 @@ test.beforeEach(async (t) => {
   )}`;
   t.context.ns = ns;
   t.context.kv = namespace(ns, await t.context.mf.getKVNamespace("NAMESPACE"));
-  // const storage = t.context.mf._getPluginStorage("kv", "namespace");
-  // t.context.storage = new KeyValueStorage(storage, t.context.timers);
 
   // Enable fake timers
   const objectNamespace = await t.context.mf._getInternalDurableObjectNamespace(
@@ -61,8 +61,8 @@ test.beforeEach(async (t) => {
   );
   const objectId = objectNamespace.idFromName("namespace");
   const objectStub = objectNamespace.get(objectId);
-  t.context.objectTimers = new TimersStub(objectStub);
-  await t.context.objectTimers.enableFakeTimers(secondsToMillis(TIME_NOW));
+  t.context.object = new MiniflareDurableObjectControlStub(objectStub);
+  await t.context.object.enableFakeTimers(secondsToMillis(TIME_NOW));
 });
 
 const validatesKeyMacro: Macro<
@@ -108,10 +108,10 @@ test("get: returns null for non-existent keys", async (t) => {
   t.is(await kv.get("key"), null);
 });
 test.serial("get: returns null for expired keys", async (t) => {
-  const { kv, objectTimers } = t.context;
+  const { kv, object } = t.context;
   await kv.put("key", "value", { expirationTtl: 60 });
   t.not(await kv.get("key"), null);
-  await objectTimers.advanceFakeTime(60_000);
+  await object.advanceFakeTime(60_000);
   t.is(await kv.get("key"), null);
 });
 test("get: validates but ignores cache ttl", async (t) => {
@@ -487,11 +487,11 @@ test("list: returns keys inserted whilst paginating", async (t) => {
   assert(page.list_complete);
 });
 test.serial("list: ignores expired keys", async (t) => {
-  const { kv, ns, objectTimers } = t.context;
+  const { kv, ns, object } = t.context;
   for (let i = 1; i <= 3; i++) {
     await kv.put(`key${i}`, `value${i}`, { expiration: TIME_NOW + i * 60 });
   }
-  await objectTimers.advanceFakeTime(130_000 /* 2m10s */);
+  await object.advanceFakeTime(130_000 /* 2m10s */);
   t.deepEqual(await kv.list({ prefix: ns }), {
     keys: [{ name: `${ns}key3`, expiration: TIME_NOW + 3 * 60 }],
     list_complete: true,

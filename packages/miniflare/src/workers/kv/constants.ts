@@ -1,10 +1,4 @@
-import {
-  MatcherRegExps,
-  SerialisableMatcherRegExps,
-  deserialiseRegExps,
-  serialiseRegExps,
-  testRegExps,
-} from "../shared";
+import { MatcherRegExps, testRegExps } from "miniflare:shared";
 
 export const KVLimits = {
   MIN_CACHE_TTL: 60 /* 60s */,
@@ -29,6 +23,7 @@ export const KVHeaders = {
   METADATA: "CF-KV-Metadata",
 } as const;
 
+// TODO: should only need to export bindings to Node
 export const SiteBindings = {
   KV_NAMESPACE_SITE: "__STATIC_CONTENT",
   JSON_SITE_MANIFEST: "__STATIC_CONTENT_MANIFEST",
@@ -50,15 +45,47 @@ export function decodeSitesKey(key: string): string {
     ? decodeURIComponent(key.substring(SITES_NO_CACHE_PREFIX.length))
     : key;
 }
+export function isSitesRequest(request: { url: string }) {
+  const url = new URL(request.url);
+  return url.pathname.startsWith(`/${SITES_NO_CACHE_PREFIX}`);
+}
 
 export interface SiteMatcherRegExps {
   include?: MatcherRegExps;
   exclude?: MatcherRegExps;
 }
 
+export interface SerialisableMatcherRegExps {
+  include: string[];
+  exclude: string[];
+}
+
 export interface SerialisableSiteMatcherRegExps {
   include?: SerialisableMatcherRegExps;
   exclude?: SerialisableMatcherRegExps;
+}
+
+function serialiseRegExp(regExp: RegExp): string {
+  const str = regExp.toString();
+  return str.substring(str.indexOf("/") + 1, str.lastIndexOf("/"));
+}
+
+export function serialiseRegExps(
+  matcher: MatcherRegExps
+): SerialisableMatcherRegExps {
+  return {
+    include: matcher.include.map(serialiseRegExp),
+    exclude: matcher.exclude.map(serialiseRegExp),
+  };
+}
+
+export function deserialiseRegExps(
+  matcher: SerialisableMatcherRegExps
+): MatcherRegExps {
+  return {
+    include: matcher.include.map((regExp) => new RegExp(regExp)),
+    exclude: matcher.exclude.map((regExp) => new RegExp(regExp)),
+  };
 }
 
 export function serialiseSiteRegExps(

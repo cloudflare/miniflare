@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { Base64DataSchema, HexDataSchema, ValueOf } from "../../shared";
+import { ValueOf } from "miniflare:shared";
+import { Base64DataSchema, HexDataSchema, z } from "miniflare:zod";
 
 export interface ObjectRow {
   key: string;

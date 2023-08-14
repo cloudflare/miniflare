@@ -15,7 +15,6 @@ import {
   MiniflareCoreError,
   MiniflareOptions,
   Response,
-  _QUEUES_COMPATIBLE_V8_VERSION,
   _transformsForContentEncoding,
   createFetchMock,
   fetch,
@@ -27,8 +26,6 @@ import {
   WebSocketServer,
 } from "ws";
 import { TestLog, useServer, useTmp, utf8Encode } from "./test-shared";
-
-const queuesTest = _QUEUES_COMPATIBLE_V8_VERSION ? test : test.skip;
 
 test("Miniflare: validates options", async (t) => {
   // Check empty workers array rejected
@@ -519,7 +516,7 @@ test("Miniflare: accepts https requests", async (t) => {
   t.assert(log.logs[0][1].startsWith("Ready on https://"));
 });
 
-queuesTest("Miniflare: getBindings() returns all bindings", async (t) => {
+test("Miniflare: getBindings() returns all bindings", async (t) => {
   const tmp = await useTmp(t);
   const blobPath = path.join(tmp, "blob.txt");
   await fs.writeFile(blobPath, "blob");
@@ -573,89 +570,84 @@ queuesTest("Miniflare: getBindings() returns all bindings", async (t) => {
   assert(typeof instance.exports.add === "function");
   t.is(instance.exports.add(1, 2), 3);
 });
-queuesTest(
-  "Miniflare: getBindings() and friends return bindings for different workers",
-  async (t) => {
-    const mf = new Miniflare({
-      workers: [
-        {
-          name: "a",
-          modules: true,
-          script: `
+test("Miniflare: getBindings() and friends return bindings for different workers", async (t) => {
+  const mf = new Miniflare({
+    workers: [
+      {
+        name: "a",
+        modules: true,
+        script: `
         export class DurableObject {}
         export default { fetch() { return new Response(null, { status: 404 }); } }
         `,
-          d1Databases: ["DB"],
-          durableObjects: { DO: "DurableObject" },
-        },
-        {
-          // 2nd worker unnamed, to validate that not specifying a name when
-          // getting bindings gives the entrypoint, not the unnamed worker
-          script:
-            'addEventListener("fetch", (event) => event.respondWith(new Response(null, { status: 404 })));',
-          kvNamespaces: ["KV"],
-          queueProducers: ["QUEUE"],
-        },
-        {
-          name: "b",
-          script:
-            'addEventListener("fetch", (event) => event.respondWith(new Response(null, { status: 404 })));',
-          r2Buckets: ["BUCKET"],
-        },
-      ],
-    });
-    t.teardown(() => mf.dispose());
+        d1Databases: ["DB"],
+        durableObjects: { DO: "DurableObject" },
+      },
+      {
+        // 2nd worker unnamed, to validate that not specifying a name when
+        // getting bindings gives the entrypoint, not the unnamed worker
+        script:
+          'addEventListener("fetch", (event) => event.respondWith(new Response(null, { status: 404 })));',
+        kvNamespaces: ["KV"],
+        queueProducers: ["QUEUE"],
+      },
+      {
+        name: "b",
+        script:
+          'addEventListener("fetch", (event) => event.respondWith(new Response(null, { status: 404 })));',
+        r2Buckets: ["BUCKET"],
+      },
+    ],
+  });
+  t.teardown(() => mf.dispose());
 
-    // Check `getBindings()`
-    let bindings = await mf.getBindings();
-    t.deepEqual(Object.keys(bindings), ["DB", "DO"]);
-    bindings = await mf.getBindings("");
-    t.deepEqual(Object.keys(bindings), ["KV", "QUEUE"]);
-    bindings = await mf.getBindings("b");
-    t.deepEqual(Object.keys(bindings), ["BUCKET"]);
-    await t.throwsAsync(() => mf.getBindings("c"), {
-      instanceOf: TypeError,
-      message: '"c" worker not found',
-    });
+  // Check `getBindings()`
+  let bindings = await mf.getBindings();
+  t.deepEqual(Object.keys(bindings), ["DB", "DO"]);
+  bindings = await mf.getBindings("");
+  t.deepEqual(Object.keys(bindings), ["KV", "QUEUE"]);
+  bindings = await mf.getBindings("b");
+  t.deepEqual(Object.keys(bindings), ["BUCKET"]);
+  await t.throwsAsync(() => mf.getBindings("c"), {
+    instanceOf: TypeError,
+    message: '"c" worker not found',
+  });
 
-    const unboundExpectations = (
-      name: string
-    ): ThrowsExpectation<TypeError> => ({
-      instanceOf: TypeError,
-      message: `"${name}" unbound in "c" worker`,
-    });
+  const unboundExpectations = (name: string): ThrowsExpectation<TypeError> => ({
+    instanceOf: TypeError,
+    message: `"${name}" unbound in "c" worker`,
+  });
 
-    // Check `getD1Database()`
-    let binding: unknown = await mf.getD1Database("DB");
-    t.not(binding, undefined);
-    let expectations = unboundExpectations("DB");
-    await t.throwsAsync(() => mf.getD1Database("DB", "c"), expectations);
+  // Check `getD1Database()`
+  let binding: unknown = await mf.getD1Database("DB");
+  t.not(binding, undefined);
+  let expectations = unboundExpectations("DB");
+  await t.throwsAsync(() => mf.getD1Database("DB", "c"), expectations);
 
-    // Check `getDurableObjectNamespace()`
-    binding = await mf.getDurableObjectNamespace("DO");
-    t.not(binding, undefined);
-    expectations = unboundExpectations("DO");
-    await t.throwsAsync(
-      () => mf.getDurableObjectNamespace("DO", "c"),
-      expectations
-    );
+  // Check `getDurableObjectNamespace()`
+  binding = await mf.getDurableObjectNamespace("DO");
+  t.not(binding, undefined);
+  expectations = unboundExpectations("DO");
+  await t.throwsAsync(
+    () => mf.getDurableObjectNamespace("DO", "c"),
+    expectations
+  );
 
-    // Check `getKVNamespace()`
-    binding = await mf.getKVNamespace("KV", "");
-    t.not(binding, undefined);
-    expectations = unboundExpectations("KV");
-    await t.throwsAsync(() => mf.getKVNamespace("KV", "c"), expectations);
+  // Check `getKVNamespace()`
+  binding = await mf.getKVNamespace("KV", "");
+  t.not(binding, undefined);
+  expectations = unboundExpectations("KV");
+  await t.throwsAsync(() => mf.getKVNamespace("KV", "c"), expectations);
 
-    // Check `getQueueProducer()`
-    binding = await mf.getQueueProducer("QUEUE", "");
-    t.not(binding, undefined);
-    expectations = unboundExpectations("QUEUE");
-    await t.throwsAsync(() => mf.getQueueProducer("QUEUE", "c"), expectations);
+  // Check `getQueueProducer()`
+  binding = await mf.getQueueProducer("QUEUE", "");
+  t.not(binding, undefined);
+  expectations = unboundExpectations("QUEUE");
+  await t.throwsAsync(() => mf.getQueueProducer("QUEUE", "c"), expectations);
 
-    // Check `getR2Bucket()`
-    binding = await mf.getR2Bucket("BUCKET", "b");
-    t.not(binding, undefined);
-    expectations = unboundExpectations("BUCKET");
-    await t.throwsAsync(() => mf.getQueueProducer("BUCKET", "c"), expectations);
-  }
-);
+  // Check `getR2Bucket()`
+  binding = await mf.getR2Bucket("BUCKET", "b");
+  t.not(binding, undefined);
+  expectations = unboundExpectations("BUCKET");
+  await t.throwsAsync(() => mf.getQueueProducer("BUCKET", "c"), expectations);
+});

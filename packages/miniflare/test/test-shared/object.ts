@@ -1,14 +1,30 @@
+import { ReadableStream } from "stream/web";
 import { DurableObjectStub } from "miniflare";
 
-export class TimersStub {
+export class MiniflareDurableObjectControlStub {
   constructor(private readonly stub: DurableObjectStub) {}
 
   async #call<T>(name: string, ...args: unknown[]): Promise<T> {
     const response = await this.stub.fetch("http://placeholder/", {
-      cf: { miniflare: { timerOp: { name, args } } },
+      cf: { miniflare: { controlOp: { name, args } } },
     });
     const result = response.json();
     return (result ?? undefined) as T;
+  }
+
+  sqlQuery<T>(query: string, ...params: unknown[]): Promise<T[]> {
+    return this.#call("sqlQuery", query, ...params);
+  }
+
+  async getBlob(id: string): Promise<ReadableStream | null> {
+    const response = await this.stub.fetch("http://placeholder/", {
+      cf: { miniflare: { controlOp: { name: "getBlob", args: [id] } } },
+    });
+    if (response.status === 404) {
+      await response.arrayBuffer();
+      return null;
+    }
+    return response.body;
   }
 
   enableFakeTimers(timestamp: number): Promise<void> {
@@ -20,7 +36,7 @@ export class TimersStub {
   advanceFakeTime(delta: number): Promise<void> {
     return this.#call("advanceFakeTime", delta);
   }
-  waitForFakeTasks() {
+  waitForFakeTasks(): Promise<void> {
     return this.#call("waitForFakeTasks");
   }
 }

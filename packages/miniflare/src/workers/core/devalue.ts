@@ -46,7 +46,8 @@ const ALLOWED_ERROR_CONSTRUCTORS = [
 export const structuredSerializableReducers: ReducersRevivers = {
   ArrayBuffer(value) {
     if (value instanceof ArrayBuffer) {
-      return Buffer.from(value).toString("base64");
+      // Return single element array so empty `ArrayBuffer` serialised as truthy
+      return [Buffer.from(value).toString("base64")];
     }
   },
   ArrayBufferView(value) {
@@ -72,8 +73,10 @@ export const structuredSerializableReducers: ReducersRevivers = {
 };
 export const structuredSerializableRevivers: ReducersRevivers = {
   ArrayBuffer(value) {
-    assert(typeof value === "string");
-    const view = Buffer.from(value, "base64");
+    assert(Array.isArray(value));
+    const [encoded] = value as unknown[];
+    assert(typeof encoded === "string");
+    const view = Buffer.from(encoded, "base64");
     return view.buffer.slice(
       view.byteOffset,
       view.byteOffset + view.byteLength

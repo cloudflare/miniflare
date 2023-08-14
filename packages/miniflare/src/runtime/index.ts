@@ -4,12 +4,16 @@ import type { Abortable } from "events";
 import rl from "readline";
 import { Readable } from "stream";
 import { red } from "kleur/colors";
-import workerdPath, {
+import actualWorkerdPath, {
   compatibilityDate as supportedCompatibilityDate,
 } from "workerd";
 import { z } from "zod";
 import { SERVICE_LOOPBACK, SOCKET_ENTRY } from "../plugins";
 import { Awaitable } from "../workers";
+
+// const workerdPath =
+//   "/Users/bcoll/Projects/workerd/bazel-bin/src/workerd/server/workerd";
+const workerdPath = "/Users/bcoll/Projects/miniflare3/workerd";
 
 const ControlMessageSchema = z.object({
   event: z.literal("listen"),

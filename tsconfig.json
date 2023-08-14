@@ -20,7 +20,9 @@
     "allowJs": true,
     "paths": {
       "miniflare": ["./packages/miniflare/src"],
-      "@miniflare/*": ["./packages/*/src"]
+      "@miniflare/*": ["./packages/*/src"],
+      "miniflare:shared": ["./packages/miniflare/src/workers/shared/index.ts"],
+      "miniflare:zod": ["./packages/miniflare/src/workers/shared/zod.worker.ts"]
     }
   },
   "include": [

@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { parse } from "devalue";
+import { readPrefix } from "miniflare:shared";
 import {
   CoreHeaders,
   ProxyAddresses,
@@ -57,23 +58,6 @@ function reduceError(e: any): JsonError {
   };
 }
 
-async function readPrefix(
-  stream: ReadableStream<Uint8Array>,
-  prefixLength: number
-): Promise<[prefix: Uint8Array, rest: ReadableStream]> {
-  const reader = await stream.getReader({ mode: "byob" });
-  const result = await reader.readAtLeast(
-    prefixLength,
-    new Uint8Array(prefixLength)
-  );
-  assert(result.value !== undefined);
-  reader.releaseLock();
-  // TODO(cleanup): once https://github.com/cloudflare/workerd/issues/892 fixed,
-  //  should just be able to use `stream` here
-  const rest = stream.pipeThrough(new IdentityTransformStream());
-  return [result.value, rest];
-}
-
 // Helpers taken from `devalue` (unfortunately not exported):
 // https://github.com/Rich-Harris/devalue/blob/50af63e2b2c648f6e6ea29904a14faac25a581fc/src/utils.js#L31-L51
 const objectProtoNames = Object.getOwnPropertyNames(Object.prototype)
@@ -91,6 +75,8 @@ function getType(value: unknown) {
   return Object.prototype.toString.call(value).slice(8, -1); // `[object <type>]`
 }
 
+// TODO(someday): extract `ProxyServer` into component that could be used by
+//  other (user) Durable Objects
 export class ProxyServer implements DurableObject {
   // On the first `fetch()`, start a `setInterval()` to keep this Durable Object
   // and its heap alive. This is required to ensure heap references stay valid
@@ -140,10 +126,7 @@ export class ProxyServer implements DurableObject {
   };
   nativeReviver: ReducersRevivers = { Native: this.revivers.Native };
 
-  constructor(
-    _state: DurableObjectState,
-    readonly env: Record<string, unknown>
-  ) {
+  constructor(_state: DurableObjectState, env: Record<string, unknown>) {
     this.heap.set(ProxyAddresses.GLOBAL, globalThis);
     this.heap.set(ProxyAddresses.ENV, env);
   }
@@ -187,6 +170,7 @@ export class ProxyServer implements DurableObject {
       this.nativeReviver
     );
     const targetName = target.constructor.name;
+    // console.log(allowAsync ? "ASYNC" : "SYNC", opHeader, targetName, keyHeader);
 
     let status = 200;
     let result;

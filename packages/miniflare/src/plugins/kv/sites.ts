@@ -2,47 +2,18 @@ import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
 import SCRIPT_KV_SITES from "worker:kv/sites";
-import { Request } from "../../http";
 import { Service, Worker_Binding, Worker_Module } from "../../runtime";
 import { globsToRegExps } from "../../shared";
-import { createFileReadableStream } from "../../storage";
 import {
-  CoreBindings,
-  SITES_NO_CACHE_PREFIX,
   SharedBindings,
   SiteBindings,
   SiteMatcherRegExps,
-  base64Decode,
-  base64Encode,
-  decodeSitesKey,
-  deserialiseRegExps,
   encodeSitesKey,
-  lexicographicCompare,
   serialiseSiteRegExps,
-  testRegExps,
   testSiteRegExps,
 } from "../../workers";
-import {
-  BINDING_TEXT_PERSIST,
-  HEADER_PERSIST,
-  Persistence,
-  WORKER_BINDING_SERVICE_LOOPBACK,
-  kProxyNodeBinding,
-} from "../shared";
-import {
-  HEADER_SITES,
-  KV_PLUGIN_NAME,
-  MAX_LIST_KEYS,
-  PARAM_URL_ENCODED,
-} from "./constants";
-import {
-  KVGatewayGetOptions,
-  KVGatewayGetResult,
-  KVGatewayListOptions,
-  KVGatewayListResult,
-  validateGetOptions,
-  validateListOptions,
-} from "./gateway";
+import { kProxyNodeBinding } from "../shared";
+import { KV_PLUGIN_NAME } from "./constants";
 
 async function* listKeysInDirectoryInner(
   rootPath: string,
@@ -74,88 +45,7 @@ export interface SitesOptions {
 // Cache glob RegExps between `getBindings` and `getServices` calls
 const sitesRegExpsCache = new WeakMap<SitesOptions, SiteMatcherRegExps>();
 
-export function isSitesRequest(request: Request) {
-  const url = new URL(request.url);
-  return url.pathname.startsWith(`/${SITES_NO_CACHE_PREFIX}`);
-}
-
 const SERVICE_NAMESPACE_SITE = `${KV_PLUGIN_NAME}:site`;
-
-const SCRIPT_SITE = `
-// Inject key encoding/decoding functions
-const SITES_NO_CACHE_PREFIX = "${SITES_NO_CACHE_PREFIX}";
-const encodeSitesKey = ${encodeSitesKey.toString()};
-const decodeSitesKey = ${decodeSitesKey.toString()};
-
-// Inject glob matching RegExp functions
-const deserialiseRegExps = ${deserialiseRegExps.toString()};
-const testRegExps = ${testRegExps.toString()};
-const testSiteRegExps = ${testSiteRegExps.toString()};
-
-// Deserialise glob matching RegExps
-const serialisedSiteRegExps = ${SiteBindings.JSON_SITE_FILTER};
-const siteRegExps = {
-  include: serialisedSiteRegExps.include && deserialiseRegExps(serialisedSiteRegExps.include),
-  exclude: serialisedSiteRegExps.exclude && deserialiseRegExps(serialisedSiteRegExps.exclude),
-};
-
-async function handleRequest(request) {
-  // Only permit reads
-  if (request.method !== "GET") {
-    const message = \`Cannot \${request.method.toLowerCase()}() with read-only Workers Sites namespace\`;
-    return new Response(message, { status: 405, statusText: message });
-  }
-
-  // Decode key (empty if listing)
-  const url = new URL(request.url);
-  let key = url.pathname.substring(1); // Strip leading "/"
-  if (url.searchParams.get("${PARAM_URL_ENCODED}")?.toLowerCase() === "true") {
-    key = decodeURIComponent(key);
-  }
-  
-  // Strip SITES_NO_CACHE_PREFIX
-  key = decodeSitesKey(key);
-  
-  // If not listing keys, check key is included, returning not found if not
-  if (key !== "" && !testSiteRegExps(siteRegExps, key)) {
-    return new Response("Not Found", { status: 404, statusText: "Not Found" })
-  }
-  
-  // Re-encode key
-  key = encodeURIComponent(key);
-  url.pathname = \`/${KV_PLUGIN_NAME}/${
-  SiteBindings.KV_NAMESPACE_SITE
-}/\${key}\`;
-  url.searchParams.set("${PARAM_URL_ENCODED}", "true"); // Always URL encoded now
-  
-  // Send request to loopback server
-  request = new Request(url, request);
-  request.headers.set("${HEADER_PERSIST}", ${BINDING_TEXT_PERSIST});
-  // Add magic header to indicate namespace should be ignored, and persist
-  // should be used as the root without any additional namespace
-  request.headers.set("${HEADER_SITES}", "true");
-  const response = await ${CoreBindings.SERVICE_LOOPBACK}.fetch(request);
-  
-  // If listing keys, only return included keys, and add SITES_NO_CACHE_PREFIX
-  // to all result keys
-  if (key === "" && response.ok) {
-    const { keys, list_complete, cursor } = await response.json();
-    return Response.json({
-      keys: keys.filter((key) => {
-        if (!testSiteRegExps(siteRegExps, key)) return false;
-        key.name = encodeSitesKey(key.name);
-        return true;
-      }),
-      list_complete,
-      cursor,
-    });
-  }
-  
-  return response;
-}
-
-addEventListener("fetch", (event) => event.respondWith(handleRequest(event.request)));
-`;
 
 async function buildStaticContentManifest(
   sitePath: string,
@@ -235,49 +125,26 @@ export function getSitesServices(options: SitesOptions): Service[] {
   // resolve correctly.
   const persist = path.resolve(options.sitePath);
 
-  const useDurableObjects = !!process.env.MINIFLARE_DURABLE_OBJECT_SIMULATORS;
-  if (useDurableObjects) {
-    const storageServiceName = `${SERVICE_NAMESPACE_SITE}:storage`;
-    const storageService: Service = {
-      name: storageServiceName,
-      disk: { path: persist, writable: true },
-    };
-    const namespaceService: Service = {
-      name: SERVICE_NAMESPACE_SITE,
-      worker: {
-        compatibilityDate: "2023-07-24",
-        compatibilityFlags: ["nodejs_compat"],
-        modules: [
-          {
-            name: "site.worker.js",
-            esModule: SCRIPT_KV_SITES,
-          },
-        ],
-        bindings: [
-          {
-            name: SharedBindings.SERVICE_BLOBS,
-            service: { name: storageServiceName },
-          },
-          {
-            name: SiteBindings.JSON_SITE_FILTER,
-            json: JSON.stringify(serialisedSiteRegExps),
-          },
-        ],
-      },
-    };
-    return [storageService, namespaceService];
-  }
-
-  const service = {
+  const storageServiceName = `${SERVICE_NAMESPACE_SITE}:storage`;
+  const storageService: Service = {
+    name: storageServiceName,
+    disk: { path: persist, writable: true },
+  };
+  const namespaceService: Service = {
     name: SERVICE_NAMESPACE_SITE,
     worker: {
-      serviceWorkerScript: SCRIPT_SITE,
-      compatibilityDate: "2022-09-01",
-      bindings: [
-        WORKER_BINDING_SERVICE_LOOPBACK,
+      compatibilityDate: "2023-07-24",
+      compatibilityFlags: ["nodejs_compat"],
+      modules: [
         {
-          name: BINDING_TEXT_PERSIST,
-          text: JSON.stringify(persist),
+          name: "site.worker.js",
+          esModule: SCRIPT_KV_SITES(),
+        },
+      ],
+      bindings: [
+        {
+          name: SharedBindings.MAYBE_SERVICE_BLOBS,
+          service: { name: storageServiceName },
         },
         {
           name: SiteBindings.JSON_SITE_FILTER,
@@ -286,79 +153,5 @@ export function getSitesServices(options: SitesOptions): Service[] {
       ],
     },
   };
-  return [service];
-}
-
-// Define Workers Sites specific KV gateway functions. We serve directly from
-// disk with Workers Sites to ensure we always send the most up-to-date files.
-// Otherwise, we'd have to copy files from disk to our own SQLite/blob store
-// whenever any of them changed.
-
-export async function sitesGatewayGet(
-  persist: Persistence,
-  key: string,
-  opts?: KVGatewayGetOptions
-): Promise<KVGatewayGetResult | undefined> {
-  // `persist` is a resolved path set in `getSitesService()`
-  assert(typeof persist === "string");
-
-  validateGetOptions(key, opts);
-  const filePath = path.join(persist, key);
-  if (!filePath.startsWith(persist)) return;
-  try {
-    return { value: await createFileReadableStream(filePath) };
-  } catch (e: unknown) {
-    if (
-      typeof e === "object" &&
-      e !== null &&
-      "code" in e &&
-      e.code === "ENOENT"
-    ) {
-      return;
-    }
-    throw e;
-  }
-}
-
-export async function sitesGatewayList(
-  persist: Persistence,
-  opts: KVGatewayListOptions = {}
-): Promise<KVGatewayListResult> {
-  // `persist` is a resolved path set in `getSitesService()`
-  assert(typeof persist === "string");
-
-  validateListOptions(opts);
-  const { limit = MAX_LIST_KEYS, prefix, cursor } = opts;
-
-  // Get sorted array of all keys matching prefix
-  let keys: KVGatewayListResult["keys"] = [];
-  for await (const name of listKeysInDirectory(persist)) {
-    if (prefix === undefined || name.startsWith(prefix)) keys.push({ name });
-  }
-  keys.sort((a, b) => lexicographicCompare(a.name, b.name));
-
-  // Apply cursor
-  const startAfter = cursor === undefined ? "" : base64Decode(cursor);
-  let startIndex = 0;
-  if (startAfter !== "") {
-    // We could do a binary search here, but listing Workers Sites namespaces
-    // is an incredibly unlikely operation, so doesn't need to be optimised
-    startIndex = keys.findIndex(({ name }) => name === startAfter);
-    // If we couldn't find where to start, return nothing
-    if (startIndex === -1) startIndex = keys.length;
-    // Since we want to start AFTER this index, add 1 to it
-    startIndex++;
-  }
-
-  // Apply limit
-  const endIndex = startIndex + limit;
-  const nextCursor =
-    endIndex < keys.length ? base64Encode(keys[endIndex - 1].name) : undefined;
-  keys = keys.slice(startIndex, endIndex);
-
-  if (nextCursor === undefined) {
-    return { keys, list_complete: true, cursor: undefined };
-  } else {
-    return { keys, list_complete: false, cursor: nextCursor };
-  }
+  return [storageService, namespaceService];
 }

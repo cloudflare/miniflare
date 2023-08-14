@@ -1,29 +1,45 @@
-import anyTest from "ava";
+import test from "ava";
 import {
   DeferredPromise,
   LogLevel,
   Miniflare,
+  QUEUES_PLUGIN_NAME,
   QueuesError,
   Response,
-  _QUEUES_COMPATIBLE_V8_VERSION,
 } from "miniflare";
 import { z } from "zod";
-import { LogEntry, TestLog, TestTimers } from "../../test-shared";
-
-// Only run Queues tests if we're using a supported V8 version
-const test = _QUEUES_COMPATIBLE_V8_VERSION ? anyTest : anyTest.skip;
+import {
+  createJunkStream,
+  LogEntry,
+  MiniflareDurableObjectControlStub,
+  TestLog,
+} from "../../test-shared";
 
 const StringArraySchema = z.string().array();
 const MessageArraySchema = z
   .object({ queue: z.string(), id: z.string(), body: z.string() })
   .array();
 
+async function getControlStub(
+  mf: Miniflare,
+  queueName: string
+): Promise<MiniflareDurableObjectControlStub> {
+  const objectNamespace = await mf._getInternalDurableObjectNamespace(
+    QUEUES_PLUGIN_NAME,
+    "queues:queue",
+    "QueueBrokerObject"
+  );
+  const objectId = objectNamespace.idFromName(queueName);
+  const objectStub = objectNamespace.get(objectId);
+  const stub = new MiniflareDurableObjectControlStub(objectStub);
+  await stub.enableFakeTimers(1_000_000);
+  return stub;
+}
+
 test("flushes partial and full batches", async (t) => {
   let batches: string[][] = [];
 
-  const timers = new TestTimers();
   const mf = new Miniflare({
-    timers,
     verbose: true,
 
     workers: [
@@ -79,24 +95,26 @@ test("flushes partial and full batches", async (t) => {
     });
   }
 
+  const object = await getControlStub(mf, "QUEUE");
+
   // Check with single msg
   await send("msg1");
-  timers.timestamp += 500;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(500);
+  await object.waitForFakeTasks();
   t.is(batches.length, 0);
-  timers.timestamp += 500;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(500);
+  await object.waitForFakeTasks();
   t.is(batches[0]?.length, 1);
   t.regex(batches[0][0], /^[0-9a-f]{32}$/);
   batches = [];
 
   // Check with single batch
   await sendBatch("msg1", "msg2");
-  timers.timestamp += 250;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(250);
+  await object.waitForFakeTasks();
   t.is(batches.length, 0);
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(batches[0]?.length, 2);
   t.regex(batches[0][0], /^[0-9a-f]{32}$/);
   t.regex(batches[0][1], /^[0-9a-f]{32}$/);
@@ -106,31 +124,31 @@ test("flushes partial and full batches", async (t) => {
   await send("msg1");
   await sendBatch("msg2", "msg3");
   await send("msg4");
-  timers.timestamp += 100;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(100);
+  await object.waitForFakeTasks();
   t.is(batches.length, 0);
-  timers.timestamp += 900;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(900);
+  await object.waitForFakeTasks();
   t.is(batches[0]?.length, 4);
   batches = [];
 
   // Check with full batch
   await sendBatch("msg1", "msg2", "msg3", "msg4", "msg5");
-  await timers.waitForTasks();
+  await object.waitForFakeTasks();
   t.is(batches.length, 1);
   t.is(batches[0]?.length, 5);
   batches = [];
 
   // Check with overflowing batch
   await sendBatch("msg1", "msg2", "msg3", "msg4", "msg5", "msg6", "msg7");
-  await timers.waitForTasks();
+  await object.waitForFakeTasks();
   t.is(batches.length, 1);
   // (second batch isn't full, so need to wait for max batch timeout)
-  timers.timestamp += 500;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(500);
+  await object.waitForFakeTasks();
   t.is(batches.length, 1);
-  timers.timestamp += 500;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(500);
+  await object.waitForFakeTasks();
   t.is(batches.length, 2);
   t.is(batches[0]?.length, 5);
   t.is(batches[1]?.length, 2);
@@ -138,15 +156,15 @@ test("flushes partial and full batches", async (t) => {
 
   // Check with overflowing batch twice
   await sendBatch("msg1", "msg2", "msg3", "msg4", "msg5", "msg6");
-  await timers.waitForTasks();
+  await object.waitForFakeTasks();
   t.is(batches.length, 1);
   // (second batch isn't full yet, but sending more messages will fill it)
   await sendBatch("msg7", "msg8", "msg9", "msg10", "msg11");
-  await timers.waitForTasks();
+  await object.waitForFakeTasks();
   t.is(batches.length, 2);
   // (third batch isn't full, so need to wait for max batch timeout)
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(batches.length, 3);
   t.is(batches[0]?.length, 5);
   t.is(batches[1]?.length, 5);
@@ -155,12 +173,9 @@ test("flushes partial and full batches", async (t) => {
 });
 
 test("sends all structured cloneable types", async (t) => {
-  const timers = new TestTimers();
-
   const errorPromise = new DeferredPromise<string>();
 
   const mf = new Miniflare({
-    timers,
     verbose: true,
 
     queueProducers: ["QUEUE"],
@@ -255,10 +270,11 @@ test("sends all structured cloneable types", async (t) => {
       },
     ],
   });
+  const object = await getControlStub(mf, "QUEUE");
 
   await mf.dispatchFetch("http://localhost");
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(await errorPromise, "undefined");
 });
 
@@ -283,10 +299,8 @@ test("retries messages", async (t) => {
   let retryMessages: string[] = [];
 
   const log = new TestLog(t);
-  const timers = new TestTimers();
   const mf = new Miniflare({
     log,
-    timers,
 
     queueProducers: { QUEUE: "queue" },
     queueConsumers: {
@@ -333,12 +347,14 @@ test("retries messages", async (t) => {
     });
   }
 
+  const object = await getControlStub(mf, "queue");
+
   // Check with explicit single retry
   retryMessages = ["msg2"];
   await sendBatch("msg1", "msg2", "msg3");
   log.logs = [];
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(batches.length, 1);
   t.deepEqual(stripTimings(log.logs), [
     [
@@ -349,15 +365,15 @@ test("retries messages", async (t) => {
   ]);
   log.logs = [];
   retryMessages = [];
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(batches.length, 2);
   t.deepEqual(stripTimings(log.logs), [
     [LogLevel.INFO, "QUEUE queue 1/1 (Xms)"],
   ]);
   log.logs = [];
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(batches.length, 2);
   t.deepEqual(bodies(), [["msg1", "msg2", "msg3"], ["msg2"]]);
   batches = [];
@@ -366,8 +382,8 @@ test("retries messages", async (t) => {
   retryAll = true;
   await sendBatch("msg1", "msg2", "msg3");
   log.logs = [];
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(batches.length, 1);
   t.deepEqual(stripTimings(log.logs), [
     [
@@ -386,8 +402,8 @@ test("retries messages", async (t) => {
   ]);
   log.logs = [];
   retryAll = false;
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(batches.length, 2);
   t.deepEqual(stripTimings(log.logs), [
     [LogLevel.INFO, "QUEUE queue 3/3 (Xms)"],
@@ -402,8 +418,8 @@ test("retries messages", async (t) => {
   errorAll = true;
   await sendBatch("msg1", "msg2", "msg3");
   log.logs = [];
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(batches.length, 1);
   t.deepEqual(stripTimings(log.logs), [
     [
@@ -422,8 +438,8 @@ test("retries messages", async (t) => {
   ]);
   log.logs = [];
   errorAll = false;
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(batches.length, 2);
   t.deepEqual(stripTimings(log.logs), [
     [LogLevel.INFO, "QUEUE queue 3/3 (Xms)"],
@@ -438,8 +454,8 @@ test("retries messages", async (t) => {
   retryAll = true;
   await sendBatch("msg1", "msg2", "msg3");
   log.logs = [];
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(batches.length, 1);
   t.deepEqual(stripTimings(log.logs), [
     [
@@ -459,8 +475,8 @@ test("retries messages", async (t) => {
   log.logs = [];
   retryAll = false;
   retryMessages = ["msg3"];
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(batches.length, 2);
   t.deepEqual(stripTimings(log.logs), [
     [
@@ -470,8 +486,8 @@ test("retries messages", async (t) => {
     [LogLevel.INFO, "QUEUE queue 2/3 (Xms)"],
   ]);
   log.logs = [];
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(batches.length, 3);
   t.deepEqual(stripTimings(log.logs), [
     [
@@ -481,8 +497,8 @@ test("retries messages", async (t) => {
     [LogLevel.INFO, "QUEUE queue 0/1 (Xms)"],
   ]);
   log.logs = [];
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   t.is(batches.length, 3);
   t.deepEqual(bodies(), [
     ["msg1", "msg2", "msg3"],
@@ -497,10 +513,8 @@ test("moves to dead letter queue", async (t) => {
   let retryMessages: string[] = [];
 
   const log = new TestLog(t);
-  const timers = new TestTimers();
   const mf = new Miniflare({
     log,
-    timers,
     verbose: true,
 
     queueProducers: { BAD_QUEUE: "bad" },
@@ -553,12 +567,15 @@ test("moves to dead letter queue", async (t) => {
     });
   }
 
+  const badObject = await getControlStub(mf, "bad");
+  const dlqObject = await getControlStub(mf, "dlq");
+
   // Check moves messages to dead letter queue after max retries
   retryMessages = ["msg2", "msg3"];
   await sendBatch("msg1", "msg2", "msg3");
   log.logs = [];
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await badObject.advanceFakeTime(1000);
+  await badObject.waitForFakeTasks();
   t.is(batches.length, 1);
   t.deepEqual(stripTimings(log.logs), [
     [
@@ -574,8 +591,8 @@ test("moves to dead letter queue", async (t) => {
   log.logs = [];
   // Check allows cyclic dead letter queue path with multiple queues
   retryMessages = ["msg2"];
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await dlqObject.advanceFakeTime(1000);
+  await dlqObject.waitForFakeTasks();
   t.is(batches.length, 2);
   t.deepEqual(stripTimings(log.logs), [
     [
@@ -586,8 +603,8 @@ test("moves to dead letter queue", async (t) => {
   ]);
   log.logs = [];
   retryMessages = [];
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await badObject.advanceFakeTime(1000);
+  await badObject.waitForFakeTasks();
   t.is(batches.length, 3);
   t.deepEqual(stripTimings(log.logs), [[LogLevel.INFO, "QUEUE bad 1/1 (Xms)"]]);
   log.logs = [];
@@ -607,7 +624,6 @@ test("moves to dead letter queue", async (t) => {
   // Check rejects queue as own dead letter queue
   const promise = mf.setOptions({
     log,
-    timers,
     queueConsumers: { bad: { deadLetterQueue: "bad" } },
     script: "",
   });
@@ -620,10 +636,8 @@ test("moves to dead letter queue", async (t) => {
 
 test("operations permit strange queue names", async (t) => {
   const promise = new DeferredPromise<z.infer<typeof MessageArraySchema>>();
-  const timers = new TestTimers();
   const id = "my/ Queue";
   const mf = new Miniflare({
-    timers,
     verbose: true,
     queueProducers: { QUEUE: id },
     queueConsumers: [id],
@@ -648,9 +662,11 @@ test("operations permit strange queue names", async (t) => {
       }
     }`,
   });
+  const object = await getControlStub(mf, id);
+
   await mf.dispatchFetch("http://localhost");
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   const batch = await promise;
   t.deepEqual(batch, [
     { queue: id, id: batch[0].id, body: "msg1" },
@@ -665,12 +681,10 @@ test("supports message contentTypes", async (t) => {
   const promise = new DeferredPromise<
     z.infer<typeof MessageContentTypeTestSchema>
   >();
-  const timers = new TestTimers();
   const id = "my/ Queue";
   const log = new TestLog(t);
   const mf = new Miniflare({
     log,
-    timers,
     verbose: true,
     queueProducers: { QUEUE: id },
     queueConsumers: [id],
@@ -684,43 +698,46 @@ test("supports message contentTypes", async (t) => {
     },
     modules: true,
     script: `export default {
-  async fetch(request, env, ctx) {
-    await env.QUEUE.send("msg1", { contentType: "text" });
-    await env.QUEUE.send([{ message: "msg2" }], { contentType: "json" });
-    const arrayBuffer = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]);
-    await env.QUEUE.send(arrayBuffer, { contentType: "bytes" });
-    await env.QUEUE.send(new Date(1600000000000), { contentType: "v8" });
-    return new Response();
-  },
-  async queue(batch, env, ctx) {
-    delete Date.prototype.toJSON; // JSON.stringify calls .toJSON before the replacer
-    await env.REPORTER.fetch("http://localhost", {
-      method: "POST",
-      body: JSON.stringify(
-        batch.messages.map(({ id, body }) => ({
-          queue: batch.queue,
-          id,
-          body,
-        })),
-        (_, value) => {
-          if (value instanceof ArrayBuffer) {
-            return {
-              $type: "ArrayBuffer",
-              value: Array.from(new Uint8Array(value)),
-            };
-          } else if (value instanceof Date) {
-            return { $type: "Date", value: value.getTime() };
-          }
-          return value;
-        },
-      ),
-    });
-  },
-};`,
+      async fetch(request, env, ctx) {
+        await env.QUEUE.send("msg1", { contentType: "text" });
+        await env.QUEUE.send([{ message: "msg2" }], { contentType: "json" });
+        const arrayBuffer = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]);
+        await env.QUEUE.send(arrayBuffer, { contentType: "bytes" });
+        await env.QUEUE.send(new Date(1600000000000), { contentType: "v8" });
+        return new Response();
+      },
+      async queue(batch, env, ctx) {
+        delete Date.prototype.toJSON; // JSON.stringify calls .toJSON before the replacer
+        await env.REPORTER.fetch("http://localhost", {
+          method: "POST",
+          body: JSON.stringify(
+            batch.messages.map(({ id, body }) => ({
+              queue: batch.queue,
+              id,
+              body,
+            })),
+            (_, value) => {
+              if (value instanceof ArrayBuffer) {
+                return {
+                  $type: "ArrayBuffer",
+                  value: Array.from(new Uint8Array(value)),
+                };
+              } else if (value instanceof Date) {
+                return { $type: "Date", value: value.getTime() };
+              }
+              return value;
+            },
+          ),
+        });
+      },
+    };`,
   });
-  await mf.dispatchFetch("http://localhost");
-  timers.timestamp += 1000;
-  await timers.waitForTasks();
+  const object = await getControlStub(mf, id);
+
+  const res = await mf.dispatchFetch("http://localhost");
+  await res.arrayBuffer();
+  await object.advanceFakeTime(1000);
+  await object.waitForFakeTasks();
   const batch = await promise;
   t.deepEqual(batch, [
     { queue: id, id: batch[0].id, body: "msg1" },
@@ -736,4 +753,35 @@ test("supports message contentTypes", async (t) => {
       body: { $type: "Date", value: 1600000000000 },
     },
   ]);
+});
+
+test("validates message size", async (t) => {
+  const mf = new Miniflare({
+    verbose: true,
+    queueProducers: ["QUEUE"],
+    modules: true,
+    script: `export default {
+      async fetch(request, env, ctx) {
+        const { pathname } = new URL(request.url);
+        try {
+          await env.QUEUE.send(new Uint8Array(128 * 1000 + 1), { contentType: "bytes" });
+          return new Response(null, { status: 204 });
+        } catch (e) {
+          const error = {
+            name: e?.name,
+            message: e?.message ?? String(e),
+            stack: e?.stack,
+          };
+          return Response.json(error, {
+            status: 500,
+            headers: { "MF-Experimental-Error-Stack": "true" },
+          });
+        }
+      },
+    }`,
+  });
+  await t.throwsAsync(mf.dispatchFetch("http://localhost"), {
+    message:
+      "Queue send failed: message length of 128001 bytes exceeds limit of 128000",
+  });
 });

@@ -2,7 +2,7 @@
 
 import assert from "assert";
 import crypto from "crypto";
-import path from "path";
+import fs from "fs/promises";
 import { text } from "stream/consumers";
 import type {
   R2Conditional,
@@ -12,19 +12,20 @@ import type {
 import { Macro, ThrowsExpectation } from "ava";
 import {
   Headers,
+  Miniflare,
   MiniflareOptions,
-  MultipartPartRow,
-  ObjectRow,
   R2Bucket,
-  R2Gateway,
   R2Object,
   R2ObjectBody,
   R2Objects,
-  Storage,
-  TypedDatabase,
-  createFileStorage,
+  R2_PLUGIN_NAME,
 } from "miniflare";
+import type {
+  MultipartPartRow,
+  ObjectRow,
+} from "../../../src/workers/r2/schemas.worker";
 import {
+  MiniflareDurableObjectControlStub,
   MiniflareTestContext,
   Namespaced,
   isWithin,
@@ -35,14 +36,20 @@ import {
 
 const WITHIN_EPSILON = 10_000;
 
-function sqlStmts(db: TypedDatabase) {
+function sqlStmts(object: MiniflareDurableObjectControlStub) {
   return {
-    getObjectByKey: db.prepare<string, ObjectRow>(
-      "SELECT * FROM _mf_objects WHERE key = ?"
-    ),
-    getPartsByUploadId: db.prepare<string, MultipartPartRow>(
-      "SELECT * FROM _mf_multipart_parts WHERE upload_id = ? ORDER BY part_number"
-    ),
+    getObjectByKey: async (key: string): Promise<ObjectRow | undefined> =>
+      (
+        await object.sqlQuery<ObjectRow>(
+          "SELECT * FROM _mf_objects WHERE key = ?",
+          key
+        )
+      )[0],
+    getPartsByUploadId: (uploadId: string) =>
+      object.sqlQuery<MultipartPartRow>(
+        "SELECT * FROM _mf_multipart_parts WHERE upload_id = ? ORDER BY part_number",
+        uploadId
+      ),
   };
 }
 
@@ -53,7 +60,7 @@ function hash(value: string, algorithm = "md5") {
 interface Context extends MiniflareTestContext {
   ns: string;
   r2: Namespaced<R2Bucket>;
-  storage: Storage;
+  object: MiniflareDurableObjectControlStub;
 }
 
 const opts: Partial<MiniflareOptions> = {
@@ -75,7 +82,17 @@ test.beforeEach(async (t) => {
   )}`;
   t.context.ns = ns;
   t.context.r2 = namespace(ns, await t.context.mf.getR2Bucket("BUCKET"));
-  t.context.storage = t.context.mf._getPluginStorage("r2", "bucket");
+
+  // Enable fake timers
+  const objectNamespace = await t.context.mf._getInternalDurableObjectNamespace(
+    R2_PLUGIN_NAME,
+    "r2:bucket",
+    "R2BucketObject"
+  );
+  const objectId = objectNamespace.idFromName("bucket");
+  const objectStub = objectNamespace.get(objectId);
+  t.context.object = new MiniflareDurableObjectControlStub(objectStub);
+  await t.context.object.enableFakeTimers(1_000_000);
 });
 
 const validatesKeyMacro: Macro<
@@ -358,10 +375,10 @@ test("put: returns metadata for created object", async (t) => {
   isWithin(t, WITHIN_EPSILON, object.uploaded.getTime(), start);
 });
 test("put: overrides existing keys", async (t) => {
-  const { r2, ns, storage, timers } = t.context;
+  const { r2, ns, object } = t.context;
   await r2.put("key", "value1");
-  const stmts = sqlStmts(storage.db);
-  const objectRow = stmts.getObjectByKey.get(`${ns}key`);
+  const stmts = sqlStmts(object);
+  const objectRow = await stmts.getObjectByKey(`${ns}key`);
   assert(objectRow?.blob_id != null);
 
   await r2.put("key", "value2");
@@ -370,10 +387,13 @@ test("put: overrides existing keys", async (t) => {
   t.is(await body.text(), "value2");
 
   // Check deletes old blob
-  await timers.waitForTasks();
-  t.is(await storage.blob.get(objectRow.blob_id), null);
+  await object.waitForFakeTasks();
+  t.is(await object.getBlob(objectRow.blob_id), null);
 });
-test(validatesKeyMacro, { method: "put", f: (r2, key) => r2.put(key, "v") });
+test(validatesKeyMacro, {
+  method: "put",
+  f: (r2, key) => r2.put(key, "v"),
+});
 test("put: validates checksums", async (t) => {
   const { r2 } = t.context;
   const expectations = (
@@ -521,22 +541,22 @@ test("put: validates metadata size", async (t) => {
 });
 
 test("delete: deletes existing keys", async (t) => {
-  const { r2, ns, storage, timers } = t.context;
+  const { r2, ns, object } = t.context;
 
   // Check does nothing with non-existent key
   await r2.delete("key");
 
   // Check deletes single key
   await r2.put("key", "value");
-  const stmts = sqlStmts(storage.db);
-  const objectRow = stmts.getObjectByKey.get(`${ns}key`);
+  const stmts = sqlStmts(object);
+  const objectRow = await stmts.getObjectByKey(`${ns}key`);
   assert(objectRow?.blob_id != null);
   t.not(await r2.head("key"), null);
   await r2.delete("key");
   t.is(await r2.head("key"), null);
   // Check deletes old blob
-  await timers.waitForTasks();
-  t.is(await storage.blob.get(objectRow.blob_id), null);
+  await object.waitForFakeTasks();
+  t.is(await object.getBlob(objectRow.blob_id), null);
 
   // Check deletes multiple keys, skipping non-existent keys
   await r2.put("key1", "value1");
@@ -547,7 +567,10 @@ test("delete: deletes existing keys", async (t) => {
   t.not(await r2.head("key2"), null);
   t.is(await r2.head("key3"), null);
 });
-test(validatesKeyMacro, { method: "delete", f: (r2, key) => r2.delete(key) });
+test(validatesKeyMacro, {
+  method: "delete",
+  f: (r2, key) => r2.delete(key),
+});
 test("delete: validates keys", validatesKeyMacro, {
   method: "delete",
   f: (r2, key) => r2.delete(["valid key", key]),
@@ -892,29 +915,35 @@ test.serial("operations permit empty key", async (t) => {
   t.is(await r2.head(""), null);
 });
 
-test.serial("operations persist stored data", async (t) => {
-  const { mf, ns } = t.context;
-
-  // Create new temporary file-system persistence directory
+test("operations persist stored data", async (t) => {
   const tmp = await useTmp(t);
-  const storage = createFileStorage(path.join(tmp, "bucket"));
-
-  // Set option, then reset after test
-  await t.context.setOptions({ ...opts, r2Persist: tmp });
-  t.teardown(() => t.context.setOptions(opts));
-  const r2 = namespace(ns, await mf.getR2Bucket("BUCKET"));
+  const persistOpts: MiniflareOptions = {
+    verbose: true,
+    modules: true,
+    script: "",
+    r2Buckets: { BUCKET: "bucket" },
+    r2Persist: tmp,
+  };
+  let mf = new Miniflare(persistOpts);
+  t.teardown(() => mf.dispose());
+  let r2 = await mf.getR2Bucket("BUCKET");
 
   // Check put respects persist
   await r2.put("key", "value");
-  const stmtListByNs = storage.db.prepare<{ ns: string }, { key: string }>(
-    "SELECT key FROM _mf_objects WHERE key LIKE :ns || '%'"
-  );
-  let stored = stmtListByNs.all({ ns });
-  t.deepEqual(stored, [{ key: `${ns}key` }]);
 
   // Check head respects persist
   let object = await r2.head("key");
   t.is(object?.size, 5);
+
+  // Check directory created for namespace
+  const names = await fs.readdir(tmp);
+  t.true(names.includes("miniflare-R2BucketObject"));
+
+  // Check "restarting" keeps persisted data
+  await mf.dispose();
+  mf = new Miniflare(persistOpts);
+  await mf.ready;
+  r2 = await mf.getR2Bucket("BUCKET");
 
   // Check get respects persist
   const objectBody = await r2.get("key");
@@ -927,16 +956,16 @@ test.serial("operations persist stored data", async (t) => {
 
   // Check delete respects persist
   await r2.delete("key");
-  stored = stmtListByNs.all({ ns });
-  t.deepEqual(stored, []);
+  object = await r2.head("key");
+  t.is(object, null);
 
   // Check multipart operations respect persist
   const upload = await r2.createMultipartUpload("multipart");
   const part = await upload.uploadPart(1, "multipart");
   object = await upload.complete([part]);
   t.is(object?.size, 9);
-  stored = stmtListByNs.all({ ns });
-  t.deepEqual(stored, [{ key: `${ns}multipart` }]);
+  object = await r2.head("multipart");
+  t.not(object, null);
 });
 
 test.serial("operations permit strange bucket names", async (t) => {
@@ -952,17 +981,10 @@ test.serial("operations permit strange bucket names", async (t) => {
   await r2.put("key", "value");
   const object = await r2.get("key");
   t.is(await object?.text(), "value");
-
-  // Check stored with correct ID
-  const storage = t.context.mf._getPluginStorage("r2", id);
-  const stmts = sqlStmts(storage.db);
-  t.not(stmts.getObjectByKey.get(`${ns}key`), undefined);
 });
 
 // Multipart tests
 const PART_SIZE = 50;
-// Reduce the minimum multipart part size, so we can use small values for tests
-test.before(() => (R2Gateway._MIN_MULTIPART_PART_SIZE = PART_SIZE));
 
 function objectNameNotValidExpectations(method: string) {
   return <ThrowsExpectation<Error>>{
@@ -1006,7 +1028,7 @@ test("createMultipartUpload", async (t) => {
   );
 });
 test("uploadPart", async (t) => {
-  const { storage, r2 } = t.context;
+  const { r2, object } = t.context;
 
   // Check uploads parts
   const upload = await r2.createMultipartUpload("key");
@@ -1017,17 +1039,17 @@ test("uploadPart", async (t) => {
   t.is(part2.partNumber, 2);
   t.not(part2.etag, "");
   t.not(part2.etag, part1.etag);
-  const stmts = sqlStmts(storage.db);
-  const partRows = stmts.getPartsByUploadId.all(upload.uploadId);
+  const stmts = sqlStmts(object);
+  const partRows = await stmts.getPartsByUploadId(upload.uploadId);
   t.is(partRows.length, 2);
   t.is(partRows[0].part_number, 1);
   t.is(partRows[0].size, 6);
   t.is(partRows[1].part_number, 2);
   t.is(partRows[1].size, 9);
-  const value1 = await storage.blob.get(partRows[0].blob_id);
+  const value1 = await object.getBlob(partRows[0].blob_id);
   assert(value1 !== null);
   t.is(await text(value1), "value1");
-  const value2 = await storage.blob.get(partRows[1].blob_id);
+  const value2 = await object.getBlob(partRows[1].blob_id);
   assert(value2 !== null);
   t.is(await text(value2), "value two");
 
@@ -1052,7 +1074,7 @@ test("uploadPart", async (t) => {
   await t.throwsAsync(nonExistentUpload.uploadPart(1, "value"), expectations);
 });
 test("abortMultipartUpload", async (t) => {
-  const { storage, r2, timers } = t.context;
+  const { r2, object } = t.context;
 
   // Check deletes upload and all parts for corresponding upload
   const upload1 = await r2.createMultipartUpload("key");
@@ -1060,14 +1082,14 @@ test("abortMultipartUpload", async (t) => {
   await upload1.uploadPart(1, "value1");
   await upload1.uploadPart(2, "value2");
   await upload1.uploadPart(3, "value3");
-  const stmts = sqlStmts(storage.db);
-  const parts = stmts.getPartsByUploadId.all(upload1.uploadId);
+  const stmts = sqlStmts(object);
+  const parts = await stmts.getPartsByUploadId(upload1.uploadId);
   t.is(parts.length, 3);
   await upload1.abort();
-  t.is(stmts.getPartsByUploadId.all(upload1.uploadId).length, 0);
+  t.is((await stmts.getPartsByUploadId(upload1.uploadId)).length, 0);
   // Check blobs deleted
-  await timers.waitForTasks();
-  for (const part of parts) t.is(await storage.blob.get(part.blob_id), null);
+  await object.waitForFakeTasks();
+  for (const part of parts) t.is(await object.getBlob(part.blob_id), null);
 
   // Check cannot upload after abort
   let expectations = doesNotExistExpectations("uploadPart");
@@ -1095,7 +1117,7 @@ test("abortMultipartUpload", async (t) => {
   await t.throwsAsync(nonExistentUpload.abort(), expectations);
 });
 test("completeMultipartUpload", async (t) => {
-  const { storage, r2, ns, timers } = t.context;
+  const { r2, ns, object: objectStub } = t.context;
 
   // Check creates regular key with correct metadata, and returns object
   const upload1 = await r2.createMultipartUpload("key", {
@@ -1117,12 +1139,20 @@ test("completeMultipartUpload", async (t) => {
   t.deepEqual(object.customMetadata, { key: "value" });
   t.deepEqual(object.httpMetadata, { contentType: "text/plain" });
   let objectBody = await r2.get("key");
+
+  // console.log(2);
+  // await setTimeout(1000);
+  // TODO: this is the problematic line
   t.is(
     await objectBody?.text(),
     `${"1".repeat(PART_SIZE)}${"2".repeat(PART_SIZE)}3`
   );
-  const stmts = sqlStmts(storage.db);
-  const parts = stmts.getPartsByUploadId.all(upload1.uploadId);
+  // console.log(3);
+  // await setTimeout(1000);
+  // return;
+
+  const stmts = sqlStmts(objectStub);
+  const parts = await stmts.getPartsByUploadId(upload1.uploadId);
   t.is(parts.length, 3);
 
   // Check requires all but last part to be greater than 5MB
@@ -1143,12 +1173,12 @@ test("completeMultipartUpload", async (t) => {
   t.is(object.size, 1);
   t.is(object.etag, "46d1741e8075da4ac72c71d8130fcb71-1");
   // Check previous multipart uploads blobs deleted
-  await timers.waitForTasks();
-  for (const part of parts) t.is(await storage.blob.get(part.blob_id), null);
+  await objectStub.waitForFakeTasks();
+  for (const part of parts) t.is(await objectStub.getBlob(part.blob_id), null);
 
   // Check completing multiple uploads overrides existing, deleting all parts
-  t.is(stmts.getPartsByUploadId.all(upload1.uploadId).length, 0);
-  t.is(stmts.getPartsByUploadId.all(upload2.uploadId).length, 1);
+  t.is((await stmts.getPartsByUploadId(upload1.uploadId)).length, 0);
+  t.is((await stmts.getPartsByUploadId(upload2.uploadId)).length, 1);
   objectBody = await r2.get("key");
   t.is(await objectBody?.text(), "1");
 
@@ -1394,7 +1424,7 @@ test("get: is multipart aware", async (t) => {
   );
 });
 test("put: is multipart aware", async (t) => {
-  const { storage, r2, timers } = t.context;
+  const { r2, object: objectStub } = t.context;
 
   // Check doesn't overwrite parts for in-progress multipart upload
   const upload = await r2.createMultipartUpload("key");
@@ -1403,23 +1433,23 @@ test("put: is multipart aware", async (t) => {
   const part3 = await upload.uploadPart(3, "3".repeat(PART_SIZE));
   await r2.put("key", "value");
 
-  const stmts = sqlStmts(storage.db);
-  t.is(stmts.getPartsByUploadId.all(upload.uploadId).length, 3);
+  const stmts = sqlStmts(objectStub);
+  t.is((await stmts.getPartsByUploadId(upload.uploadId)).length, 3);
 
   const object = await upload.complete([part1, part2, part3]);
   t.is(object.size, 3 * PART_SIZE);
-  const parts = stmts.getPartsByUploadId.all(upload.uploadId);
+  const parts = await stmts.getPartsByUploadId(upload.uploadId);
   t.is(parts.length, 3);
 
   // Check overwrites all multipart parts of completed upload
   await r2.put("key", "new-value");
-  t.is(stmts.getPartsByUploadId.all(upload.uploadId).length, 0);
+  t.is((await stmts.getPartsByUploadId(upload.uploadId)).length, 0);
   // Check deletes all previous blobs
-  await timers.waitForTasks();
-  for (const part of parts) t.is(await storage.blob.get(part.blob_id), null);
+  await objectStub.waitForFakeTasks();
+  for (const part of parts) t.is(await objectStub.getBlob(part.blob_id), null);
 });
 test("delete: is multipart aware", async (t) => {
-  const { storage, r2, timers } = t.context;
+  const { r2, object: objectStub } = t.context;
 
   // Check doesn't remove parts for in-progress multipart upload
   const upload = await r2.createMultipartUpload("key");
@@ -1431,17 +1461,17 @@ test("delete: is multipart aware", async (t) => {
   // Check removes all multipart parts of completed upload
   const object = await upload.complete([part1, part2, part3]);
   t.is(object.size, 3 * PART_SIZE);
-  const stmts = sqlStmts(storage.db);
-  const parts = stmts.getPartsByUploadId.all(upload.uploadId);
+  const stmts = sqlStmts(objectStub);
+  const parts = await stmts.getPartsByUploadId(upload.uploadId);
   t.is(parts.length, 3);
   await r2.delete("key");
-  t.is(stmts.getPartsByUploadId.all(upload.uploadId).length, 0);
+  t.is((await stmts.getPartsByUploadId(upload.uploadId)).length, 0);
   // Check deletes all previous blobs
-  await timers.waitForTasks();
-  for (const part of parts) t.is(await storage.blob.get(part.blob_id), null);
+  await objectStub.waitForFakeTasks();
+  for (const part of parts) t.is(await objectStub.getBlob(part.blob_id), null);
 });
 test("delete: waits for in-progress multipart gets before deleting part blobs", async (t) => {
-  const { storage, r2, timers } = t.context;
+  const { r2, object: objectStub } = t.context;
 
   const upload = await r2.createMultipartUpload("key");
   const part1 = await upload.uploadPart(1, "1".repeat(PART_SIZE));
@@ -1451,8 +1481,8 @@ test("delete: waits for in-progress multipart gets before deleting part blobs", 
 
   const objectBody1 = await r2.get("key");
   const objectBody2 = await r2.get("key", { range: { offset: PART_SIZE } });
-  const stmts = sqlStmts(storage.db);
-  const parts = stmts.getPartsByUploadId.all(upload.uploadId);
+  const stmts = sqlStmts(objectStub);
+  const parts = await stmts.getPartsByUploadId(upload.uploadId);
   t.is(parts.length, 3);
   await r2.delete("key");
   t.is(
@@ -1464,8 +1494,8 @@ test("delete: waits for in-progress multipart gets before deleting part blobs", 
     `${"2".repeat(PART_SIZE)}${"3".repeat(PART_SIZE)}`
   );
 
-  await timers.waitForTasks();
-  for (const part of parts) t.is(await storage.blob.get(part.blob_id), null);
+  await objectStub.waitForFakeTasks();
+  for (const part of parts) t.is(await objectStub.getBlob(part.blob_id), null);
 });
 test("list: is multipart aware", async (t) => {
   const { r2, ns } = t.context;
