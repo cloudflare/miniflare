@@ -1,4 +1,3 @@
 declare module "worker:*" {
-  const contents: string;
-  export default contents;
+  export default function (): string;
 }

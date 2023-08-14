@@ -40,13 +40,37 @@ function getPackageDependencies(pkg, includeDev) {
   ];
 }
 
-const workersRoot = path.join(
-  projectRoot,
-  "packages",
-  "miniflare",
-  "src",
-  "workers"
+const miniflareRoot = path.join(projectRoot, "packages", "miniflare");
+const workersRoot = path.join(miniflareRoot, "src", "workers");
+
+const miniflareSharedExtensionPath = path.join(
+  workersRoot,
+  "shared",
+  "index.worker.ts"
 );
+const miniflareZodExtensionPath = path.join(
+  workersRoot,
+  "shared",
+  "zod.worker.ts"
+);
+/**
+ * `workerd` `extensions` don't have access to "built-in" modules like
+ * `node:buffer`, but do have access to "internal" modules like
+ * `node-internal:internal_buffer`, which usually provide the same exports.
+ * So that we can use `node:assert` and `node:buffer` in our shared extension,
+ * rewrite built-in names to internal.
+ * @type {esbuild.Plugin}
+ */
+const rewriteNodeToInternalPlugin = {
+  name: "rewrite-node-to-internal",
+  setup(build) {
+    build.onResolve({ filter: /^node:(assert|buffer)$/ }, async (args) => {
+      const module = args.path.substring("node:".length);
+      return { path: `node-internal:internal_${module}`, external: true };
+    });
+  },
+};
+
 /**
  * @type {Map<string, esbuild.BuildResult>}
  */
@@ -78,19 +102,47 @@ const embedWorkersPlugin = {
           format: "esm",
           target: "esnext",
           bundle: true,
-          write: false,
+          external: ["miniflare:shared", "miniflare:zod"],
           metafile: true,
           incremental: watch, // Allow `rebuild()` calls if watching
           entryPoints: [args.path],
+          minifySyntax: true,
+          outdir: build.initialOptions.outdir,
+          outbase: miniflareRoot,
+          plugins:
+            args.path === miniflareSharedExtensionPath ||
+            args.path === miniflareZodExtensionPath
+              ? [rewriteNodeToInternalPlugin]
+              : [],
         });
       } else {
         builder = await builder.rebuild();
       }
       workersBuilders.set(args.path, builder);
-      assert.strictEqual(builder.outputFiles.length, 1);
-      const contents = builder.outputFiles[0].contents;
+      await fs.mkdir("worker-metafiles", { recursive: true });
+      await fs.writeFile(
+        path.join(
+          "worker-metafiles",
+          path.basename(args.path) + ".metafile.json"
+        ),
+        JSON.stringify(builder.metafile)
+      );
+      let outPath = args.path.substring(workersRoot.length + 1);
+      outPath = outPath.substring(0, outPath.lastIndexOf(".")) + ".js";
+      outPath = JSON.stringify(outPath);
       const watchFiles = Object.keys(builder.metafile.inputs);
-      return { contents, loader: "text", watchFiles };
+      const contents = `
+      import fs from "fs";
+      import path from "path";
+      let contents;
+      export default function() {
+         if (contents !== undefined) return contents;
+         const filePath = path.join(__dirname, "workers", ${outPath})
+         contents = fs.readFileSync(filePath, "utf8");
+         return contents;
+      }
+      `;
+      return { contents, loader: "js", watchFiles };
     });
   },
 };
@@ -106,6 +158,7 @@ const buildOptions = {
   bundle: true,
   sourcemap: true,
   sourcesContent: false,
+  tsconfig: path.join(projectRoot, "tsconfig.json"),
   // Mark root package's dependencies as external, include root devDependencies
   // (e.g. test runner) as we don't want these bundled
   external: [
