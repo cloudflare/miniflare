@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual, webcrypto } from "crypto";
 import { WritableStream } from "stream/web";
-import { DOMException } from "@miniflare/core";
+import { DOMException } from "./domexception";
 import { viewToBuffer } from "@miniflare/shared";
 import {
   assertsInRequest,
