@@ -1,4 +1,3 @@
-import inspector from "inspector";
 import { pkgsList } from "./scripts/common.mjs";
 
 const rewritePaths = Object.fromEntries(
@@ -12,7 +11,7 @@ export default {
   files: ["packages/*/test/**/*.spec.ts"],
   nodeArguments: ["--no-warnings", "--experimental-vm-modules"],
   require: ["./packages/miniflare/test/setup.mjs"],
-  workerThreads: inspector.url() === undefined,
+  workerThreads: false,
   typescript: {
     compile: false,
     rewritePaths,
