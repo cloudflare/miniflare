@@ -17,7 +17,7 @@ git fetch origin tre:tre
 git checkout -b "${USER}/v${MINIFLARE_VERSION}" tre
 
 # update workerd
-npm install --workspace miniflare "workerd@${WORKERD_VERSION}"
+npm install --workspace miniflare --save-exact "workerd@${WORKERD_VERSION}"
 
 # bump version and commit and tag release
 npm version "$MINIFLARE_VERSION" --force --include-workspace-root --workspace miniflare -m "Bump versions to %s"
