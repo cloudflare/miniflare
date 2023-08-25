@@ -87,7 +87,7 @@ function getExpirationTtl(
     headers: reqHeaders,
   };
   const cacheRes: CachePolicy.Response = {
-    status: res.status,
+    status: res.status === 429 || res.status === 503 ? 200 : res.status,
     headers: resHeaders,
   };
 
