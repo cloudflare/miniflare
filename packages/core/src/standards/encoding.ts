@@ -1,4 +1,4 @@
-import { DOMException } from "@miniflare/core";
+import { DOMException } from "./domexception";
 
 // Implementations of base64 functions adapted from Node.js:
 // https://github.com/nodejs/node/blob/1086468aa3d328d2eac00bf66058906553ecd209/lib/buffer.js#L1213-L1239
