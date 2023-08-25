@@ -1,5 +1,25 @@
 # 🚧 Changelog
 
+## 2.14.1
+
+### Fixes
+
+- Allow `vitest-environment-miniflare` to be used with `vitest@0.34.0` and
+  above. Closes
+  [issue #645](https://github.com/cloudflare/miniflare/issues/645), thanks
+  [@AdiRishi](https://github.com/AdiRishi), and
+  [@Averethel](https://github.com/Averethel) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/661).
+- Allow responses with `429` and `503` status codes to be cached. Closes
+  [issue #82](https://github.com/cloudflare/miniflare/issues/82), thanks
+  [@haus](https://github.com/haus) and
+  [@rdaniels6813](https://github.com/rdaniels6813) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/669).
+- Avoid self-imports in `@miniflare/core` package. Closes
+  [issue #663](https://github.com/cloudflare/miniflare/issues/663), thanks
+  [@ajwootto](https://github.com/ajwootto) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/664).
+
 ## 2.14.0
 
 ### Features

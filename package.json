@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@miniflare/root",
-  "version": "2.14.0",
+  "version": "2.14.1",
   "description": "Fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -22,7 +22,7 @@
     "types:bundle": "npm run types:build && node scripts/types.mjs",
     "dev": "node scripts/build.mjs watch",
     "test": "npm run build && ava && rimraf ./.tmp",
-    "lint": "eslint \"packages/*/{src,test}/**/*.ts\" \"packages/miniflare/bootstrap.js\" \"scripts/**/*.{js,mjs}\" \"types/**/*.ts\"",
+    "lint": "eslint --max-warnings=0 \"packages/*/{src,test}/**/*.ts\" \"packages/miniflare/bootstrap.js\" \"scripts/**/*.{js,mjs}\" \"types/**/*.ts\"",
     "lint:fix": "npm run lint -- --fix",
     "prepublishOnly": "npm run lint && npm run clean && npm run build && npm run types:bundle && npm run test",
     "helpers:scaffold": "node scripts/scaffold.mjs",
