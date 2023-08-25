@@ -102,7 +102,8 @@ async function buildPackage(name) {
     );
   }
   // `vitest` requires custom environments to be ES modules with default exports
-  if (name === "vitest-environment-miniflare") {
+  const isVitestEnvironment = name === "vitest-environment-miniflare";
+  if (isVitestEnvironment) {
     esmEntryPoints.unshift(indexPath);
   } else {
     cjsEntryPoints.unshift(indexPath);
@@ -120,7 +121,11 @@ async function buildPackage(name) {
     outdir: outPath,
     outbase: pkgRoot,
   };
-  await esbuild.build({ ...pkgBuildOptions, entryPoints: cjsEntryPoints });
+  await esbuild.build({
+    ...pkgBuildOptions,
+    entryPoints: cjsEntryPoints,
+    outExtension: isVitestEnvironment ? { ".js": ".cjs" } : undefined,
+  });
   if (esmEntryPoints.length) {
     await esbuild.build({
       ...pkgBuildOptions,

@@ -26,7 +26,8 @@
     "lint:fix": "npm run lint -- --fix",
     "prepublishOnly": "npm run lint && npm run clean && npm run build && npm run types:bundle && npm run test",
     "helpers:scaffold": "node scripts/scaffold.mjs",
-    "helpers:version": "node scripts/version.mjs"
+    "helpers:version": "node scripts/version.mjs",
+    "postinstall": "patch-package"
   },
   "devDependencies": {
     "@ava/typescript": "^2.0.0",
@@ -47,6 +48,7 @@
     "eslint-plugin-import": "^2.24.2",
     "eslint-plugin-prettier": "^3.4.1",
     "esm": "^3.2.25",
+    "patch-package": "^8.0.0",
     "prettier": "^2.3.2",
     "rimraf": "^3.0.2",
     "sinon": "^14.0.0",

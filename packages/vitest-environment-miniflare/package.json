@@ -11,8 +11,8 @@
   ],
   "author": "MrBBot <me@mrbbot.dev>",
   "license": "MIT",
+  "type": "module",
   "main": "./dist/src/index.js",
-  "module": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "files": [
     "dist/src",
@@ -50,6 +50,6 @@
     "@miniflare/shared-test": "2.14.0",
     "miniflare": "2.14.0",
     "react-dom": "^18.1.0",
-    "vitest": "^0.23.1"
+    "vitest": "^0.34.3"
   }
 }

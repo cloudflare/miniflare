@@ -1,3 +1,4 @@
+/* eslint-disable es/no-dynamic-import */
 // noinspection ES6ConvertVarToLetConst
 
 import stream from "stream/web";
@@ -8,51 +9,45 @@ import {
   StackedMemoryStorageFactory,
   createMiniflareEnvironment,
 } from "@miniflare/shared-test-environment";
-import {
-  Environment,
-  SuiteAPI,
-  SuiteFactory,
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-} from "vitest";
-import { createChainable } from "./chain";
+import { createChainable } from "@vitest/runner/utils";
+import type { Environment, SuiteAPI, SuiteFactory, describe } from "vitest";
 
 const scriptRunner = new VMScriptRunner();
 const queueBroker = new QueueBroker();
 
-function setupIsolatedStorage(storageFactory: StackedMemoryStorageFactory) {
+function setupIsolatedStorage(
+  vitestImpl: typeof import("vitest"),
+  storageFactory: StackedMemoryStorageFactory
+) {
   // `push()`/`pop()` at the start/end of each test
-  beforeEach(() => storageFactory.push());
-  afterEach(() => storageFactory.pop());
+  vitestImpl.beforeEach(() => storageFactory.push());
+  vitestImpl.afterEach(() => storageFactory.pop());
 
   // `push()`/`pop()` at the start/end of each `describe` block
   // (users must use the returned `describe` function instead of the default
   // `describe`/`suite` from the `vitest` module)
   const wrappedDescribeFn: typeof describe.fn = function (name, factory) {
     if (typeof factory !== "function") {
-      return describe.fn.call(this, name, factory);
+      return vitestImpl.describe.fn.call(this, name, factory);
     }
     const newFactory: SuiteFactory = (test) => {
-      beforeAll(() => storageFactory.push());
-      afterAll(() => storageFactory.pop());
+      vitestImpl.beforeAll(() => storageFactory.push());
+      vitestImpl.afterAll(() => storageFactory.pop());
       return factory(test);
     };
-    return describe.fn.call(this, name, newFactory);
+    return vitestImpl.describe.fn.call(this, name, newFactory);
   };
 
   // https://github.com/vitest-dev/vitest/blob/69d55bc19c8ca6e1dfb28724eb55a45aefc37562/packages/vitest/src/runtime/suite.ts#L204-L215
   const wrappedDescribe = wrappedDescribeFn as typeof describe;
-  wrappedDescribe.each = describe.each;
+  wrappedDescribe.each = vitestImpl.describe.each;
   wrappedDescribe.skipIf = (condition) =>
     (condition ? wrappedChainable.skip : wrappedChainable) as SuiteAPI;
   wrappedDescribe.runIf = (condition) =>
     (condition ? wrappedChainable : wrappedChainable.skip) as SuiteAPI;
 
+  // https://github.com/vitest-dev/vitest/blob/e691a9ca229dd84765a4b40192761ffc1827069c/packages/runner/src/suite.ts#L228
   const wrappedChainable = createChainable(
-    // https://github.com/vitest-dev/vitest/blob/69d55bc19c8ca6e1dfb28724eb55a45aefc37562/packages/vitest/src/runtime/suite.ts#L217-L220
     ["concurrent", "shuffle", "skip", "only", "todo"],
     wrappedDescribe
   );
@@ -70,7 +65,10 @@ declare global {
 
 export default <Environment>{
   name: "miniflare",
+  transformMode: "ssr",
   async setup(global, options) {
+    const vitestImpl = await import("vitest");
+
     // Since `undici@5.14.0`, stream classes are loaded from the global scope
     // if available (https://github.com/nodejs/undici/pull/1793). Make sure
     // `undici` sets module variables for stream classes before we assign
@@ -79,7 +77,8 @@ export default <Environment>{
     globalThis.ReadableStream = stream.ReadableStream;
     globalThis.WritableStream = stream.WritableStream;
     globalThis.TransformStream = stream.TransformStream;
-    require("undici/lib/fetch");
+    // @ts-expect-error `undici` doesn't provide type definitions for internals
+    await import("undici/lib/fetch/index.js");
 
     // Create a Miniflare instance
     const storageFactory = new StackedMemoryStorageFactory();
@@ -91,7 +90,7 @@ export default <Environment>{
 
     // Attach isolated storage setup function
     mfGlobalScope.setupMiniflareIsolatedStorage = () =>
-      setupIsolatedStorage(storageFactory);
+      setupIsolatedStorage(vitestImpl, storageFactory);
 
     // `crypto` is defined as a getter on the global scope in Node 19+,
     // so attempting to set it with `Object.assign()` would fail. Instead,

@@ -1,0 +1,14 @@
+diff --git a/node_modules/@ava/typescript/index.js b/node_modules/@ava/typescript/index.js
+index 8fc5369..f71c919 100644
+--- a/node_modules/@ava/typescript/index.js
++++ b/node_modules/@ava/typescript/index.js
+@@ -167,7 +167,8 @@ module.exports = ({negotiateProtocol}) => {
+ 
+ 					const [from, to] = rewritePaths.find(([from]) => ref.startsWith(from));
+ 					// TODO: Support JSX preserve mode — https://www.typescriptlang.org/docs/handbook/jsx.html
+-					const rewritten = `${to}${ref.slice(from.length)}`.replace(testFileExtension, '.js');
++        	const jsExtension = from.includes("vitest-environment-miniflare") ? ".cjs" : ".js";
++					const rewritten = `${to}${ref.slice(from.length)}`.replace(testFileExtension, jsExtension);
+ 					return requireFn(rewritten);
+ 				}
+ 			};
