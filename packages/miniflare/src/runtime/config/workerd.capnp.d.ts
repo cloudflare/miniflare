@@ -166,7 +166,8 @@ export declare enum Worker_Module_Which {
     TEXT = 2,
     DATA = 3,
     WASM = 4,
-    JSON = 5
+    JSON = 5,
+    NODE_JS_COMPAT_MODULE = 6
 }
 export declare class Worker_Module extends __S {
     static readonly ES_MODULE = Worker_Module_Which.ES_MODULE;
@@ -175,6 +176,7 @@ export declare class Worker_Module extends __S {
     static readonly DATA = Worker_Module_Which.DATA;
     static readonly WASM = Worker_Module_Which.WASM;
     static readonly JSON = Worker_Module_Which.JSON;
+    static readonly NODE_JS_COMPAT_MODULE = Worker_Module_Which.NODE_JS_COMPAT_MODULE;
     static readonly _capnp: {
         displayName: string;
         id: string;
@@ -208,6 +210,9 @@ export declare class Worker_Module extends __S {
     getJson(): string;
     isJson(): boolean;
     setJson(value: string): void;
+    getNodeJsCompatModule(): string;
+    isNodeJsCompatModule(): boolean;
+    setNodeJsCompatModule(value: string): void;
     toString(): string;
     which(): Worker_Module_Which;
 }
@@ -223,7 +228,8 @@ export declare enum Worker_Binding_Type_Which {
     KV_NAMESPACE = 8,
     R2BUCKET = 9,
     R2ADMIN = 10,
-    QUEUE = 11
+    QUEUE = 11,
+    ANALYTICS_ENGINE = 12
 }
 export declare class Worker_Binding_Type extends __S {
     static readonly UNSPECIFIED = Worker_Binding_Type_Which.UNSPECIFIED;
@@ -238,6 +244,7 @@ export declare class Worker_Binding_Type extends __S {
     static readonly R2BUCKET = Worker_Binding_Type_Which.R2BUCKET;
     static readonly R2ADMIN = Worker_Binding_Type_Which.R2ADMIN;
     static readonly QUEUE = Worker_Binding_Type_Which.QUEUE;
+    static readonly ANALYTICS_ENGINE = Worker_Binding_Type_Which.ANALYTICS_ENGINE;
     static readonly _capnp: {
         displayName: string;
         id: string;
@@ -272,6 +279,8 @@ export declare class Worker_Binding_Type extends __S {
     setR2Admin(): void;
     isQueue(): boolean;
     setQueue(): void;
+    isAnalyticsEngine(): boolean;
+    setAnalyticsEngine(): void;
     toString(): string;
     which(): Worker_Binding_Type_Which;
 }
@@ -425,7 +434,9 @@ export declare enum Worker_Binding_Which {
     R2BUCKET = 10,
     R2ADMIN = 11,
     WRAPPED = 12,
-    QUEUE = 13
+    QUEUE = 13,
+    FROM_ENVIRONMENT = 14,
+    ANALYTICS_ENGINE = 15
 }
 export declare class Worker_Binding extends __S {
     static readonly UNSPECIFIED = Worker_Binding_Which.UNSPECIFIED;
@@ -442,6 +453,8 @@ export declare class Worker_Binding extends __S {
     static readonly R2ADMIN = Worker_Binding_Which.R2ADMIN;
     static readonly WRAPPED = Worker_Binding_Which.WRAPPED;
     static readonly QUEUE = Worker_Binding_Which.QUEUE;
+    static readonly FROM_ENVIRONMENT = Worker_Binding_Which.FROM_ENVIRONMENT;
+    static readonly ANALYTICS_ENGINE = Worker_Binding_Which.ANALYTICS_ENGINE;
     static readonly Type: typeof Worker_Binding_Type;
     static readonly DurableObjectNamespaceDesignator: typeof Worker_Binding_DurableObjectNamespaceDesignator;
     static readonly CryptoKey: typeof Worker_Binding_CryptoKey;
@@ -535,6 +548,16 @@ export declare class Worker_Binding extends __S {
     initQueue(): ServiceDesignator;
     isQueue(): boolean;
     setQueue(value: ServiceDesignator): void;
+    getFromEnvironment(): string;
+    isFromEnvironment(): boolean;
+    setFromEnvironment(value: string): void;
+    adoptAnalyticsEngine(value: capnp.Orphan<ServiceDesignator>): void;
+    disownAnalyticsEngine(): capnp.Orphan<ServiceDesignator>;
+    getAnalyticsEngine(): ServiceDesignator;
+    hasAnalyticsEngine(): boolean;
+    initAnalyticsEngine(): ServiceDesignator;
+    isAnalyticsEngine(): boolean;
+    setAnalyticsEngine(value: ServiceDesignator): void;
     toString(): string;
     which(): Worker_Binding_Which;
 }
