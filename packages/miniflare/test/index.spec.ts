@@ -25,6 +25,7 @@ import {
   MiniflareOptions,
   ReplaceWorkersTypes,
   Response,
+  _forceColour,
   _transformsForContentEncoding,
   createFetchMock,
   fetch,
@@ -37,7 +38,7 @@ import {
 } from "ws";
 import { TestLog, useServer, useTmp, utf8Encode } from "./test-shared";
 
-test("Miniflare: validates options", async (t) => {
+test.serial("Miniflare: validates options", async (t) => {
   // Check empty workers array rejected
   t.throws(() => new Miniflare({ workers: [] }), {
     instanceOf: MiniflareCoreError,
@@ -73,6 +74,33 @@ test("Miniflare: validates options", async (t) => {
       message: 'Multiple workers defined with the same `name`: "a"',
     }
   );
+
+  // Disable colours for easier to read expectations
+  _forceColour(false);
+  t.teardown(() => _forceColour());
+
+  // Check throws validation error with incorrect options
+  // @ts-expect-error intentionally testing incorrect types
+  t.throws(() => new Miniflare({ name: 42, script: "" }), {
+    instanceOf: MiniflareCoreError,
+    code: "ERR_VALIDATION",
+    message: `Unexpected options passed to \`new Miniflare()\` constructor:
+{
+  name: 42,
+        ^ Expected string, received number
+  ...,
+}`,
+  });
+
+  // Check throws validation error with primitive option
+  // @ts-expect-error intentionally testing incorrect types
+  t.throws(() => new Miniflare("addEventListener(...)"), {
+    instanceOf: MiniflareCoreError,
+    code: "ERR_VALIDATION",
+    message: `Unexpected options passed to \`new Miniflare()\` constructor:
+'addEventListener(...)'
+^ Expected object, received string`,
+  });
 });
 
 test("Miniflare: ready returns copy of entry URL", async (t) => {
