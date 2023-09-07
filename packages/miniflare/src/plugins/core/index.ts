@@ -99,6 +99,28 @@ const CoreOptionsSchemaInput = z.intersection(
     textBlobBindings: z.record(z.string()).optional(),
     dataBlobBindings: z.record(z.string()).optional(),
     serviceBindings: z.record(ServiceDesignatorSchema).optional(),
+    dispatchNamespaceBindings: z
+      .record(
+        z.object({
+          users: z.array(
+            z.object({
+              name: z.string(),
+              worker: z.string(),
+            })
+          ),
+          outbound: z
+            .object({
+              service: z.object({
+                name: z.string(),
+                worker: z.string(),
+              }),
+              parameters: z.array(z.string()).optional(),
+            })
+            .optional(),
+        })
+      )
+      .optional(),
+    dispatchOutbound: z.boolean().optional(),
 
     outboundService: ServiceDesignatorSchema.optional(),
     fetchMock: z.instanceof(MockAgent).optional(),
@@ -314,6 +336,46 @@ export const CORE_PLUGIN: Plugin<
         })
       );
     }
+    if (options.dispatchNamespaceBindings !== undefined) {
+      bindings.push(
+        ...Object.entries(options.dispatchNamespaceBindings).map(
+          ([name, namespace]) => {
+            return {
+              name,
+              wrapped: {
+                moduleName: "mf:dispatcher",
+                innerBindings: [
+                  ...namespace.users.map((userWorker) => {
+                    return {
+                      name: userWorker.name,
+                      service: {
+                        name: getUserServiceName(userWorker.worker),
+                      },
+                    };
+                  }),
+                  ...(namespace.outbound
+                    ? [
+                        {
+                          name: "mf:outbound",
+                          service: {
+                            name: getUserServiceName(
+                              namespace.outbound.service.worker
+                            ),
+                          },
+                        },
+                      ]
+                    : []),
+                  {
+                    name: "mf:outboundParamNames",
+                    text: JSON.stringify(namespace.outbound?.parameters ?? []),
+                  },
+                ],
+              },
+            };
+          }
+        )
+      );
+    }
 
     return Promise.all(bindings);
   },
@@ -370,6 +432,7 @@ export const CORE_PLUGIN: Plugin<
     durableObjectClassNames,
     additionalModules,
     sourceMapRegistry,
+    dispatchOutbounds,
   }) {
     // Define regular user worker
     const additionalModuleNames = additionalModules.map(({ name }) => name);
@@ -406,6 +469,36 @@ export const CORE_PLUGIN: Plugin<
             esModule: `export * from ${relativePathString}; export { default } from ${relativePathString};`,
           });
         }
+      }
+
+      if (options.name && dispatchOutbounds.has(options.name)) {
+        workerScript.modules[0].name = "mf:index.mjs";
+
+        const outboundEntry: Worker_Module = {
+          name: "entry.mjs",
+          esModule: `
+            import worker from "./mf:index.mjs";
+              export default {
+                async fetch(request, env, ctx) {
+                  const body = await request.text();
+                  const outboundParams = JSON.parse(body);
+                  const newEnv = {
+                    ...env,
+                    ...outboundParams,
+                  };
+                  return worker.fetch(request, newEnv, ctx);
+                }
+              }
+            `,
+        };
+
+        workerScript.modules = [outboundEntry].concat(workerScript.modules);
+      }
+    } else {
+      if (options.name && dispatchOutbounds.has(options.name)) {
+        throw new Error(
+          "Can't use service workers as outbound for dispatch namespaces"
+        );
       }
     }
 

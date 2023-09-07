@@ -20,6 +20,7 @@ import exitHook from "exit-hook";
 import { $ as colors$ } from "kleur/colors";
 import stoppable from "stoppable";
 import { Client } from "undici";
+import DISPATCHER_SCRIPT from "worker:core/dispatcher";
 import SCRIPT_MINIFLARE_SHARED from "worker:shared/index";
 import SCRIPT_MINIFLARE_ZOD from "worker:shared/zod";
 import { WebSocketServer } from "ws";
@@ -247,6 +248,26 @@ function getQueueConsumers(
   }
 
   return queueConsumers;
+}
+
+// Return set of service names that are dispatch outbounds
+function getDispatchOutbounds(
+  allWorkerOpts: PluginWorkerOptions[]
+): Set<string> {
+  const dispatchOutbounds: Set<string> = new Set();
+
+  for (let i = 0; i < allWorkerOpts.length; i++) {
+    const workerOpts = allWorkerOpts[i];
+    const dispatchBindings = workerOpts.core.dispatchNamespaceBindings;
+    for (const name in dispatchBindings) {
+      const dispatchNamespace = dispatchBindings[name];
+      if (dispatchNamespace.outbound) {
+        dispatchOutbounds.add(dispatchNamespace.outbound.service.name);
+      }
+    }
+  }
+
+  return dispatchOutbounds;
 }
 
 // Collects all routes from all worker services
@@ -826,6 +847,7 @@ export class Miniflare {
     const queueConsumers = getQueueConsumers(allWorkerOpts);
     const allWorkerRoutes = getWorkerRoutes(allWorkerOpts);
     const workerNames = [...allWorkerRoutes.keys()];
+    const dispatchOutbounds = getDispatchOutbounds(allWorkerOpts);
 
     // Use Map to dedupe services by name
     const services = new Map<string, Service>();
@@ -877,6 +899,7 @@ export class Miniflare {
         sourceMapRegistry,
         durableObjectClassNames,
         queueConsumers,
+        dispatchOutbounds,
       };
       for (const [key, plugin] of PLUGIN_ENTRIES) {
         const pluginServices = await plugin.getServices({
@@ -935,6 +958,15 @@ export class Miniflare {
             }
             export default function() { return new Identity(); }
             `,
+          },
+        ],
+      },
+      {
+        modules: [
+          {
+            name: "mf:dispatcher",
+            internal: true,
+            esModule: DISPATCHER_SCRIPT(),
           },
         ],
       },

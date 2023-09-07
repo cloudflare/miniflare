@@ -43,6 +43,7 @@ export interface PluginServicesOptions<
   // ~~Leaky abstractions~~ "Plugin specific options" :)
   durableObjectClassNames: DurableObjectClassNames;
   queueConsumers: QueueConsumers;
+  dispatchOutbounds: Set<string>;
 }
 
 export interface PluginBase<
