@@ -1,4 +1,3 @@
-import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
 import esbuild from "esbuild";
@@ -102,6 +101,8 @@ const embedWorkersPlugin = {
           format: "esm",
           target: "esnext",
           bundle: true,
+          sourcemap: true,
+          sourcesContent: false,
           external: ["miniflare:shared", "miniflare:zod"],
           metafile: true,
           incremental: watch, // Allow `rebuild()` calls if watching
@@ -134,11 +135,12 @@ const embedWorkersPlugin = {
       const contents = `
       import fs from "fs";
       import path from "path";
+      import url from "url";
       let contents;
       export default function() {
          if (contents !== undefined) return contents;
-         const filePath = path.join(__dirname, "workers", ${outPath})
-         contents = fs.readFileSync(filePath, "utf8");
+         const filePath = path.join(__dirname, "workers", ${outPath});
+         contents = fs.readFileSync(filePath, "utf8") + "//# sourceURL=" + url.pathToFileURL(filePath);
          return contents;
       }
       `;
