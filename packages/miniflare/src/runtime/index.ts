@@ -29,7 +29,19 @@ async function waitForPort(
   options?.signal?.addEventListener("abort", abortListener, { once: true });
   try {
     for await (const line of lines) {
-      const message = ControlMessageSchema.safeParse(JSON.parse(line));
+      let parsed: unknown;
+      try {
+        // https://github.com/cloudflare/workerd/pull/1127 introduced invalid
+        // JSON. This was fixed in https://github.com/cloudflare/workerd/pull/1151,
+        // but released in `workerd@1.20230908.0`. For the time being, wrap this
+        // `JSON.parse()` with a `try`/`catch` to ignore invalid lines.
+        // TODO(soon): remove this once https://github.com/cloudflare/workerd/pull/1151 released
+        parsed = JSON.parse(line);
+      } catch {
+        continue;
+      }
+
+      const message = ControlMessageSchema.safeParse(parsed);
       if (message.success && message.data.socket === socket) {
         return message.data.port;
       }
