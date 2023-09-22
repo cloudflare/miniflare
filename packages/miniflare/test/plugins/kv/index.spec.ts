@@ -454,6 +454,16 @@ test("paginates keys matching prefix", listMacro, {
     [{ name: "section1key3" }],
   ],
 });
+test("accepts long prefix", listMacro, {
+  values: {
+    // Max key length, minus padding for `context.ns`
+    ["".padStart(480, "x")]: { value: "value" },
+  },
+  options: { prefix: "".padStart(480, "x") },
+  pages: [
+    [{ name: "".padStart(480, "x") }],
+  ],
+});
 test("list: paginates with variable limit", async (t) => {
   const { kv, ns } = t.context;
   await kv.put("key1", "value1");
