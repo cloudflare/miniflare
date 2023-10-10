@@ -598,7 +598,7 @@ defined at the top-level.
   bindings, for all bindings in the Worker with the specified `workerName`. If
   `workerName` is not specified, defaults to the entrypoint Worker.
 
-- `getFetcher(workerName?: string): Promise<Fetcher>`
+- `getWorker(workerName?: string): Promise<Fetcher>`
 
   Returns a `Promise` that resolves with a
   [`Fetcher`](https://workers-types.pages.dev/experimental/#Fetcher) pointing to

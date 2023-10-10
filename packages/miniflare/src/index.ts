@@ -1400,7 +1400,7 @@ export class Miniflare {
 
     return bindings as Env;
   }
-  async getFetcher(workerName?: string): Promise<ReplaceWorkersTypes<Fetcher>> {
+  async getWorker(workerName?: string): Promise<ReplaceWorkersTypes<Fetcher>> {
     const proxyClient = await this._getProxyClient();
 
     // Find worker by name, defaulting to entrypoint worker if none specified

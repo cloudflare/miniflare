@@ -794,7 +794,7 @@ test("Miniflare: getBindings() returns all bindings", async (t) => {
   };
   t.throws(() => bindings.KV.get("key"), expectations);
 });
-test("Miniflare: getFetcher() allows dispatching events directly", async (t) => {
+test("Miniflare: getWorker() allows dispatching events directly", async (t) => {
   const mf = new Miniflare({
     modules: true,
     script: `
@@ -836,7 +836,7 @@ test("Miniflare: getFetcher() allows dispatching events directly", async (t) => 
     }`,
   });
   t.teardown(() => mf.dispose());
-  const fetcher = await mf.getFetcher();
+  const fetcher = await mf.getWorker();
 
   // Check `Fetcher#scheduled()` (implicitly testing `Fetcher#fetch()`)
   let scheduledResult = await fetcher.scheduled({
@@ -943,14 +943,14 @@ test("Miniflare: getBindings() and friends return bindings for different workers
     message: '"c" worker not found',
   });
 
-  // Check `getFetcher()`
-  let fetcher = await mf.getFetcher();
+  // Check `getWorker()`
+  let fetcher = await mf.getWorker();
   t.is(await (await fetcher.fetch("http://localhost")).text(), "a");
-  fetcher = await mf.getFetcher("");
+  fetcher = await mf.getWorker("");
   t.is(await (await fetcher.fetch("http://localhost")).text(), "unnamed");
-  fetcher = await mf.getFetcher("b");
+  fetcher = await mf.getWorker("b");
   t.is(await (await fetcher.fetch("http://localhost")).text(), "b");
-  await t.throwsAsync(() => mf.getFetcher("c"), {
+  await t.throwsAsync(() => mf.getWorker("c"), {
     instanceOf: TypeError,
     message: '"c" worker not found',
   });
