@@ -21,7 +21,7 @@ import type {
 import exitHook from "exit-hook";
 import { $ as colors$ } from "kleur/colors";
 import stoppable from "stoppable";
-import { Client } from "undici";
+import { Dispatcher, Pool } from "undici";
 import SCRIPT_MINIFLARE_SHARED from "worker:shared/index";
 import SCRIPT_MINIFLARE_ZOD from "worker:shared/zod";
 import { WebSocketServer } from "ws";
@@ -556,7 +556,7 @@ export class Miniflare {
   readonly #removeRuntimeExitHook?: () => void;
   #runtimeEntryURL?: URL;
   #socketPorts?: SocketPorts;
-  #runtimeClient?: Client;
+  #runtimeDispatcher?: Dispatcher;
   #proxyClient?: ProxyClient;
 
   // Path to temporary directory for use as scratch space/"in-memory" Durable
@@ -1136,10 +1136,10 @@ export class Miniflare {
       `${secure ? "https" : "http"}://${accessibleHost}:${entryPort}`
     );
     if (previousEntryURL?.toString() !== this.#runtimeEntryURL.toString()) {
-      this.#runtimeClient = new Client(this.#runtimeEntryURL, {
+      this.#runtimeDispatcher = new Pool(this.#runtimeEntryURL, {
         connect: { rejectUnauthorized: false },
       });
-      registerAllowUnauthorizedDispatcher(this.#runtimeClient);
+      registerAllowUnauthorizedDispatcher(this.#runtimeDispatcher);
     }
     if (this.#proxyClient === undefined) {
       this.#proxyClient = new ProxyClient(
@@ -1290,7 +1290,7 @@ export class Miniflare {
     await this.ready;
 
     assert(this.#runtimeEntryURL !== undefined);
-    assert(this.#runtimeClient !== undefined);
+    assert(this.#runtimeDispatcher !== undefined);
 
     const forward = new Request(input, init);
     const url = new URL(forward.url);
@@ -1312,7 +1312,7 @@ export class Miniflare {
     }
 
     const forwardInit = forward as RequestInit;
-    forwardInit.dispatcher = this.#runtimeClient;
+    forwardInit.dispatcher = this.#runtimeDispatcher;
     const response = await fetch(url, forwardInit);
 
     // If the Worker threw an uncaught exception, propagate it to the caller
