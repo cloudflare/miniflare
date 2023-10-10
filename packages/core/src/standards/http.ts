@@ -311,51 +311,45 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
       );
     }
     const formData = new FormData();
-    const busboyPromiseResult = await new Promise<void | Error>(
-      async (resolve, reject) => {
-        try {
-          const Busboy: typeof import("busboy") = require("busboy");
-          const busboy = Busboy({
-            headers: headers as http.IncomingHttpHeaders,
-            preservePath: true,
+    await new Promise<void>(async (resolve, reject) => {
+      try {
+        const Busboy: typeof import("busboy") = require("busboy");
+        const busboy = Busboy({
+          headers: headers as http.IncomingHttpHeaders,
+          preservePath: true,
+        });
+        busboy.on("field", (name, value) => {
+          formData.append(name, value);
+        });
+        busboy.on("file", (name, value, info) => {
+          const { filename, encoding, mimeType } = info;
+          const base64 = encoding.toLowerCase() === "base64";
+          const chunks: Buffer[] = [];
+          let totalLength = 0;
+          value.on("data", (chunk: Buffer) => {
+            if (base64) chunk = Buffer.from(chunk.toString(), "base64");
+            chunks.push(chunk);
+            totalLength += chunk.byteLength;
           });
-          busboy.on("field", (name, value) => {
-            formData.append(name, value);
+          value.on("end", () => {
+            if (this[kFormDataFiles]) {
+              const file = new File(chunks, filename, { type: mimeType });
+              formData.append(name, file);
+            } else {
+              const text = Buffer.concat(chunks, totalLength).toString();
+              formData.append(name, text);
+            }
           });
-          busboy.on("file", (name, value, info) => {
-            const { filename, encoding, mimeType } = info;
-            const base64 = encoding.toLowerCase() === "base64";
-            const chunks: Buffer[] = [];
-            let totalLength = 0;
-            value.on("data", (chunk: Buffer) => {
-              if (base64) chunk = Buffer.from(chunk.toString(), "base64");
-              chunks.push(chunk);
-              totalLength += chunk.byteLength;
-            });
-            value.on("end", () => {
-              if (this[kFormDataFiles]) {
-                const file = new File(chunks, filename, { type: mimeType });
-                formData.append(name, file);
-              } else {
-                const text = Buffer.concat(chunks, totalLength).toString();
-                formData.append(name, text);
-              }
-            });
-          });
-          busboy.on("finish", resolve);
+        });
+        busboy.on("finish", resolve);
 
-          const body = this[_kInner].body;
-          if (body !== null)
-            for await (const chunk of body) busboy.write(chunk);
-          busboy.end();
-        } catch (e) {
-          reject(e);
-        }
+        const body = this[_kInner].body;
+        if (body !== null) for await (const chunk of body) busboy.write(chunk);
+        busboy.end();
+      } catch (e) {
+        reject(new TypeError(e instanceof Error ? e.message : String(e)));
       }
-    );
-    if (busboyPromiseResult instanceof Error) {
-      throw new TypeError(busboyPromiseResult.message);
-    }
+    });
     if (this[kInputGated]) await waitForOpenInputGate();
     return formData;
   }
