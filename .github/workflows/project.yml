@@ -1,0 +1,10 @@
+name: Add PR to project
+
+on: pull_request
+
+jobs:
+  add-to-project:
+    name: Add PR to project
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -X POST https://devprod-status-bot.devprod.workers.dev/pr-project/miniflare/${{ github.event.number }}
