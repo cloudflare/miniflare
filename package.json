@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/root",
-  "version": "3.20231010.0",
+  "version": "3.20231016.0",
   "private": true,
   "description": "Fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
@@ -60,5 +60,10 @@
   },
   "volta": {
     "node": "18.16.0"
+  },
+  "overrides": {
+    "capnpc-ts": {
+      "typescript": "4.2.4"
+    }
   }
 }
