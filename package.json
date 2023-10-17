@@ -60,5 +60,10 @@
   },
   "volta": {
     "node": "18.16.0"
+  },
+  "overrides": {
+    "capnpc-ts": {
+      "typescript": "4.2.4"
+    }
   }
 }
