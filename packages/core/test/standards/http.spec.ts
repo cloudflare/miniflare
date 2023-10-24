@@ -401,11 +401,10 @@ test("Body: formData: throw error on unsupported Content-Type header", async (t)
       headers: { "content-type": "application/json" },
     })
   );
-  await t.throwsAsync(body.formData()),
-    {
-      instanceOf: TypeError,
-      message: "Unsupported content type: application/json",
-    };
+  await t.throwsAsync(body.formData(), {
+    instanceOf: TypeError,
+    message: "Unsupported content type: application/json",
+  });
 });
 test("Request: constructing from BaseRequest doesn't create new BaseRequest unless required", (t) => {
   // Check properties of Request are same as BaseRequest if not RequestInit passed
