@@ -88,7 +88,7 @@ function sqlStmts(db: TypedSql) {
       Omit<Row, "blob_id">
     >(
       `SELECT key, expiration, metadata FROM _mf_entries
-        WHERE SUBSTR(key, 1, LENGTH(:prefix)) = :prefix
+        WHERE substr(key, 1, length(:prefix)) = :prefix
         AND key > :start_after
         AND (expiration IS NULL OR expiration >= :now)
         ORDER BY key LIMIT :limit`
