@@ -460,9 +460,7 @@ test("accepts long prefix", listMacro, {
     ["".padStart(480, "x")]: { value: "value" },
   },
   options: { prefix: "".padStart(480, "x") },
-  pages: [
-    [{ name: "".padStart(480, "x") }],
-  ],
+  pages: [[{ name: "".padStart(480, "x") }]],
 });
 test("list: paginates with variable limit", async (t) => {
   const { kv, ns } = t.context;
