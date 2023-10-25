@@ -88,7 +88,7 @@ function sqlStmts(db: TypedSql) {
       Omit<Row, "blob_id">
     >(
       `SELECT key, expiration, metadata FROM _mf_entries
-        WHERE key LIKE :escaped_prefix || '%' ESCAPE '\\'
+        WHERE SUBSTR(key, 1, LENGTH(:escaped_prefix)) = :escaped_prefix
         AND key > :start_after
         AND (expiration IS NULL OR expiration >= :now)
         ORDER BY key LIMIT :limit`
