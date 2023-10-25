@@ -382,7 +382,30 @@ test("Body: formData: respects Content-Transfer-Encoding header for base64 encod
   const formData = await body.formData();
   t.is(formData.get("key"), "test");
 });
-
+test("Body: formData: throw error on missing boundary in Content-Type header", async (t) => {
+  // Check with multipart/form-data Content-Type
+  const body = new Body(
+    new BaseResponse(["second value2", "--boundary--"].join("\r\n"), {
+      headers: { "content-type": "multipart/form-data" },
+    })
+  );
+  await t.throwsAsync(body.formData(), {
+    instanceOf: TypeError,
+    message: "Multipart: Boundary not found",
+  });
+});
+test("Body: formData: throw error on unsupported Content-Type header", async (t) => {
+  // Check with application/json Content-Type
+  const body = new Body(
+    new BaseResponse(["second value2", "--boundary--"].join("\r\n"), {
+      headers: { "content-type": "application/json" },
+    })
+  );
+  await t.throwsAsync(body.formData(), {
+    instanceOf: TypeError,
+    message: "Unsupported content type: application/json",
+  });
+});
 test("Request: constructing from BaseRequest doesn't create new BaseRequest unless required", (t) => {
   // Check properties of Request are same as BaseRequest if not RequestInit passed
   const controller = new AbortController();
