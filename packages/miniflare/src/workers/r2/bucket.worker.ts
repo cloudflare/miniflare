@@ -15,7 +15,6 @@ import {
   all,
   base64Decode,
   base64Encode,
-  escapeLike,
   get,
   maybeApply,
   readPrefix,
@@ -230,12 +229,12 @@ function sqlStmts(db: TypedSql) {
     ];
     // TODO: consider applying same `:start_after IS NULL` trick to KeyValueStore
     return db.stmt<
-      { limit: number; escaped_prefix: string; start_after: string | null },
+      { limit: number; prefix: string; start_after: string | null },
       Omit<ObjectRow, "blob_id"> & Pick<ObjectRow, ExtraColumns[number]>
     >(`
       SELECT ${columns.join(", ")}
       FROM _mf_objects
-      WHERE key LIKE :escaped_prefix || '%' ESCAPE '\\'
+      WHERE substr(key, 1, length(:prefix)) = :prefix
       AND (:start_after IS NULL OR key > :start_after)
       ORDER BY key LIMIT :limit
     `);
@@ -379,7 +378,6 @@ function sqlStmts(db: TypedSql) {
     listMetadata: db.stmt<
       {
         limit: number;
-        escaped_prefix: string;
         start_after: string | null;
         prefix: string;
         delimiter: string;
@@ -406,7 +404,7 @@ function sqlStmts(db: TypedSql) {
         -- NOTE: we'll ignore metadata for delimited prefix rows, so it doesn't matter which keys' we return
         version, size, etag, uploaded, checksums, http_metadata, custom_metadata
       FROM _mf_objects
-      WHERE key LIKE :escaped_prefix || '%' ESCAPE '\\'
+      WHERE substr(key, 1, length(:prefix)) = :prefix
       AND (:start_after IS NULL OR key > :start_after)
       GROUP BY delimited_prefix_or_key -- Group keys with same delimited prefix into a row, leaving others in their own rows
       ORDER BY last_key LIMIT :limit;
@@ -877,7 +875,7 @@ export class R2BucketObject extends MiniflareDurableObject {
 
     // Run appropriate query depending on options
     const params = {
-      escaped_prefix: escapeLike(prefix),
+      prefix,
       start_after: startAfter ?? null,
       // Increase the queried limit by 1, if we return this many results, we
       // know there are more rows. We'll truncate to the original limit before
@@ -890,9 +888,7 @@ export class R2BucketObject extends MiniflareDurableObject {
     let nextCursorStartAfter: string | undefined;
 
     if (delimiter !== undefined) {
-      const rows = all(
-        this.#stmts.listMetadata({ ...params, prefix, delimiter })
-      );
+      const rows = all(this.#stmts.listMetadata({ ...params, delimiter }));
 
       // If there are more results, we'll be returning a cursor
       const hasMoreRows = rows.length === limit + 1;
