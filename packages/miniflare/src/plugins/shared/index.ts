@@ -19,8 +19,8 @@ export type DurableObjectClassNames = Map<
   Map<
     /* className */ string,
     {
-      unsafeUniqueKey: string | undefined;
-      unsafePreventEviction: boolean | undefined;
+      unsafeUniqueKey?: string;
+      unsafePreventEviction?: boolean;
     }
   >
 >;
