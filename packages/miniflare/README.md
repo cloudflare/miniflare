@@ -1,6 +1,6 @@
 # 🔥 Miniflare
 
-**Miniflare 3** is a simulator for developing and testing
+**Miniflare 3** is a simulator for developing & testing
 [**Cloudflare Workers**](https://workers.cloudflare.com/), powered by
 [`workerd`](https://github.com/cloudflare/workerd).
 
