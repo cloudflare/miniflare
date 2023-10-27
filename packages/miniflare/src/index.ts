@@ -279,7 +279,7 @@ function getDurableObjectClassNames(
       }
       if (classNames.has(className)) {
         // If we've already seen this class in this service, make sure the
-        // unsafe unique keys match
+        // unsafe unique keys and unsafe prevent eviction values match
         const existingInfo = classNames.get(className);
         if (existingInfo?.unsafeUniqueKey !== unsafeUniqueKey) {
           throw new MiniflareCoreError(
@@ -287,6 +287,14 @@ function getDurableObjectClassNames(
             `Multiple unsafe unique keys defined for Durable Object "${className}" in "${serviceName}": ${JSON.stringify(
               unsafeUniqueKey
             )} and ${JSON.stringify(existingInfo?.unsafeUniqueKey)}`
+          );
+        }
+        if (existingInfo?.unsafePreventEviction !== unsafePreventEviction) {
+          throw new MiniflareCoreError(
+            "ERR_DIFFERENT_PREVENT_EVICTION",
+            `Multiple unsafe prevent eviction values defined for Durable Object "${className}" in "${serviceName}": ${JSON.stringify(
+              unsafePreventEviction
+            )} and ${JSON.stringify(existingInfo?.unsafePreventEviction)}`
           );
         }
       } else {
