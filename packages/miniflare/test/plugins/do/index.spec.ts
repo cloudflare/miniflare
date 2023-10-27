@@ -34,6 +34,24 @@ export default {
   },
 };`;
 
+const STATEFUL_SCRIPT = (responsePrefix = "") => `
+  export class DurableObject {
+    constructor() {
+      this.uuid = crypto.randomUUID();
+    }
+    fetch() {
+      return new Response(${JSON.stringify(responsePrefix)} + this.uuid);
+    }
+  }
+  export default {
+    fetch(req, env, ctx) {
+      const singleton = env.DURABLE_OBJECT.idFromName("");
+      const durableObject = env.DURABLE_OBJECT.get(singleton);
+      return durableObject.fetch(req);
+    }
+  }
+`;
+
 test("persists Durable Object data in-memory between options reloads", async (t) => {
   const opts: MiniflareOptions = {
     modules: true,
@@ -312,55 +330,39 @@ test("proxies Durable Object methods", async (t) => {
 });
 
 test("Durable Object eviction", async (t) => {
-  // this test requires testing over 2x 10 second timeouts
-  t.timeout(25_000);
-
-  const script = `
-    export class DurableObject {
-      constructor() {
-        this.uuid = crypto.randomUUID();
-      }
-      fetch() {
-        return new Response(this.uuid);
-      }
-    }
-    export default {
-      fetch(req, env, ctx) {
-        const singleton = env.DURABLE_OBJECT.idFromName("");
-        const durableObject = env.DURABLE_OBJECT.get(singleton);
-        return durableObject.fetch(req);
-      }
-    }
-  `;
+  // this test requires testing over a 10 second timeout
+  t.timeout(11_000);
 
   // first set unsafePreventEviction to undefined
   const mf = new Miniflare({
     verbose: true,
     modules: true,
-    script,
+    script: STATEFUL_SCRIPT(),
     durableObjects: {
-      DURABLE_OBJECT: {
-        className: "DurableObject",
-        unsafePreventEviction: undefined,
-      },
+      DURABLE_OBJECT: "DurableObject",
     },
   });
   t.teardown(() => mf.dispose());
 
   // get uuid generated at durable object startup
   let res = await mf.dispatchFetch("http://localhost");
-  let original = await res.text();
+  const original = await res.text();
 
   // after 10+ seconds, durable object should be evicted, so new uuid generated
   await setTimeout(10_000);
   res = await mf.dispatchFetch("http://localhost");
   t.not(await res.text(), original);
+});
 
-  // now set unsafePreventEviction to true
-  await mf.setOptions({
+test("prevent Durable Object eviction", async (t) => {
+  // this test requires testing over a 10 second timeout
+  t.timeout(11_000);
+
+  // first set unsafePreventEviction to undefined
+  const mf = new Miniflare({
     verbose: true,
     modules: true,
-    script,
+    script: STATEFUL_SCRIPT(),
     durableObjects: {
       DURABLE_OBJECT: {
         className: "DurableObject",
@@ -368,10 +370,11 @@ test("Durable Object eviction", async (t) => {
       },
     },
   });
+  t.teardown(() => mf.dispose());
 
   // get uuid generated at durable object startup
-  res = await mf.dispatchFetch("http://localhost");
-  original = await res.text();
+  let res = await mf.dispatchFetch("http://localhost");
+  const original = await res.text();
 
   // after 10+ seconds, durable object should NOT be evicted, so same uuid
   await setTimeout(10_000);
