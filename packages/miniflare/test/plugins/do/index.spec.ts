@@ -1,6 +1,7 @@
 import assert from "assert";
 import fs from "fs/promises";
 import path from "path";
+import { setTimeout } from "timers/promises";
 import test from "ava";
 import {
   DeferredPromise,
@@ -308,4 +309,72 @@ test("proxies Durable Object methods", async (t) => {
   res.webSocket.send("hello");
   const event = await eventPromise;
   t.is(event.data, "echo:hello");
+});
+
+test("Durable Object eviction", async (t) => {
+  // this test requires testing over 2x 10 second timeouts
+  t.timeout(25_000);
+
+  const script = `
+    export class DurableObject {
+      constructor() {
+        this.uuid = crypto.randomUUID();
+      }
+      fetch() {
+        return new Response(this.uuid);
+      }
+    }
+    export default {
+      fetch(req, env, ctx) {
+        const singleton = env.DURABLE_OBJECT.idFromName("");
+        const durableObject = env.DURABLE_OBJECT.get(singleton);
+        return durableObject.fetch(req);
+      }
+    }
+  `;
+
+  // first set unsafePreventEviction to undefined
+  const mf = new Miniflare({
+    verbose: true,
+    modules: true,
+    script,
+    durableObjects: {
+      DURABLE_OBJECT: {
+        className: "DurableObject",
+        unsafePreventEviction: undefined,
+      },
+    },
+  });
+  t.teardown(() => mf.dispose());
+
+  // get uuid generated at durable object startup
+  let res = await mf.dispatchFetch("http://localhost");
+  let original = await res.text();
+
+  // after 10+ seconds, durable object should be evicted, so new uuid generated
+  await setTimeout(10_000);
+  res = await mf.dispatchFetch("http://localhost");
+  t.not(await res.text(), original);
+
+  // now set unsafePreventEviction to true
+  await mf.setOptions({
+    verbose: true,
+    modules: true,
+    script,
+    durableObjects: {
+      DURABLE_OBJECT: {
+        className: "DurableObject",
+        unsafePreventEviction: true,
+      },
+    },
+  });
+
+  // get uuid generated at durable object startup
+  res = await mf.dispatchFetch("http://localhost");
+  original = await res.text();
+
+  // after 10+ seconds, durable object should NOT be evicted, so same uuid
+  await setTimeout(10_000);
+  res = await mf.dispatchFetch("http://localhost");
+  t.is(await res.text(), original);
 });
