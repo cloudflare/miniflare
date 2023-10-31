@@ -105,31 +105,7 @@ The order (from lowest to highest priority) is:
 
 ## Globals
 
-You can also bind variables or arbitrary objects to the global scope, even in
-modules mode:
-
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[miniflare.globals]
-KEY1 = "value1"
-KEY2 = "value2"
-```
-
-```js
-const mf = new Miniflare({
-  globals: {
-    KEY1: "value1",
-    KEY2: "value2",
-    FUNCTION: () => { ... }
-  },
-});
-```
-
-</ConfigTabs>
+Injecting arbitrary globals is not supported by [workerd](https://github.com/cloudflare/workerd). If you're using a service worker, bindings will be injected as globals, but these must be JSON-serialisable.
 
 <Aside header="Tip">
 

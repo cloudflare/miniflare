@@ -42,7 +42,7 @@ please open an issue on
 We have tried to keep Miniflare v3’s API close to Miniflare v2 where possible,
 but many options and methods have been removed or changed with the switch to the
 open-source `workerd` runtime. See the
-[GitHub `README` for the new API docs](https://github.com/cloudflare/miniflare/blob/tre/packages/miniflare/README.md).
+[Getting Started guide for the new API docs](/get-started).
 
 ### Updated Options
 

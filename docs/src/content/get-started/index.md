@@ -51,14 +51,12 @@ specific features.
 
 The API won't automatically load configuration from `.env`,
 `package.json` and `wrangler.toml` files in the current working directory. You
-can enable this by setting the `envPath`, `packagePath` and `wranglerConfigPath`
-options to `true`:
+can enable this by setting the `envPath`
+option to `true`:
 
 ```js
 const mf = new Miniflare({
-  envPath: true,
-  packagePath: true,
-  wranglerConfigPath: true,
+  envPath: true
 });
 ```
 
@@ -81,20 +79,14 @@ const mf = new Miniflare({
 
 ### Watching, Reloading and Disposing
 
-You can watch scripts, `.env`, `package.json` and `wrangler.toml` files with the
-`watch` option. When this is enabled, you must `dispose` of the watcher when
-you're done with the `Miniflare` instance:
+Miniflare's API is primarily intended for testing use cases, where file watching isn't usually required.  If you need to watch files, consider using a separate file watcher like [fs.watch()](https://nodejs.org/api/fs.html#fswatchfilename-options-listener) or [chokidar](https://github.com/paulmillr/chokidar), and calling setOptions() with your original configuration on change.
+
+You must `dispose` if you're persisting KV, cache, or Durable Object data
+in Redis to close opened connections.
 
 ```js
-const mf = new Miniflare({
-  watch: true,
-});
-// ...
 await mf.dispose();
 ```
-
-You must also `dispose` if you're persisting KV, cache, or Durable Object data
-in Redis to close opened connections.
 
 You can also manually reload scripts (main and Durable Objects') and options
 (`.env`, `package.json` and `wrangler.toml`) with `reload`:
@@ -138,9 +130,7 @@ updating the environment dynamically, as Miniflare creates a new global scope
 each reload, so your changes will be lost:
 
 ```js
-const mf = new Miniflare({
-  globals: { KEY: "value1" },
-});
+const mf = new Miniflare();
 const globalScope = await mf.getGlobalScope();
 globalScope.KEY = "value2";
 ```
@@ -224,11 +214,11 @@ server.listen(HTTPPlugin.port, () => {
 #### `Request#cf` Object
 
 By default, Miniflare will fetch the `Request#cf` object from a trusted
-Cloudflare endpoint. You can disable this behaviour, using the `cfFetch` option:
+Cloudflare endpoint. You can disable this behaviour, using the `cf` option:
 
 ```js
 const mf = new Miniflare({
-  cfFetch: false,
+  cf: false,
 });
 ```
 
@@ -329,31 +319,6 @@ const mf = new Miniflare({
 });
 ```
 
-### Arbitrary Globals
-
-The `globals` property can be used to inject arbitrary objects into the global
-scope of the sandbox. This can be very useful for testing:
-
-```js
----
-highlight: [9,10,11]
----
-import { Miniflare } from "miniflare";
-
-const mf = new Miniflare({
-  script: `
-  addEventListener("fetch", (event) => {
-    event.respondWith(new Response(greet("Miniflare")));
-  });
-  `,
-  globals: {
-    greet: (name) => `Hello ${name}!`,
-  },
-});
-const res = await mf.dispatchFetch("http://localhost:8787/");
-console.log(await res.text()); // Hello Miniflare!
-```
-
 ## Reference
 
 ```js
@@ -372,14 +337,6 @@ const mf = new Miniflare({
   }`,
   scriptPath: "./index.mjs",
 
-  wranglerConfigPath: true, // Load configuration from wrangler.toml
-  wranglerConfigPath: "./wrangler.custom.toml", // ...or custom wrangler.toml path
-
-  wranglerConfigEnv: "dev", // Environment in wrangler.toml to use
-
-  packagePath: true, // Load script from package.json
-  packagePath: "./package.custom.json", // ...or custom package.json path
-
   modules: true, // Enable modules
   modulesRules: [
     // Modules import rule
@@ -389,7 +346,6 @@ const mf = new Miniflare({
   compatibilityDate: "2021-11-23", // Opt into backwards-incompatible changes from
   compatibilityFlags: ["formdata_parser_supports_files"], // Control specific backwards-incompatible changes
   upstream: "https://miniflare.dev", // URL of upstream origin
-  watch: true, // Watch files for changes
   mounts: {
     // Mount additional named workers
     api: "./api",
@@ -402,8 +358,6 @@ const mf = new Miniflare({
   },
   name: "worker", // Name of service
   routes: ["*site.mf/parent"], // Route requests matching *site.mf/parent to parent over mounts
-
-  logUnhandledRejections: true, // Log unhandled promise rejections instead of crashing
 
   globalAsyncIO: true, // Allow async I/O outside handlers
   globalTimers: true, // Allow setting timers outside handlers
@@ -425,7 +379,7 @@ const mf = new Miniflare({
   httpsPfx: "...",
   httpsPfxPath: "./pfx.pfx", // Path to PFX/PKCS12 SSL key/cert chain
   httpsPassphrase: "pfx passphrase", // Passphrase to decrypt SSL files
-  cfFetch: "./node_modules/.mf/cf.json", // Path for cached Request cf object from Cloudflare
+  cf: "./node_modules/.mf/cf.json", // Path for cached Request cf object from Cloudflare
   async metaProvider(req) {
     // Custom request metadata provider taking Node `http.IncomingMessage`
     return {

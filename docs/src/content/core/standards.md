@@ -240,7 +240,6 @@ values created without the constructor inside the sandbox.
 
 ```js
 const mf = new Miniflare({
-  globals: { Error },
   modules: true,
   script: `
     export default {
