@@ -15,11 +15,6 @@ import ConfigTabs from "../components/mdx/config-tabs";
 
 <ConfigTabs>
 
-```sh
-# Note Object1 and Object2 classes must be exported from the main script
-$ miniflare --do OBJECT1=Object1 --do OBJECT2=Object2 # or -o
-```
-
 ```toml
 ---
 filename: wrangler.toml
@@ -58,17 +53,11 @@ const mf = new Miniflare({
 ## Persistence
 
 By default, Durable Object data is stored in memory. It will persist between
-reloads, but not CLI invocations or different `Miniflare` instances. To enable
+reloads, but not different `Miniflare` instances. To enable
 persistence to the file system or Redis, specify the Durable Object persistence
 option:
 
 <ConfigTabs>
-
-```sh
-$ miniflare --do-persist # Defaults to ./.mf/do
-$ miniflare --do-persist ./data/  # Custom path
-$ miniflare --do-persist redis://localhost:6379  # Redis server
-```
 
 ```toml
 ---
@@ -228,10 +217,6 @@ export default {
 Miniflare can be configured to load `TestObject` from the `api` worker with:
 
 <ConfigTabs>
-
-```sh
-$ miniflare --mount api=./api --do TEST_OBJECT=TestObject@api
-```
 
 ```toml
 ---

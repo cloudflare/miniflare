@@ -17,12 +17,10 @@ information.
 Several features from Miniflare v2 are not supported in Miniflare v3's initial
 release. However, they are on the roadmap, and will be added soon:
 
-- Step-through debugging
 - Automatically triggering scheduled events via CRON schedules, or manually
   triggering them via `/.mf/scheduled` or `/cdn-cgi/mf/scheduled` (manually
   triggering events is supported via the `--test-scheduled` Wrangler flag and
   visiting `/__scheduled`)
-- Starting an HTTPS server
 
 ## CLI Changes
 

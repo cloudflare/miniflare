@@ -16,10 +16,6 @@ import ConfigTabs from "../components/mdx/config-tabs";
 
 <ConfigTabs>
 
-```sh
-$ miniflare --cron "15 * * * *" --cron "45 * * * *" # or -t
-```
-
 ```toml
 ---
 filename: wrangler.toml
@@ -39,8 +35,7 @@ const mf = new Miniflare({
 ## HTTP Triggers
 
 Because waiting for cron triggers is annoying, you can also make HTTP requests
-to `/cdn-cgi/mf/scheduled` to trigger `scheduled` events, when using the CLI or
-starting an HTTP server with `createServer`:
+to `/cdn-cgi/mf/scheduled` to trigger `scheduled` events:
 
 ```sh
 $ curl "http://localhost:8787/cdn-cgi/mf/scheduled"

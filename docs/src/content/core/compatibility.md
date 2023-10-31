@@ -16,10 +16,6 @@ import ConfigTabs from "../components/mdx/config-tabs";
 
 <ConfigTabs>
 
-```sh
-$ miniflare --compat-date 2021-11-12
-```
-
 ```toml
 ---
 filename: wrangler.toml
@@ -41,10 +37,6 @@ Miniflare also lets you opt-in/out of specific changes using compatibility
 flags:
 
 <ConfigTabs>
-
-```sh
-$ miniflare --compat-flag formdata_parser_supports_files --compat-flag durable_object_fetch_allows_relative_url
-```
 
 ```toml
 ---

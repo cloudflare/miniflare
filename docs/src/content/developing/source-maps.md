@@ -11,9 +11,7 @@ for more details.
 
 ## Enabling Source Map Support
 
-When using the CLI, source map support is always enabled automatically. 🎉
-
-When using the API, source map support can be enabled with the `sourceMap`
+Source map support can be enabled with the `sourceMap`
 option. Note this will install support **globally** in your entire application:
 
 ```js

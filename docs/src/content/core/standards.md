@@ -99,10 +99,6 @@ If needed, the subrequest limit to be customised using the
 `MINIFLARE_SUBREQUEST_LIMIT` environment variable. Setting this to a negative
 number disables the limit. Setting this to 0 disables subrequests.
 
-```sh
-$ MINIFLARE_SUBREQUEST_LIMIT=100 miniflare
-```
-
 ## Frozen Time
 
 To match the
@@ -117,10 +113,6 @@ useful for performance testing. Note that the Miniflare
 import ConfigTabs from "../components/mdx/config-tabs";
 
 <ConfigTabs>
-
-```sh
-$ miniflare --actual-time
-```
 
 ```toml
 ---
@@ -154,10 +146,6 @@ Miniflare [🤹 Jest Environment](/testing/jest) automatically enables these
 options.
 
 <ConfigTabs>
-
-```sh
-$ miniflare --global-async-io --global-timers --global-random
-```
 
 ```toml
 ---

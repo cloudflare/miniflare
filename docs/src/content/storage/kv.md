@@ -14,10 +14,6 @@ import ConfigTabs from "../components/mdx/config-tabs";
 
 <ConfigTabs>
 
-```sh
-$ miniflare --kv TEST_NAMESPACE1 --kv TEST_NAMESPACE2 # or -k
-```
-
 ```toml
 ---
 filename: wrangler.toml
@@ -67,16 +63,10 @@ user's computer) so it doesn't really mean anything.
 ## Persistence
 
 By default, KV data is stored in memory. It will persist between reloads, but
-not CLI invocations or different `Miniflare` instances. To enable persistence to
+not different `Miniflare` instances. To enable persistence to
 the file system or Redis, specify the KV persistence option:
 
 <ConfigTabs>
-
-```sh
-$ miniflare --kv-persist # Defaults to ./.mf/kv
-$ miniflare --kv-persist ./data/  # Custom path
-$ miniflare --kv-persist redis://localhost:6379  # Redis server
-```
 
 ```toml
 ---

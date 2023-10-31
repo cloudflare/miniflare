@@ -12,10 +12,6 @@ import ConfigTabs from "../components/mdx/config-tabs";
 
 <ConfigTabs>
 
-```sh
-$ miniflare --binding KEY1=value1 --binding KEY2=value2 # or -b
-```
-
 ```toml
 ---
 filename: wrangler.toml
@@ -53,10 +49,6 @@ You can also specify the path to a custom `.env` file:
 
 <ConfigTabs>
 
-```sh
-$ miniflare --env .env.test # or -e
-```
-
 ```toml
 ---
 filename: wrangler.toml
@@ -79,10 +71,6 @@ Text and data blobs can be loaded from files. File contents will be read and
 bound as `string`s and `ArrayBuffer`s respectively.
 
 <ConfigTabs>
-
-```sh
-$ miniflare --text-blob TEXT=text.txt --data-blob DATA=data.bin
-```
 
 ```toml
 ---
@@ -121,10 +109,6 @@ You can also bind variables or arbitrary objects to the global scope, even in
 modules mode:
 
 <ConfigTabs>
-
-```sh
-$ miniflare --global KEY1=value1 --global KEY2=value2
-```
 
 ```toml
 ---

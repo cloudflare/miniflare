@@ -30,18 +30,12 @@ await caches.open("cache_name");
 ## Persistence
 
 By default, cached data is stored in memory. It will persist between reloads,
-but not CLI invocations or different `Miniflare` instances. To enable
+but not different `Miniflare` instances. To enable
 persistence to the file system or Redis, specify the cache persistence option:
 
 import ConfigTabs from "../components/mdx/config-tabs";
 
 <ConfigTabs>
-
-```sh
-$ miniflare --cache-persist # Defaults to ./.mf/cache
-$ miniflare --cache-persist ./data/  # Custom path
-$ miniflare --cache-persist redis://localhost:6379  # Redis server
-```
 
 ```toml
 ---
@@ -133,10 +127,6 @@ When disabled, the caches will still be available in the sandbox, they just
 won't cache anything. This may be useful during development:
 
 <ConfigTabs>
-
-```sh
-$ miniflare --no-cache
-```
 
 ```toml
 ---

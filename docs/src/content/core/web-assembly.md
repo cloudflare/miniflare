@@ -13,10 +13,6 @@ import ConfigTabs from "../components/mdx/config-tabs";
 
 <ConfigTabs>
 
-```sh
-$ miniflare --wasm MODULE1=module1.wasm --wasm MODULE2=module2.wasm
-```
-
 ```toml
 ---
 filename: wrangler.toml

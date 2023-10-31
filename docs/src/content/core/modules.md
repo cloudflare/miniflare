@@ -15,10 +15,6 @@ import ConfigTabs from "../components/mdx/config-tabs";
 
 <ConfigTabs>
 
-```sh
-$ miniflare --modules # or -m
-```
-
 ```toml
 ---
 filename: wrangler.toml
@@ -59,7 +55,7 @@ export default {
 
 <Aside type="warning" header="Warning">
 
-When using the API, string scripts via the `script` option are supported using
+String scripts via the `script` option are supported using
 the `modules` format, but you cannot import other modules using them. You must
 use a script file via the `scriptPath` option for this.
 
@@ -71,11 +67,6 @@ Miniflare supports all module types: `ESModule`, `CommonJS`, `Text`, `Data` and
 `CompiledWasm`. You can specify additional module resolution rules as follows:
 
 <ConfigTabs>
-
-```sh
-# Note all rules implicitly have the `fallthrough` option set to true
-$ miniflare --modules-rule "ESModule=**/*.js" --modules-rule "Text=**/*.txt"
-```
 
 ```toml
 ---

@@ -9,7 +9,7 @@ order: 4
 
 ## Server
 
-When using the CLI, or the `createServer` method, Miniflare will always upgrade
+When using the `createServer` method, Miniflare will always upgrade
 Web Socket connections. The worker must then respond with a status
 `101 Switching Protocols` response including a `webSocket`. For example, the
 worker below implements an echo WebSocket server:
