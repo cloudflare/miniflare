@@ -99,6 +99,13 @@ export default <Environment>{
     delete mfGlobalScope.crypto;
     Object.defineProperty(global, "crypto", { get: () => crypto });
 
+    // `navigator` is defined as a getter on the global scope in Node 21+,
+    // so attempting to set it with `Object.assign()` would fail. Instead,
+    // override the getter with a new value.
+    const navigator = mfGlobalScope.navigator;
+    delete mfGlobalScope.navigator;
+    Object.defineProperty(global, "navigator", { get: () => navigator });
+
     // Attach all Miniflare  globals to `global`, recording originals to restore
     // in teardown
     const keys = Object.keys(mfGlobalScope);
