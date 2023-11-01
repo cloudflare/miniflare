@@ -61,11 +61,14 @@ resolves to an array containing data returned by all waited promises:
 import { Miniflare } from "miniflare";
 
 const mf = new Miniflare({
+  modules: true,
   script: `
+  export default {
     async scheduled(controller, env, ctx) {
       const lastScheduledController = controller;
       if (controller.cron === "* * * * *") controller.noRetry();
     }
+  }
   `,
 });
 

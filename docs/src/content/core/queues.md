@@ -49,12 +49,12 @@ compatibility_flags = [
 ```js
 const mf = new Miniflare({
   queueConsumers: {"", {
-    maxBatchSize: 5, // default: 5
-    maxBatchTimeout: 1/* seconds */, // default: 1
-    maxRetries: 2, // default: 2
-    deadLetterQueue: "" // default: none
-}
-  }}
+      maxBatchSize: 5, // default: 5
+      maxBatchTimeout: 1/* seconds */, // default: 1
+      maxRetries: 2, // default: 2
+      deadLetterQueue: "" // default: none
+    }
+  }
 });
 ```
 
