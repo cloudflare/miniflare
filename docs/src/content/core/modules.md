@@ -41,13 +41,12 @@ export default {
   async fetch(request, env, ctx) {
     // - `request` is the incoming `Request` instance
     // - `env` contains bindings, KV namespaces, Durable Objects, etc
-    // - `ctx` contains `waitUntil` and `passThroughOnException` methods
+    // - `ctx` contains `passThroughOnException` methods
     return new Response("Hello Miniflare!");
   },
   async scheduled(controller, env, ctx) {
     // - `controller` contains `scheduledTime` and `cron` properties
     // - `env` contains bindings, KV namespaces, Durable Objects, etc
-    // - `ctx` contains the `waitUntil` method
     console.log("Doing something scheduled...");
   },
 };

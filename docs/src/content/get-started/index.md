@@ -89,12 +89,8 @@ await mf.dispose();
 ```
 
 You can also manually reload scripts (main and Durable Objects') and options
-(`.env`, `package.json` and `wrangler.toml`) with `reload`:
-
-```js
-const mf = new Miniflare({ ... });
-await mf.reload();
-```
+(`.env`, `package.json` and `wrangler.toml`) by calling `setOptions()` with the original configuration object.
+`.
 
 Miniflare will emit a `reload` event whenever it reloads too:
 
@@ -124,20 +120,9 @@ await mf.setOptions({
 });
 ```
 
-You can also access the global scope of the sandbox directly using the
-`getGlobalScope` method. Ideally, use should use the `setOptions` method when
-updating the environment dynamically, as Miniflare creates a new global scope
-each reload, so your changes will be lost:
-
-```js
-const mf = new Miniflare();
-const globalScope = await mf.getGlobalScope();
-globalScope.KEY = "value2";
-```
-
 ### Dispatching Events
 
-`dispatchFetch` and `dispatchScheduled` dispatch `fetch` and `scheduled` events
+`getWorker` dispatches `fetch`, `queues`, and `scheduled` events
 to workers respectively:
 
 ```js
@@ -148,24 +133,64 @@ import { Miniflare } from "miniflare";
 
 const mf = new Miniflare({
   script: `
-  addEventListener("fetch", (event) => {
-    event.waitUntil(Promise.resolve(event.request.url));
-    event.respondWith(new Response(event.request.headers.get("X-Message")));
-  });
-  addEventListener("scheduled", (event) => {
-    event.waitUntil(Promise.resolve(event.scheduledTime));
-  });
+  export default {
+    let lastScheduledController;
+    let lastQueueBatch;
+    async fetch(request, env, ctx) {
+      const { pathname } = new URL(request.url);
+      if (pathname === "/scheduled") {
+        return Response.json({
+          scheduledTime: lastScheduledController?.scheduledTime,
+          cron: lastScheduledController?.cron,
+        });
+      } else if (pathname === "/queue") {
+        return Response.json({
+          queue: lastQueueBatch.queue,
+          messages: lastQueueBatch.messages.map((message) => ({
+            id: message.id,
+            timestamp: message.timestamp.getTime(),
+            body: message.body,
+            bodyType: message.body.constructor.name,
+          })),
+        });
+      } else if (pathname === "/get-url") {
+        return new Response(request.url);
+      } else {
+        return new Response(null, { status: 404 });
+      }
+    },
+    async scheduled(controller, env, ctx) {
+      lastScheduledController = controller;
+      if (controller.cron === "* * * * *") controller.noRetry();
+    },
+    async queue(batch, env, ctx) {
+      lastQueueBatch = batch;
+      if (batch.queue === "needy") batch.retryAll();
+      for (const message of batch.messages) {
+        if (message.id === "perfect") message.ack();
+      }
+    }
+  }
   `,
 });
 
-const res = await mf.dispatchFetch("http://localhost:8787/", {
+const fetcher = await mf.getWorker();
+
+const res = await fetcher.fetch("http://localhost:8787/", {
   headers: { "X-Message": "Hello Miniflare!" },
 });
 console.log(await res.text()); // Hello Miniflare!
-console.log((await res.waitUntil())[0]); // http://localhost:8787/
 
-const waitUntil = await mf.dispatchScheduled(1000);
-console.log(waitUntil[0]); // 1000
+const scheduledResult = await fetcher.scheduled({
+  cron: "* * * * *",
+});
+console.log(scheduledResult); // { outcome: "ok", noRetry: true });
+
+const queueResult = await fetcher.queue("needy", [
+    { id: "a", timestamp: new Date(1000), body: "a" },
+    { id: "b", timestamp: new Date(2000), body: { b: 1 } },
+  ]);
+console.log(queueResult) // { outcome: "ok", retryAll: true, ackAll: false, explicitRetries: [], explicitAcks: []}
 ```
 
 See [📨 Fetch Events](/core/fetch) and [⏰ Scheduled Events](/core/scheduled)
@@ -286,21 +311,6 @@ const mf = new Miniflare({
 If both a string and path are specified for an option (e.g. `httpsKey` and
 `httpsKeyPath`), the string will be preferred.
 
-### CRON Scheduler
-
-To start a CRON scheduler, use the `startScheduler` method. This
-will dispatch `scheduled` events according to the specified CRON expressions:
-
-```js
-const mf = new Miniflare({
-  crons: ["30 * * * *"],
-});
-const scheduler = await mf.startScheduler();
-// ...
-// Stop dispatching events
-await scheduler.dispose();
-```
-
 ### Logging
 
 By default, `[mf:*]` logs are disabled when using the API. To
@@ -346,22 +356,39 @@ const mf = new Miniflare({
   compatibilityDate: "2021-11-23", // Opt into backwards-incompatible changes from
   compatibilityFlags: ["formdata_parser_supports_files"], // Control specific backwards-incompatible changes
   upstream: "https://miniflare.dev", // URL of upstream origin
-  mounts: {
-    // Mount additional named workers
-    api: "./api",
-    site: {
-      rootPath: "./site", // Path to resolve files relative to
-      scriptPath: "./index.js", // Resolved as ./site/index.js
-      sitePath: "./public", // Resolved as ./site/public
-      routes: ["*site.mf/*"], // Route requests matching *site.mf/* to this worker
+  workers: [{
+    // reference additional named workers
+    name: "worker2",
+    kvNamespaces: { COUNTS: "counts" },
+    serviceBindings: {
+      INCREMENTER: "incrementer",
+      // Service bindings can also be defined as custom functions, with access
+      // to anything defined outside Miniflare.
+      async CUSTOM(request) {
+        // `request` is the incoming `Request` object.
+        return new Response(message);
+      },
     },
-  },
-  name: "worker", // Name of service
-  routes: ["*site.mf/parent"], // Route requests matching *site.mf/parent to parent over mounts
+    modules: true,
+    script: `export default {
+        async fetch(request, env, ctx) {
+          // Get the message defined outside
+          const response = await env.CUSTOM.fetch("http://host/");
+          const message = await response.text();
 
-  globalAsyncIO: true, // Allow async I/O outside handlers
-  globalTimers: true, // Allow setting timers outside handlers
-  globalRandom: true, // Allow secure random generation outside handlers
+          // Increment the count 3 times
+          await env.INCREMENTER.fetch("http://host/");
+          await env.INCREMENTER.fetch("http://host/");
+          await env.INCREMENTER.fetch("http://host/");
+          const count = await env.COUNTS.get("count");
+
+          return new Response(message + count);
+        }
+      }`,
+    },
+  }],
+  name: "worker", // Name of service
+  routes: ["*site.mf/worker"],
 
   acutalTime: true, // Always return current time from `Date.now()`/`new Date()`
 
@@ -432,27 +459,21 @@ const mf = new Miniflare({
   dataBlobBindings: { DATA: "./data.bin" }, // Data blob to bind
 });
 
-await mf.reload(); // Reload scripts and configuration files
-
 await mf.setOptions({ kvNamespaces: ["TEST_NAMESPACE2"] }); // Apply options and reload
 
-const globalScope = await mf.getGlobalScope(); // Get sandbox's global scope
 const bindings = await mf.getBindings(); // Get bindings (KV/Durable Object namespaces, variables, etc)
 
 const exports = await mf.getModuleExports(); // Get exports from entry module
-
-const mount = await mf.getMount("api"); // Get mounted MiniflareCore instance
-await mount.getBindings();
 
 // Dispatch "fetch" event to worker
 const res = await mf.dispatchFetch("http://localhost:8787/", {
   headers: { Authorization: "Bearer ..." },
 });
 const text = await res.text();
-const resWaitUntil = await res.waitUntil(); // Get `waitUntil`ed promises
 
 // Dispatch "scheduled" event to worker
-const waitUntil = await mf.dispatchScheduled(Date.now(), "30 * * * *");
+const fetcher = await mf.getWorker();
+const scheduledResult = await fetcher.scheduled({ cron: "30 * * * *" })
 
 const TEST_NAMESPACE = await mf.getKVNamespace("TEST_NAMESPACE");
 
@@ -466,15 +487,6 @@ const namedCache = await caches.open("name");
 const TEST_OBJECT = await mf.getDurableObjectNamespace("TEST_OBJECT");
 const id = TEST_OBJECT.newUniqueId();
 const storage = await mf.getDurableObjectStorage(id);
-
-const server = await mf.createServer(); // Create http.Server instance
-server.listen(8787, () => {});
-
-const server2 = await mf.startServer(); // Create and start http.Server instance
-server2.close();
-
-const scheduler = await mf.startScheduler(); // Start CRON scheduler
-await scheduler.dispose();
 
 await mf.dispose(); // Cleanup storage database connections and watcher
 ```

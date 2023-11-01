@@ -176,7 +176,7 @@ console.log(await res.text()); // "2"
 
 Miniflare supports the `script_name` option for accessing Durable Objects
 exported by other scripts. This requires mounting the other worker as described
-in [🔌 Multiple Workers](/core/mount). With the following setup:
+in [🔌 Multiple Workers](/core/multiple-workers). With the following setup:
 
 ```js
 ---
@@ -224,27 +224,30 @@ filename: wrangler.toml
 ---
 [durable_objects]
 bindings = [
-  # script_name must be the same as in [miniflare.mounts]
+  # script_name must be the same as in [miniflare.workers]
   { name = "TEST_OBJECT", class_name = "TestObject", script_name = "api" },
 ]
-[miniflare.mounts]
-api = "./api"
 ```
 
 ```js
 const mf = new Miniflare({
-  durableObjects: {
-    // scriptName must be the same as in mounts
-    TEST_OBJECT: { className: "TestObject", scriptName: "api" },
-  },
-  mounts: { api: "./api" },
+  workers: [
+    {
+      name: "api",
+      durableObjects: {
+        // scriptName must be the same as in the connected worker
+        TEST_OBJECT: { className: "TestObject", scriptName: "api" },
+      },
+      modules: true,
+      scriptPath: "api/src/worker.mjs",
+    }
+  ]
 });
 ```
 
 </ConfigTabs>
 
-Mounted workers can access Durable Objects declared in other mounts or the
-parent worker, assuming it has a `name` set.
+Workers can access Durable Objects declared in the `workers` field assuming it has a `name` set.
 
 ## Internal Details
 

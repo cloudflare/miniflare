@@ -107,8 +107,7 @@ Miniflare will always return the time of last I/O from `new Date()` and
 `Date.now()`.
 
 This behaviour can be disabled by setting the `actualTime` option, which may be
-useful for performance testing. Note that the Miniflare
-[🤹 Jest Environment](/testing/jest) automatically enables this option.
+useful for performance testing.
 
 import ConfigTabs from "../components/mdx/config-tabs";
 
@@ -138,34 +137,6 @@ some functionality, such as asynchronous I/O (`fetch`, Cache API, KV), timeouts
 (`setTimeout`, `setInterval`), and generating cryptographically-secure random
 values (`crypto.getRandomValues`, `crypto.subtle.generateKey`), can only be
 performed while handling a request, not in the global scope.
-
-This behaviour can be disabled by setting the `globalAsyncIO`, `globalTimers`
-and `globalRandom` options respectively, which may be useful for tests or
-libraries that need async I/O for setup during local development. Note that the
-Miniflare [🤹 Jest Environment](/testing/jest) automatically enables these
-options.
-
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[miniflare]
-global_async_io = true
-global_timers = true
-glboal_random = true
-```
-
-```js
-const mf = new Miniflare({
-  globalAsyncIO: true,
-  globalTimers: true,
-  globalRandom: true,
-});
-```
-
-</ConfigTabs>
 
 KV namespaces and caches returned from `Miniflare#getKVNamespace()` and
 `Miniflare#getCaches()` are unaffected by this limit, so they can still be used

@@ -51,7 +51,7 @@ $ curl "http://localhost:8787/cdn-cgi/mf/scheduled?cron=*+*+*+*+*"
 
 ## Dispatching Events
 
-When using the API, the `dispatchScheduled` function can be used to dispatch
+When using the API, the `getWorker` function can be used to dispatch
 `scheduled` events to your worker. This can be used for testing responses. It
 takes optional `scheduledTime` and `cron` parameters, which default to the
 current time and the empty string respectively. It will return a promise which
@@ -62,22 +62,26 @@ import { Miniflare } from "miniflare";
 
 const mf = new Miniflare({
   script: `
-  addEventListener("scheduled", (event) => {
-    event.waitUntil(Promise.resolve(event.scheduledTime));
-    event.waitUntil(Promise.resolve(event.cron));
-  });
+    async scheduled(controller, env, ctx) {
+      const lastScheduledController = controller;
+      if (controller.cron === "* * * * *") controller.noRetry();
+    }
   `,
 });
 
-let waitUntil = await mf.dispatchScheduled();
-console.log(waitUntil[0]); // Current time in milliseconds
-console.log(waitUntil[1]); // ""
+const fetcher = await mf.getWorker();
 
-waitUntil = await mf.dispatchScheduled(1000);
-console.log(waitUntil[0]); // 1000
-console.log(waitUntil[1]); // ""
+let scheduledResult = await fetcher.scheduled({
+    cron: "* * * * *",
+  });
 
-waitUntil = await mf.dispatchScheduled(1000, "* * * * *");
-console.log(waitUntil[0]); // 1000
-console.log(waitUntil[1]); // "* * * * *"
+console.log(scheduledResult) // { outcome: 'ok', noRetry: true }
+
+scheduledResult = await fetcher.scheduled({
+    scheduledTime: new Date(1000),
+    cron: "30 * * * *",
+  });
+
+console.log(scheduledResult) // { outcome: 'ok', noRetry: false }
+
 ```
