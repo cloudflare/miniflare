@@ -60,21 +60,6 @@ const mf = new Miniflare({
 When using the file system, each namespace will get its own directory within the
 cache persistence directory.
 
-When using Redis, each key will be prefixed with the namespace. If you're using
-this with the API, make sure you call `dispose` on your `Miniflare` instance to
-close database connections.
-
-<Aside type="warning" header="Warning">
-
-Redis support is not included by default. You must install an optional peer
-dependency:
-
-```sh
-$ npm install -D @miniflare/storage-redis
-```
-
-</Aside>
-
 ## Manipulating Outside Workers
 
 For testing, it can be useful to put/match data from cache outside a worker. You

@@ -55,8 +55,7 @@ global `getMiniflareFetchMock()` function to obtain a correctly set-up
 [`MockAgent`](https://undici.nodejs.org/#/docs/api/MockAgent?id=mockagentgetorigin).
 
 ```js
-import { Miniflare } from "miniflare";
-import { createFetchMock } from "@miniflare/core";
+import { Miniflare, createFetchMock } from "miniflare";
 
 // Create `MockAgent` and connect it to the `Miniflare` instance
 const fetchMock = createFetchMock();
