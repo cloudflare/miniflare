@@ -11,8 +11,6 @@ future.
 
 </Aside>
 
-## Mounting Workers
-
 Miniflare allows you to run multiple workers in the same instance. All Workers can be defined at the same level, using the `workers` option.
 
 Here's an example that uses a service binding to increment a value in a shared KV namespace:

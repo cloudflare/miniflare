@@ -196,8 +196,10 @@ const mf = new Miniflare({
   `,
 });
 
+const fetcher = await mf.getWorker();
+
 try {
-  await mf.dispatchFetch("http://localhost");
+  await fetcher.fetch("http://localhost");
 } catch (e) {
   console.log(e instanceof Error); // ❌ false
 }

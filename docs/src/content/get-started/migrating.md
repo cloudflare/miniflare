@@ -12,16 +12,6 @@ eliminating behavior mismatches. Refer to the
 [Wrangler v3 announcements](https://blog.cloudflare.com/wrangler3/) for more
 information.
 
-## Missing Features
-
-Several features from Miniflare v2 are not supported in Miniflare v3's initial
-release. However, they are on the roadmap, and will be added soon:
-
-- Automatically triggering scheduled events via CRON schedules, or manually
-  triggering them via `/.mf/scheduled` or `/cdn-cgi/mf/scheduled` (manually
-  triggering events is supported via the `--test-scheduled` Wrangler flag and
-  visiting `/__scheduled`)
-
 ## CLI Changes
 
 Miniflare v3 no longer includes a standalone CLI. To get the same functionality,
@@ -226,8 +216,7 @@ open-source `workerd` runtime. See the
     [`workerd`](https://github.com/cloudflare/workerd) server listening on the
     configured `host` and `port`, so these methods are redundant.
 - `dispatchScheduled()/startScheduled()`
-  - [`workerd`](https://github.com/cloudflare/workerd) does not support
-    triggering scheduled events yet.
+  - The functionality of `dispatchScheduled` can now be done via `getWorker()`. For more information read the [scheduled events documentation](/core/scheduled#dispatching-events).
 - `dispatchQueue()`
   - Use the `queue()` method on
     [service bindings](https://developers.cloudflare.com/workers/platform/bindings/about-service-bindings/)
@@ -238,9 +227,6 @@ open-source `workerd` runtime. See the
   - These methods returned objects from inside the Workers sandbox. Since
     Miniflare now uses [`workerd`](https://github.com/cloudflare/workerd), which
     runs in a different process, these methods can no longer be supported.
-- `getKVNamespace()/getR2Bucket()/getCaches()/getDurableObjectNamespace()`
-  - Similarly, these methods return instances of Workers runtime classes that
-    are defined in a different process, and can no longer be supported.
 - `addEventListener()`/`removeEventListener()`
   - Miniflare no longer emits `reload` events. As Miniflare no longer watches
     files, reloads are only triggered by initialisation or `setOptions()` calls.

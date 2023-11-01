@@ -46,7 +46,9 @@ const mf = new Miniflare({
   modules: true,
   scriptPath: "echo.mjs",
 });
-const res = await mf.dispatchFetch();
+
+const fetcher = await mf.getWorker();
+const res = await fetcher.fetch();
 
 const webSocket = res.webSocket;
 webSocket.accept();

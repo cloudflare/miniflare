@@ -82,21 +82,6 @@ const mf = new Miniflare({
 When using the file system, each object instance will get its own directory
 within the Durable Object persistence directory.
 
-When using Redis, each key will be prefixed with the object name and instance.
-If you're using this with the API, make sure you call `dispose` on your
-`Miniflare` instance to close database connections.
-
-<Aside type="warning" header="Warning">
-
-Redis support is not included by default. You must install an optional peer
-dependency:
-
-```sh
-$ npm install -D @miniflare/storage-redis
-```
-
-</Aside>
-
 ## Validation
 
 Like the real Workers runtime, Miniflare will throw errors when:
@@ -155,7 +140,9 @@ const mf = new Miniflare({
   }
   `,
 });
-let res = await mf.dispatchFetch("http://localhost:8787/put");
+
+const fetcher = mf.getWorker();
+let res = await fetcher.fetch("http://localhost:8787/put");
 console.log(await res.text()); // "1"
 
 const ns = await mf.getDurableObjectNamespace("TEST_OBJECT");
@@ -168,7 +155,7 @@ const storage = await mf.getDurableObjectStorage(id);
 console.log(await storage.get("key")); // 1
 await storage.put("key", 2);
 
-res = await mf.dispatchFetch("http://localhost:8787/");
+res = await fetcher.fetch("http://localhost:8787/");
 console.log(await res.text()); // "2"
 ```
 
