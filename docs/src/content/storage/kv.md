@@ -64,7 +64,7 @@ user's computer) so it doesn't really mean anything.
 
 By default, KV data is stored in memory. It will persist between reloads, but
 not different `Miniflare` instances. To enable persistence to
-the file system or Redis, specify the KV persistence option:
+the file system, specify the KV persistence option:
 
 <ConfigTabs>
 

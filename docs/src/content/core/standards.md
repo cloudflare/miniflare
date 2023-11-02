@@ -60,14 +60,16 @@ import { Miniflare, createFetchMock } from "miniflare";
 // Create `MockAgent` and connect it to the `Miniflare` instance
 const fetchMock = createFetchMock();
 const mf = new Miniflare({
-  script: `export default {
+  modules: true,
+  script: `
+  export default {
     async fetch(request, env, ctx) {
       const res = await fetch("https://example.com/thing");
       const text = await res.text();
       return new Response(\`response:\${text}\`);
     }
-  }`,
-  modules: true,
+  }
+  `,
   fetchMock,
 });
 

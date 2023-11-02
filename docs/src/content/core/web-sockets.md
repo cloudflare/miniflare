@@ -38,7 +38,7 @@ script was stored in `echo.mjs`:
 
 ```js
 ---
-highlight: [9,10,11,12,13,14,15]
+highlight: [11,12,13,14,15]
 ---
 import { Miniflare } from "miniflare";
 

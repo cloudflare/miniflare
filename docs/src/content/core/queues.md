@@ -18,7 +18,6 @@ import ConfigTabs from "../components/mdx/config-tabs";
 ---
 filename: wrangler.toml
 ---
-
 [[queues.producers]]
   queue = "my-queue"
   binding = "MY_QUEUE"
@@ -40,20 +39,22 @@ const mf = new Miniflare({
 ---
 filename: wrangler.toml
 ---
-compatibility_flags = [
-  "formdata_parser_supports_files",
-  "durable_object_fetch_allows_relative_url"
-]
+[[queues.consumers]]
+  queue = "my-queue"
+  max_batch_size = 10
+  max_batch_timeout = 30
+  max_retries = 10
+  dead_letter_queue = "my-queue-dlq"
 ```
 
 ```js
 const mf = new Miniflare({
   queueConsumers: {"", {
-      maxBatchSize: 5, // default: 5
-      maxBatchTimeout: 1/* seconds */, // default: 1
-      maxRetries: 2, // default: 2
-      deadLetterQueue: "" // default: none
-    }
+    maxBatchSize: 5, // default: 5
+    maxBatchTimeout: 1/* seconds */, // default: 1
+    maxRetries: 2, // default: 2
+    deadLetterQueue: "" // default: none
+  }
   }
 });
 ```

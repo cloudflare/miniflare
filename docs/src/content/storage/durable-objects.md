@@ -112,7 +112,7 @@ outside a worker. You can do this with the `getDurableObjectNamespace` and
 
 ```js
 ---
-highlight: [30,31,32,33,34,35,36,37,38]
+highlight: [32,33,34,35,36,37,38,39,40]
 ---
 import { Miniflare } from "miniflare";
 
