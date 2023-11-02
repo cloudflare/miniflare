@@ -47,16 +47,16 @@ const mf = new Miniflare({
   `,
 });
 
-const fetcher = await mf.getWorker();
-let res = await fetcher.fetch("http://localhost:8787/");
+const worker = await mf.getWorker();
+let res = await worker.fetch("http://localhost:8787/");
 console.log(await res.json()); // { url: "http://localhost:8787/", header: null }
 
-res = await fetcher.fetch("http://localhost:8787/1", {
+res = await worker.fetch("http://localhost:8787/1", {
   headers: { "X-Message": "1" },
 });
 console.log(await res.json()); // { url: "http://localhost:8787/1", header: "1" }
 
-res = await fetcher.fetch(
+res = await worker.fetch(
   new Request("http://localhost:8787/2", {
     headers: { "X-Message": "2" },
   })
@@ -71,7 +71,7 @@ and the
 This lets you control their values for testing:
 
 ```js
-const res = await fetcher.fetch("http://localhost:8787", {
+const res = await worker.fetch("http://localhost:8787", {
   headers: {
     "CF-IPCountry": "GB",
   },
@@ -114,8 +114,8 @@ const mf = new Miniflare({
 });
 // If you don't use the same upstream URL when dispatching, Miniflare will
 // rewrite it to match the upstream
-const fetcher = await mf.getWorker();
-const res = await fetcher.fetch("https://miniflare.dev/core/fetch");
+const worker = await mf.getWorker();
+const res = await worker.fetch("https://miniflare.dev/core/fetch");
 console.log(await res.text()); // Source code of this page
 ```
 

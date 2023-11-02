@@ -195,10 +195,10 @@ const mf = new Miniflare({
   `,
 });
 
-const fetcher = await mf.getWorker();
+const worker = await mf.getWorker();
 
 try {
-  await fetcher.fetch("http://localhost");
+  await worker.fetch("http://localhost");
 } catch (e) {
   console.log(e instanceof Error); // ❌ false
 }

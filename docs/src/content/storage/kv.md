@@ -137,8 +137,8 @@ const mf = new Miniflare({
 const ns = await mf.getKVNamespace("TEST_NAMESPACE");
 await ns.put("count", "1");
 
-const fetcher = await mf.getWorker();
-const res = await fetcher.fetch("http://localhost:8787/");
+const worker = await mf.getWorker();
+const res = await worker.fetch("http://localhost:8787/");
 console.log(await res.text()); // 2
 console.log(await ns.get("count")); // 2
 ```

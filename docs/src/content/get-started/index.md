@@ -34,13 +34,18 @@ To initialise Miniflare, import the `Miniflare` class from `miniflare`:
 import { Miniflare } from "miniflare";
 
 const mf = new Miniflare({
+  modules: true,
   script: `
-  addEventListener("fetch", (event) => {
-    event.respondWith(new Response("Hello Miniflare!"));
-  });
+  export default {
+    async fetch(request, env, ctx) {
+      return new Response("Hello Miniflare!");
+    })
+  }
   `,
 });
-const res = await mf.dispatchFetch("http://localhost:8787/");
+
+const worker = await mf.getWorker();
+const res = await worker.fetch("http://localhost:8787/");
 console.log(await res.text()); // Hello Miniflare!
 ```
 
@@ -174,19 +179,19 @@ const mf = new Miniflare({
   `,
 });
 
-const fetcher = await mf.getWorker();
+const worker = await mf.getWorker();
 
-const res = await fetcher.fetch("http://localhost:8787/", {
+const res = await worker.fetch("http://localhost:8787/", {
   headers: { "X-Message": "Hello Miniflare!" },
 });
 console.log(await res.text()); // Hello Miniflare!
 
-const scheduledResult = await fetcher.scheduled({
+const scheduledResult = await worker.scheduled({
   cron: "* * * * *",
 });
 console.log(scheduledResult); // { outcome: "ok", noRetry: true });
 
-const queueResult = await fetcher.queue("needy", [
+const queueResult = await worker.queue("needy", [
     { id: "a", timestamp: new Date(1000), body: "a" },
     { id: "b", timestamp: new Date(2000), body: { b: 1 } },
   ]);
@@ -210,10 +215,13 @@ highlight: [11]
 import { Miniflare } from "miniflare";
 
 const mf = new Miniflare({
+  modules: true,
   script: `
-  addEventListener("fetch", (event) => {
-    event.respondWith(new Response("Hello Miniflare!"));
-  });
+  export default {
+    async fetch(request, env, ctx) {
+      return new Response("Hello Miniflare!");
+    })
+  }
   `,
   port: 5000,
 });
@@ -340,12 +348,14 @@ const mf = new Miniflare({
   log: new Log(LogLevel.INFO), // Logger Miniflare uses for debugging
   sourceMap: true, // Enable source map support globally
 
-  script: `export default {
+  script: `
+  export default {
     async fetch(request, env, ctx) {
       return new Response("Hello Miniflare!");
     }
-  }`,
-  scriptPath: "./index.mjs",
+  }
+  `,
+  scriptPath: "./index.js",
 
   modules: true, // Enable modules
   modulesRules: [
@@ -466,14 +476,15 @@ const bindings = await mf.getBindings(); // Get bindings (KV/Durable Object name
 const exports = await mf.getModuleExports(); // Get exports from entry module
 
 // Dispatch "fetch" event to worker
-const res = await mf.dispatchFetch("http://localhost:8787/", {
+const worker = mf.getWorker();
+const res = await worker.fetch("http://localhost:8787/", {
   headers: { Authorization: "Bearer ..." },
 });
 const text = await res.text();
 
 // Dispatch "scheduled" event to worker
-const fetcher = await mf.getWorker();
-const scheduledResult = await fetcher.scheduled({ cron: "30 * * * *" })
+const worker = await mf.getWorker();
+const scheduledResult = await worker.scheduled({ cron: "30 * * * *" })
 
 const TEST_NAMESPACE = await mf.getKVNamespace("TEST_NAMESPACE");
 

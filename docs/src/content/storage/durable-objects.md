@@ -141,8 +141,8 @@ const mf = new Miniflare({
   `,
 });
 
-const fetcher = mf.getWorker();
-let res = await fetcher.fetch("http://localhost:8787/put");
+const worker = mf.getWorker();
+let res = await worker.fetch("http://localhost:8787/put");
 console.log(await res.text()); // "1"
 
 const ns = await mf.getDurableObjectNamespace("TEST_OBJECT");
@@ -155,7 +155,7 @@ const storage = await mf.getDurableObjectStorage(id);
 console.log(await storage.get("key")); // 1
 await storage.put("key", 2);
 
-res = await fetcher.fetch("http://localhost:8787/");
+res = await worker.fetch("http://localhost:8787/");
 console.log(await res.text()); // "2"
 ```
 

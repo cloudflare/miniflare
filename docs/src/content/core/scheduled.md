@@ -72,15 +72,15 @@ const mf = new Miniflare({
   `,
 });
 
-const fetcher = await mf.getWorker();
+const worker = await mf.getWorker();
 
-let scheduledResult = await fetcher.scheduled({
+let scheduledResult = await worker.scheduled({
     cron: "* * * * *",
   });
 
 console.log(scheduledResult) // { outcome: 'ok', noRetry: true }
 
-scheduledResult = await fetcher.scheduled({
+scheduledResult = await worker.scheduled({
     scheduledTime: new Date(1000),
     cron: "30 * * * *",
   });
