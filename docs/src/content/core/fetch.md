@@ -34,16 +34,19 @@ object, or a URL and optional `RequestInit` object:
 import { Miniflare, Request } from "miniflare";
 
 const mf = new Miniflare({
+  modules: true,
   script: `
-  addEventListener("fetch", (event) => {
-    const body = JSON.stringify({
-      url: event.request.url,
-      header: event.request.headers.get("X-Message"),
-    });
-    event.respondWith(new Response(body, {
-      headers: { "Content-Type": "application/json" },
-    }));
-  });
+  export default {
+    async fetch(request, env, ctx) {
+      const body = JSON.stringify({
+        url: event.request.url,
+        header: event.request.headers.get("X-Message"),
+      });
+      return new Response(body, {
+        headers: { "Content-Type": "application/json" },
+      });
+    })
+  }
   `,
 });
 
