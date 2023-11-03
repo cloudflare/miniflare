@@ -14,7 +14,7 @@ title: Home
 - ⚡ **Fully-local:** test and develop Workers without an internet connection.
   Reload code on change quickly.
 
-It's an alternative to `wrangler dev`, written in TypeScript, that runs your
+It's written in TypeScript, and runs your
 workers in a sandbox implementing Workers' runtime APIs.
 
 These docs primarily cover Miniflare specific things. For more information on

@@ -11,17 +11,6 @@ WebAssembly modules are bound as follows. The bound keys will be instances of
 
 import ConfigTabs from "../components/mdx/config-tabs";
 
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[wasm_modules]
-MODULE1 = "module1.wasm"
-MODULE2 = "module2.wasm"
-```
-
 ```js
 const mf = new Miniflare({
   wasmBindings: {
@@ -30,8 +19,6 @@ const mf = new Miniflare({
   },
 });
 ```
-
-</ConfigTabs>
 
 You can then use the WebAssembly modules in your workers:
 

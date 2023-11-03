@@ -13,19 +13,6 @@ Specify Durable Objects to add to your environment as follows:
 
 import ConfigTabs from "../components/mdx/config-tabs";
 
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[durable_objects]
-bindings = [
-  # Object1 class must be exported from the main script
-  { name = "OBJECT1", class_name = "Object1" },
-]
-```
-
 ```js
 const mf = new Miniflare({
   modules: true,
@@ -48,26 +35,12 @@ const mf = new Miniflare({
 });
 ```
 
-</ConfigTabs>
-
 ## Persistence
 
 By default, Durable Object data is stored in memory. It will persist between
 reloads, but not different `Miniflare` instances. To enable
 persistence to the file system or Redis, specify the Durable Object persistence
 option:
-
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[miniflare]
-durable_objects_persist = true # Defaults to ./.mf/do
-durable_objects_persist = "./data/" # Custom path
-durable_objects_persist = "redis://localhost:6379" # Redis server
-```
 
 ```js
 const mf = new Miniflare({
@@ -77,7 +50,6 @@ const mf = new Miniflare({
 });
 ```
 
-</ConfigTabs>
 
 When using the file system, each object instance will get its own directory
 within the Durable Object persistence directory.
@@ -211,7 +183,6 @@ filename: wrangler.toml
 ---
 [durable_objects]
 bindings = [
-  # script_name must be the same as in [miniflare.workers]
   { name = "TEST_OBJECT", class_name = "TestObject", script_name = "api" },
 ]
 ```

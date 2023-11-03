@@ -91,44 +91,7 @@ console.log(await res.text()); // "response:Mocked response!"
 
 ## Subrequests
 
-To match the behaviour of the Workers runtime, Miniflare limits you to
-[50 subrequests per request](https://developers.cloudflare.com/workers/platform/limits#account-plan-limits).
-Each call to `fetch()`, each URL in a redirect chain, and each call to a Cache
-API method (`put()`/`match()`/`delete()`) counts as a subrequest.
-
-If needed, the subrequest limit to be customised using the
-`MINIFLARE_SUBREQUEST_LIMIT` environment variable. Setting this to a negative
-number disables the limit. Setting this to 0 disables subrequests.
-
-## Frozen Time
-
-To match the
-[behaviour of the Workers runtime](https://developers.cloudflare.com/workers/learning/security-model/#step-1-disallow-timers-and-multi-threading),
-Miniflare will always return the time of last I/O from `new Date()` and
-`Date.now()`.
-
-This behaviour can be disabled by setting the `actualTime` option, which may be
-useful for performance testing.
-
-import ConfigTabs from "../components/mdx/config-tabs";
-
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[miniflare]
-actual_time = true
-```
-
-```js
-const mf = new Miniflare({
-  actualTime: true,
-});
-```
-
-</ConfigTabs>
+Miniflare does not support limiting the amount of [subrequests](https://developers.cloudflare.com/workers/platform/limits#account-plan-limits). Please keep this in mind if you make a large amount of subrequests from your Worker.
 
 ## Global Functionality Limits
 

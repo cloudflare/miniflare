@@ -10,11 +10,8 @@ order: 0
 
 ## HTTP Requests
 
-Whenever an HTTP request is made, it is converted to a workers-compatible `Request` object,
-dispatched to your worker, then the generated `Response` is returned. The
-`Request` object will include
-[`CF-*` headers](https://support.cloudflare.com/hc/en-us/articles/200170986-How-does-Cloudflare-handle-HTTP-Request-headers-)
-and a
+Whenever an HTTP request is made, a `Request` object is dispatched to your worker, then the generated `Response` is returned. The
+`Request` object will include a
 [`cf` object](https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties).
 Miniflare will log the method, path, status, and the time it took to respond.
 
@@ -50,16 +47,15 @@ const mf = new Miniflare({
   `,
 });
 
-const worker = await mf.getWorker();
-let res = await worker.fetch("http://localhost:8787/");
+let res = await mf.dispatchFetch("http://localhost:8787/");
 console.log(await res.json()); // { url: "http://localhost:8787/", header: null }
 
-res = await worker.fetch("http://localhost:8787/1", {
+res = await mf.dispatchFetch("http://localhost:8787/1", {
   headers: { "X-Message": "1" },
 });
 console.log(await res.json()); // { url: "http://localhost:8787/1", header: "1" }
 
-res = await worker.fetch(
+res = await mf.dispatchFetch(
   new Request("http://localhost:8787/2", {
     headers: { "X-Message": "2" },
   })
@@ -74,7 +70,7 @@ and the
 This lets you control their values for testing:
 
 ```js
-const res = await worker.fetch("http://localhost:8787", {
+const res = await mf.dispatchFetch("http://localhost:8787", {
   headers: {
     "CF-IPCountry": "GB",
   },
@@ -92,16 +88,6 @@ has been called, the response will be fetched from the specified upstream
 instead:
 
 import ConfigTabs from "../components/mdx/config-tabs";
-
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[miniflare]
-upstream = "https://miniflare.dev"
-```
 
 ```js
 import { Miniflare } from "miniflare";
@@ -121,5 +107,3 @@ const worker = await mf.getWorker();
 const res = await worker.fetch("https://miniflare.dev/core/fetch");
 console.log(await res.text()); // Source code of this page
 ```
-
-</ConfigTabs>

@@ -349,11 +349,11 @@ const mf = new Miniflare({
   sourceMap: true, // Enable source map support globally
 
   script: `
-  export default {
-    async fetch(request, env, ctx) {
-      return new Response("Hello Miniflare!");
+    export default {
+      async fetch(request, env, ctx) {
+        return new Response("Hello Miniflare!");
+      }
     }
-  }
   `,
   scriptPath: "./index.js",
 

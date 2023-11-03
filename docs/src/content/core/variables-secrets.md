@@ -8,20 +8,6 @@ order: 2
 
 Variable and secrets are bound as follows:
 
-import ConfigTabs from "../components/mdx/config-tabs";
-
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[vars]
-KEY1 = "value1"
-KEY2 = "value2"
-NUMBER = 42 # Note [vars] are automatically stringified
-```
-
 ```js
 const mf = new Miniflare({
   bindings: {
@@ -30,8 +16,6 @@ const mf = new Miniflare({
   },
 });
 ```
-
-</ConfigTabs>
 
 ## `.env` Files
 
@@ -47,40 +31,16 @@ KEY2=value2
 
 You can also specify the path to a custom `.env` file:
 
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[miniflare]
-env_path = ".env.test"
-```
-
 ```js
 const mf = new Miniflare({
   envPath: ".env.test",
 });
 ```
 
-</ConfigTabs>
-
 ## Text and Data Blobs
 
 Text and data blobs can be loaded from files. File contents will be read and
 bound as `string`s and `ArrayBuffer`s respectively.
-
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[text_blobs]
-TEXT = "text.txt"
-[data_blobs]
-DATA = "data.bin"
-```
 
 ```js
 const mf = new Miniflare({
@@ -88,8 +48,6 @@ const mf = new Miniflare({
   dataBlobBindings: { DATA: "data.bin" },
 });
 ```
-
-</ConfigTabs>
 
 ## Bindings Priority
 

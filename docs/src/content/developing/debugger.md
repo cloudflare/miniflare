@@ -15,10 +15,9 @@ proceeding.
 
 ## Visual Studio Code
 
-### Using `npm` Scripts
+### Create configuration
 
-The easiest way to debug a Worker is to create a new launch configuration for an
-`npm` script.
+The easiest way to debug a Worker in VSCode is to create a new configuration.
 
 Open the **Run and Debug** menu in the VSCode activity bar and create a `.vscode/launch.json` file that contains the following:
 
@@ -29,7 +28,7 @@ filename: .vscode/launch.json
 {
   "configurations": [
     {
-      "name": "Wrangler",
+      "name": "Miniflare",
       "type": "node",
       "request": "attach",
       "port": 9229,
@@ -43,7 +42,7 @@ filename: .vscode/launch.json
 ```
 
 From the **Run and Debug** menu in the activity bar, select the
-`Wrangler` configuration, and click the green play button to start
+`Miniflare` configuration, and click the green play button to start
 debugging.
 
 ## WebStorm

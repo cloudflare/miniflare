@@ -13,23 +13,11 @@ formats for writing workers. To use the `modules` format, enable it with:
 
 import ConfigTabs from "../components/mdx/config-tabs";
 
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[build.upload]
-format = "modules"
-```
-
 ```js
 const mf = new Miniflare({
   modules: true,
 });
 ```
-
-</ConfigTabs>
 
 You can now use `modules` worker scripts like the following:
 
@@ -38,12 +26,13 @@ export default {
   async fetch(request, env, ctx) {
     // - `request` is the incoming `Request` instance
     // - `env` contains bindings, KV namespaces, Durable Objects, etc
-    // - `ctx` contains `passThroughOnException` methods
+    // - `ctx` contains `waitUntil` and `passThroughOnException` methods
     return new Response("Hello Miniflare!");
   },
   async scheduled(controller, env, ctx) {
     // - `controller` contains `scheduledTime` and `cron` properties
     // - `env` contains bindings, KV namespaces, Durable Objects, etc
+    // - `ctx` contains the `waitUntil` method
     console.log("Doing something scheduled...");
   },
 };
@@ -62,20 +51,6 @@ use a script file via the `scriptPath` option for this.
 Miniflare supports all module types: `ESModule`, `CommonJS`, `Text`, `Data` and
 `CompiledWasm`. You can specify additional module resolution rules as follows:
 
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[[build.upload.rules]]
-type = "ESModule"
-globs = ["**/*.js"]
-[[build.upload.rules]]
-type = "Text"
-globs = ["**/*.txt"]
-```
-
 ```js
 const mf = new Miniflare({
   modulesRules: [
@@ -84,8 +59,6 @@ const mf = new Miniflare({
   ],
 });
 ```
-
-</ConfigTabs>
 
 ### Default Rules
 
