@@ -34,6 +34,8 @@ const mf = new Miniflare({
 
 ## Consumers
 
+Specify Workers to consume messages from your Queues as follows:
+
 <ConfigTabs>
 
 ```toml
