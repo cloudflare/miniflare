@@ -52,13 +52,15 @@ filename: wrangler.toml
 
 ```js
 const mf = new Miniflare({
-  queueConsumers: {"", {
-    maxBatchSize: 5, // default: 5
-    maxBatchTimeout: 1/* seconds */, // default: 1
-    maxRetries: 2, // default: 2
-    deadLetterQueue: "" // default: none
-  }
-  }
+  queueConsumers: {
+    "my-queue": {
+      maxBatchSize: 5, // default: 5
+      maxBatchTimeout: 1 /* second(s) */, // default: 1
+      maxRetries: 2, // default: 2
+      deadLetterQueue: "my-dead-letter-queue" // default: none
+    }
+  },
+  queueConsumers: ["my-queue"] // If using default consumer options
 });
 ```
 
