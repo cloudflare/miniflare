@@ -470,8 +470,6 @@ await mf.setOptions({ kvNamespaces: ["TEST_NAMESPACE2"] }); // Apply options and
 
 const bindings = await mf.getBindings(); // Get bindings (KV/Durable Object namespaces, variables, etc)
 
-const exports = await mf.getModuleExports(); // Get exports from entry module
-
 // Dispatch "fetch" event to worker
 const res = await mf.dispatchFetch("http://localhost:8787/", {
   headers: { Authorization: "Bearer ..." },
@@ -479,7 +477,6 @@ const res = await mf.dispatchFetch("http://localhost:8787/", {
 const text = await res.text();
 
 // Dispatch "scheduled" event to worker
-const worker = await mf.getWorker();
 const scheduledResult = await worker.scheduled({ cron: "30 * * * *" })
 
 const TEST_NAMESPACE = await mf.getKVNamespace("TEST_NAMESPACE");
@@ -494,6 +491,12 @@ const namedCache = await caches.open("name");
 const TEST_OBJECT = await mf.getDurableObjectNamespace("TEST_OBJECT");
 const id = TEST_OBJECT.newUniqueId();
 const storage = await mf.getDurableObjectStorage(id);
+
+// Get Queue Producer
+const producer = await mf.getQueueProducer("QUEUE_BINDING");
+
+// Get D1 Database
+const db = await mf.getD1Database("D1_BINDING")
 
 await mf.dispose(); // Cleanup storage database connections and watcher
 ```
