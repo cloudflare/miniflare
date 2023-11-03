@@ -12,25 +12,11 @@ order: 1
 `scheduled` events are automatically dispatched according to the specified cron
 triggers:
 
-import ConfigTabs from "../components/mdx/config-tabs";
-
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[triggers]
-crons = ["15 * * * *", "45 * * * *"]
-```
-
 ```js
 const mf = new Miniflare({
   crons: ["15 * * * *", "45 * * * *"],
 });
 ```
-
-</ConfigTabs>
 
 ## HTTP Triggers
 

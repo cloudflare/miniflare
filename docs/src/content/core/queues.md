@@ -10,19 +10,6 @@ order: 8
 
 Specify Queue producers to add to your environment as follows:
 
-import ConfigTabs from "../components/mdx/config-tabs";
-
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[[queues.producers]]
-  queue = "my-queue"
-  binding = "MY_QUEUE"
-```
-
 ```js
 const mf = new Miniflare({
   queueProducers: { "MY_QUEUE": "my-queue" },
@@ -30,25 +17,9 @@ const mf = new Miniflare({
 });
 ```
 
-</ConfigTabs>
-
 ## Consumers
 
 Specify Workers to consume messages from your Queues as follows:
-
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[[queues.consumers]]
-  queue = "my-queue"
-  max_batch_size = 10
-  max_batch_timeout = 30
-  max_retries = 10
-  dead_letter_queue = "my-queue-dlq"
-```
 
 ```js
 const mf = new Miniflare({
@@ -64,4 +35,40 @@ const mf = new Miniflare({
 });
 ```
 
-</ConfigTabs>
+## Manipulating Outside Workers
+
+For testing, it can be valuable to interact with Queues outside a Worker. You can do this by using the [`workers` option](/core/multiple-workers) to run multiple Workers in the same instance:
+
+```js
+const mf = new Miniflare({
+	workers: [
+		{
+			name: "a",
+			modules: true,
+			script: `
+			export default {
+				async fetch(request, env, ctx) {
+					await env.QUEUE.send(await request.text());
+				}
+			}
+			`,
+			queueProducers: { QUEUE: "my-queue" },
+		},
+		{
+			name: "b",
+			modules: true,
+			script: `
+			export default {
+				async queue(batch, env, ctx) {
+					console.log(batch);
+				}
+			}
+			`,
+			queueConsumers: { "my-queue": { maxBatchTimeout: 1 } },
+		},
+	],
+});
+
+const queue = await mf.getQueueProducer("QUEUE", "a"); // Get from worker "a"
+await queue.send("message"); // Logs "message" 1 second later
+```

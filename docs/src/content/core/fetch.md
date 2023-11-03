@@ -87,8 +87,6 @@ response is returned, or an exception is thrown and `passThroughOnException()`
 has been called, the response will be fetched from the specified upstream
 instead:
 
-import ConfigTabs from "../components/mdx/config-tabs";
-
 ```js
 import { Miniflare } from "miniflare";
 
@@ -103,7 +101,6 @@ const mf = new Miniflare({
 });
 // If you don't use the same upstream URL when dispatching, Miniflare will
 // rewrite it to match the upstream
-const worker = await mf.getWorker();
-const res = await worker.fetch("https://miniflare.dev/core/fetch");
+const res = await mf.dispatchFetch("https://miniflare.dev/core/fetch");
 console.log(await res.text()); // Source code of this page
 ```

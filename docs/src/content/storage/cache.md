@@ -33,20 +33,6 @@ By default, cached data is stored in memory. It will persist between reloads,
 but not different `Miniflare` instances. To enable
 persistence to the file system or Redis, specify the cache persistence option:
 
-import ConfigTabs from "../components/mdx/config-tabs";
-
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[miniflare]
-cache_persist = true # Defaults to ./.mf/cache
-cache_persist = "./data/" # Custom path
-cache_persist = "redis://localhost:6379" # Redis server
-```
-
 ```js
 const mf = new Miniflare({
   cachePersist: true, // Defaults to ./.mf/cache
@@ -54,8 +40,6 @@ const mf = new Miniflare({
   cachePersist: "redis://localhost:6379", // Redis server
 });
 ```
-
-</ConfigTabs>
 
 When using the file system, each namespace will get its own directory within the
 cache persistence directory.
@@ -111,23 +95,11 @@ Both default and named caches can be disabled with the `disableCache` option.
 When disabled, the caches will still be available in the sandbox, they just
 won't cache anything. This may be useful during development:
 
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[miniflare]
-cache = false
-```
-
 ```js
 const mf = new Miniflare({
   cache: false,
 });
 ```
-
-</ConfigTabs>
 
 ## Subrequests
 

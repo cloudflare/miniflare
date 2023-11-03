@@ -160,10 +160,8 @@ const mf = new Miniflare({
   `,
 });
 
-const worker = await mf.getWorker();
-
 try {
-  await worker.fetch("http://localhost");
+  await mf.dispatchFetch("http://localhost");
 } catch (e) {
   console.log(e instanceof Error); // ❌ false
 }

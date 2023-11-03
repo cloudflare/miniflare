@@ -5,10 +5,12 @@ import Helmet from "react-helmet";
 
 import getUniqueReadableID from "../../../utils/get-unique-readable-id";
 import IconAPI from "../icons/api";
+import IconWrangler from "../icons/wrangler";
 
 // Page/storage synchronisation adapted from components/theme-toggle.js
 
 const TABS = [
+  { id: "wrangler", name: "wrangler.toml", Icon: IconWrangler, mono: true },
   { id: "api", name: "JavaScript API", Icon: IconAPI },
 ];
 

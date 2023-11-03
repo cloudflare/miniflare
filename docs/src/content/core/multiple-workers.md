@@ -107,33 +107,6 @@ const mf = new Miniflare({
 });
 ```
 
-The parent worker is always used as a fallback if no mounts' routes match. If
-the parent worker has a `name` set, and it has more specific routes than other
-mounts, they'll be used instead.
-
-<ConfigTabs>
-
-```sh
-$ miniflare --name worker --route http://127.0.0.1/parent*
-```
-
-```toml
----
-filename: wrangler.toml
----
-name = "worker"
-route = "http://127.0.0.1/parent*"
-```
-
-```js
-const mf = new Miniflare({
-  name: "worker",
-  routes: ["http://127.0.0.1/parent*"],
-});
-```
-
-</ConfigTabs>
-
 When using the CLI with hostnames that aren't `localhost` or `127.0.0.1`, you
 may need to edit your computer's `hosts` file, so those hostnames resolve to
 `localhost`. On Linux and macOS, this is usually at `/etc/hosts`. On Windows,
@@ -158,31 +131,6 @@ worker to dispatch to.
 ```js
 // Dispatches to the "api" worker
 const res = await mf.dispatchFetch("http://api.mf/todos/update/1", { ... });
-```
-
-Note that if [an upstream is specified](/core/fetch#upstream), Miniflare will
-use the incoming request's URL for route matching, but then replace it and the
-`Host` header with the upstream:
-
-```js
-const mf = new Miniflare({
-  mounts: {
-    api: {
-      script: `export default {
-        async fetch(request) {
-          return new Response("URL: " + request.url + " Host: " + request.headers.get("Host"));
-        }
-      }`,
-      modules: true,
-      upstream: "https://example.com/api/",
-      routes: ["api.mf/*"],
-    },
-  },
-});
-const res = await mf.dispatchFetch("http://api.mf/todos/update/1", {
-  headers: { Host: "api.mf" },
-});
-console.log(await res.text()); // URL: https://example.com/api/todos/update/1 Host: example.com
 ```
 
 ## Durable Objects

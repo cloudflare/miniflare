@@ -11,8 +11,6 @@ order: 3
 Miniflare supports both the traditional `service-worker` and newer `modules`
 formats for writing workers. To use the `modules` format, enable it with:
 
-import ConfigTabs from "../components/mdx/config-tabs";
-
 ```js
 const mf = new Miniflare({
   modules: true,

@@ -11,8 +11,6 @@ order: 1
 
 Specify Durable Objects to add to your environment as follows:
 
-import ConfigTabs from "../components/mdx/config-tabs";
-
 ```js
 const mf = new Miniflare({
   modules: true,
@@ -113,8 +111,7 @@ const mf = new Miniflare({
   `,
 });
 
-const worker = mf.getWorker();
-let res = await worker.fetch("http://localhost:8787/put");
+let res = mf.dispatchFetch("http://localhost:8787/put");
 console.log(await res.text()); // "1"
 
 const ns = await mf.getDurableObjectNamespace("TEST_OBJECT");
@@ -127,7 +124,7 @@ const storage = await mf.getDurableObjectStorage(id);
 console.log(await storage.get("key")); // 1
 await storage.put("key", 2);
 
-res = await worker.fetch("http://localhost:8787/");
+res = await mf.dispatchFetch("http://localhost:8787/");
 console.log(await res.text()); // "2"
 ```
 

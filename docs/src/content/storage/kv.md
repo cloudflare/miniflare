@@ -66,18 +66,6 @@ By default, KV data is stored in memory. It will persist between reloads, but
 not different `Miniflare` instances. To enable persistence to
 the file system, specify the KV persistence option:
 
-<ConfigTabs>
-
-```toml
----
-filename: wrangler.toml
----
-[miniflare]
-kv_persist = true # Defaults to ./.mf/kv
-kv_persist = "./data/" # Custom path
-kv_persist = "redis://localhost:6379" # Redis server
-```
-
 ```js
 const mf = new Miniflare({
   kvPersist: true, // Defaults to ./.mf/kv
@@ -85,8 +73,6 @@ const mf = new Miniflare({
   kvPersist: "redis://localhost:6379", // Redis server
 });
 ```
-
-</ConfigTabs>
 
 When using the file system, each namespace will get its own directory within the
 KV persistence directory. Key names are sanitised before data is read/written.
@@ -137,8 +123,7 @@ const mf = new Miniflare({
 const ns = await mf.getKVNamespace("TEST_NAMESPACE");
 await ns.put("count", "1");
 
-const worker = await mf.getWorker();
-const res = await worker.fetch("http://localhost:8787/");
+const res = await mf.dispatchFetch("http://localhost:8787/");
 console.log(await res.text()); // 2
 console.log(await ns.get("count")); // 2
 ```

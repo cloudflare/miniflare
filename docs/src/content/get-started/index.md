@@ -44,8 +44,7 @@ const mf = new Miniflare({
   `,
 });
 
-const worker = await mf.getWorker();
-const res = await worker.fetch("http://localhost:8787/");
+const res = await mf.dispatchFetch("http://localhost:8787/");
 console.log(await res.text()); // Hello Miniflare!
 ```
 
@@ -179,9 +178,7 @@ const mf = new Miniflare({
   `,
 });
 
-const worker = await mf.getWorker();
-
-const res = await worker.fetch("http://localhost:8787/", {
+const res = await mf.dispatchFetch("http://localhost:8787/", {
   headers: { "X-Message": "Hello Miniflare!" },
 });
 console.log(await res.text()); // Hello Miniflare!
@@ -476,8 +473,7 @@ const bindings = await mf.getBindings(); // Get bindings (KV/Durable Object name
 const exports = await mf.getModuleExports(); // Get exports from entry module
 
 // Dispatch "fetch" event to worker
-const worker = mf.getWorker();
-const res = await worker.fetch("http://localhost:8787/", {
+const res = await mf.dispatchFetch("http://localhost:8787/", {
   headers: { Authorization: "Bearer ..." },
 });
 const text = await res.text();

@@ -9,8 +9,6 @@ order: 5
 WebAssembly modules are bound as follows. The bound keys will be instances of
 [WebAssembly.Module](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/Module):
 
-import ConfigTabs from "../components/mdx/config-tabs";
-
 ```js
 const mf = new Miniflare({
   wasmBindings: {
