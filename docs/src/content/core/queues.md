@@ -25,7 +25,8 @@ filename: wrangler.toml
 
 ```js
 const mf = new Miniflare({
-  queueProducers: [""],
+  queueProducers: { "MY_QUEUE": "my-queue" },
+  queueProducers: ["MY_QUEUE"] // If binding and queue names are the same
 });
 ```
 
