@@ -8,7 +8,7 @@ order: 8
 
 ## Producers
 
-`queueProducers`
+Specify Queue producers to add to your environment as follows:
 
 import ConfigTabs from "../components/mdx/config-tabs";
 
