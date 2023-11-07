@@ -406,7 +406,6 @@ const mf = new Miniflare({
   cf: "./node_modules/.mf/cf.json", // Path for cached Request cf object from Cloudflare
   liveReload: true, // Reload HTML pages whenever worker is reloaded
 
-  crons: ["30 * * * *"], // CRON expression for triggering scheduled events
 
   buildCommand: "npm run build", // Command to build project
   buildBasePath: "./build", // Working directory for build command
