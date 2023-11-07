@@ -407,11 +407,6 @@ const mf = new Miniflare({
   httpsKeyPath: "./key.pem", // Path to PEM SSL key
   httpsCert: "-----BEGIN CERTIFICATE-----...",
   httpsCertPath: "./cert.pem", // Path to PEM SSL cert chain
-  httpsCa: "...",
-  httpsCaPath: "./ca.pem", // Path to SSL trusted CA certs
-  httpsPfx: "...",
-  httpsPfxPath: "./pfx.pfx", // Path to PFX/PKCS12 SSL key/cert chain
-  httpsPassphrase: "pfx passphrase", // Passphrase to decrypt SSL files
   cf: "./node_modules/.mf/cf.json", // Path for cached Request cf object from Cloudflare
   async metaProvider(req) {
     // Custom request metadata provider taking Node `http.IncomingMessage`
