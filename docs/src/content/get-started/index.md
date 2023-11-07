@@ -85,8 +85,7 @@ const mf = new Miniflare({
 
 Miniflare's API is primarily intended for testing use cases, where file watching isn't usually required.  If you need to watch files, consider using a separate file watcher like [fs.watch()](https://nodejs.org/api/fs.html#fswatchfilename-options-listener) or [chokidar](https://github.com/paulmillr/chokidar), and calling setOptions() with your original configuration on change.
 
-You must `dispose` if you're persisting KV, cache, or Durable Object data
-in Redis to close opened connections.
+To cleanup and stop listening for requests, you should `dispose()` your instances:
 
 ```js
 await mf.dispose();
