@@ -434,7 +434,6 @@ const mf = new Miniflare({
   envPath: "./env.custom", // ...or custom .env path
 
   bindings: { SECRET: "sssh" }, // Binds variable/secret to environment
-  globals: { LOG: () => console.log("magic") }, // Binds variable/secret to global scope
   wasmBindings: { ADD_MODULE: "./add.wasm" }, // WASM module to bind
   textBlobBindings: { TEXT: "./text.txt" }, // Text blob to bind
   dataBlobBindings: { DATA: "./data.bin" }, // Data blob to bind
