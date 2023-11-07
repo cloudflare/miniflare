@@ -61,15 +61,14 @@ const mf = new Miniflare({
 const worker = await mf.getWorker();
 
 let scheduledResult = await worker.scheduled({
-    cron: "* * * * *",
-  });
-
+  cron: "* * * * *",
+});
 console.log(scheduledResult) // { outcome: 'ok', noRetry: true }
 
 scheduledResult = await worker.scheduled({
-    scheduledTime: new Date(1000),
-    cron: "30 * * * *",
-  });
+  scheduledTime: new Date(1000),
+  cron: "30 * * * *",
+});
 
 console.log(scheduledResult) // { outcome: 'ok', noRetry: false }
 
