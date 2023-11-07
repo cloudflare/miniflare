@@ -73,41 +73,23 @@ await mf.dispose();
 
 ## Routing
 
-You can enable routing by specifying routes in a worker's `wrangler.toml` file or via the API,
+You can enable routing by specifying `routes` via the API,
 using the
 [standard route syntax](https://developers.cloudflare.com/workers/platform/routes#matching-behavior).
 Note port numbers are ignored:
 
-```toml
----
-filename: api/wrangler.toml
----
-# Miniflare will load routes from any of these options
-
-route = "https://example.com/api/*"
-routes = ["example.com/v1/*", "example.com/v2/*"]
-
-# Miniflare supports Wrangler2 routes. Zones are ignored
-route = {pattern = "https://example.com/api/*", zone_name="<ignored>"}
-routes = [{pattern = "example.com/v1/*", zone_name="<ignored>"}, {pattern = "example.com/v2/*", zone_id = "<ignored>"}]
-
-# Only loaded if the wrangler.toml environment is set to "dev"
-[env.dev]
-route = "miniflare.test/api/*"
-routes = ["miniflare.test/v1/*", "miniflare.test/v2/*"]
-```
-
 ```js
 const mf = new Miniflare({
-  workers: [{
-    scriptPath: "./api/worker.js",
-    routes: ["http://127.0.0.1/api*", "api.mf/*"],
+  workers: [
+    {
+      scriptPath: "./api/worker.js",
+      routes: ["http://127.0.0.1/api*", "api.mf/*"],
     },
-  },
+  ],
 });
 ```
 
-When using the CLI with hostnames that aren't `localhost` or `127.0.0.1`, you
+When using hostnames that aren't `localhost` or `127.0.0.1`, you
 may need to edit your computer's `hosts` file, so those hostnames resolve to
 `localhost`. On Linux and macOS, this is usually at `/etc/hosts`. On Windows,
 it's at `C:\Windows\System32\drivers\etc\hosts`. For the routes above, we would
