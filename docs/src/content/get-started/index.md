@@ -407,9 +407,6 @@ const mf = new Miniflare({
   liveReload: true, // Reload HTML pages whenever worker is reloaded
 
 
-  buildCommand: "npm run build", // Command to build project
-  buildBasePath: "./build", // Working directory for build command
-  buildWatchPaths: ["./src"], // Directory to watch for rebuilding on changes
 
   kvNamespaces: ["TEST_NAMESPACE"], // KV namespace to bind
   kvPersist: "./kv-data", // Persist KV data (to optional path)
