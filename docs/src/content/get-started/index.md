@@ -342,7 +342,6 @@ const mf = new Miniflare({
   // All options are optional, but one of script or scriptPath is required
 
   log: new Log(LogLevel.INFO), // Logger Miniflare uses for debugging
-  sourceMap: true, // Enable source map support globally
 
   script: `
     export default {
