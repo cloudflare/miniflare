@@ -329,7 +329,7 @@ import { Miniflare, Log, LogLevel } from "miniflare";
 
 const mf = new Miniflare({
   scriptPath: "worker.js",
-  log: new Log(LogLevel.DEBUG), // Enable --debug messages
+  log: new Log(LogLevel.DEBUG), // Enable debug messages
 });
 ```
 
