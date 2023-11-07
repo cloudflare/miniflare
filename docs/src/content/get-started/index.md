@@ -292,10 +292,7 @@ To load an existing certificate from the file system:
 const mf = new Miniflare({
   // These are all optional, you don't need to include them all
   httpsKeyPath: "./key.pem",
-  httpsCertPath: "./cert.pem",
-  httpsCaPath: "./ca.pem",
-  httpsPfxPath: "./pfx.pfx",
-  httpsPassphrase: "pfx passphrase",
+  httpsCertPath: "./cert.pem"
 });
 ```
 
@@ -306,9 +303,6 @@ const mf = new Miniflare({
   // These are all optional, you don't need to include them all
   httpsKey: "-----BEGIN RSA PRIVATE KEY-----...",
   httpsCert: "-----BEGIN CERTIFICATE-----...",
-  httpsCa: "...",
-  httpsPfx: "...",
-  httpsPassphrase: "pfx passphrase",
 });
 ```
 
