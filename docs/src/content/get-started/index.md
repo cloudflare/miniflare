@@ -429,8 +429,6 @@ const mf = new Miniflare({
   siteInclude: ["**/*.html", "**/*.css", "**/*.js"], // Glob pattern of site files to serve
   siteExclude: ["node_modules"], // Glob pattern of site files not to serve
 
-  envPath: true, // Load environment variables from .env
-  envPath: "./env.custom", // ...or custom .env path
 
   bindings: { SECRET: "sssh" }, // Binds variable/secret to environment
   wasmBindings: { ADD_MODULE: "./add.wasm" }, // WASM module to bind
