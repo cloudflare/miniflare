@@ -404,18 +404,6 @@ const mf = new Miniflare({
   httpsCert: "-----BEGIN CERTIFICATE-----...",
   httpsCertPath: "./cert.pem", // Path to PEM SSL cert chain
   cf: "./node_modules/.mf/cf.json", // Path for cached Request cf object from Cloudflare
-  async metaProvider(req) {
-    // Custom request metadata provider taking Node `http.IncomingMessage`
-    return {
-      forwardedProto: req.headers["X-Forwarded-Proto"],
-      realIp: req.headers["X-Forwarded-For"],
-      cf: {
-        colo: "SFO",
-        country: "US",
-        // ...
-      },
-    };
-  },
   liveReload: true, // Reload HTML pages whenever worker is reloaded
 
   crons: ["30 * * * *"], // CRON expression for triggering scheduled events
