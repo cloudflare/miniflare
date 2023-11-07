@@ -396,9 +396,6 @@ const mf = new Miniflare({
   name: "worker", // Name of service
   routes: ["*site.mf/worker"],
 
-  acutalTime: true, // Always return current time from `Date.now()`/`new Date()`
-
-  inaccurateCpu: true, // Log experimental, highly-inaccurate CPU time measurements with each request
 
   host: "127.0.0.1", // Host for HTTP(S) server to listen on
   port: 8787, // Port for HTTP(S) server to listen on
