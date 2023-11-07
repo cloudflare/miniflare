@@ -420,7 +420,6 @@ const mf = new Miniflare({
     API_OBJECT: { className: "ApiObject", scriptName: "api" },
   },
   durableObjectsPersist: "./durable-objects-data", // Persist Durable Object data (to optional path)
-  durableObjectsAlarms: false, // Enable default/named Durable Object alarms (enabled by default)
 
   cache: false, // Enable default/named caches (enabled by default)
   cachePersist: "./cache-data", // Persist cached data (to optional path)
