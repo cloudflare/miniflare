@@ -15,8 +15,9 @@ export function prefixError(prefix: string, e: any): Error {
   if (e.stack) {
     return new Proxy(e, {
       get(target, propertyKey, receiver) {
-        const value = Reflect.get(target, propertyKey, receiver);
-        return propertyKey === "stack" ? `${prefix}: ${value}` : value;
+        return propertyKey === "stack"
+          ? `${prefix}: ${target.stack}`
+          : Reflect.get(target, propertyKey, receiver);
       },
     });
   }
