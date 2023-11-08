@@ -668,7 +668,10 @@ export class CorePlugin extends Plugin<CoreOptions> implements CoreOptions {
       return {
         globals,
         additionalModules,
-        script: { filePath: STRING_SCRIPT_PATH, code: this.script },
+        script: {
+          filePath: this.scriptPath ?? STRING_SCRIPT_PATH,
+          code: this.script,
+        },
       };
     }
 
