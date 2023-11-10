@@ -1,4 +1,22 @@
-# 🔥 Miniflare
+> [!WARNING]
+>
+> This repository is for [Miniflare 2](https://legacy.miniflare.dev/), which is
+> **only receiving critical security updates.** Miniflare 2 simulated the
+> Workers runtime and the rest of the Cloudflare developer platform using
+> Node.js. New versions of Miniflare can be found in the
+> [`workers-sdk`](https://github.com/cloudflare/workers-sdk/tree/main/packages/miniflare)
+> repository, and use the
+> [open-sourced](https://blog.cloudflare.com/workerd-open-source-workers-runtime/)
+> Workers runtime [`workerd`](https://github.com/cloudflare/workerd). This
+> practically eliminates behaviour mismatches between development and production
+> deployments. We recommend you
+> [migrate to Miniflare 3](https://miniflare.dev/get-started/migrating) now if
+> you can. Whilst Miniflare 3 supports most of Miniflare 2's features, one key
+> omission is the unit testing environment. We're actively working on adding
+> support for this to Miniflare 3. Once this is supported, we're planning to
+> deprecate Miniflare 2 and archive this repository.
+
+# 🔥 Miniflare 2
 
 **Miniflare** is a simulator for developing and testing
 [**Cloudflare Workers**](https://workers.cloudflare.com/).
@@ -13,7 +31,7 @@
 It's an alternative to `wrangler dev`, written in TypeScript, that runs your
 workers in a sandbox implementing Workers' runtime APIs.
 
-**See <https://miniflare.dev> for more detailed documentation.**
+**See <https://legacy.miniflare.dev> for more detailed documentation.**
 
 ## Features
 
@@ -43,8 +61,8 @@ workers in a sandbox implementing Workers' runtime APIs.
 Miniflare is installed using npm:
 
 ```sh
-$ npm install -g miniflare # either globally..
-$ npm install -D miniflare # ...or as a dev dependency
+$ npm install -g miniflare@2 # either globally..
+$ npm install -D miniflare@2 # ...or as a dev dependency
 ```
 
 ## Using the CLI
