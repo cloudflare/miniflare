@@ -20,7 +20,7 @@ let tab;
 try {
   tab = localStorage.getItem("tab");
 } catch (e) {}
-document.documentElement.setAttribute("data-tab", tab || "cli");
+document.documentElement.setAttribute("data-tab", tab || "api");
 })();`;
 
 function getTabFromStorage() {
@@ -28,7 +28,7 @@ function getTabFromStorage() {
   try {
     tab = localStorage.getItem("tab");
   } catch (e) {}
-  return tab || "cli";
+  return tab || "api";
 }
 
 function setTab($tabs, tab) {
