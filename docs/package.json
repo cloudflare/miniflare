@@ -13,7 +13,6 @@
     "docs:reset": "rimraf ./.docs/src/content && node ./changelog.mjs",
     "docs:build": "npm run docs:reset && npm run build && cp ./_redirects ./.docs/public/",
     "docs:dev": "npm run docs:reset && concurrently \"npm:develop\" \"node watch.mjs\" -n dev,wat -c magenta,gray -k",
-
     "pages:build": "npm run ghactionsbootstrap && npm run docs:build"
   },
   "devDependencies": {
