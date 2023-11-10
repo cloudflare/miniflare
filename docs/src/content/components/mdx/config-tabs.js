@@ -5,13 +5,11 @@ import Helmet from "react-helmet";
 
 import getUniqueReadableID from "../../../utils/get-unique-readable-id";
 import IconAPI from "../icons/api";
-import IconCLI from "../icons/cli";
 import IconWrangler from "../icons/wrangler";
 
 // Page/storage synchronisation adapted from components/theme-toggle.js
 
 const TABS = [
-  { id: "cli", name: "CLI", Icon: IconCLI },
   { id: "wrangler", name: "wrangler.toml", Icon: IconWrangler, mono: true },
   { id: "api", name: "JavaScript API", Icon: IconAPI },
 ];

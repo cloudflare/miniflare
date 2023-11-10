@@ -11,32 +11,11 @@ order: 3
 Miniflare supports both the traditional `service-worker` and newer `modules`
 formats for writing workers. To use the `modules` format, enable it with:
 
-import ConfigTabs from "../components/mdx/config-tabs";
-
-<ConfigTabs>
-
-```sh
-$ miniflare --modules # or -m
-```
-
-```toml
----
-filename: wrangler.toml
----
-[build.upload]
-format = "modules"
-```
-
 ```js
 const mf = new Miniflare({
   modules: true,
 });
 ```
-
-</ConfigTabs>
-
-When using the API you must also pass the **`--experimental-vm-modules`** flag
-to Node.js. This is added automatically when using the CLI.
 
 You can now use `modules` worker scripts like the following:
 
@@ -59,7 +38,7 @@ export default {
 
 <Aside type="warning" header="Warning">
 
-When using the API, string scripts via the `script` option are supported using
+String scripts via the `script` option are supported using
 the `modules` format, but you cannot import other modules using them. You must
 use a script file via the `scriptPath` option for this.
 
@@ -70,25 +49,6 @@ use a script file via the `scriptPath` option for this.
 Miniflare supports all module types: `ESModule`, `CommonJS`, `Text`, `Data` and
 `CompiledWasm`. You can specify additional module resolution rules as follows:
 
-<ConfigTabs>
-
-```sh
-# Note all rules implicitly have the `fallthrough` option set to true
-$ miniflare --modules-rule "ESModule=**/*.js" --modules-rule "Text=**/*.txt"
-```
-
-```toml
----
-filename: wrangler.toml
----
-[[build.upload.rules]]
-type = "ESModule"
-globs = ["**/*.js"]
-[[build.upload.rules]]
-type = "Text"
-globs = ["**/*.txt"]
-```
-
 ```js
 const mf = new Miniflare({
   modulesRules: [
@@ -97,8 +57,6 @@ const mf = new Miniflare({
   ],
 });
 ```
-
-</ConfigTabs>
 
 ### Default Rules
 

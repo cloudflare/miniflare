@@ -4,41 +4,14 @@ order: 2
 
 # ⚡️ Live Reload
 
-## Enabling Live Reload
-
-Miniflare can automatically refresh your browser when your worker script
-changes.
-
-import ConfigTabs from "../components/mdx/config-tabs";
-
-<ConfigTabs>
-
-```sh
-$ miniflare --live-reload
-```
-
-```toml
----
-filename: wrangler.toml
----
-[miniflare]
-live_reload = true
-```
+Miniflare automatically refreshes your browser when your worker script
+changes when `liveReload` is set to `true`.
 
 ```js
 const mf = new Miniflare({
   liveReload: true,
 });
 ```
-
-</ConfigTabs>
-
-<Aside header="Tip">
-
-When using the CLI, if either `--live-reload` or `[miniflare] live_reload` is
-set, `--watch` is automatically assumed.
-
-</Aside>
 
 Miniflare will only inject the `<script>` tag required for live-reload at the
 end of responses with the `Content-Type` header set to `text/html`:

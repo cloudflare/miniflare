@@ -9,23 +9,6 @@ order: 5
 WebAssembly modules are bound as follows. The bound keys will be instances of
 [WebAssembly.Module](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/Module):
 
-import ConfigTabs from "../components/mdx/config-tabs";
-
-<ConfigTabs>
-
-```sh
-$ miniflare --wasm MODULE1=module1.wasm --wasm MODULE2=module2.wasm
-```
-
-```toml
----
-filename: wrangler.toml
----
-[wasm_modules]
-MODULE1 = "module1.wasm"
-MODULE2 = "module2.wasm"
-```
-
 ```js
 const mf = new Miniflare({
   wasmBindings: {
@@ -34,8 +17,6 @@ const mf = new Miniflare({
   },
 });
 ```
-
-</ConfigTabs>
 
 You can then use the WebAssembly modules in your workers:
 

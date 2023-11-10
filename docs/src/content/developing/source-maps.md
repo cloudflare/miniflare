@@ -9,19 +9,6 @@ source an error occurred, as opposed to somewhere in the bundled output. See
 [this page](https://developer.mozilla.org/en-US/docs/Tools/Debugger/How_to/Use_a_source_map)
 for more details.
 
-## Enabling Source Map Support
-
-When using the CLI, source map support is always enabled automatically. 🎉
-
-When using the API, source map support can be enabled with the `sourceMap`
-option. Note this will install support **globally** in your entire application:
-
-```js
-const mf = new Miniflare({
-  sourceMap: true,
-});
-```
-
 ## Outputting Source Maps
 
 How you generate source maps depends on your build tool. Here's how to do it for

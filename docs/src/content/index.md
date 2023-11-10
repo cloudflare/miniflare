@@ -20,8 +20,8 @@ TypeScript, and runs your code in a sandbox implementing Workers' runtime APIs.
   Reload code on change quickly.
 
 <ButtonGroup>
-  <Button type="primary" href="/get-started/cli">Get Started</Button>
-  <Button type="secondary" href="https://github.com/cloudflare/miniflare">GitHub</Button>
+  <Button type="primary" href="/get-started">Get Started</Button>
+  <Button type="secondary" href="https://github.com/cloudflare/workers-sdk">GitHub</Button>
   <Button type="secondary" href="https://npmjs.com/package/miniflare">npm</Button>
 </ButtonGroup>
 

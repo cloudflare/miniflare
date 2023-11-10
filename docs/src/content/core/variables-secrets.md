@@ -8,24 +8,6 @@ order: 2
 
 Variable and secrets are bound as follows:
 
-import ConfigTabs from "../components/mdx/config-tabs";
-
-<ConfigTabs>
-
-```sh
-$ miniflare --binding KEY1=value1 --binding KEY2=value2 # or -b
-```
-
-```toml
----
-filename: wrangler.toml
----
-[vars]
-KEY1 = "value1"
-KEY2 = "value2"
-NUMBER = 42 # Note [vars] are automatically stringified
-```
-
 ```js
 const mf = new Miniflare({
   bindings: {
@@ -34,8 +16,6 @@ const mf = new Miniflare({
   },
 });
 ```
-
-</ConfigTabs>
 
 ## `.env` Files
 
@@ -51,48 +31,16 @@ KEY2=value2
 
 You can also specify the path to a custom `.env` file:
 
-<ConfigTabs>
-
-```sh
-$ miniflare --env .env.test # or -e
-```
-
-```toml
----
-filename: wrangler.toml
----
-[miniflare]
-env_path = ".env.test"
-```
-
 ```js
 const mf = new Miniflare({
   envPath: ".env.test",
 });
 ```
 
-</ConfigTabs>
-
 ## Text and Data Blobs
 
 Text and data blobs can be loaded from files. File contents will be read and
 bound as `string`s and `ArrayBuffer`s respectively.
-
-<ConfigTabs>
-
-```sh
-$ miniflare --text-blob TEXT=text.txt --data-blob DATA=data.bin
-```
-
-```toml
----
-filename: wrangler.toml
----
-[text_blobs]
-TEXT = "text.txt"
-[data_blobs]
-DATA = "data.bin"
-```
 
 ```js
 const mf = new Miniflare({
@@ -100,8 +48,6 @@ const mf = new Miniflare({
   dataBlobBindings: { DATA: "data.bin" },
 });
 ```
-
-</ConfigTabs>
 
 ## Bindings Priority
 
@@ -117,35 +63,7 @@ The order (from lowest to highest priority) is:
 
 ## Globals
 
-You can also bind variables or arbitrary objects to the global scope, even in
-modules mode:
-
-<ConfigTabs>
-
-```sh
-$ miniflare --global KEY1=value1 --global KEY2=value2
-```
-
-```toml
----
-filename: wrangler.toml
----
-[miniflare.globals]
-KEY1 = "value1"
-KEY2 = "value2"
-```
-
-```js
-const mf = new Miniflare({
-  globals: {
-    KEY1: "value1",
-    KEY2: "value2",
-    FUNCTION: () => { ... }
-  },
-});
-```
-
-</ConfigTabs>
+Injecting arbitrary globals is not supported by [workerd](https://github.com/cloudflare/workerd). If you're using a service worker, bindings will be injected as globals, but these must be JSON-serialisable.
 
 <Aside header="Tip">
 

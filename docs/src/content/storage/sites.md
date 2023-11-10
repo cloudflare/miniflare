@@ -1,5 +1,5 @@
 ---
-order: 4
+order: 5
 ---
 
 # 🌐 Workers Sites
@@ -27,12 +27,6 @@ be ignored:
 import ConfigTabs from "../components/mdx/config-tabs";
 
 <ConfigTabs>
-
-```sh
-$ miniflare --site ./public # or -s
-$ miniflare --site ./public --site-include upload_dir
-$ miniflare --site ./public --site-exclude ignore_dir
-```
 
 ```toml
 ---
