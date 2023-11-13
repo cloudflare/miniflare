@@ -4,9 +4,9 @@ order: 4
 
 # 🐛 Attaching a Debugger
 
-You can use regular Node.js tools
-to debug your workers. Setting breakpoints, watching values and inspecting the
-call stack are all examples of things you can do with a debugger.
+You can use regular Node.js tools to debug your workers. Setting breakpoints,
+watching values and inspecting the call stack are all examples of things you can
+do with a debugger.
 
 If you're building your worker beforehand (e.g. with esbuild, Webpack, Rollup),
 make sure you're outputting
@@ -19,7 +19,8 @@ proceeding.
 
 The easiest way to debug a Worker in VSCode is to create a new configuration.
 
-Open the **Run and Debug** menu in the VSCode activity bar and create a `.vscode/launch.json` file that contains the following:
+Open the **Run and Debug** menu in the VSCode activity bar and create a
+`.vscode/launch.json` file that contains the following:
 
 ```json
 ---
@@ -41,9 +42,8 @@ filename: .vscode/launch.json
 }
 ```
 
-From the **Run and Debug** menu in the activity bar, select the
-`Miniflare` configuration, and click the green play button to start
-debugging.
+From the **Run and Debug** menu in the activity bar, select the `Miniflare`
+configuration, and click the green play button to start debugging.
 
 ## WebStorm
 
@@ -52,8 +52,8 @@ Create a new configuration, by clicking **Add Configuration** in the top right.
 ![WebStorm add configuration button](./debugger-webstorm-node-add.png)
 
 Click the **plus** button in the top left of the popup and create a new
-**Node.js/Chrome** configuration. Set the **Host** field to
-`localhost` and the **Port** field to `9229`. Then click **OK**.
+**Node.js/Chrome** configuration. Set the **Host** field to `localhost` and the
+**Port** field to `9229`. Then click **OK**.
 
 ![WebStorm Node.js debug configuration](./debugger-webstorm-settings.png)
 
@@ -64,4 +64,6 @@ debugging.
 
 ## DevTools
 
-Breakpoints can also be added via the Wranger DevTools. For more information, [read the guide](https://developers.cloudflare.com/workers/observability/local-development-and-testing/#devtools) in the Cloudflare Workers docs.
+Breakpoints can also be added via the Wrangler DevTools. For more information,
+[read the guide](https://developers.cloudflare.com/workers/observability/local-development-and-testing/#devtools)
+in the Cloudflare Workers docs.
