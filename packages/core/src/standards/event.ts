@@ -9,7 +9,6 @@ import {
   prefixError,
 } from "@miniflare/shared";
 import { Response as BaseResponse } from "undici";
-import { waitUntilAll } from "../wait-until-all";
 import { DOMException } from "./domexception";
 import { Request, Response, fetch, withWaitUntil } from "./http";
 
@@ -32,6 +31,21 @@ const SUGGEST_GLOBAL_BINDING_MODULES =
   "\nYou must use the 2nd `env` parameter passed to exported " +
   "handlers/Durable Object constructors, or `context.env` with " +
   "Pages Functions.";
+
+// Like `Promise.all()`, but also handles nested changes to the promises array
+export async function waitUntilAll<WaitUntil extends any[] = unknown[]>(
+  promises: Promise<unknown>[]
+): Promise<WaitUntil> {
+  let len = 0;
+  let last: WaitUntil = [] as unknown as WaitUntil;
+  // When the length of the array changes, there has been a nested call to
+  // `waitUntil` and we should await the promises again
+  while (len !== promises.length) {
+    len = promises.length;
+    last = (await Promise.all(promises)) as WaitUntil;
+  }
+  return last;
+}
 
 const kResponse = Symbol("kResponse");
 const kPassThrough = Symbol("kPassThrough");
@@ -450,7 +464,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
       cron: cron ?? "",
     });
     super.dispatchEvent(event);
-    return await waitUntilAll<WaitUntil>(event[kWaitUntil]);
+    return waitUntilAll<WaitUntil>(event[kWaitUntil]);
   }
 
   async [kDispatchQueue]<WaitUntil extends any[] = any[]>(
@@ -458,7 +472,7 @@ export class ServiceWorkerGlobalScope extends WorkerGlobalScope {
   ): Promise<WaitUntil> {
     const event = new QueueEvent("queue", { batch });
     super.dispatchEvent(event);
-    return await waitUntilAll<WaitUntil>(event[kWaitUntil]);
+    return waitUntilAll<WaitUntil>(event[kWaitUntil]);
   }
 
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
