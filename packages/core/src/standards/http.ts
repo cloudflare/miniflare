@@ -796,14 +796,10 @@ class MiniflareDispatcher extends Dispatcher {
     options: Dispatcher.DispatchOptions,
     handler: Dispatcher.DispatchHandlers
   ): boolean {
+    // Remove any default fetch headers that the user didn't explicitly set,
+    // `headers` has the form `["key1", "value1", "key2", "value2", ...]`
     const headers = options.headers;
-    if (headers) {
-      // Note: I'm fully expecting this to break in future undici versions
-      // and need to be updated, but that's why we pin our undici version and
-      // have tests
-      assert(Array.isArray(headers));
-      // Remove any default fetch headers that the user didn't explicitly set,
-      // `headers` has the form `["key1", "value1", "key2", "value2", ...]`
+    if (Array.isArray(headers)) {
       let i = 0;
       while (i < headers.length) {
         if (this.removeHeaders.includes(headers[i].toLowerCase())) {
@@ -811,6 +807,10 @@ class MiniflareDispatcher extends Dispatcher {
         } else {
           i += 2;
         }
+      }
+    } else if (headers != null) {
+      for (const key in headers) {
+        if (this.removeHeaders.includes(key.toLowerCase())) delete headers[key];
       }
     }
     return this.inner.dispatch(options, handler);
