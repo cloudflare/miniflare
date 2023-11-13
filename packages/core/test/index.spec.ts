@@ -1389,23 +1389,24 @@ test("MiniflareCore: dispatchFetch: awaits nested waitUntil", async (t) => {
     {},
     {
       script: `
-        const delay = (n) => new Promise((res) => setTimeout(res, n))
-
+        async function waitAgain(ctx) {
+          await scheduler.wait(100);
+          ctx.waitUntil(scheduler.wait(100).then(() => 2));
+          return 1;
+        }
+      
         export default {
           async fetch(req, env, ctx) {
-            const fn = async () => {
-              await delay(2000);
-
-              ctx.waitUntil(delay(2000).then(()=>{
-                console.log("nested waitUntil promise resolved")
-              }))
-
-              console.log("fn resolved")
-            };
-
-            ctx.waitUntil(fn())
-
-            return new Response("ok", { status: 200 })
+            ctx.waitUntil(waitAgain(ctx));
+            return new Response();
+          },
+          async scheduled(controller, env, ctx) {
+            ctx.waitUntil(waitAgain(ctx));
+            return 3;
+          },
+          async queue(batch, env, ctx) {
+            ctx.waitUntil(waitAgain(ctx));
+            return 4;
           }
         }
       `,
@@ -1414,7 +1415,17 @@ test("MiniflareCore: dispatchFetch: awaits nested waitUntil", async (t) => {
     log
   );
 
-  const res = await mf.dispatchFetch("https://test", { method: "GET" });
-  const arr = await res.waitUntil();
-  t.is(arr.length, 2);
+  const res = await mf.dispatchFetch("https://test");
+  let waitUntil = await res.waitUntil();
+  t.deepEqual(waitUntil, [1, 2]);
+
+  waitUntil = await mf.dispatchScheduled();
+  t.deepEqual(waitUntil, [1, 3, 2]);
+
+  waitUntil = await mf.dispatchQueue({
+    queue: "queue",
+    messages: [],
+    retryAll() {},
+  });
+  t.deepEqual(waitUntil, [1, 4, 2]);
 });
