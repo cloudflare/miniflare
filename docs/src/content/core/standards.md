@@ -13,33 +13,6 @@ order: 6
 - [Using Streams](https://developers.cloudflare.com/workers/learning/using-streams)
 - [Web Crypto Reference](https://developers.cloudflare.com/workers/runtime-apis/web-crypto)
 
-Miniflare supports the following Web Standards in its sandbox:
-
-- **Console:** `console.*`
-- **Timers:** `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval`,
-  `queueMicrotask`, `AbortSignal.timeout`, `scheduler.wait`
-- **Base64:** `atob`, `btoa`
-- **Web Crypto**: `crypto.getRandomValues`, `crypto.randomUUID`,
-  `crypto.subtle.*` (with support for `MD5` digests and `NODE-ED25519`
-  signatures), `crypto.DigestStream`
-- **Encoding:** `TextEncoder`, `TextDecoder`
-- **Fetch:** `fetch`, `Headers` (including
-  [non-standard `getAll` method](https://developers.cloudflare.com/workers/runtime-apis/headers#differences)),
-  `Request`, `Response`, `FormData`, `Blob`, `File`, `URL`, `URLPattern`,
-  `URLSearchParams` (powered by [`undici`](https://github.com/nodejs/undici/))
-- **Streams:** `ByteLengthQueuingStrategy`, `CountQueuingStrategy`,
-  `ReadableByteStreamController`, `ReadableStream`, `ReadableStreamBYOBReader`
-  (including non-standard `readAtLeast` method), `ReadableStreamBYOBRequest`,
-  `ReadableStreamDefaultController`, `ReadableStreamDefaultReader`,
-  `TransformStream`, `TransformStreamDefaultController`, `WritableStream`,
-  `WritableStreamDefaultController`, `WritableStreamDefaultWriter`,
-  `IdentityTransformStream`, `FixedLengthStream`, `CompressionStream`,
-  `DecompressionStream`, `TextEncoderStream`, `TextDecoderStream`
-- **Events:** `Event`, `EventTarget`, `AbortController`, `AbortSignal`
-- **Event Types:** `fetch`, `scheduled`, `unhandledrejection`,
-  `rejectionhandled`
-- **Misc:** `structuredClone`, `navigator`
-
 ## Mocking Outbound `fetch` Requests
 
 When using the API, Miniflare allows you to substitute custom `Response`s for
@@ -91,7 +64,10 @@ console.log(await res.text()); // "response:Mocked response!"
 
 ## Subrequests
 
-Miniflare does not support limiting the amount of [subrequests](https://developers.cloudflare.com/workers/platform/limits#account-plan-limits). Please keep this in mind if you make a large amount of subrequests from your Worker.
+Miniflare does not support limiting the amount of
+[subrequests](https://developers.cloudflare.com/workers/platform/limits#account-plan-limits).
+Please keep this in mind if you make a large amount of subrequests from your
+Worker.
 
 ## Global Functionality Limits
 
