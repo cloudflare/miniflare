@@ -1384,3 +1384,48 @@ test("MiniflareCore: dispose: cleans up watcher", async (t) => {
   await setTimeout(100); // Shouldn't reload here
   t.is(log.logsAtLevel(LogLevel.DEBUG).length, 0);
 });
+test("MiniflareCore: dispatchFetch: awaits nested waitUntil", async (t) => {
+  const mf = useMiniflare(
+    {},
+    {
+      script: `
+        async function waitAgain(ctx) {
+          await scheduler.wait(100);
+          ctx.waitUntil(scheduler.wait(100).then(() => 2));
+          return 1;
+        }
+      
+        export default {
+          async fetch(req, env, ctx) {
+            ctx.waitUntil(waitAgain(ctx));
+            return new Response();
+          },
+          async scheduled(controller, env, ctx) {
+            ctx.waitUntil(waitAgain(ctx));
+            return 3;
+          },
+          async queue(batch, env, ctx) {
+            ctx.waitUntil(waitAgain(ctx));
+            return 4;
+          }
+        }
+      `,
+      modules: true,
+    },
+    log
+  );
+
+  const res = await mf.dispatchFetch("https://test");
+  let waitUntil = await res.waitUntil();
+  t.deepEqual(waitUntil, [1, 2]);
+
+  waitUntil = await mf.dispatchScheduled();
+  t.deepEqual(waitUntil, [1, 3, 2]);
+
+  waitUntil = await mf.dispatchQueue({
+    queue: "queue",
+    messages: [],
+    retryAll() {},
+  });
+  t.deepEqual(waitUntil, [1, 4, 2]);
+});

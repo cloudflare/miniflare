@@ -74,3 +74,16 @@ test("ExecutionContext: waitUntil: await resolving promise array using getMinifl
   expect(cachedResponse).toBeTruthy();
   expect(await cachedResponse.text()).toBe("example cache");
 });
+
+test("getMiniflareWaitUntil: supports nested wait until", async () => {
+  const ctx = new ExecutionContext();
+  ctx.waitUntil(
+    (async () => {
+      await scheduler.wait(100);
+      ctx.waitUntil(scheduler.wait(100).then(() => 2));
+      return 1;
+    })()
+  );
+  const waitUntilList = await getMiniflareWaitUntil(ctx);
+  expect(waitUntilList).toEqual([1, 2]);
+});
