@@ -64,6 +64,6 @@ debugging.
 
 ## DevTools
 
-Breakpoints can also be added via the Wrangler DevTools. For more information,
+Breakpoints can also be added via the Workers DevTools. For more information,
 [read the guide](https://developers.cloudflare.com/workers/observability/local-development-and-testing/#devtools)
 in the Cloudflare Workers docs.
