@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/root",
-  "version": "3.0.0-next.13",
+  "version": "3.0.0-next.14",
   "private": true,
   "description": "Fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
