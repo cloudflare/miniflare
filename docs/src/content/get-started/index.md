@@ -39,13 +39,14 @@ const mf = new Miniflare({
   export default {
     async fetch(request, env, ctx) {
       return new Response("Hello Miniflare!");
-    })
+    }
   }
   `,
 });
 
 const res = await mf.dispatchFetch("http://localhost:8787/");
 console.log(await res.text()); // Hello Miniflare!
+await mf.dispose();
 ```
 
 The [rest of these docs](/core/fetch) go into more detail on configuring
