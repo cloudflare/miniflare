@@ -1,5 +1,30 @@
 # 🚧 Changelog
 
+## 2.14.2
+
+### Fixes
+
+- Throw errors when calling `Body#formData()` with malformed form data. Thanks
+  [@b-marques](https://github.com/b-marques) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/711).
+- Use `scriptPath` as the file path for the script if set. Thanks
+  [@frandiox](https://github.com/frandiox) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/736).
+- Ensure `vitest-environment-miniflare` works with Node 21. Closes
+  [issue #732](https://github.com/cloudflare/miniflare/issues/732), thanks
+  [@jkeys089](https://github.com/jkeys089) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/734).
+- Ensure `waitUntil()`s added inside `waitUntil()` callbacks are waited on.
+  Closes [issue #605](https://github.com/cloudflare/miniflare/issues/605),
+  thanks [@hansottowirtz](https://github.com/hansottowirtz) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/606).
+- Bump `undici` to `5.82.2`, addressing
+  [low severity `npm audit` warning](https://github.com/advisories/GHSA-wqq4-5wpv-mx2g).
+  Closes [issues #607](https://github.com/cloudflare/miniflare/issues/607) and
+  [#738](https://github.com/cloudflare/miniflare/issues/738), thanks
+  [@hansottowirtz](https://github.com/hansottowirtz) and
+  [@mm-jpoole](https://github.com/mm-jpoole).
+
 ## 2.14.1
 
 ### Fixes
