@@ -179,6 +179,26 @@ test("Body: can pause, resume and cancel body stream", async (t) => {
   t.true(result.done);
   t.is(result.value, undefined);
 });
+test("Body: can cancel body directly", async (t) => {
+  const chunks = ["123", "456", "789"];
+  const bodyStream = new ReadableStream({
+    pull(controller) {
+      const chunk = chunks.shift();
+      if (chunk) {
+        controller.enqueue(utf8Encode(chunk));
+      } else {
+        controller.close();
+      }
+    },
+  });
+  const { body } = new Response(bodyStream);
+  assert(body);
+
+  await body.cancel();
+  const result = await body.getReader().read();
+  t.true(result.done);
+  t.is(result.value, undefined);
+});
 test("Body: throws on string chunks", async (t) => {
   const inputStream = new ReadableStream({
     start(controller) {
