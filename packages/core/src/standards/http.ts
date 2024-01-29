@@ -265,7 +265,10 @@ export class Body<Inner extends BaseRequest | BaseResponse> {
           controller.byobRequest?.respond(0);
         }
       },
-      cancel: (reason) => reader.cancel(reason),
+      cancel: (reason) => {
+        if (reader === undefined) reader = body.getReader();
+        return reader.cancel(reason);
+      },
     };
     // TODO: maybe set { highWaterMark: 0 } as a strategy here?
     bodyStream = new ReadableStream(source);
