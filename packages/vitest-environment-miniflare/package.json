@@ -41,7 +41,7 @@
     "@miniflare/queues": "2.14.2",
     "@miniflare/shared": "2.14.2",
     "@miniflare/shared-test-environment": "2.14.2",
-    "undici": "5.28.2"
+    "undici": "5.28.3"
   },
   "peerDependencies": {
     "vitest": ">=0.23.0"
