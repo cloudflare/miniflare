@@ -1,6 +1,6 @@
 {
   "name": "vitest-environment-miniflare",
-  "version": "2.14.2",
+  "version": "2.14.3",
   "description": "Vitest testing environment for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -48,7 +48,7 @@
   },
   "devDependencies": {
     "@miniflare/shared-test": "2.14.2",
-    "miniflare": "2.14.2",
+    "miniflare": "2.14.3",
     "react-dom": "^18.1.0",
     "vitest": "^0.34.3"
   }
