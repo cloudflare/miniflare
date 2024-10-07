@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/html-rewriter",
-  "version": "2.14.2",
+  "version": "2.14.3",
   "description": "HTMLRewriter module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -35,12 +35,12 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/core": "2.14.2",
-    "@miniflare/shared": "2.14.2",
+    "@miniflare/core": "2.14.3",
+    "@miniflare/shared": "2.14.3",
     "html-rewriter-wasm": "^0.4.1",
     "undici": "5.28.4"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.14.2"
+    "@miniflare/shared-test": "2.14.3"
   }
 }

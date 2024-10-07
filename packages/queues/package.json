@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/queues",
-  "version": "2.14.2",
+  "version": "2.14.3",
   "description": "Workers Queues module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -35,9 +35,9 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/shared": "2.14.2"
+    "@miniflare/shared": "2.14.3"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.14.2"
+    "@miniflare/shared-test": "2.14.3"
   }
 }

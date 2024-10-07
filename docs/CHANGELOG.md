@@ -1,5 +1,19 @@
 # 🚧 Changelog
 
+## 2.14.3
+
+### Fixes
+
+- Bump undici version from 5.28.3 to 5.28.4. Thanks
+  [@italopiresshopify](https://github.com/italopiresshopify) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/773).
+- Bump undici to 5.28.3 to fix CVE-2024-24758. Thanks
+  [@vavsab](https://github.com/vavsab) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/758).
+- Fix `body.cancel()` throwing `undefined`. Thanks
+  [@jahands](https://github.com/jahands) for
+  [the PR](https://github.com/cloudflare/miniflare/pull/757).
+
 ## 2.14.2
 
 ### Fixes

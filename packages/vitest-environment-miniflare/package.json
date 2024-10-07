@@ -37,17 +37,17 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/runner-vm": "2.14.2",
-    "@miniflare/queues": "2.14.2",
-    "@miniflare/shared": "2.14.2",
-    "@miniflare/shared-test-environment": "2.14.2",
+    "@miniflare/runner-vm": "2.14.3",
+    "@miniflare/queues": "2.14.3",
+    "@miniflare/shared": "2.14.3",
+    "@miniflare/shared-test-environment": "2.14.3",
     "undici": "5.28.4"
   },
   "peerDependencies": {
     "vitest": ">=0.23.0"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.14.2",
+    "@miniflare/shared-test": "2.14.3",
     "miniflare": "2.14.3",
     "react-dom": "^18.1.0",
     "vitest": "^0.34.3"
