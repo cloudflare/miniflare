@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@miniflare/shared-test",
-  "version": "2.14.3",
+  "version": "2.14.4",
   "description": "Shared testing utility module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -33,12 +33,12 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/cli-parser": "2.14.3",
-    "@miniflare/core": "2.14.3",
-    "@miniflare/queues": "2.14.3",
-    "@miniflare/runner-vm": "2.14.3",
-    "@miniflare/shared": "2.14.3",
-    "@miniflare/storage-memory": "2.14.3",
+    "@miniflare/cli-parser": "2.14.4",
+    "@miniflare/core": "2.14.4",
+    "@miniflare/queues": "2.14.4",
+    "@miniflare/runner-vm": "2.14.4",
+    "@miniflare/shared": "2.14.4",
+    "@miniflare/storage-memory": "2.14.4",
     "ws": "^8.2.2"
   }
 }

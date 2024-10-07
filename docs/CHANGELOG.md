@@ -1,5 +1,11 @@
 # 🚧 Changelog
 
+## 2.14.4
+
+### Fixes
+
+- Re-release of `2.14.3` to fix release issues
+
 ## 2.14.3
 
 ### Fixes
