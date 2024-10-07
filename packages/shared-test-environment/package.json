@@ -1,6 +1,6 @@
 {
   "name": "@miniflare/shared-test-environment",
-  "version": "2.14.2",
+  "version": "2.14.4",
   "description": "Shared test environment utility module for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -37,17 +37,17 @@
   },
   "dependencies": {
     "@cloudflare/workers-types": "^4.20221111.1",
-    "@miniflare/cache": "2.14.2",
-    "@miniflare/core": "2.14.2",
-    "@miniflare/d1": "2.14.2",
-    "@miniflare/durable-objects": "2.14.2",
-    "@miniflare/html-rewriter": "2.14.2",
-    "@miniflare/kv": "2.14.2",
-    "@miniflare/queues": "2.14.2",
-    "@miniflare/r2": "2.14.2",
-    "@miniflare/shared": "2.14.2",
-    "@miniflare/sites": "2.14.2",
-    "@miniflare/storage-memory": "2.14.2",
-    "@miniflare/web-sockets": "2.14.2"
+    "@miniflare/cache": "2.14.4",
+    "@miniflare/core": "2.14.4",
+    "@miniflare/d1": "2.14.4",
+    "@miniflare/durable-objects": "2.14.4",
+    "@miniflare/html-rewriter": "2.14.4",
+    "@miniflare/kv": "2.14.4",
+    "@miniflare/queues": "2.14.4",
+    "@miniflare/r2": "2.14.4",
+    "@miniflare/shared": "2.14.4",
+    "@miniflare/sites": "2.14.4",
+    "@miniflare/storage-memory": "2.14.4",
+    "@miniflare/web-sockets": "2.14.4"
   }
 }

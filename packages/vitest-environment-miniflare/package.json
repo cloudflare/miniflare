@@ -1,6 +1,6 @@
 {
   "name": "vitest-environment-miniflare",
-  "version": "2.14.3",
+  "version": "2.14.4",
   "description": "Vitest testing environment for Miniflare: a fun, full-featured, fully-local simulator for Cloudflare Workers",
   "keywords": [
     "cloudflare",
@@ -37,18 +37,18 @@
     "extends": "../../package.json"
   },
   "dependencies": {
-    "@miniflare/runner-vm": "2.14.2",
-    "@miniflare/queues": "2.14.2",
-    "@miniflare/shared": "2.14.2",
-    "@miniflare/shared-test-environment": "2.14.2",
+    "@miniflare/runner-vm": "2.14.4",
+    "@miniflare/queues": "2.14.4",
+    "@miniflare/shared": "2.14.4",
+    "@miniflare/shared-test-environment": "2.14.4",
     "undici": "5.28.4"
   },
   "peerDependencies": {
     "vitest": ">=0.23.0"
   },
   "devDependencies": {
-    "@miniflare/shared-test": "2.14.2",
-    "miniflare": "2.14.3",
+    "@miniflare/shared-test": "2.14.4",
+    "miniflare": "2.14.4",
     "react-dom": "^18.1.0",
     "vitest": "^0.34.3"
   }
