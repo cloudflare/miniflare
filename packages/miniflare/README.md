@@ -1,7 +1,6 @@
 > [!WARNING]
 >
-> This repository is for [Miniflare 2](https://legacy.miniflare.dev/), which is
-> **only receiving critical security updates.** Miniflare 2 simulated the
+> This repository is for [Miniflare 2](https://legacy.miniflare.dev/). Miniflare 2 simulated the
 > Workers runtime and the rest of the Cloudflare developer platform using
 > Node.js. New versions of Miniflare can be found in the
 > [`workers-sdk`](https://github.com/cloudflare/workers-sdk/tree/main/packages/miniflare)
@@ -9,12 +8,12 @@
 > [open-sourced](https://blog.cloudflare.com/workerd-open-source-workers-runtime/)
 > Workers runtime [`workerd`](https://github.com/cloudflare/workerd). This
 > practically eliminates behaviour mismatches between development and production
-> deployments. We recommend you
-> [migrate to Miniflare 3](https://miniflare.dev/get-started/migrating) now if
-> you can. Whilst Miniflare 3 supports most of Miniflare 2's features, one key
-> omission is the unit testing environment. We're actively working on adding
-> support for this to Miniflare 3. Once this is supported, we're planning to
-> deprecate Miniflare 2 and archive this repository.
+> deployments.
+> 
+> Since the release of Miniflare v3 in 2023, we’ve seen great adoption, and today [almost 90%](https://npmtrends.com/@miniflare/kv-vs-miniflare) of Miniflare installations are of v3.
+>
+> As such, Miniflare v2 is now deprecated. This means no new features or bug fixes are being  published. We strongly recommend you upgrade to the latest version of Miniflare to receive continued support. We have a migration guide to make this process easy! If you encounter any difficulties, please let us know by filing an issue on our GitHub repo: https://github.com/cloudflare/workers-sdk/issues/new/choose  
+
 
 # 🔥 Miniflare 2
 
