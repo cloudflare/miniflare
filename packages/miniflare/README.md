@@ -12,7 +12,7 @@
 > 
 > Since the release of Miniflare v3 in 2023, we’ve seen great adoption, and today [almost 90%](https://npmtrends.com/@miniflare/kv-vs-miniflare) of Miniflare installations are of v3.
 >
-> As such, Miniflare v2 is now deprecated. This means no new features or bug fixes are being  published. We strongly recommend you upgrade to the latest version of Miniflare to receive continued support. We have a migration guide to make this process easy! If you encounter any difficulties, please let us know by filing an issue on our GitHub repo: https://github.com/cloudflare/workers-sdk/issues/new/choose  
+> As such, Miniflare v2 is now deprecated. This means no new features or bug fixes are being  published. We strongly recommend you upgrade to the latest version of Miniflare to receive continued support. We have a [migration guide](https://developers.cloudflare.com/workers/testing/miniflare/migrations/from-v2/) to make this process easy! If you encounter any difficulties, please let us know by filing an issue on our GitHub repo: https://github.com/cloudflare/workers-sdk/issues/new/choose  
 
 
 # 🔥 Miniflare 2
